@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
+require_once __DIR__ . '/class-ufsc-asptt-importer.php';
 
 class UFSC_Licence_Competition {
 	private static $instance = null;
@@ -26,10 +27,16 @@ class UFSC_Licence_Competition {
 	public function activate() {
 		$documents = new UFSC_Licence_Documents();
 		$documents->create_table();
+
+		$importer = new UFSC_ASPTT_Importer();
+		$importer->create_tables();
 	}
 
 	public function init() {
 		$documents = new UFSC_Licence_Documents();
 		$documents->register();
+
+		$importer = new UFSC_ASPTT_Importer();
+		$importer->register();
 	}
 }

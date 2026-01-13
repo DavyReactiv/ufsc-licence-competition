@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class UFSC_Licence_Documents {
 	const DB_VERSION = '1.0.0';
+	const SOURCE     = 'UFSC';
 
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
@@ -26,12 +27,16 @@ class UFSC_Licence_Documents {
 		$sql = "CREATE TABLE {$table_name} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			licence_id bigint(20) unsigned NOT NULL,
-			club_id bigint(20) unsigned NOT NULL,
-			attachment_id bigint(20) unsigned NOT NULL,
-			uploaded_at datetime NOT NULL,
+			source varchar(50) NOT NULL,
+			source_licence_number varchar(100) NOT NULL,
+			attachment_id bigint(20) unsigned NULL,
+			asptt_club_note varchar(255) NULL,
+			imported_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
-			UNIQUE KEY licence_id (licence_id),
-			KEY club_id (club_id)
+			UNIQUE KEY uniq_source_number (source, source_licence_number),
+			KEY idx_licence_source (licence_id, source),
+			KEY licence_id (licence_id)
 		) {$charset_collate};";
 
 		dbDelta( $sql );
@@ -129,7 +134,7 @@ class UFSC_Licence_Documents {
 			$this->redirect_with_message( 'error', $attachment_id->get_error_message() );
 		}
 
-		$this->upsert_document( (int) $licence->id, (int) $licence->club_id, (int) $attachment_id );
+		$this->upsert_document( (int) $licence->id, $numero_licence, (int) $attachment_id );
 
 		$this->redirect_with_message( 'success', __( 'PDF associé avec succès.', 'ufsc-licence-competition' ) );
 	}
@@ -255,7 +260,13 @@ class UFSC_Licence_Documents {
 
 		$table = $this->get_documents_table();
 
-		return $wpdb->get_row( $wpdb->prepare( "SELECT id, attachment_id FROM {$table} WHERE licence_id = %d", $licence_id ) );
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id, attachment_id FROM {$table} WHERE licence_id = %d AND source = %s",
+				$licence_id,
+				self::SOURCE
+			)
+		);
 	}
 
 	private function get_club_licences_with_documents( $club_id ) {
@@ -268,33 +279,45 @@ class UFSC_Licence_Documents {
 			$wpdb->prepare(
 				"SELECT l.id AS licence_id, l.numero_licence_delegataire, d.attachment_id
 				 FROM {$licences_table} l
-				 LEFT JOIN {$documents_table} d ON d.licence_id = l.id
+				 LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
 				 WHERE l.club_id = %d
 				 ORDER BY l.id ASC",
+				self::SOURCE,
 				$club_id
 			)
 		);
 	}
 
-	private function upsert_document( $licence_id, $club_id, $attachment_id ) {
+	private function upsert_document( $licence_id, $source_number, $attachment_id ) {
 		global $wpdb;
 
 		$table = $this->get_documents_table();
 
-		$existing_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE licence_id = %d", $licence_id ) );
-
-		$data = array(
-			'licence_id'    => $licence_id,
-			'club_id'       => $club_id,
-			'attachment_id' => $attachment_id,
-			'uploaded_at'   => current_time( 'mysql' ),
+		$existing_id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE licence_id = %d AND source = %s",
+				$licence_id,
+				self::SOURCE
+			)
 		);
 
-		$formats = array( '%d', '%d', '%d', '%s' );
+		$source_number = '' !== $source_number ? $source_number : (string) $licence_id;
+
+		$data = array(
+			'licence_id'            => $licence_id,
+			'source'                => self::SOURCE,
+			'source_licence_number' => $source_number,
+			'attachment_id'         => $attachment_id,
+			'asptt_club_note'        => null,
+			'updated_at'             => current_time( 'mysql' ),
+		);
+
+		$formats = array( '%d', '%s', '%s', '%d', '%s', '%s' );
 
 		if ( $existing_id ) {
 			$wpdb->update( $table, $data, array( 'id' => (int) $existing_id ), $formats, array( '%d' ) );
 		} else {
+			$data['imported_at'] = current_time( 'mysql' );
 			$wpdb->insert( $table, $data, $formats );
 		}
 	}
