@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! class_exists( 'UFSC_ASPTT_Importer' ) ) {
 class UFSC_ASPTT_Importer {
 	const SOURCE = 'ASPTT';
 
@@ -846,4 +847,5 @@ class UFSC_ASPTT_Importer {
 
 		return $wpdb->prefix . 'ufsc_licences';
 	}
+}
 }

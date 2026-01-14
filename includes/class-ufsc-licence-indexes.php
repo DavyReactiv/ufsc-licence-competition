@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! class_exists( 'UFSC_Licence_Indexes' ) ) {
 class UFSC_Licence_Indexes {
 	public function ensure_indexes() {
 		global $wpdb;
@@ -69,4 +70,5 @@ class UFSC_Licence_Indexes {
 
 		$wpdb->query( "ALTER TABLE {$table} ADD {$index_type} `{$index_name}` ({$columns_sql})" );
 	}
+}
 }

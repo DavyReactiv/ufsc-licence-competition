@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! class_exists( 'UFSC_Club_Licences_Shortcode' ) ) {
 class UFSC_Club_Licences_Shortcode {
 	const SOURCE = 'ASPTT';
 
@@ -432,4 +433,5 @@ class UFSC_Club_Licences_Shortcode {
 
 		return $wpdb->prefix . 'ufsc_clubs';
 	}
+}
 }

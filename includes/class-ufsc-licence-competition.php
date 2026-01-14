@@ -10,6 +10,7 @@ require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
 require_once __DIR__ . '/class-ufsc-licence-indexes.php';
 require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 
+if ( ! class_exists( 'UFSC_Licence_Competition' ) ) {
 class UFSC_Licence_Competition {
 	private static $instance = null;
 
@@ -51,4 +52,5 @@ class UFSC_Licence_Competition {
 		$shortcode = new UFSC_Club_Licences_Shortcode();
 		$shortcode->register();
 	}
+}
 }

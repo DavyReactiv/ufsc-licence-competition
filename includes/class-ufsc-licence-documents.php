@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! class_exists( 'UFSC_Licence_Documents' ) ) {
 class UFSC_Licence_Documents {
 	const DB_VERSION = '1.0.0';
 	const SOURCE     = 'UFSC';
@@ -358,4 +359,5 @@ class UFSC_Licence_Documents {
 		wp_safe_redirect( $redirect_url );
 		exit;
 	}
+}
 }
