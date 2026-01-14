@@ -4,17 +4,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'UFSC_Licence_Documents' ) ) {
-class UFSC_Licence_Documents {
-	const DB_VERSION = '1.1.0';
-	const SOURCE     = 'UFSC';
+class UFSC_LC_Licence_Documents {
+	const SOURCE = 'UFSC';
+
+	private $legacy_enabled = false;
+
+	public function __construct( $legacy_enabled = false ) {
+		$this->legacy_enabled = (bool) $legacy_enabled;
+	}
 
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
-		add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
-		add_shortcode( 'ufsc_licences', array( $this, 'render_club_licences_shortcode' ) );
-		add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
-		add_action( 'admin_post_nopriv_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
+		add_action( 'admin_post_ufsc_lc_upload_licence_pdf', array( $this, 'handle_upload' ) );
+		add_action( 'admin_post_ufsc_lc_download_licence_pdf', array( $this, 'handle_download' ) );
+
+		if ( $this->legacy_enabled ) {
+			add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
+			add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
+		}
 	}
 
 	public function create_table() {
@@ -44,7 +51,6 @@ class UFSC_Licence_Documents {
 
 		dbDelta( $sql );
 
-		update_option( 'ufsc_licence_documents_db_version', self::DB_VERSION );
 	}
 
 	public function register_admin_menu() {
@@ -76,8 +82,8 @@ class UFSC_Licence_Documents {
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Associer un PDF de licence', 'ufsc-licence-competition' ); ?></h1>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
-				<?php wp_nonce_field( 'ufsc_upload_licence_pdf', 'ufsc_upload_nonce' ); ?>
-				<input type="hidden" name="action" value="ufsc_upload_licence_pdf">
+				<?php wp_nonce_field( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' ); ?>
+				<input type="hidden" name="action" value="ufsc_lc_upload_licence_pdf">
 
 				<table class="form-table" role="presentation">
 					<tr>
@@ -104,7 +110,7 @@ class UFSC_Licence_Documents {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		check_admin_referer( 'ufsc_upload_licence_pdf', 'ufsc_upload_nonce' );
+		check_admin_referer( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' );
 
 		$licence_id = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
 		$numero_licence = isset( $_POST['numero_licence_delegataire'] ) ? sanitize_text_field( wp_unslash( $_POST['numero_licence_delegataire'] ) ) : '';
@@ -142,54 +148,6 @@ class UFSC_Licence_Documents {
 		$this->redirect_with_message( 'success', __( 'PDF associé avec succès.', 'ufsc-licence-competition' ) );
 	}
 
-	public function render_club_licences_shortcode() {
-		if ( ! is_user_logged_in() ) {
-			return esc_html__( 'Veuillez vous connecter pour voir vos licences.', 'ufsc-licence-competition' );
-		}
-
-		$club_id = $this->get_current_user_club_id();
-		if ( ! $club_id ) {
-			return esc_html__( 'Aucun club associé à votre compte.', 'ufsc-licence-competition' );
-		}
-
-		$licences = $this->get_club_licences_with_documents( $club_id );
-		if ( empty( $licences ) ) {
-			return esc_html__( 'Aucune licence trouvée pour ce club.', 'ufsc-licence-competition' );
-		}
-
-		ob_start();
-		?>
-		<table class="ufsc-licence-table">
-			<thead>
-				<tr>
-					<th><?php esc_html_e( 'Licence ID', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Numéro licence', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php foreach ( $licences as $licence ) : ?>
-					<tr>
-						<td><?php echo esc_html( $licence->licence_id ); ?></td>
-						<td><?php echo esc_html( $licence->numero_licence_delegataire ); ?></td>
-						<td>
-							<?php if ( $licence->attachment_id ) : ?>
-								<?php $download_url = $this->get_download_url( $licence->licence_id ); ?>
-								<a href="<?php echo esc_url( $download_url ); ?>">
-									<?php esc_html_e( 'Télécharger', 'ufsc-licence-competition' ); ?>
-								</a>
-							<?php else : ?>
-								<?php esc_html_e( 'Non disponible', 'ufsc-licence-competition' ); ?>
-							<?php endif; ?>
-						</td>
-					</tr>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
-		<?php
-		return ob_get_clean();
-	}
-
 	public function handle_download() {
 		if ( ! is_user_logged_in() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
@@ -198,7 +156,7 @@ class UFSC_Licence_Documents {
 		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;
 		$nonce      = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
-		if ( ! $licence_id || ! wp_verify_nonce( $nonce, 'ufsc_download_licence_pdf_' . $licence_id ) ) {
+		if ( ! $licence_id || ! wp_verify_nonce( $nonce, 'ufsc_lc_download_licence_pdf_' . $licence_id ) ) {
 			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ) );
 		}
 
@@ -237,13 +195,24 @@ class UFSC_Licence_Documents {
 		return wp_nonce_url(
 			add_query_arg(
 				array(
-					'action'     => 'ufsc_download_licence_pdf',
+					'action'     => 'ufsc_lc_download_licence_pdf',
 					'licence_id' => (int) $licence_id,
 				),
 				admin_url( 'admin-post.php' )
 			),
-			'ufsc_download_licence_pdf_' . (int) $licence_id
+			'ufsc_lc_download_licence_pdf_' . (int) $licence_id
 		);
+	}
+
+	private function get_current_user_club_id() {
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return 0;
+		}
+
+		$club_id = get_user_meta( $user_id, 'club_id', true );
+
+		return $club_id ? (int) $club_id : 0;
 	}
 
 	private function get_licence_record( $licence_id, $numero_licence ) {
@@ -268,25 +237,6 @@ class UFSC_Licence_Documents {
 				"SELECT id, attachment_id FROM {$table} WHERE licence_id = %d AND source = %s",
 				$licence_id,
 				self::SOURCE
-			)
-		);
-	}
-
-	private function get_club_licences_with_documents( $club_id ) {
-		global $wpdb;
-
-		$licences_table  = $this->get_licences_table();
-		$documents_table = $this->get_documents_table();
-
-		return $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT l.id AS licence_id, l.numero_licence_delegataire, d.attachment_id
-				 FROM {$licences_table} l
-				 LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
-				 WHERE l.club_id = %d
-				 ORDER BY l.id ASC",
-				self::SOURCE,
-				$club_id
 			)
 		);
 	}
@@ -325,17 +275,6 @@ class UFSC_Licence_Documents {
 		}
 	}
 
-	private function get_current_user_club_id() {
-		$user_id = get_current_user_id();
-		if ( ! $user_id ) {
-			return 0;
-		}
-
-		$club_id = get_user_meta( $user_id, 'club_id', true );
-
-		return $club_id ? (int) $club_id : 0;
-	}
-
 	private function get_documents_table() {
 		global $wpdb;
 
@@ -361,5 +300,4 @@ class UFSC_Licence_Documents {
 		wp_safe_redirect( $redirect_url );
 		exit;
 	}
-}
 }

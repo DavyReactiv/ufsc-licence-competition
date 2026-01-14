@@ -1,0 +1,136 @@
+<?php
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+require_once __DIR__ . '/class-ufsc-licence-documents.php';
+require_once __DIR__ . '/class-ufsc-asptt-importer.php';
+require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
+require_once __DIR__ . '/class-ufsc-licence-indexes.php';
+require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
+
+class UFSC_LC_Plugin {
+	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
+	const DB_VERSION        = '1.2.0';
+	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
+
+	private static $instance;
+	private $plugin_file;
+	private $legacy_enabled = false;
+	private $dependencies_met = true;
+	private $dependency_missing = array();
+
+	public static function init( $plugin_file ) {
+		if ( null === self::$instance ) {
+			self::$instance = new self( $plugin_file );
+		}
+
+		return self::$instance;
+	}
+
+	private function __construct( $plugin_file ) {
+		$this->plugin_file   = $plugin_file;
+		$this->legacy_enabled = $this->is_legacy_enabled();
+
+		register_activation_hook( $this->plugin_file, array( $this, 'activate' ) );
+
+		add_action( 'plugins_loaded', array( $this, 'boot' ) );
+		add_action( 'admin_init', array( $this, 'maybe_upgrade' ) );
+	}
+
+	public function activate() {
+		$this->create_tables_and_indexes();
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+	}
+
+	public function boot() {
+		$this->dependencies_met = $this->check_dependencies();
+		if ( ! $this->dependencies_met ) {
+			add_action( 'admin_notices', array( $this, 'render_dependency_notice' ) );
+			return;
+		}
+
+		$documents = new UFSC_LC_Licence_Documents( $this->legacy_enabled );
+		$documents->register();
+
+		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
+		$importer->register();
+
+		$licences_admin = new UFSC_LC_Licences_Admin();
+		$licences_admin->register();
+
+		$shortcode = new UFSC_LC_Club_Licences_Shortcode( $this->legacy_enabled );
+		$shortcode->register();
+	}
+
+	public function maybe_upgrade() {
+		if ( ! is_admin() ) {
+			return;
+		}
+
+		$installed = get_option( self::DB_VERSION_OPTION, '0' );
+		if ( version_compare( $installed, self::DB_VERSION, '>=' ) ) {
+			return;
+		}
+
+		$this->create_tables_and_indexes();
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+	}
+
+	private function create_tables_and_indexes() {
+		$documents = new UFSC_LC_Licence_Documents( $this->legacy_enabled );
+		$documents->create_table();
+
+		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
+		$importer->create_tables();
+
+		$indexes = new UFSC_LC_Licence_Indexes();
+		$indexes->ensure_indexes();
+	}
+
+	private function is_legacy_enabled() {
+		$enabled = (bool) get_option( self::LEGACY_OPTION, false );
+
+		return (bool) apply_filters( 'ufsc_lc_enable_legacy_compatibility', $enabled );
+	}
+
+	private function check_dependencies() {
+		global $wpdb;
+
+		$tables = array(
+			$wpdb->prefix . 'ufsc_licences' => __( 'table des licences UFSC', 'ufsc-licence-competition' ),
+			$wpdb->prefix . 'ufsc_clubs'    => __( 'table des clubs UFSC', 'ufsc-licence-competition' ),
+		);
+
+		$missing = array();
+		foreach ( $tables as $table => $label ) {
+			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+			if ( $exists !== $table ) {
+				$missing[] = $label;
+			}
+		}
+
+		$this->dependency_missing = $missing;
+
+		$met = empty( $missing );
+
+		return (bool) apply_filters( 'ufsc_lc_dependencies_met', $met, $missing );
+	}
+
+	public function render_dependency_notice() {
+		if ( empty( $this->dependency_missing ) ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-error"><p>%s</p></div>',
+			esc_html(
+				sprintf(
+					__( 'UFSC Licence Competition add-on: dépendances manquantes (%s). Les fonctionnalités administratives ne sont pas chargées.', 'ufsc-licence-competition' ),
+					implode( ', ', $this->dependency_missing )
+				)
+			)
+		);
+	}
+}

@@ -11,6 +11,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-require_once __DIR__ . '/includes/class-ufsc-licence-competition.php';
+require_once __DIR__ . '/includes/class-ufsc-lc-plugin.php';
 
-UFSC_Licence_Competition::get_instance();
+UFSC_LC_Plugin::init( __FILE__ );
