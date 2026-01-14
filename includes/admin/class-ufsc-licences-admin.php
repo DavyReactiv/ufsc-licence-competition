@@ -6,8 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/class-ufsc-licences-list-table.php';
 
-if ( ! class_exists( 'UFSC_Licences_Admin' ) ) {
-class UFSC_Licences_Admin {
+class UFSC_LC_Licences_Admin {
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ) );
 	}
@@ -28,7 +27,7 @@ class UFSC_Licences_Admin {
 			return;
 		}
 
-		$list_table = new UFSC_Competition_Licences_List_Table();
+		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$list_table->prepare_items();
 
 		?>
@@ -42,5 +41,4 @@ class UFSC_Licences_Admin {
 		</div>
 		<?php
 	}
-}
 }

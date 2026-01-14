@@ -4,8 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! class_exists( 'UFSC_Licence_Indexes' ) ) {
-class UFSC_Licence_Indexes {
+class UFSC_LC_Licence_Indexes {
 	public function ensure_indexes() {
 		global $wpdb;
 
@@ -36,6 +35,7 @@ class UFSC_Licence_Indexes {
 
 		$this->add_index_if_missing( $table, $indexes, 'idx_licence_source', array( 'licence_id', 'source' ) );
 		$this->add_index_if_missing( $table, $indexes, 'uniq_source_number', array( 'source', 'source_licence_number' ), true );
+		$this->add_index_if_missing( $table, $indexes, 'idx_source_created_at', array( 'source_created_at' ) );
 	}
 
 	private function table_exists( $table ) {
@@ -70,5 +70,4 @@ class UFSC_Licence_Indexes {
 
 		$wpdb->query( "ALTER TABLE {$table} ADD {$index_type} `{$index_name}` ({$columns_sql})" );
 	}
-}
 }
