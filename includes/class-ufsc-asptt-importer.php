@@ -398,7 +398,7 @@ class UFSC_ASPTT_Importer {
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 
 		$output = fopen( 'php://output', 'w' );
-		fputcsv( $output, array( 'Nom', 'Prenom', 'Date de naissance', 'Note', 'N° Licence', 'Date de création de la licence', 'Status', 'Erreur' ), ';' );
+		fputcsv( $output, array( 'Nom', 'Prenom', 'Date de naissance', 'Note', 'N° Licence', 'Date de création de la licence', 'Statut', 'Erreur' ), ';' );
 
 		foreach ( $preview['errors'] as $error ) {
 			fputcsv(
@@ -459,8 +459,6 @@ class UFSC_ASPTT_Importer {
 
 			$licence_id = 0;
 			$status     = self::STATUS_CLUB_NOT_FOUND;
-			$error      = '';
-
 			if ( '' === $asptt_no ) {
 				$status = self::STATUS_INVALID_ASPTT_NUMBER;
 				$stats['invalid_asptt_number']++;
@@ -531,7 +529,7 @@ class UFSC_ASPTT_Importer {
 					'date_naissance'=> $dob,
 					'note'          => $note,
 					'asptt_number'  => $asptt_no,
-					'source_created_at' => $raw_created_at,
+					'source_created_at' => ( null !== $source_created_at ) ? $source_created_at : $raw_created_at,
 					'status'        => $status,
 					'error'         => implode( ' | ', $row_errors ),
 				);
