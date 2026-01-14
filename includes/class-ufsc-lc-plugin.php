@@ -46,11 +46,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function boot() {
-		load_plugin_textdomain(
-			'ufsc-licence-competition',
-			false,
-			dirname( plugin_basename( $this->plugin_file ) ) . '/languages'
-		);
+		add_action( 'init', array( $this, 'load_textdomain' ) );
 
 		$status_page = new UFSC_LC_Status_Page();
 		$status_page->register();
@@ -74,6 +70,14 @@ class UFSC_LC_Plugin {
 
 		$shortcode = new UFSC_LC_Club_Licences_Shortcode( $this->legacy_enabled );
 		$shortcode->register();
+	}
+
+	public function load_textdomain() {
+		load_plugin_textdomain(
+			'ufsc-licence-competition',
+			false,
+			dirname( plugin_basename( $this->plugin_file ) ) . '/languages'
+		);
 	}
 
 	public function maybe_upgrade() {
@@ -123,8 +127,8 @@ class UFSC_LC_Plugin {
 		global $wpdb;
 
 		$tables = array(
-			$wpdb->prefix . 'ufsc_licences' => __( 'table des licences UFSC', 'ufsc-licence-competition' ),
-			$wpdb->prefix . 'ufsc_clubs'    => __( 'table des clubs UFSC', 'ufsc-licence-competition' ),
+			$wpdb->prefix . 'ufsc_licences' => 'table des licences UFSC',
+			$wpdb->prefix . 'ufsc_clubs'    => 'table des clubs UFSC',
 		);
 
 		$missing = array();
@@ -147,12 +151,19 @@ class UFSC_LC_Plugin {
 			return;
 		}
 
+		$missing = array_map(
+			function( $label ) {
+				return __( $label, 'ufsc-licence-competition' );
+			},
+			$this->dependency_missing
+		);
+
 		printf(
 			'<div class="notice notice-error"><p>%s</p></div>',
 			esc_html(
 				sprintf(
 					__( 'UFSC Licence Competition add-on: dépendances manquantes (%s). Les fonctionnalités administratives ne sont pas chargées.', 'ufsc-licence-competition' ),
-					implode( ', ', $this->dependency_missing )
+					implode( ', ', $missing )
 				)
 			)
 		);
