@@ -37,7 +37,8 @@ class UFSC_LC_Plugin {
 
 		register_activation_hook( $this->plugin_file, array( $this, 'activate' ) );
 
-		add_action( 'plugins_loaded', array( $this, 'boot' ) );
+		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
+		add_action( 'init', array( $this, 'boot' ), 5 );
 	}
 
 	public function activate() {
@@ -46,8 +47,6 @@ class UFSC_LC_Plugin {
 	}
 
 	public function boot() {
-		add_action( 'init', array( $this, 'load_textdomain' ) );
-
 		$status_page = new UFSC_LC_Status_Page();
 		$status_page->register();
 
