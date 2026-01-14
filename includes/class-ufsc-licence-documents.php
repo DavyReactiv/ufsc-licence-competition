@@ -30,6 +30,7 @@ class UFSC_LC_Licence_Documents {
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 		$table_name      = $this->get_documents_table();
+		$meta_table_name = $this->get_documents_meta_table();
 		$charset_collate = $wpdb->get_charset_collate();
 
 		$sql = "CREATE TABLE {$table_name} (
@@ -50,6 +51,21 @@ class UFSC_LC_Licence_Documents {
 		) {$charset_collate};";
 
 		dbDelta( $sql );
+
+		$meta_sql = "CREATE TABLE {$meta_table_name} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			licence_id bigint(20) unsigned NOT NULL,
+			source varchar(50) NOT NULL,
+			meta_key varchar(190) NOT NULL,
+			meta_value longtext NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY uniq_licence_meta (licence_id, source, meta_key),
+			KEY idx_meta_key (meta_key),
+			KEY idx_licence_source (licence_id, source)
+		) {$charset_collate};";
+
+		dbDelta( $meta_sql );
 
 	}
 
@@ -279,6 +295,12 @@ class UFSC_LC_Licence_Documents {
 		global $wpdb;
 
 		return $wpdb->prefix . 'ufsc_licence_documents';
+	}
+
+	private function get_documents_meta_table() {
+		global $wpdb;
+
+		return $wpdb->prefix . 'ufsc_licence_documents_meta';
 	}
 
 	private function get_licences_table() {
