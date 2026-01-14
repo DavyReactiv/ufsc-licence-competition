@@ -66,7 +66,7 @@ class UFSC_LC_ASPTT_Importer {
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			'manage_options',
-			'ufsc-asptt-import',
+			'ufsc-lc-asptt-import',
 			array( $this, 'render_admin_page' )
 		);
 	}
@@ -1052,7 +1052,7 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_admin_url() {
 		return add_query_arg(
 			array(
-				'page' => 'ufsc-asptt-import',
+				'page' => 'ufsc-lc-asptt-import',
 			),
 			admin_url( 'admin.php' )
 		);

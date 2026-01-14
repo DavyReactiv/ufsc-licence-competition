@@ -8,7 +8,7 @@ require_once __DIR__ . '/class-ufsc-licences-list-table.php';
 
 class UFSC_LC_Licences_Admin {
 	public function register() {
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
 	}
 
@@ -20,7 +20,7 @@ class UFSC_LC_Licences_Admin {
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
 			'manage_options',
-			'ufsc-licences',
+			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);
 
@@ -32,6 +32,8 @@ class UFSC_LC_Licences_Admin {
 			'ufsc-lc-status',
 			array( $this, 'render_status_page' )
 		);
+
+		$this->fix_submenu_links();
 	}
 
 	public function render_page() {
@@ -60,7 +62,7 @@ class UFSC_LC_Licences_Admin {
 			<?php endforeach; ?>
 			<?php $list_table->views(); ?>
 			<form method="get">
-				<input type="hidden" name="page" value="ufsc-licences" />
+				<input type="hidden" name="page" value="ufsc-lc-licences" />
 				<?php $filters = $list_table->get_sanitized_filters(); ?>
 				<?php if ( 'all' !== $filters['tab'] ) : ?>
 					<input type="hidden" name="ufsc_lc_tab" value="<?php echo esc_attr( $filters['tab'] ); ?>" />
@@ -155,9 +157,15 @@ class UFSC_LC_Licences_Admin {
 			}
 		}
 
-		$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
-		$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
 		$plugin_active  = class_exists( 'UFSC_LC_Plugin' );
+		$legacy_enabled = false;
+		$legacy_label   = __( 'OFF', 'ufsc-licence-competition' );
+		$db_version     = '0';
+		if ( $plugin_active ) {
+			$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
+			$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
+			$db_version     = (string) get_option( UFSC_LC_Plugin::DB_VERSION_OPTION, '0' );
+		}
 		$plugin_label   = $plugin_active ? '✅' : '❌';
 
 		?>
@@ -185,7 +193,7 @@ class UFSC_LC_Licences_Admin {
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Version DB installée', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( get_option( UFSC_LC_Plugin::DB_VERSION_OPTION, '0' ) ); ?></td>
+						<td><?php echo esc_html( $db_version ); ?></td>
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Legacy mode', 'ufsc-licence-competition' ); ?></th>
@@ -219,5 +227,29 @@ class UFSC_LC_Licences_Admin {
 		$table_name = $wpdb->prefix . $short_name;
 
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
+	}
+
+	private function fix_submenu_links() {
+		global $submenu;
+
+		if ( empty( $submenu['ufsc-licence-documents'] ) || ! is_array( $submenu['ufsc-licence-documents'] ) ) {
+			return;
+		}
+
+		$slug_map = array(
+			'ufsc-lc-status'       => 'admin.php?page=ufsc-lc-status',
+			'ufsc-lc-licences'     => 'admin.php?page=ufsc-lc-licences',
+			'ufsc-lc-asptt-import' => 'admin.php?page=ufsc-lc-asptt-import',
+		);
+
+		foreach ( $submenu['ufsc-licence-documents'] as $index => $item ) {
+			if ( ! is_array( $item ) || ! isset( $item[2] ) ) {
+				continue;
+			}
+
+			if ( isset( $slug_map[ $item[2] ] ) ) {
+				$submenu['ufsc-licence-documents'][ $index ][2] = $slug_map[ $item[2] ];
+			}
+		}
 	}
 }
