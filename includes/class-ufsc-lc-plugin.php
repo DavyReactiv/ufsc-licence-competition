@@ -36,7 +36,6 @@ class UFSC_LC_Plugin {
 		register_activation_hook( $this->plugin_file, array( $this, 'activate' ) );
 
 		add_action( 'plugins_loaded', array( $this, 'boot' ) );
-		add_action( 'admin_init', array( $this, 'maybe_upgrade' ) );
 	}
 
 	public function activate() {
@@ -50,6 +49,14 @@ class UFSC_LC_Plugin {
 			add_action( 'admin_notices', array( $this, 'render_dependency_notice' ) );
 			return;
 		}
+
+		load_plugin_textdomain(
+			'ufsc-licence-competition',
+			false,
+			dirname( plugin_basename( $this->plugin_file ) ) . '/languages'
+		);
+
+		$this->maybe_upgrade();
 
 		$documents = new UFSC_LC_Licence_Documents( $this->legacy_enabled );
 		$documents->register();
@@ -65,7 +72,11 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() ) {
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		if ( get_transient( 'ufsc_lc_upgrading' ) ) {
 			return;
 		}
 
@@ -74,8 +85,12 @@ class UFSC_LC_Plugin {
 			return;
 		}
 
+		set_transient( 'ufsc_lc_upgrading', 1, 60 );
+
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+
+		delete_transient( 'ufsc_lc_upgrading' );
 	}
 
 	private function create_tables_and_indexes() {
