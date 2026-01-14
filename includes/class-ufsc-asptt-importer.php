@@ -830,15 +830,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	private function log_import_warning( $message, $context = array() ) {
-		if ( class_exists( 'UFSC_Audit_Logger' ) && method_exists( 'UFSC_Audit_Logger', 'log' ) ) {
-			UFSC_Audit_Logger::log( $message, $context );
-			return;
-		}
-
-		if ( defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-			$payload = $context ? wp_json_encode( $context ) : '';
-			error_log( sprintf( '[UFSC ASPTT] %s %s', $message, $payload ) );
-		}
+		UFSC_LC_Logger::log( $message, $context );
 	}
 
 	private function find_club_by_name( $normalized ) {
@@ -947,7 +939,7 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_aliases_table() {
 		global $wpdb;
 
-		return $wpdb->prefix . 'ufsc_club_aliases';
+		return $wpdb->prefix . 'ufsc_asptt_aliases';
 	}
 
 	private function get_documents_table() {
