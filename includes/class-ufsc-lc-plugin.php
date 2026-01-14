@@ -9,6 +9,8 @@ require_once __DIR__ . '/class-ufsc-asptt-importer.php';
 require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
 require_once __DIR__ . '/class-ufsc-licence-indexes.php';
 require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
+require_once __DIR__ . '/class-ufsc-lc-logger.php';
+require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
@@ -44,17 +46,20 @@ class UFSC_LC_Plugin {
 	}
 
 	public function boot() {
-		$this->dependencies_met = $this->check_dependencies();
-		if ( ! $this->dependencies_met ) {
-			add_action( 'admin_notices', array( $this, 'render_dependency_notice' ) );
-			return;
-		}
-
 		load_plugin_textdomain(
 			'ufsc-licence-competition',
 			false,
 			dirname( plugin_basename( $this->plugin_file ) ) . '/languages'
 		);
+
+		$status_page = new UFSC_LC_Status_Page();
+		$status_page->register();
+
+		$this->dependencies_met = $this->check_dependencies();
+		if ( ! $this->dependencies_met ) {
+			add_action( 'admin_notices', array( $this, 'render_dependency_notice' ) );
+			return;
+		}
 
 		$this->maybe_upgrade();
 
@@ -102,6 +107,10 @@ class UFSC_LC_Plugin {
 
 		$indexes = new UFSC_LC_Licence_Indexes();
 		$indexes->ensure_indexes();
+	}
+
+	public function recreate_tables_and_indexes() {
+		$this->create_tables_and_indexes();
 	}
 
 	private function is_legacy_enabled() {
