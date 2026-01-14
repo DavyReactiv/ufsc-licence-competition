@@ -13,8 +13,6 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function register_menu() {
-		remove_submenu_page( 'ufsc-licence-documents', 'ufsc-lc-status' );
-
 		add_submenu_page(
 			'ufsc-licence-documents',
 			__( 'Licences', 'ufsc-licence-competition' ),
@@ -236,19 +234,42 @@ class UFSC_LC_Licences_Admin {
 			return;
 		}
 
-		$slug_map = array(
-			'ufsc-lc-status'       => 'admin.php?page=ufsc-lc-status',
-			'ufsc-lc-licences'     => 'admin.php?page=ufsc-lc-licences',
-			'ufsc-lc-asptt-import' => 'admin.php?page=ufsc-lc-asptt-import',
+		$addon_slugs = array(
+			'ufsc-lc-status',
+			'ufsc-lc-licences',
+			'ufsc-lc-asptt-import',
 		);
 
 		foreach ( $submenu['ufsc-licence-documents'] as $index => $item ) {
-			if ( ! is_array( $item ) || ! isset( $item[2] ) ) {
+			if ( ! is_array( $item ) || ! isset( $item[2] ) || ! is_string( $item[2] ) ) {
 				continue;
 			}
 
-			if ( isset( $slug_map[ $item[2] ] ) ) {
-				$submenu['ufsc-licence-documents'][ $index ][2] = $slug_map[ $item[2] ];
+			if ( in_array( $item[2], $addon_slugs, true ) ) {
+				$submenu['ufsc-licence-documents'][ $index ][2] = 'admin.php?page=' . $item[2];
+				continue;
+			}
+
+			if ( 0 === strpos( $item[2], 'admin.php?page=' ) ) {
+				$parsed_url = parse_url( $item[2] );
+				if ( ! is_array( $parsed_url ) || empty( $parsed_url['query'] ) ) {
+					continue;
+				}
+
+				$query_args = wp_parse_args( $parsed_url['query'] );
+				if ( empty( $query_args['page'] ) || ! in_array( $query_args['page'], $addon_slugs, true ) ) {
+					continue;
+				}
+
+				$page_slug = $query_args['page'];
+				unset( $query_args['page'] );
+
+				$new_url = 'admin.php?page=' . $page_slug;
+				if ( ! empty( $query_args ) ) {
+					$new_url .= '&' . http_build_query( $query_args, '', '&' );
+				}
+
+				$submenu['ufsc-licence-documents'][ $index ][2] = $new_url;
 			}
 		}
 	}
