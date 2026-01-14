@@ -12,6 +12,7 @@ class UFSC_ASPTT_Importer {
 	const STATUS_CLUB_NOT_FOUND  = 'club_not_found';
 	const STATUS_NEEDS_REVIEW    = 'needs_review';
 	const STATUS_LICENCE_MISSING = 'licence_not_found';
+	const STATUS_INVALID_ASPTT_NUMBER = 'invalid_asptt_number';
 
 	const SESSION_KEY = 'ufsc_asptt_preview';
 
@@ -152,6 +153,7 @@ class UFSC_ASPTT_Importer {
 			<li><?php echo esc_html( sprintf( __( 'club_not_found: %d', 'ufsc-licence-competition' ), $stats['club_not_found'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'needs_review: %d', 'ufsc-licence-competition' ), $stats['needs_review'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'licence_not_found: %d', 'ufsc-licence-competition' ), $stats['licence_not_found'] ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'invalid_asptt_number: %d', 'ufsc-licence-competition' ), $stats['invalid_asptt_number'] ) ); ?></li>
 		</ul>
 		<?php if ( ! empty( $errors ) ) : ?>
 			<p>
@@ -308,7 +310,7 @@ class UFSC_ASPTT_Importer {
 		}
 
 		foreach ( $preview['rows'] as $row ) {
-			if ( self::STATUS_LINKED !== $row['status'] ) {
+			if ( self::STATUS_LINKED !== $row['status'] || '' === $row['asptt_number'] ) {
 				continue;
 			}
 
@@ -396,7 +398,7 @@ class UFSC_ASPTT_Importer {
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 
 		$output = fopen( 'php://output', 'w' );
-		fputcsv( $output, array( 'Nom', 'Prenom', 'Date de naissance', 'Note', 'Statut', 'Erreur' ), ';' );
+		fputcsv( $output, array( 'Nom', 'Prenom', 'Date de naissance', 'Note', 'N° Licence', 'Date de création de la licence', 'Status', 'Erreur' ), ';' );
 
 		foreach ( $preview['errors'] as $error ) {
 			fputcsv(
@@ -406,6 +408,8 @@ class UFSC_ASPTT_Importer {
 					$error['prenom'],
 					$error['date_naissance'],
 					$error['note'],
+					$error['asptt_number'],
+					$error['source_created_at'],
 					$error['status'],
 					$error['error'],
 				),
@@ -437,6 +441,7 @@ class UFSC_ASPTT_Importer {
 			'club_not_found' => 0,
 			'needs_review'   => 0,
 			'licence_not_found' => 0,
+			'invalid_asptt_number' => 0,
 		);
 
 		foreach ( $rows as $row ) {
@@ -446,36 +451,55 @@ class UFSC_ASPTT_Importer {
 			$prenom   = isset( $row['Prenom'] ) ? sanitize_text_field( $row['Prenom'] ) : '';
 			$dob      = isset( $row['Date de naissance'] ) ? sanitize_text_field( $row['Date de naissance'] ) : '';
 			$asptt_no = isset( $row['N° Licence'] ) ? sanitize_text_field( $row['N° Licence'] ) : '';
+			$asptt_no = trim( $asptt_no );
 			$genre    = isset( $row['genre'] ) ? sanitize_text_field( $row['genre'] ) : '';
 			$raw_created_at = isset( $row['Date de création de la licence'] ) ? sanitize_text_field( $row['Date de création de la licence'] ) : '';
 			$source_created_at = $this->parse_source_created_at( $raw_created_at );
 			$row_errors = array();
 
-			$resolved = $this->resolve_club( $note, $force_club_id );
-
 			$licence_id = 0;
 			$status     = self::STATUS_CLUB_NOT_FOUND;
 			$error      = '';
 
-			if ( $resolved['status'] === self::STATUS_LINKED ) {
-				$stats['clubs_linked']++;
-				$licence_id = $this->find_licence_id( $resolved['club_id'], $nom, $prenom, $dob, $genre );
-				if ( $licence_id ) {
-					$status = self::STATUS_LINKED;
-					$stats['licences_linked']++;
-				} else {
-					$status = self::STATUS_LICENCE_MISSING;
-					$stats['licence_not_found']++;
-					$row_errors[] = __( 'Licence introuvable.', 'ufsc-licence-competition' );
-				}
-			} elseif ( $resolved['status'] === self::STATUS_NEEDS_REVIEW ) {
-				$status = self::STATUS_NEEDS_REVIEW;
-				$stats['needs_review']++;
-				$row_errors[] = __( 'Plusieurs clubs possibles.', 'ufsc-licence-competition' );
+			if ( '' === $asptt_no ) {
+				$status = self::STATUS_INVALID_ASPTT_NUMBER;
+				$stats['invalid_asptt_number']++;
+				$row_errors[] = __( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' );
+				$this->log_import_warning(
+					'N° Licence ASPTT manquant.',
+					array(
+						'nom'           => $nom,
+						'prenom'        => $prenom,
+						'date_naissance'=> $dob,
+						'note'          => $note,
+					)
+				);
+				$resolved = array(
+					'status'  => self::STATUS_INVALID_ASPTT_NUMBER,
+					'club_id' => 0,
+				);
 			} else {
-				$status = self::STATUS_CLUB_NOT_FOUND;
-				$stats['club_not_found']++;
-				$row_errors[] = __( 'Club introuvable.', 'ufsc-licence-competition' );
+				$resolved = $this->resolve_club( $note, $force_club_id );
+				if ( $resolved['status'] === self::STATUS_LINKED ) {
+					$stats['clubs_linked']++;
+					$licence_id = $this->find_licence_id( $resolved['club_id'], $nom, $prenom, $dob, $genre );
+					if ( $licence_id ) {
+						$status = self::STATUS_LINKED;
+						$stats['licences_linked']++;
+					} else {
+						$status = self::STATUS_LICENCE_MISSING;
+						$stats['licence_not_found']++;
+						$row_errors[] = __( 'Licence introuvable.', 'ufsc-licence-competition' );
+					}
+				} elseif ( $resolved['status'] === self::STATUS_NEEDS_REVIEW ) {
+					$status = self::STATUS_NEEDS_REVIEW;
+					$stats['needs_review']++;
+					$row_errors[] = __( 'Plusieurs clubs possibles.', 'ufsc-licence-competition' );
+				} else {
+					$status = self::STATUS_CLUB_NOT_FOUND;
+					$stats['club_not_found']++;
+					$row_errors[] = __( 'Club introuvable.', 'ufsc-licence-competition' );
+				}
 			}
 
 			if ( '' !== $raw_created_at && null === $source_created_at ) {
@@ -506,6 +530,8 @@ class UFSC_ASPTT_Importer {
 					'prenom'        => $prenom,
 					'date_naissance'=> $dob,
 					'note'          => $note,
+					'asptt_number'  => $asptt_no,
+					'source_created_at' => $raw_created_at,
 					'status'        => $status,
 					'error'         => implode( ' | ', $row_errors ),
 				);
