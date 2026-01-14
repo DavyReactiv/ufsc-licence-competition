@@ -80,6 +80,8 @@ class UFSC_LC_ASPTT_Importer {
 		$stats   = $preview ? $preview['stats'] : array();
 		$rows    = $preview ? $preview['rows'] : array();
 		$errors  = $preview ? $preview['errors'] : array();
+		$force_club_id = $preview && ! empty( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
+		$force_club    = $force_club_id ? $this->get_club_by_id( $force_club_id ) : null;
 
 		?>
 		<div class="wrap">
@@ -111,6 +113,21 @@ class UFSC_LC_ASPTT_Importer {
 					<?php submit_button( __( 'Prévisualiser', 'ufsc-licence-competition' ) ); ?>
 				</form>
 			<?php else : ?>
+				<?php if ( $force_club_id ) : ?>
+					<div class="notice notice-warning">
+						<p>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: %s: club name */
+									__( 'Mode forcer un club actif : %s', 'ufsc-licence-competition' ),
+									$force_club ? $force_club->nom : $force_club_id
+								)
+							);
+							?>
+						</p>
+					</div>
+				<?php endif; ?>
 				<?php $this->render_stats( $stats, $errors ); ?>
 				<?php $this->render_preview_table( $rows ); ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -158,6 +175,13 @@ class UFSC_LC_ASPTT_Importer {
 	private function render_preview_table( $rows ) {
 		?>
 		<h2><?php esc_html_e( 'Prévisualisation', 'ufsc-licence-competition' ); ?></h2>
+		<div style="margin: 10px 0; display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+			<label>
+				<input type="checkbox" id="ufsc-asptt-errors-only">
+				<?php esc_html_e( 'Afficher seulement erreurs', 'ufsc-licence-competition' ); ?>
+			</label>
+			<input type="search" id="ufsc-asptt-search" placeholder="<?php esc_attr_e( 'Rechercher nom/prénom/club/n°', 'ufsc-licence-competition' ); ?>" style="min-width:280px;">
+		</div>
 		<table class="widefat fixed striped">
 			<thead>
 				<tr>
@@ -167,22 +191,40 @@ class UFSC_LC_ASPTT_Importer {
 					<th><?php esc_html_e( 'Club (Note)', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Licence UFSC', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php foreach ( $rows as $index => $row ) : ?>
-					<tr>
+					<?php
+					$search_value = strtolower( trim( $row['nom'] . ' ' . $row['prenom'] . ' ' . $row['note'] . ' ' . $row['asptt_number'] ) );
+					?>
+					<tr data-has-error="<?php echo esc_attr( $row['has_error'] ? '1' : '0' ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>" data-status="<?php echo esc_attr( $row['status'] ); ?>">
 						<td><?php echo esc_html( $row['nom'] ); ?></td>
 						<td><?php echo esc_html( $row['prenom'] ); ?></td>
 						<td><?php echo esc_html( $row['date_naissance'] ); ?></td>
 						<td><?php echo esc_html( $row['note'] ); ?></td>
 						<td><?php echo esc_html( $row['licence_id'] ? $row['licence_id'] : '-' ); ?></td>
 						<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
+						<td><?php echo esc_html( $row['source_created_at'] ? $row['source_created_at'] : '-' ); ?></td>
 						<td><?php echo esc_html( $row['status'] ); ?></td>
 						<td>
-							<?php if ( in_array( $row['status'], array( self::STATUS_CLUB_NOT_FOUND, self::STATUS_NEEDS_REVIEW ), true ) ) : ?>
+							<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
+								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
+									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+									<?php foreach ( $row['club_suggestions'] as $suggestion ) : ?>
+										<option value="<?php echo esc_attr( $suggestion['id'] ); ?>">
+											<?php echo esc_html( $suggestion['name'] ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>">
+									<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
+								</button>
+								<span class="ufsc-alias-feedback" data-row-index="<?php echo esc_attr( $index ); ?>"></span>
+							<?php elseif ( self::STATUS_CLUB_NOT_FOUND === $row['status'] ) : ?>
 								<input type="text" class="ufsc-club-search" data-row-index="<?php echo esc_attr( $index ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club', 'ufsc-licence-competition' ); ?>">
 								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
 									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
@@ -201,6 +243,29 @@ class UFSC_LC_ASPTT_Importer {
 		</table>
 		<script>
 			(function() {
+				function applyFilters() {
+					var search = document.getElementById('ufsc-asptt-search');
+					var errorsOnly = document.getElementById('ufsc-asptt-errors-only');
+					var query = search ? search.value.trim().toLowerCase() : '';
+					var onlyErrors = errorsOnly ? errorsOnly.checked : false;
+					document.querySelectorAll('table.widefat tbody tr').forEach(function(row) {
+						var haystack = (row.getAttribute('data-search') || '').toLowerCase();
+						var hasError = row.getAttribute('data-has-error') === '1';
+						var matchesSearch = !query || haystack.indexOf(query) !== -1;
+						var matchesErrors = !onlyErrors || hasError;
+						row.style.display = (matchesSearch && matchesErrors) ? '' : 'none';
+					});
+				}
+
+				var searchInput = document.getElementById('ufsc-asptt-search');
+				if (searchInput) {
+					searchInput.addEventListener('input', applyFilters);
+				}
+				var errorsOnlyInput = document.getElementById('ufsc-asptt-errors-only');
+				if (errorsOnlyInput) {
+					errorsOnlyInput.addEventListener('change', applyFilters);
+				}
+
 				function fetchClubs(term, select) {
 					if (!term) {
 						select.innerHTML = '<option value=""><?php echo esc_js( __( 'Sélectionner un club', 'ufsc-licence-competition' ) ); ?></option>';
@@ -392,7 +457,7 @@ class UFSC_LC_ASPTT_Importer {
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 
 		$output = fopen( 'php://output', 'w' );
-		fputcsv( $output, array( 'Nom', 'Prenom', 'Date de naissance', 'Note', 'N° Licence', 'Date de création de la licence', 'Statut', 'Erreur' ), ';' );
+		fputcsv( $output, array( 'Nom', 'Prenom', 'DateNaissance', 'Note', 'N° Licence', 'Date ASPTT brute', 'Status', 'Erreur' ), ';' );
 
 		foreach ( $preview['errors'] as $error ) {
 			fputcsv(
@@ -403,7 +468,7 @@ class UFSC_LC_ASPTT_Importer {
 					$error['date_naissance'],
 					$error['note'],
 					$error['asptt_number'],
-					$error['source_created_at'],
+					$error['source_created_at_raw'],
 					$error['status'],
 					$error['error'],
 				),
@@ -450,6 +515,7 @@ class UFSC_LC_ASPTT_Importer {
 			$raw_created_at = isset( $row['Date de création de la licence'] ) ? sanitize_text_field( $row['Date de création de la licence'] ) : '';
 			$source_created_at = $this->parse_source_created_at( $raw_created_at );
 			$row_errors = array();
+			$club_suggestions = array();
 
 			$licence_id = 0;
 			$status     = self::STATUS_CLUB_NOT_FOUND;
@@ -469,9 +535,11 @@ class UFSC_LC_ASPTT_Importer {
 				$resolved = array(
 					'status'  => self::STATUS_INVALID_ASPTT_NUMBER,
 					'club_id' => 0,
+					'suggestions' => array(),
 				);
 			} else {
 				$resolved = $this->resolve_club( $note, $force_club_id );
+				$club_suggestions = $resolved['suggestions'];
 				if ( $resolved['status'] === self::STATUS_LINKED ) {
 					$stats['clubs_linked']++;
 					$licence_id = $this->find_licence_id( $resolved['club_id'], $nom, $prenom, $dob, $genre );
@@ -510,10 +578,13 @@ class UFSC_LC_ASPTT_Importer {
 				'note'          => $note,
 				'asptt_number'  => $asptt_no,
 				'source_created_at' => $source_created_at,
+				'source_created_at_raw' => $raw_created_at,
 				'club_id'       => $resolved['club_id'],
+				'club_suggestions' => $club_suggestions,
 				'status'        => $status,
 				'licence_id'    => $licence_id,
 				'attachment_id' => 0,
+				'has_error'     => ! empty( $row_errors ),
 			);
 
 			if ( ! empty( $row_errors ) ) {
@@ -524,6 +595,7 @@ class UFSC_LC_ASPTT_Importer {
 					'note'          => $note,
 					'asptt_number'  => $asptt_no,
 					'source_created_at' => ( null !== $source_created_at ) ? $source_created_at : $raw_created_at,
+					'source_created_at_raw' => $raw_created_at,
 					'status'        => $status,
 					'error'         => implode( ' | ', $row_errors ),
 				);
@@ -551,7 +623,7 @@ class UFSC_LC_ASPTT_Importer {
 		$header = array();
 		while ( false !== ( $data = fgetcsv( $handle, 0, ';' ) ) ) {
 			if ( empty( $header ) ) {
-				$header = $data;
+				$header = $this->map_headers( $data );
 				continue;
 			}
 
@@ -567,11 +639,73 @@ class UFSC_LC_ASPTT_Importer {
 		return $rows;
 	}
 
+	private function map_headers( $headers ) {
+		$mapped = array();
+		$used   = array();
+
+		foreach ( $headers as $header ) {
+			$key = $this->map_header( $header );
+			if ( isset( $used[ $key ] ) ) {
+				$key = $header;
+			}
+			$used[ $key ] = true;
+			$mapped[] = $key;
+		}
+
+		return $mapped;
+	}
+
+	private function map_header( $header ) {
+		$normalized = $this->normalize_header( $header );
+		$mapping = array(
+			'nom' => 'Nom',
+			'prenom' => 'Prenom',
+			'genre' => 'genre',
+			'sexe' => 'genre',
+			'date de naissance' => 'Date de naissance',
+			'date naissance' => 'Date de naissance',
+			'date of birth' => 'Date de naissance',
+			'birth date' => 'Date de naissance',
+			'n licence' => 'N° Licence',
+			'no licence' => 'N° Licence',
+			'numero licence' => 'N° Licence',
+			'numero de licence' => 'N° Licence',
+			'num licence' => 'N° Licence',
+			'licence number' => 'N° Licence',
+			'license number' => 'N° Licence',
+			'date de creation de la licence' => 'Date de création de la licence',
+			'date d creation de la licence' => 'Date de création de la licence',
+			'date creation de la licence' => 'Date de création de la licence',
+			'date creation licence' => 'Date de création de la licence',
+			'date de creation licence' => 'Date de création de la licence',
+			'date creation de licence' => 'Date de création de la licence',
+			'date creation' => 'Date de création de la licence',
+			'note' => 'Note',
+		);
+
+		return isset( $mapping[ $normalized ] ) ? $mapping[ $normalized ] : $header;
+	}
+
+	private function normalize_header( $value ) {
+		$value = trim( (string) $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$value = remove_accents( $value );
+		$value = strtolower( $value );
+		$value = preg_replace( '/[^a-z0-9]+/u', ' ', $value );
+		$value = preg_replace( '/\\s+/', ' ', $value );
+
+		return trim( $value );
+	}
+
 	private function resolve_club( $note, $force_club_id ) {
 		if ( $force_club_id ) {
 			return array(
 				'status'  => self::STATUS_LINKED,
 				'club_id' => $force_club_id,
+				'suggestions' => array(),
 			);
 		}
 
@@ -579,6 +713,7 @@ class UFSC_LC_ASPTT_Importer {
 			return array(
 				'status'  => self::STATUS_CLUB_NOT_FOUND,
 				'club_id' => 0,
+				'suggestions' => array(),
 			);
 		}
 
@@ -589,6 +724,7 @@ class UFSC_LC_ASPTT_Importer {
 			return array(
 				'status'  => self::STATUS_LINKED,
 				'club_id' => (int) $club->id,
+				'suggestions' => array(),
 			);
 		}
 
@@ -597,6 +733,7 @@ class UFSC_LC_ASPTT_Importer {
 			return array(
 				'status'  => self::STATUS_LINKED,
 				'club_id' => (int) $alias->club_id,
+				'suggestions' => array(),
 			);
 		}
 
@@ -605,19 +742,30 @@ class UFSC_LC_ASPTT_Importer {
 			return array(
 				'status'  => self::STATUS_LINKED,
 				'club_id' => (int) $suggestions[0]->id,
+				'suggestions' => array(),
 			);
 		}
 
 		if ( count( $suggestions ) > 1 ) {
+			$suggestion_rows = array();
+			foreach ( $suggestions as $suggestion ) {
+				$suggestion_rows[] = array(
+					'id'   => (int) $suggestion->id,
+					'name' => $suggestion->nom,
+				);
+			}
+
 			return array(
 				'status'  => self::STATUS_NEEDS_REVIEW,
 				'club_id' => 0,
+				'suggestions' => $suggestion_rows,
 			);
 		}
 
 		return array(
 			'status'  => self::STATUS_CLUB_NOT_FOUND,
 			'club_id' => 0,
+			'suggestions' => array(),
 		);
 	}
 
@@ -936,6 +1084,16 @@ class UFSC_LC_ASPTT_Importer {
 		$table = $this->get_clubs_table();
 
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
+	}
+
+	private function get_club_by_id( $club_id ) {
+		global $wpdb;
+
+		$table = $this->get_clubs_table();
+
+		return $wpdb->get_row(
+			$wpdb->prepare( "SELECT id, nom FROM {$table} WHERE id = %d", $club_id )
+		);
 	}
 
 	private function get_clubs_table() {
