@@ -186,7 +186,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	public function get_filter_query_args() {
 		$filters = $this->get_sanitized_filters();
 		$args = array(
-			'page'        => 'ufsc-licences',
+			'page'        => 'ufsc-lc-licences',
 			's'           => $filters['search'],
 			'club_id'     => $filters['club_id'],
 			'club_search' => $filters['club_search'],
