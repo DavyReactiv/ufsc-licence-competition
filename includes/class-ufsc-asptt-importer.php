@@ -670,7 +670,23 @@ class UFSC_ASPTT_Importer {
 			'updated_at'             => current_time( 'mysql' ),
 		);
 
-		$formats = array( '%d', '%s', '%s', '%d', '%s', '%s' );
+		$field_formats = array(
+			'licence_id'            => '%d',
+			'source'                => '%s',
+			'source_licence_number' => '%s',
+			'attachment_id'         => '%d',
+			'asptt_club_note'       => '%s',
+			'updated_at'            => '%s',
+			'source_created_at'     => '%s',
+			'imported_at'           => '%s',
+		);
+
+		$formats = array();
+		foreach ( array_keys( $data ) as $field ) {
+			if ( isset( $field_formats[ $field ] ) ) {
+				$formats[] = $field_formats[ $field ];
+			}
+		}
 
 		if ( null !== $source_created_at ) {
 			$data['source_created_at'] = $source_created_at;
@@ -681,6 +697,12 @@ class UFSC_ASPTT_Importer {
 			$wpdb->update( $table, $data, array( 'id' => (int) $existing ), $formats, array( '%d' ) );
 		} else {
 			$data['imported_at'] = current_time( 'mysql' );
+			$formats = array();
+			foreach ( array_keys( $data ) as $field ) {
+				if ( isset( $field_formats[ $field ] ) ) {
+					$formats[] = $field_formats[ $field ];
+				}
+			}
 			$wpdb->insert( $table, $data, $formats );
 		}
 	}
