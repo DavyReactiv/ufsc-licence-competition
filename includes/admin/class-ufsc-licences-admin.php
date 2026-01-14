@@ -27,7 +27,7 @@ class UFSC_Licences_Admin {
 			return;
 		}
 
-		$list_table = new UFSC_Licences_List_Table();
+		$list_table = new UFSC_Competition_Licences_List_Table();
 		$list_table->prepare_items();
 
 		?>
