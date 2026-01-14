@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'UFSC_Licence_Documents' ) ) {
 class UFSC_Licence_Documents {
-	const DB_VERSION = '1.0.0';
+	const DB_VERSION = '1.1.0';
 	const SOURCE     = 'UFSC';
 
 	public function register() {
@@ -32,12 +32,14 @@ class UFSC_Licence_Documents {
 			source_licence_number varchar(100) NOT NULL,
 			attachment_id bigint(20) unsigned NULL,
 			asptt_club_note varchar(255) NULL,
+			source_created_at datetime NULL,
 			imported_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY uniq_source_number (source, source_licence_number),
 			KEY idx_licence_source (licence_id, source),
-			KEY licence_id (licence_id)
+			KEY licence_id (licence_id),
+			KEY idx_source_created_at (source_created_at)
 		) {$charset_collate};";
 
 		dbDelta( $sql );
