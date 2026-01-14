@@ -31,8 +31,6 @@ class UFSC_ASPTT_Importer {
 
 		$charset_collate = $wpdb->get_charset_collate();
 		$aliases_table   = $this->get_aliases_table();
-		$documents_table = $this->get_documents_table();
-
 		$aliases_sql = "CREATE TABLE {$aliases_table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			club_id bigint(20) unsigned NOT NULL,
@@ -44,25 +42,31 @@ class UFSC_ASPTT_Importer {
 			KEY club_id (club_id)
 		) {$charset_collate};";
 
-		$documents_sql = "CREATE TABLE {$documents_table} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			licence_id bigint(20) unsigned NOT NULL,
-			source varchar(50) NOT NULL,
-			source_licence_number varchar(100) NOT NULL,
-			attachment_id bigint(20) unsigned NULL,
-			asptt_club_note varchar(255) NULL,
-			source_created_at datetime NULL,
-			imported_at datetime NOT NULL,
-			updated_at datetime NOT NULL,
-			PRIMARY KEY  (id),
-			UNIQUE KEY uniq_source_number (source, source_licence_number),
-			KEY idx_licence_source (licence_id, source),
-			KEY licence_id (licence_id),
-			KEY idx_source_created_at (source_created_at)
-		) {$charset_collate};";
-
 		dbDelta( $aliases_sql );
-		dbDelta( $documents_sql );
+
+		if ( class_exists( 'UFSC_Licence_Documents' ) ) {
+			$documents = new UFSC_Licence_Documents();
+			$documents->create_table();
+		} else {
+			$documents_table = $this->get_documents_table();
+			$table_exists = $wpdb->get_var(
+				$wpdb->prepare( 'SHOW TABLES LIKE %s', $documents_table )
+			);
+
+			if ( $table_exists !== $documents_table ) {
+				add_action(
+					'admin_notices',
+					function() use ( $documents_table ) {
+						echo '<div class="notice notice-error"><p>' . esc_html(
+							sprintf(
+								__( 'La table requise %s est manquante. Veuillez activer le module UFSC Licences.', 'ufsc-licence-competition' ),
+								$documents_table
+							)
+						) . '</p></div>';
+					}
+				);
+			}
+		}
 	}
 
 	public function register_admin_menu() {
