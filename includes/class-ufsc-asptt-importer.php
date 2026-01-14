@@ -51,12 +51,14 @@ class UFSC_ASPTT_Importer {
 			source_licence_number varchar(100) NOT NULL,
 			attachment_id bigint(20) unsigned NULL,
 			asptt_club_note varchar(255) NULL,
+			source_created_at datetime NULL,
 			imported_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY uniq_source_number (source, source_licence_number),
 			KEY idx_licence_source (licence_id, source),
-			KEY licence_id (licence_id)
+			KEY licence_id (licence_id),
+			KEY idx_source_created_at (source_created_at)
 		) {$charset_collate};";
 
 		dbDelta( $aliases_sql );
@@ -310,7 +312,8 @@ class UFSC_ASPTT_Importer {
 				(int) $row['licence_id'],
 				$row['asptt_number'],
 				$row['attachment_id'],
-				$row['note']
+				$row['note'],
+				$row['source_created_at']
 			);
 		}
 
@@ -440,6 +443,9 @@ class UFSC_ASPTT_Importer {
 			$dob      = isset( $row['Date de naissance'] ) ? sanitize_text_field( $row['Date de naissance'] ) : '';
 			$asptt_no = isset( $row['N° Licence'] ) ? sanitize_text_field( $row['N° Licence'] ) : '';
 			$genre    = isset( $row['genre'] ) ? sanitize_text_field( $row['genre'] ) : '';
+			$raw_created_at = isset( $row['Date de création de la licence'] ) ? sanitize_text_field( $row['Date de création de la licence'] ) : '';
+			$source_created_at = $this->parse_source_created_at( $raw_created_at );
+			$row_errors = array();
 
 			$resolved = $this->resolve_club( $note, $force_club_id );
 
@@ -456,16 +462,25 @@ class UFSC_ASPTT_Importer {
 				} else {
 					$status = self::STATUS_LICENCE_MISSING;
 					$stats['licence_not_found']++;
-					$error = __( 'Licence introuvable.', 'ufsc-licence-competition' );
+					$row_errors[] = __( 'Licence introuvable.', 'ufsc-licence-competition' );
 				}
 			} elseif ( $resolved['status'] === self::STATUS_NEEDS_REVIEW ) {
 				$status = self::STATUS_NEEDS_REVIEW;
 				$stats['needs_review']++;
-				$error = __( 'Plusieurs clubs possibles.', 'ufsc-licence-competition' );
+				$row_errors[] = __( 'Plusieurs clubs possibles.', 'ufsc-licence-competition' );
 			} else {
 				$status = self::STATUS_CLUB_NOT_FOUND;
 				$stats['club_not_found']++;
-				$error = __( 'Club introuvable.', 'ufsc-licence-competition' );
+				$row_errors[] = __( 'Club introuvable.', 'ufsc-licence-competition' );
+			}
+
+			if ( '' !== $raw_created_at && null === $source_created_at ) {
+				$row_errors[] = sprintf(
+					/* translators: %s: raw date string */
+					__( 'Date de création de la licence invalide: %s', 'ufsc-licence-competition' ),
+					$raw_created_at
+				);
+				$this->log_import_warning( 'Date de création de la licence invalide.', array( 'value' => $raw_created_at ) );
 			}
 
 			$preview_rows[] = array(
@@ -474,20 +489,21 @@ class UFSC_ASPTT_Importer {
 				'date_naissance'=> $dob,
 				'note'          => $note,
 				'asptt_number'  => $asptt_no,
+				'source_created_at' => $source_created_at,
 				'club_id'       => $resolved['club_id'],
 				'status'        => $status,
 				'licence_id'    => $licence_id,
 				'attachment_id' => 0,
 			);
 
-			if ( self::STATUS_LINKED !== $status ) {
+			if ( ! empty( $row_errors ) ) {
 				$errors[] = array(
 					'nom'           => $nom,
 					'prenom'        => $prenom,
 					'date_naissance'=> $dob,
 					'note'          => $note,
 					'status'        => $status,
-					'error'         => $error,
+					'error'         => implode( ' | ', $row_errors ),
 				);
 			}
 		}
@@ -632,7 +648,7 @@ class UFSC_ASPTT_Importer {
 		return 0;
 	}
 
-	private function upsert_document( $licence_id, $source_licence_number, $attachment_id, $note ) {
+	private function upsert_document( $licence_id, $source_licence_number, $attachment_id, $note, $source_created_at ) {
 		global $wpdb;
 
 		$table = $this->get_documents_table();
@@ -655,6 +671,11 @@ class UFSC_ASPTT_Importer {
 		);
 
 		$formats = array( '%d', '%s', '%s', '%d', '%s', '%s' );
+
+		if ( null !== $source_created_at ) {
+			$data['source_created_at'] = $source_created_at;
+			$formats[] = '%s';
+		}
 
 		if ( $existing ) {
 			$wpdb->update( $table, $data, array( 'id' => (int) $existing ), $formats, array( '%d' ) );
@@ -725,6 +746,53 @@ class UFSC_ASPTT_Importer {
 		}
 
 		return $year . '-' . $month . '-' . $day;
+	}
+
+	private function parse_source_created_at( $value ) {
+		$value = trim( (string) $value );
+		if ( '' === $value ) {
+			return null;
+		}
+
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $value ) ) {
+			$date = DateTime::createFromFormat( 'Y-m-d H:i:s', $value );
+			return $this->validate_datetime( $date ) ? $date->format( 'Y-m-d H:i:s' ) : null;
+		}
+
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+			$date = DateTime::createFromFormat( 'Y-m-d', $value );
+			return $this->validate_datetime( $date ) ? $date->format( 'Y-m-d 00:00:00' ) : null;
+		}
+
+		if ( preg_match( '/^\\d{1,2}\\/\\d{1,2}\\/\\d{4}$/', $value ) ) {
+			$date = DateTime::createFromFormat( 'd/m/Y', $value );
+			return $this->validate_datetime( $date ) ? $date->format( 'Y-m-d 00:00:00' ) : null;
+		}
+
+		return null;
+	}
+
+	private function validate_datetime( $date ) {
+		if ( ! $date ) {
+			return false;
+		}
+
+		$errors = DateTime::getLastErrors();
+		if ( ! empty( $errors['warning_count'] ) || ! empty( $errors['error_count'] ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private function log_import_warning( $message, $context = array() ) {
+		if ( class_exists( 'UFSC_Audit_Logger' ) && method_exists( 'UFSC_Audit_Logger', 'log' ) ) {
+			UFSC_Audit_Logger::log( $message, $context );
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( sprintf( '[UFSC ASPTT] %s %s', $message, $payload ) );
 	}
 
 	private function find_club_by_name( $normalized ) {

@@ -34,6 +34,7 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 				'categorie'     => __( 'Catégorie', 'ufsc-licence-competition' ),
 				'competition'   => __( 'Compétition', 'ufsc-licence-competition' ),
 				'asptt_number'  => __( 'N° ASPTT', 'ufsc-licence-competition' ),
+				'date_asptt'    => __( 'Date ASPTT', 'ufsc-licence-competition' ),
 				'pdf'           => __( 'PDF', 'ufsc-licence-competition' ),
 			);
 	
@@ -51,6 +52,7 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 				'statut'        => array( 'statut', false ),
 				'categorie'     => array( 'categorie', false ),
 				'date_naissance'=> array( 'date_naissance', false ),
+				'date_asptt'    => array( 'source_created_at', false ),
 			);
 		}
 	
@@ -69,6 +71,8 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 				case 'asptt_number':
 				case 'created_at':
 					return $item->{$column_name} ? esc_html( $item->{$column_name} ) : '&mdash;';
+				case 'date_asptt':
+					return $this->format_date_asptt( $item->date_asptt );
 				case 'competition':
 					return esc_html( $this->format_competition( $item->competition ) );
 				case 'pdf':
@@ -187,11 +191,11 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 			$orderby = isset( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : 'nom_licence';
 			$order   = isset( $_GET['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_GET['order'] ) ) ) : 'asc';
 	
-			$allowed_orderby = array( 'nom_licence', 'prenom', 'statut', 'categorie', 'date_naissance' );
+			$allowed_orderby = array( 'nom_licence', 'prenom', 'statut', 'categorie', 'date_naissance', 'source_created_at' );
 			if ( ! in_array( $orderby, $allowed_orderby, true ) ) {
 				$orderby = 'nom_licence';
 			}
-	
+
 			$order = 'desc' === $order ? 'DESC' : 'ASC';
 	
 			$search      = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
@@ -245,22 +249,24 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 				$where_sql = 'WHERE ' . implode( ' AND ', $where );
 			}
 	
-			$select_columns = 'l.id, l.club_id, l.nom_licence, l.prenom, l.date_naissance, l.statut, l.categorie, l.competition, d.source_licence_number AS asptt_number, d.attachment_id, c.nom AS club_name';
+			$select_columns = 'l.id, l.club_id, l.nom_licence, l.prenom, l.date_naissance, l.statut, l.categorie, l.competition, d.source_licence_number AS asptt_number, d.source_created_at AS date_asptt, d.attachment_id, c.nom AS club_name';
 			if ( $this->has_created_at ) {
 				$select_columns .= ', l.created_at';
 			}
 	
+			$orderby_sql = ( 'source_created_at' === $orderby ) ? 'd.source_created_at' : 'l.' . $orderby;
+
 			$count_sql = "SELECT COUNT(*) FROM {$licences_table} l
 				LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 				LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
 				{$where_sql}";
-	
+
 			$items_sql = "SELECT {$select_columns}
 				FROM {$licences_table} l
 				LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 				LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
 				{$where_sql}
-				ORDER BY {$orderby} {$order}
+				ORDER BY {$orderby_sql} {$order}
 				LIMIT %d OFFSET %d";
 	
 			$count_params = array_merge( array( 'ASPTT' ), $params );
@@ -302,6 +308,19 @@ if ( ! class_exists( 'UFSC_Competition_Licences_List_Table' ) ) {
 			}
 	
 			return (string) $value;
+		}
+
+		private function format_date_asptt( $value ) {
+			if ( null === $value || '' === $value ) {
+				return '&mdash;';
+			}
+
+			$formatted = mysql2date( 'd/m/Y H:i', $value );
+			if ( '' === $formatted ) {
+				return esc_html( $value );
+			}
+
+			return esc_html( $formatted );
 		}
 	
 		private function get_clubs() {
