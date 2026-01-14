@@ -14,7 +14,7 @@ require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.2.0';
+	const DB_VERSION        = '1.3.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 
 	private static $instance;
