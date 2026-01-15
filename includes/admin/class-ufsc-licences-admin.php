@@ -9,11 +9,12 @@ require_once __DIR__ . '/class-ufsc-licences-list-table.php';
 class UFSC_LC_Licences_Admin {
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
+		add_action( 'admin_post_ufsc_lc_export_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
 	}
 
 	public function register_menu() {
-		add_submenu_page(
+		$hook_suffix = add_submenu_page(
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
@@ -21,29 +22,29 @@ class UFSC_LC_Licences_Admin {
 			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);
+		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
 		// Status submenu is registered in UFSC_LC_Status_Page::register_menu().
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
-			return;
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$list_table->prepare_items();
 
-		$export_url = wp_nonce_url(
-			add_query_arg(
-				$list_table->get_filter_query_args(),
-				admin_url( 'admin-post.php?action=ufsc_lc_export_licences_csv' )
-			),
-			'ufsc_lc_export_licences_csv'
-		);
-
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Licences', 'ufsc-licence-competition' ); ?></h1>
-			<a href="<?php echo esc_url( $export_url ); ?>" class="page-title-action"><?php esc_html_e( 'Exporter CSV (filtres actifs)', 'ufsc-licence-competition' ); ?></a>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-export-form" style="display:inline-block; margin-left: 8px;">
+				<?php wp_nonce_field( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' ); ?>
+				<input type="hidden" name="action" value="ufsc_lc_export_csv">
+				<?php foreach ( $list_table->get_filter_query_args() as $key => $value ) : ?>
+					<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( $value ); ?>">
+				<?php endforeach; ?>
+				<?php submit_button( __( 'Exporter CSV (filtres actifs)', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
+			</form>
 			<hr class="wp-header-end">
 			<?php foreach ( $list_table->get_notices() as $notice ) : ?>
 				<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?>"><p><?php echo esc_html( $notice['message'] ); ?></p></div>
@@ -63,61 +64,19 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function handle_export_csv() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		check_admin_referer( 'ufsc_lc_export_licences_csv' );
-
+		if ( isset( $_REQUEST['ufsc_lc_nonce'] ) ) {
+			check_admin_referer( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' );
+		} else {
+			check_admin_referer( 'ufsc_lc_export_licences_csv' );
+		}
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$filters = $list_table->get_sanitized_filters();
-		$rows = $list_table->get_export_rows( $filters );
-
-		nocache_headers();
-		header( 'Content-Type: text/csv; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename="licences-export.csv"' );
-
-		$output = fopen( 'php://output', 'w' );
-		if ( false === $output ) {
-			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
-		}
-
-		fputcsv(
-			$output,
-			array(
-				'club',
-				'nom',
-				'prenom',
-				'dob',
-				'statut',
-				'categorie',
-				'competition',
-				'n_asptt',
-				'date_asptt',
-				'has_pdf',
-			)
-		);
-
-		foreach ( $rows as $row ) {
-			fputcsv(
-				$output,
-				array(
-					$row['club_name'],
-					$row['nom_licence'],
-					$row['prenom'],
-					$row['date_naissance'],
-					$row['statut'],
-					$row['categorie'],
-					$row['competition'],
-					$row['asptt_number'],
-					$row['date_asptt'],
-					$row['has_pdf'],
-				)
-			);
-		}
-
-		fclose( $output );
-		exit;
+		$exporter = new UFSC_LC_Exporter();
+		$exporter->stream_licences_csv( $filters );
 	}
 
 }

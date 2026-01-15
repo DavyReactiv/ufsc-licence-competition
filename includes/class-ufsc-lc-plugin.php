@@ -4,16 +4,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
 require_once __DIR__ . '/class-ufsc-asptt-importer.php';
 require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
 require_once __DIR__ . '/class-ufsc-licence-indexes.php';
-require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/class-ufsc-lc-logger.php';
+require_once __DIR__ . '/export/class-ufsc-lc-exporter.php';
+require_once __DIR__ . '/import/class-ufsc-lc-asptt-importer.php';
+require_once __DIR__ . '/admin/class-ufsc-lc-admin-assets.php';
+require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
-	const CAPABILITY      = 'ufsc_lc_manage';
+	const CAPABILITY      = UFSC_LC_Capabilities::CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
 	const DB_VERSION        = '1.3.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
@@ -45,13 +49,13 @@ class UFSC_LC_Plugin {
 	}
 
 	public function activate() {
-		$this->add_caps();
+		UFSC_LC_Capabilities::add_caps();
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 	}
 
 	public function deactivate() {
-		$this->remove_caps();
+		UFSC_LC_Capabilities::remove_caps();
 	}
 
 	public function boot() {
@@ -92,7 +96,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() || ! current_user_can( self::CAPABILITY ) ) {
+		if ( ! is_admin() || ! UFSC_LC_Capabilities::user_can_manage() ) {
 			return;
 		}
 
@@ -111,20 +115,6 @@ class UFSC_LC_Plugin {
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 
 		delete_transient( 'ufsc_lc_upgrading' );
-	}
-
-	private function add_caps() {
-		$role = get_role( 'administrator' );
-		if ( $role ) {
-			$role->add_cap( self::CAPABILITY );
-		}
-	}
-
-	private function remove_caps() {
-		$role = get_role( 'administrator' );
-		if ( $role ) {
-			$role->remove_cap( self::CAPABILITY );
-		}
 	}
 
 	private function create_tables_and_indexes() {

@@ -32,13 +32,15 @@ class UFSC_LC_Status_Page {
 		);
 
 		if ( ! $hook_suffix ) {
-			error_log( '[UFSC LC] status page not registered' );
+			UFSC_LC_Logger::log( 'Status page not registered.' );
+		} else {
+			UFSC_LC_Admin_Assets::register_page( $hook_suffix );
 		}
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
-			return;
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
 		global $wpdb;
@@ -68,6 +70,8 @@ class UFSC_LC_Status_Page {
 
 		$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
 		$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
+		$status_ok      = __( 'OK', 'ufsc-licence-competition' );
+		$status_ko      = __( 'KO', 'ufsc-licence-competition' );
 
 		?>
 		<div class="wrap">
@@ -88,19 +92,19 @@ class UFSC_LC_Status_Page {
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Table UFSC licences', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['licences'] ? 'OK' : 'KO' ); ?></td>
+						<td><?php echo esc_html( $tables['licences'] ? $status_ok : $status_ko ); ?></td>
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Table UFSC clubs', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['clubs'] ? 'OK' : 'KO' ); ?></td>
+						<td><?php echo esc_html( $tables['clubs'] ? $status_ok : $status_ko ); ?></td>
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Table documents add-on', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['documents'] ? 'OK' : 'KO' ); ?></td>
+						<td><?php echo esc_html( $tables['documents'] ? $status_ok : $status_ko ); ?></td>
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Table aliases ASPTT', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['aliases'] ? 'OK' : 'KO' ); ?></td>
+						<td><?php echo esc_html( $tables['aliases'] ? $status_ok : $status_ko ); ?></td>
 					</tr>
 					<tr>
 						<th><?php esc_html_e( 'Compteur licences', 'ufsc-licence-competition' ); ?></th>
@@ -137,7 +141,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_rebuild_indexes() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -151,7 +155,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_recreate_tables() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

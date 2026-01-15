@@ -1,0 +1,17 @@
+.ufsc-lc-filter-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin: 10px 0;
+	align-items: center;
+}
+
+.ufsc-lc-preview-table select,
+.ufsc-lc-preview-table input[type="text"] {
+	max-width: 220px;
+}
+
+.ufsc-lc-preview-table .ufsc-alias-feedback {
+	margin-left: 8px;
+	font-style: italic;
+}
