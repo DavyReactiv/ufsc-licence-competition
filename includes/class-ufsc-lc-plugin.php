@@ -23,6 +23,7 @@ class UFSC_LC_Plugin {
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
 	const DB_VERSION        = '1.4.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
+	// Must match add_menu_page slug.
 	const PARENT_SLUG       = 'ufsc-licence-documents';
 
 	private static $instance;
@@ -52,6 +53,10 @@ class UFSC_LC_Plugin {
 
 	public function activate() {
 		UFSC_LC_Capabilities::add_caps();
+		$role = get_role( 'administrator' );
+		if ( $role && ! $role->has_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY ) ) {
+			$role->add_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY );
+		}
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 	}
