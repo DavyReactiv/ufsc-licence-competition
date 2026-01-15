@@ -102,6 +102,9 @@ class UFSC_LC_ASPTT_Importer {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
+		$tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'import';
+		$tab = in_array( $tab, array( 'import', 'review' ), true ) ? $tab : 'import';
+
 		$preview = $this->get_preview();
 
 		$stats_defaults = array(
@@ -128,179 +131,230 @@ class UFSC_LC_ASPTT_Importer {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Import ASPTT', 'ufsc-licence-competition' ); ?></h1>
+			<?php $this->render_tabs( $tab ); ?>
 
-			<?php if ( ! empty( $preview['notice'] ) ) : ?>
-				<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
-					<p><?php echo esc_html( $preview['notice']['message'] ); ?></p>
-				</div>
-			<?php endif; ?>
-
-			<?php if ( empty( $rows ) ) : ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
-					<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
-					<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
-
-					<table class="form-table" role="presentation">
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Mode', 'ufsc-licence-competition' ); ?></th>
-							<td>
-								<label>
-									<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
-									<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
-								</label>
-								<br>
-								<label>
-									<input type="radio" name="ufsc_asptt_mode" value="import">
-									<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
-								</label>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="ufsc_asptt_csv"><?php esc_html_e( 'CSV ASPTT', 'ufsc-licence-competition' ); ?></label></th>
-							<td>
-								<input type="file" name="ufsc_asptt_csv" id="ufsc_asptt_csv" accept=".csv,text/csv" required>
-								<p class="description"><?php esc_html_e( 'Fichier CSV (max 5 Mo).', 'ufsc-licence-competition' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="ufsc_asptt_preview_limit"><?php esc_html_e( 'Lignes à prévisualiser', 'ufsc-licence-competition' ); ?></label></th>
-							<td>
-								<input
-									type="number"
-									name="ufsc_asptt_preview_limit"
-									id="ufsc_asptt_preview_limit"
-									value="<?php echo esc_attr( $preview_limit ); ?>"
-									min="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MIN_LIMIT ); ?>"
-									max="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MAX_LIMIT ); ?>"
-								>
-								<p class="description">
-									<?php esc_html_e( 'Nombre de lignes affichées en prévisualisation (10 à 200).', 'ufsc-licence-competition' ); ?>
-								</p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="ufsc_asptt_force_club"><?php esc_html_e( 'Forcer tout le fichier à un club', 'ufsc-licence-competition' ); ?></label></th>
-							<td>
-								<select name="ufsc_asptt_force_club" id="ufsc_asptt_force_club">
-									<option value=""><?php esc_html_e( 'Ne pas forcer', 'ufsc-licence-competition' ); ?></option>
-									<?php foreach ( $this->get_clubs() as $club ) : ?>
-										<option value="<?php echo esc_attr( $club->id ); ?>"><?php echo esc_html( $club->nom ); ?></option>
-									<?php endforeach; ?>
-								</select>
-							</td>
-						</tr>
-					</table>
-
-					<?php submit_button( __( 'Prévisualiser', 'ufsc-licence-competition' ) ); ?>
-				</form>
+			<?php if ( 'review' === $tab ) : ?>
+				<?php
+				$review_page = new UFSC_LC_ASPTT_Review_Page( $this->service );
+				$review_page->render();
+				?>
 			<?php else : ?>
-				<?php if ( $file_name ) : ?>
-					<p><strong><?php esc_html_e( 'Fichier chargé :', 'ufsc-licence-competition' ); ?></strong> <?php echo esc_html( $file_name ); ?></p>
+				<?php $this->render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats ); ?>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	private function render_tabs( $current ) {
+		$tabs = array(
+			'import' => __( 'Import', 'ufsc-licence-competition' ),
+			'review' => __( 'Review', 'ufsc-licence-competition' ),
+		);
+		?>
+		<h2 class="nav-tab-wrapper">
+			<?php foreach ( $tabs as $key => $label ) : ?>
+				<?php
+				$url = add_query_arg(
+					array(
+						'page' => 'ufsc-lc-import-asptt',
+						'tab'  => $key,
+					),
+					admin_url( 'admin.php' )
+				);
+				?>
+				<a href="<?php echo esc_url( $url ); ?>" class="nav-tab <?php echo ( $current === $key ) ? 'nav-tab-active' : ''; ?>">
+					<?php echo esc_html( $label ); ?>
+				</a>
+			<?php endforeach; ?>
+		</h2>
+		<?php
+	}
+
+	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats ) {
+		?>
+		<?php if ( ! empty( $preview['notice'] ) ) : ?>
+			<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
+				<p><?php echo esc_html( $preview['notice']['message'] ); ?></p>
+				<?php if ( ! empty( $preview['notice']['review_link'] ) ) : ?>
+					<p>
+						<a class="button button-secondary" href="<?php echo esc_url( $preview['notice']['review_link'] ); ?>">
+							<?php echo esc_html( $preview['notice']['review_label'] ); ?>
+						</a>
+					</p>
 				<?php endif; ?>
+			</div>
+		<?php endif; ?>
 
-				<?php if ( $force_club_id ) : ?>
-					<div class="notice notice-warning">
-						<p>
-							<?php
-							echo esc_html(
-								sprintf(
-									/* translators: %s: club name */
-									__( 'Mode forcer un club actif : %s', 'ufsc-licence-competition' ),
-									$force_club ? $force_club->nom : $force_club_id
-								)
-							);
-							?>
-						</p>
-					</div>
-				<?php endif; ?>
+		<?php if ( empty( $rows ) ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
+				<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
+				<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
 
-				<?php $this->render_stats( $stats, $errors, $preview_limit ); ?>
-
-				<?php if ( ! empty( $headers ) ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-mapping-form">
-						<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
-						<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
-						<input type="hidden" name="ufsc_lc_reprocess" value="1">
-						<?php if ( $force_club_id ) : ?>
-							<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
-						<?php endif; ?>
-
-						<p>
-							<label for="ufsc_asptt_preview_limit_mapping"><strong><?php esc_html_e( 'Lignes à prévisualiser', 'ufsc-licence-competition' ); ?></strong></label>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Mode', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<label>
+								<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
+								<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
+							</label>
+							<br>
+							<label>
+								<input type="radio" name="ufsc_asptt_mode" value="import">
+								<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
+							</label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_asptt_csv"><?php esc_html_e( 'CSV ASPTT', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<input type="file" name="ufsc_asptt_csv" id="ufsc_asptt_csv" accept=".csv,text/csv" required>
+							<p class="description"><?php esc_html_e( 'Fichier CSV (max 5 Mo).', 'ufsc-licence-competition' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_asptt_preview_limit"><?php esc_html_e( 'Lignes à prévisualiser', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
 							<input
 								type="number"
 								name="ufsc_asptt_preview_limit"
-								id="ufsc_asptt_preview_limit_mapping"
+								id="ufsc_asptt_preview_limit"
 								value="<?php echo esc_attr( $preview_limit ); ?>"
 								min="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MIN_LIMIT ); ?>"
 								max="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MAX_LIMIT ); ?>"
 							>
-						</p>
-
-						<table class="widefat striped">
-							<thead>
-								<tr>
-									<th><?php esc_html_e( 'Colonne CSV', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Mapping', 'ufsc-licence-competition' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $headers as $header ) : ?>
-									<tr>
-										<td><?php echo esc_html( $header ); ?></td>
-										<td>
-											<select name="ufsc_lc_mapping[<?php echo esc_attr( $header ); ?>]">
-												<option value=""><?php esc_html_e( 'Ignorer', 'ufsc-licence-competition' ); ?></option>
-												<?php foreach ( $this->get_mapping_options() as $option_value => $option_label ) : ?>
-													<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( isset( $mapping[ $header ] ) ? $mapping[ $header ] : '', $option_value ); ?>>
-														<?php echo esc_html( $option_label ); ?>
-													</option>
-												<?php endforeach; ?>
-											</select>
-										</td>
-									</tr>
+							<p class="description">
+								<?php esc_html_e( 'Nombre de lignes affichées en prévisualisation (10 à 200).', 'ufsc-licence-competition' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_asptt_force_club"><?php esc_html_e( 'Forcer tout le fichier à un club', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="ufsc_asptt_force_club" id="ufsc_asptt_force_club">
+								<option value=""><?php esc_html_e( 'Ne pas forcer', 'ufsc-licence-competition' ); ?></option>
+								<?php foreach ( $this->get_clubs() as $club ) : ?>
+									<option value="<?php echo esc_attr( $club->id ); ?>"><?php echo esc_html( $club->nom ); ?></option>
 								<?php endforeach; ?>
-							</tbody>
-						</table>
+							</select>
+						</td>
+					</tr>
+				</table>
 
-						<?php submit_button( __( 'Recalculer la prévisualisation', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
-					</form>
-				<?php endif; ?>
+				<?php submit_button( __( 'Prévisualiser', 'ufsc-licence-competition' ) ); ?>
+			</form>
+		<?php else : ?>
+			<?php if ( $file_name ) : ?>
+				<p><strong><?php esc_html_e( 'Fichier chargé :', 'ufsc-licence-competition' ); ?></strong> <?php echo esc_html( $file_name ); ?></p>
+			<?php endif; ?>
 
-				<?php $this->render_preview_table( $rows, $preview_limit ); ?>
+			<?php if ( $force_club_id ) : ?>
+				<div class="notice notice-warning">
+					<p>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: club name */
+								__( 'Mode forcer un club actif : %s', 'ufsc-licence-competition' ),
+								$force_club ? $force_club->nom : $force_club_id
+							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
 
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-					<?php wp_nonce_field( 'ufsc_lc_asptt_import', 'ufsc_lc_asptt_import_nonce' ); ?>
-					<input type="hidden" name="action" value="ufsc_lc_asptt_import">
-					<label>
-						<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
-						<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
-					</label>
-					&nbsp;
-					<label>
-						<input type="radio" name="ufsc_asptt_mode" value="import">
-						<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
-					</label>
-					<?php submit_button( __( 'Lancer', 'ufsc-licence-competition' ), 'primary', 'submit', false ); ?>
-				</form>
+			<?php $this->render_stats( $stats, $errors, $preview_limit ); ?>
 
-				<?php if ( ! empty( $errors ) ) : ?>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 10px;">
-						<?php wp_nonce_field( 'ufsc_lc_asptt_export_errors', 'ufsc_lc_asptt_errors_nonce' ); ?>
-						<input type="hidden" name="action" value="ufsc_lc_asptt_export_errors">
-						<?php submit_button( __( 'Exporter les erreurs CSV', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
-					</form>
-				<?php endif; ?>
-
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">
+			<?php if ( ! empty( $headers ) ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-mapping-form">
 					<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
 					<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
-					<?php submit_button( __( 'Recharger un fichier', 'ufsc-licence-competition' ), 'secondary' ); ?>
+					<input type="hidden" name="ufsc_lc_reprocess" value="1">
+					<?php if ( $force_club_id ) : ?>
+						<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
+					<?php endif; ?>
+
+					<p>
+						<label for="ufsc_asptt_preview_limit_mapping"><strong><?php esc_html_e( 'Lignes à prévisualiser', 'ufsc-licence-competition' ); ?></strong></label>
+						<input
+							type="number"
+							name="ufsc_asptt_preview_limit"
+							id="ufsc_asptt_preview_limit_mapping"
+							value="<?php echo esc_attr( $preview_limit ); ?>"
+							min="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MIN_LIMIT ); ?>"
+							max="<?php echo esc_attr( UFSC_LC_ASPTT_Import_Service::PREVIEW_MAX_LIMIT ); ?>"
+						>
+					</p>
+
+					<table class="widefat striped">
+						<thead>
+							<tr>
+								<th><?php esc_html_e( 'Colonne CSV', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'Mapping', 'ufsc-licence-competition' ); ?></th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php foreach ( $headers as $header ) : ?>
+								<tr>
+									<td><?php echo esc_html( $header ); ?></td>
+									<td>
+										<select name="ufsc_lc_mapping[<?php echo esc_attr( $header ); ?>]">
+											<option value=""><?php esc_html_e( 'Ignorer', 'ufsc-licence-competition' ); ?></option>
+											<?php foreach ( $this->get_mapping_options() as $option_value => $option_label ) : ?>
+												<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( isset( $mapping[ $header ] ) ? $mapping[ $header ] : '', $option_value ); ?>>
+													<?php echo esc_html( $option_label ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+									</td>
+								</tr>
+							<?php endforeach; ?>
+						</tbody>
+					</table>
+
+					<?php submit_button( __( 'Recalculer la prévisualisation', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 				</form>
 			<?php endif; ?>
 
-			<?php $this->render_import_logs(); ?>
-		</div>
+			<?php $this->render_preview_table( $rows, $preview_limit ); ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'ufsc_lc_asptt_import', 'ufsc_lc_asptt_import_nonce' ); ?>
+				<input type="hidden" name="action" value="ufsc_lc_asptt_import">
+				<label>
+					<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
+					<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
+				</label>
+				&nbsp;
+				<label>
+					<input type="radio" name="ufsc_asptt_mode" value="import">
+					<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
+				</label>
+				<br>
+				<label>
+					<input type="checkbox" name="ufsc_asptt_auto_approve" value="1" checked>
+					<?php esc_html_e( 'Auto-valider si score ≥ 85', 'ufsc-licence-competition' ); ?>
+				</label>
+				<?php submit_button( __( 'Lancer', 'ufsc-licence-competition' ), 'primary', 'submit', false ); ?>
+			</form>
+
+			<?php if ( ! empty( $errors ) ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 10px;">
+					<?php wp_nonce_field( 'ufsc_lc_asptt_export_errors', 'ufsc_lc_asptt_errors_nonce' ); ?>
+					<input type="hidden" name="action" value="ufsc_lc_asptt_export_errors">
+					<?php submit_button( __( 'Exporter les erreurs CSV', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
+				</form>
+			<?php endif; ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">
+				<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
+				<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
+				<?php submit_button( __( 'Recharger un fichier', 'ufsc-licence-competition' ), 'secondary' ); ?>
+			</form>
+		<?php endif; ?>
+
+		<?php $this->render_import_logs(); ?>
 		<?php
 	}
 
@@ -346,6 +400,8 @@ class UFSC_LC_ASPTT_Importer {
 					<th><?php esc_html_e( 'Licence UFSC', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Score', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Lien', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
 				</tr>
@@ -364,6 +420,8 @@ class UFSC_LC_ASPTT_Importer {
 						<td><?php echo esc_html( ! empty( $row['licence_id'] ) ? $row['licence_id'] : '—' ); ?></td>
 						<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
 						<td><?php echo esc_html( ! empty( $row['source_created_at'] ) ? $row['source_created_at'] : '—' ); ?></td>
+						<td><?php echo esc_html( isset( $row['confidence_score'] ) ? (int) $row['confidence_score'] : 0 ); ?></td>
+						<td><?php echo esc_html( isset( $row['link_mode'] ) ? $row['link_mode'] : 'none' ); ?></td>
 						<td><?php echo esc_html( $row['status'] ); ?></td>
 						<td>
 							<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
@@ -515,10 +573,13 @@ class UFSC_LC_ASPTT_Importer {
 			exit;
 		}
 
+		$auto_approve = isset( $_POST['ufsc_asptt_auto_approve'] );
+
 		$result = $this->service->import_from_file(
 			$preview['file_path'],
 			$preview['force_club_id'],
-			isset( $preview['mapping'] ) ? $preview['mapping'] : array()
+			isset( $preview['mapping'] ) ? $preview['mapping'] : array(),
+			$auto_approve
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -563,7 +624,18 @@ class UFSC_LC_ASPTT_Importer {
 			)
 		);
 
-		update_option( self::SESSION_KEY, array( 'notice' => array( 'type' => 'success', 'message' => $notice ) ), false );
+		update_option(
+			self::SESSION_KEY,
+			array(
+				'notice' => array(
+					'type'         => 'success',
+					'message'      => $notice,
+					'review_link'  => $this->get_admin_url( 'review' ),
+					'review_label' => __( 'Aller à Review (pending)', 'ufsc-licence-competition' ),
+				),
+			),
+			false
+		);
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
 	}
@@ -1242,11 +1314,13 @@ class UFSC_LC_ASPTT_Importer {
 		return is_array( $preview ) ? $preview : array();
 	}
 
-	private function get_admin_url() {
-		return add_query_arg(
-			array( 'page' => 'ufsc-lc-asptt-import' ),
-			admin_url( 'admin.php' )
-		);
+	private function get_admin_url( $tab = 'import' ) {
+		$args = array( 'page' => 'ufsc-lc-import-asptt' );
+		if ( $tab ) {
+			$args['tab'] = $tab;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
 
 	private function get_error_export_url() {
