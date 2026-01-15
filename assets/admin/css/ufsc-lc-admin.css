@@ -15,3 +15,13 @@
 	margin-left: 8px;
 	font-style: italic;
 }
+
+.ufsc-lc-import-logs {
+	margin-top: 24px;
+}
+
+.ufsc-lc-import-log-error {
+	color: #b32d2e;
+	margin-top: 4px;
+	font-size: 12px;
+}
