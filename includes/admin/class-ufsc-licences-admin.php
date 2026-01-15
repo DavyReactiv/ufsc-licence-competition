@@ -28,7 +28,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -68,35 +68,51 @@ class UFSC_LC_Licences_Admin {
 
 		$success = isset( $_GET['success'] ) ? sanitize_text_field( wp_unslash( $_GET['success'] ) ) : '';
 		$error   = isset( $_GET['error'] ) ? sanitize_text_field( wp_unslash( $_GET['error'] ) ) : '';
+		$warning = isset( $_GET['warning'] ) ? sanitize_text_field( wp_unslash( $_GET['warning'] ) ) : '';
 
 		$messages = array(
 			'success' => array(
-				'bulk_mark_review' => __( 'Licences marquées à vérifier.', 'ufsc-licence-competition' ),
-				'bulk_remove_pdf'  => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
+				'bulk_mark_review'          => __( 'Licences marquées à vérifier.', 'ufsc-licence-competition' ),
+				'bulk_remove_pdf'           => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
+				'bulk_recalculate_categories' => __( 'Catégories recalculées.', 'ufsc-licence-competition' ),
+				'bulk_change_season'        => __( 'Saison mise à jour.', 'ufsc-licence-competition' ),
 			),
 			'error' => array(
 				'documents_meta_missing' => __( 'Action impossible : table meta des documents manquante.', 'ufsc-licence-competition' ),
 				'documents_missing'      => __( 'Action impossible : table des documents absente.', 'ufsc-licence-competition' ),
+				'season_missing'         => __( 'Action impossible : colonne saison absente.', 'ufsc-licence-competition' ),
+			),
+			'warning' => array(
+				'bulk_recalculate_empty'   => __( 'Aucune licence valide pour recalculer les catégories.', 'ufsc-licence-competition' ),
+				'bulk_recalculate_skipped' => __( 'Aucune catégorie recalculée : aucune règle disponible.', 'ufsc-licence-competition' ),
+				'bulk_season_missing'      => __( 'Veuillez saisir une saison avant de lancer l’action.', 'ufsc-licence-competition' ),
 			),
 		);
 
 		if ( $success && isset( $messages['success'][ $success ] ) ) {
 			printf(
-				'<div class="notice notice-success"><p>%s</p></div>',
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
 				esc_html( $messages['success'][ $success ] )
 			);
 		}
 
 		if ( $error && isset( $messages['error'][ $error ] ) ) {
 			printf(
-				'<div class="notice notice-error"><p>%s</p></div>',
+				'<div class="notice notice-error is-dismissible"><p>%s</p></div>',
 				esc_html( $messages['error'][ $error ] )
+			);
+		}
+
+		if ( $warning && isset( $messages['warning'][ $warning ] ) ) {
+			printf(
+				'<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+				esc_html( $messages['warning'][ $warning ] )
 			);
 		}
 	}
 
 	public function handle_export_csv() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

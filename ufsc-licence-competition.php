@@ -2,7 +2,7 @@
 /**
  * Plugin Name: UFSC Licence Competition
  * Description: Add-on UFSC pour associer des PDF nominatives aux licences officielles et préparer les évolutions compétitions.
- * Version: 1.3.0
+ * Version: 1.4.0
  * Author: UFSC
  * Requires at least: 6.0
  * Requires PHP: 7.4

@@ -23,7 +23,15 @@ class UFSC_LC_Licence_Indexes {
 		$this->add_index_if_missing( $table, $indexes, 'idx_nom_licence', array( 'nom_licence' ) );
 		$this->add_index_if_missing( $table, $indexes, 'idx_prenom', array( 'prenom' ) );
 		$this->add_index_if_missing( $table, $indexes, 'idx_statut', array( 'statut' ) );
-		$this->add_index_if_missing( $table, $indexes, 'idx_categorie', array( 'categorie' ) );
+		if ( $this->column_exists( $table, 'categorie' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_categorie', array( 'categorie' ) );
+		}
+		if ( $this->column_exists( $table, 'category' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_category', array( 'category' ) );
+		}
+		if ( $this->column_exists( $table, 'season_end_year' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_season_end_year', array( 'season_end_year' ) );
+		}
 	}
 
 	private function ensure_documents_indexes( $table ) {
@@ -42,6 +50,14 @@ class UFSC_LC_Licence_Indexes {
 		global $wpdb;
 
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	}
+
+	private function column_exists( $table, $column ) {
+		global $wpdb;
+
+		$column = sanitize_key( $column );
+
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
 	}
 
 	private function get_index_names( $table ) {
