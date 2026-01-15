@@ -156,6 +156,19 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$competition = isset( $_REQUEST['competition'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['competition'] ) ) : '';
 		$season_end_year = isset( $_REQUEST['season_end_year'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['season_end_year'] ) ) : '';
 
+		$export_columns_raw = isset( $_REQUEST['export_columns'] ) ? wp_unslash( $_REQUEST['export_columns'] ) : array();
+		if ( is_string( $export_columns_raw ) ) {
+			$export_columns_raw = explode( ',', $export_columns_raw );
+		}
+		$export_columns = array();
+		if ( is_array( $export_columns_raw ) ) {
+			$export_columns = array_values(
+				array_filter(
+					array_map( 'sanitize_key', $export_columns_raw )
+				)
+			);
+		}
+
 		$statut      = $this->sanitize_filter_value( 'statut', $statut );
 		$categorie   = $this->sanitize_filter_value( 'category', $categorie );
 		$competition = $this->sanitize_filter_value( 'competition', $competition );
@@ -174,6 +187,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			'season_end_year' => $season_end_year,
 			'pdf_filter'  => $pdf_filter,
 			'tab'         => $tab,
+			'export_columns' => $export_columns,
 		);
 	}
 
