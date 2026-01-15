@@ -67,7 +67,7 @@ class UFSC_LC_ASPTT_Importer {
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
-			UFSC_LC_Plugin::CAPABILITY,
+			UFSC_LC_Capabilities::IMPORT_CAPABILITY,
 			'ufsc-lc-asptt-import',
 			array( $this, 'render_admin_page' )
 		);
@@ -75,7 +75,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function render_admin_page() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -338,7 +338,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_upload() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -394,7 +394,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_import() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -444,7 +444,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function ajax_search_clubs() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -469,7 +469,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function ajax_save_alias() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -509,7 +509,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_export_errors() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

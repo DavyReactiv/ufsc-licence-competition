@@ -83,7 +83,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function render_admin_page() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -123,7 +123,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function handle_upload() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -188,7 +188,7 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			$club = $this->get_club_by_id( (int) $licence->club_id );
 			if ( ! $club || (int) $club->responsable_id !== (int) get_current_user_id() ) {
 				UFSC_LC_Logger::log(
