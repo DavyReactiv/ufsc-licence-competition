@@ -21,7 +21,8 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function register_menu() {
-		add_submenu_page(
+		remove_submenu_page( UFSC_LC_Plugin::PARENT_SLUG, 'ufsc-lc-status' );
+		$hook_suffix = add_submenu_page(
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
@@ -29,6 +30,10 @@ class UFSC_LC_Status_Page {
 			'ufsc-lc-status',
 			array( $this, 'render_page' )
 		);
+
+		if ( ! $hook_suffix ) {
+			error_log( '[UFSC LC] status page not registered' );
+		}
 	}
 
 	public function render_page() {
