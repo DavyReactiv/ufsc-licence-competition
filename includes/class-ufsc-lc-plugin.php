@@ -17,7 +17,7 @@ require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
-	const CAPABILITY      = UFSC_LC_Capabilities::CAPABILITY;
+	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
 	const DB_VERSION        = '1.3.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
@@ -96,7 +96,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() || ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! is_admin() || ! UFSC_LC_Capabilities::user_can_manage() ) {
 			return;
 		}
 

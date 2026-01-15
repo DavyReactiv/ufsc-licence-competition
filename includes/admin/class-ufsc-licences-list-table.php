@@ -602,7 +602,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			return;
 		}
 
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
