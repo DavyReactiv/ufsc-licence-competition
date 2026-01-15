@@ -81,8 +81,13 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function register_admin_menu() {
+		$parent_slug = UFSC_LC_Plugin::PARENT_SLUG;
+		if ( empty( $parent_slug ) ) {
+			$parent_slug = 'ufsc-licence-documents';
+		}
+
 		$hook_suffix = add_submenu_page(
-			UFSC_LC_Plugin::PARENT_SLUG,
+			$parent_slug,
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			UFSC_LC_Capabilities::IMPORT_CAPABILITY,
