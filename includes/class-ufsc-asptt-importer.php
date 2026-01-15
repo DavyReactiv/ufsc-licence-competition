@@ -239,6 +239,8 @@ class UFSC_LC_ASPTT_Importer {
 			<li><?php echo esc_html( sprintf( __( 'needs_review: %d', 'ufsc-licence-competition' ), $stats['needs_review'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'licence_not_found: %d', 'ufsc-licence-competition' ), $stats['licence_not_found'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'invalid_asptt_number: %d', 'ufsc-licence-competition' ), $stats['invalid_asptt_number'] ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'invalid_season: %d', 'ufsc-licence-competition' ), $stats['invalid_season'] ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'invalid_birthdate: %d', 'ufsc-licence-competition' ), $stats['invalid_birthdate'] ) ); ?></li>
 		</ul>
 		<?php
 	}
@@ -260,6 +262,9 @@ class UFSC_LC_ASPTT_Importer {
 					<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Âge réf.', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Club (Note)', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Licence UFSC', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
@@ -277,6 +282,9 @@ class UFSC_LC_ASPTT_Importer {
 						<td><?php echo esc_html( $row['nom'] ); ?></td>
 						<td><?php echo esc_html( $row['prenom'] ); ?></td>
 						<td><?php echo esc_html( $row['date_naissance'] ); ?></td>
+						<td><?php echo esc_html( $row['season_end_year'] ? $row['season_end_year'] : '-' ); ?></td>
+						<td><?php echo esc_html( $row['category'] ? $row['category'] : '-' ); ?></td>
+						<td><?php echo esc_html( $row['age_ref'] ? $row['age_ref'] : '-' ); ?></td>
 						<td><?php echo esc_html( $row['note'] ); ?></td>
 						<td><?php echo esc_html( $row['licence_id'] ? $row['licence_id'] : '-' ); ?></td>
 						<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
@@ -321,6 +329,7 @@ class UFSC_LC_ASPTT_Importer {
 			'Nom',
 			'Prenom',
 			'Date de naissance',
+			'Saison (année de fin)',
 			'N° Licence',
 			'Date de création de la licence',
 			'Note',
@@ -538,6 +547,8 @@ class UFSC_LC_ASPTT_Importer {
 			'needs_review'   => 0,
 			'licence_not_found' => 0,
 			'invalid_asptt_number' => 0,
+			'invalid_season' => 0,
+			'invalid_birthdate' => 0,
 		);
 
 		foreach ( $rows as $row ) {
