@@ -70,7 +70,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function register_admin_menu() {
-		$hook_suffix = add_menu_page(
+		add_menu_page(
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			UFSC_LC_Plugin::CAPABILITY,
@@ -79,7 +79,6 @@ class UFSC_LC_Licence_Documents {
 			'dashicons-media-document',
 			30
 		);
-		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
 	}
 
 	public function render_admin_page() {
