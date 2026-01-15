@@ -91,7 +91,7 @@ class UFSC_LC_ASPTT_Importer {
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			UFSC_LC_Capabilities::IMPORT_CAPABILITY,
-			'ufsc-lc-asptt-import',
+			'ufsc-lc-import-asptt',
 			array( $this, 'render_admin_page' )
 		);
 		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
