@@ -70,7 +70,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function register_admin_menu() {
-		add_menu_page(
+		$hook_suffix = add_menu_page(
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			UFSC_LC_Plugin::CAPABILITY,
@@ -79,11 +79,12 @@ class UFSC_LC_Licence_Documents {
 			'dashicons-media-document',
 			30
 		);
+		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
 	}
 
 	public function render_admin_page() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
-			return;
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
 		$status = isset( $_GET['ufsc_status'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_status'] ) ) : '';
@@ -122,7 +123,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function handle_upload() {
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -184,7 +185,7 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			$club = $this->get_club_by_id( (int) $licence->club_id );
 			if ( ! $club || (int) $club->responsable_id !== (int) get_current_user_id() ) {
 				UFSC_LC_Logger::log(

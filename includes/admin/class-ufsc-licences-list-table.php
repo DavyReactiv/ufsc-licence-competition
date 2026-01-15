@@ -142,11 +142,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function get_sanitized_filters() {
-		$per_page = isset( $_GET['per_page'] ) ? absint( $_GET['per_page'] ) : 25;
+		$per_page = isset( $_REQUEST['per_page'] ) ? absint( $_REQUEST['per_page'] ) : 25;
 		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
 
-		$orderby = isset( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : 'nom_licence';
-		$order   = isset( $_GET['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_GET['order'] ) ) ) : 'asc';
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) ) : 'nom_licence';
+		$order   = isset( $_REQUEST['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_REQUEST['order'] ) ) ) : 'asc';
 
 		$allowed_orderby = array( 'nom_licence', 'prenom', 'statut', 'categorie', 'date_naissance' );
 		if ( $this->has_source_created_at ) {
@@ -159,25 +159,33 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$order = 'desc' === $order ? 'DESC' : 'ASC';
 
-		$pdf_filter = isset( $_GET['pdf_filter'] ) ? sanitize_key( wp_unslash( $_GET['pdf_filter'] ) ) : '';
+		$pdf_filter = isset( $_REQUEST['pdf_filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['pdf_filter'] ) ) : '';
 		$pdf_filter = in_array( $pdf_filter, array( 'with', 'without' ), true ) ? $pdf_filter : '';
 
-		$tab = isset( $_GET['ufsc_lc_tab'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_lc_tab'] ) ) : 'all';
+		$tab = isset( $_REQUEST['ufsc_lc_tab'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_lc_tab'] ) ) : 'all';
 		$tabs = array_keys( $this->get_tabs() );
 		if ( ! in_array( $tab, $tabs, true ) ) {
 			$tab = 'all';
 		}
 
+		$statut      = isset( $_REQUEST['statut'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['statut'] ) ) : '';
+		$categorie   = isset( $_REQUEST['categorie'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['categorie'] ) ) : '';
+		$competition = isset( $_REQUEST['competition'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['competition'] ) ) : '';
+
+		$statut      = $this->sanitize_filter_value( 'statut', $statut );
+		$categorie   = $this->sanitize_filter_value( 'categorie', $categorie );
+		$competition = $this->sanitize_filter_value( 'competition', $competition );
+
 		return array(
 			'per_page'    => $per_page,
 			'orderby'     => $orderby,
 			'order'       => $order,
-			'search'      => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
-			'club_id'     => isset( $_GET['club_id'] ) ? absint( $_GET['club_id'] ) : 0,
-			'club_search' => isset( $_GET['club_search'] ) ? sanitize_text_field( wp_unslash( $_GET['club_search'] ) ) : '',
-			'statut'      => isset( $_GET['statut'] ) ? sanitize_text_field( wp_unslash( $_GET['statut'] ) ) : '',
-			'categorie'   => isset( $_GET['categorie'] ) ? sanitize_text_field( wp_unslash( $_GET['categorie'] ) ) : '',
-			'competition' => isset( $_GET['competition'] ) ? sanitize_text_field( wp_unslash( $_GET['competition'] ) ) : '',
+			'search'      => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
+			'club_id'     => isset( $_REQUEST['club_id'] ) ? absint( $_REQUEST['club_id'] ) : 0,
+			'club_search' => isset( $_REQUEST['club_search'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['club_search'] ) ) : '',
+			'statut'      => $statut,
+			'categorie'   => $categorie,
+			'competition' => $competition,
 			'pdf_filter'  => $pdf_filter,
 			'tab'         => $tab,
 		);
@@ -334,6 +342,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			echo '</select>';
 	
 			submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', 'filter_action', false );
+			printf(
+				'<a class="button button-secondary" href="%s">%s</a>',
+				esc_url( admin_url( 'admin.php?page=ufsc-lc-licences' ) ),
+				esc_html__( 'Réinitialiser filtres', 'ufsc-licence-competition' )
+			);
 			echo '</div>';
 		}
 	
@@ -480,6 +493,10 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function get_export_rows( $filters ) {
+		return $this->get_export_rows_chunk( $filters, 0, 0 );
+	}
+
+	public function get_export_rows_chunk( $filters, $limit, $offset ) {
 		global $wpdb;
 
 		$licences_table  = $this->get_licences_table();
@@ -584,12 +601,17 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$orderby_sql = 'source_created_at' === $orderby && $this->has_source_created_at ? 'd.source_created_at' : 'l.' . $orderby;
 
+		$limit_sql = '';
+		if ( $limit > 0 ) {
+			$limit_sql = $wpdb->prepare( ' LIMIT %d OFFSET %d', $limit, $offset );
+		}
+
 		$sql = "SELECT {$select_columns}
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 			{$join_documents}
 			{$where_sql}
-			ORDER BY {$orderby_sql} {$order}";
+			ORDER BY {$orderby_sql} {$order}{$limit_sql}";
 
 		$query_params = array_merge( $document_params, $params );
 
@@ -599,6 +621,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private function process_bulk_action() {
 		$action = $this->current_action();
 		if ( ! $action ) {
+			return;
+		}
+
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+			$this->add_notice( 'error', __( 'Accès refusé.', 'ufsc-licence-competition' ) );
 			return;
 		}
 
@@ -709,7 +736,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	
 		private function format_competition( $value ) {
 			if ( null === $value || '' === $value ) {
-				return '—';
+				return __( '—', 'ufsc-licence-competition' );
 			}
 	
 			if ( is_numeric( $value ) ) {
@@ -762,6 +789,19 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
 
 		return ! empty( $exists );
+	}
+
+	private function sanitize_filter_value( $column, $value ) {
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$allowed = $this->get_distinct_values( $column );
+		if ( empty( $allowed ) ) {
+			return '';
+		}
+
+		return in_array( $value, $allowed, true ) ? $value : '';
 	}
 	
 		private function get_documents_table() {
