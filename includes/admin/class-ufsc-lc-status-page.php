@@ -7,9 +7,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 class UFSC_LC_Status_Page {
 	const ACTION_REBUILD_INDEXES = 'ufsc_lc_rebuild_indexes';
 	const ACTION_RECREATE_TABLES = 'ufsc_lc_recreate_tables';
+	private $menu_registered = false;
 
 	public function register() {
-		add_action( 'admin_menu', array( $this, 'register_menu' ) );
+		if ( $this->menu_registered ) {
+			return;
+		}
+
+		$this->menu_registered = true;
+		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
 		add_action( 'admin_post_' . self::ACTION_REBUILD_INDEXES, array( $this, 'handle_rebuild_indexes' ) );
 		add_action( 'admin_post_' . self::ACTION_RECREATE_TABLES, array( $this, 'handle_recreate_tables' ) );
 	}

@@ -55,8 +55,10 @@ class UFSC_LC_Plugin {
 	}
 
 	public function boot() {
-		$status_page = new UFSC_LC_Status_Page();
-		$status_page->register();
+		if ( is_admin() ) {
+			$status_page = new UFSC_LC_Status_Page();
+			$status_page->register();
+		}
 
 		$this->dependencies_met = $this->check_dependencies();
 		if ( ! $this->dependencies_met ) {
@@ -64,7 +66,9 @@ class UFSC_LC_Plugin {
 			return;
 		}
 
-		$this->maybe_upgrade();
+		if ( is_admin() ) {
+			$this->maybe_upgrade();
+		}
 
 		$documents = new UFSC_LC_Licence_Documents( $this->legacy_enabled );
 		$documents->register();
