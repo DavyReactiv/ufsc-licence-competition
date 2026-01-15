@@ -57,7 +57,9 @@ class UFSC_LC_Admin_Assets {
 			'ufsc-lc-admin',
 			'UFSC_LC_Admin',
 			array(
+				'ajaxurl' => admin_url( 'admin-ajax.php' ),
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'ufsc_lc_nonce' => wp_create_nonce( 'ufsc_lc_nonce' ),
 				'nonces'  => array(
 					'clubSearch' => wp_create_nonce( 'ufsc_lc_club_search' ),
 					'saveAlias'  => wp_create_nonce( 'ufsc_lc_asptt_save_alias' ),

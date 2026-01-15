@@ -75,7 +75,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function render_admin_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -329,11 +329,14 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_upload() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		check_admin_referer( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' );
+		$nonce = isset( $_POST['ufsc_lc_asptt_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_upload' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
 
 		$force_club_id = isset( $_POST['ufsc_asptt_force_club'] ) ? absint( $_POST['ufsc_asptt_force_club'] ) : 0;
 		$mode          = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
@@ -382,11 +385,14 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_import() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		check_admin_referer( 'ufsc_lc_asptt_import', 'ufsc_lc_asptt_import_nonce' );
+		$nonce = isset( $_POST['ufsc_lc_asptt_import_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_import_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_import' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
 
 		$preview = $this->get_preview();
 		if ( empty( $preview['file_path'] ) ) {
@@ -429,7 +435,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function ajax_search_clubs() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -454,7 +460,7 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function ajax_save_alias() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -494,11 +500,14 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function handle_export_errors() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		check_admin_referer( 'ufsc_lc_asptt_export_errors', 'ufsc_lc_asptt_errors_nonce' );
+		$nonce = isset( $_POST['ufsc_lc_asptt_errors_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_errors_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_export_errors' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
 
 		$preview = $this->get_preview();
 		if ( empty( $preview['errors'] ) ) {

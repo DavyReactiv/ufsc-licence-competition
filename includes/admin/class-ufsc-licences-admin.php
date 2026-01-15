@@ -9,6 +9,7 @@ require_once __DIR__ . '/class-ufsc-licences-list-table.php';
 class UFSC_LC_Licences_Admin {
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
+		add_action( 'admin_notices', array( $this, 'render_notices' ) );
 		add_action( 'admin_post_ufsc_lc_export_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
 	}
@@ -27,7 +28,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function render_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -46,9 +47,6 @@ class UFSC_LC_Licences_Admin {
 				<?php submit_button( __( 'Exporter CSV (filtres actifs)', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 			</form>
 			<hr class="wp-header-end">
-			<?php foreach ( $list_table->get_notices() as $notice ) : ?>
-				<div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?>"><p><?php echo esc_html( $notice['message'] ); ?></p></div>
-			<?php endforeach; ?>
 			<?php $list_table->views(); ?>
 			<form method="get">
 				<input type="hidden" name="page" value="ufsc-lc-licences" />
@@ -63,15 +61,55 @@ class UFSC_LC_Licences_Admin {
 		<?php
 	}
 
-	public function handle_export_csv() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+	public function render_notices() {
+		if ( ! $this->is_licences_screen() ) {
+			return;
 		}
 
-		if ( isset( $_REQUEST['ufsc_lc_nonce'] ) ) {
-			check_admin_referer( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' );
+		$success = isset( $_GET['success'] ) ? sanitize_text_field( wp_unslash( $_GET['success'] ) ) : '';
+		$error   = isset( $_GET['error'] ) ? sanitize_text_field( wp_unslash( $_GET['error'] ) ) : '';
+
+		$messages = array(
+			'success' => array(
+				'bulk_mark_review' => __( 'Licences marquées à vérifier.', 'ufsc-licence-competition' ),
+				'bulk_remove_pdf'  => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
+			),
+			'error' => array(
+				'documents_meta_missing' => __( 'Action impossible : table meta des documents manquante.', 'ufsc-licence-competition' ),
+				'documents_missing'      => __( 'Action impossible : table des documents absente.', 'ufsc-licence-competition' ),
+			),
+		);
+
+		if ( $success && isset( $messages['success'][ $success ] ) ) {
+			printf(
+				'<div class="notice notice-success"><p>%s</p></div>',
+				esc_html( $messages['success'][ $success ] )
+			);
+		}
+
+		if ( $error && isset( $messages['error'][ $error ] ) ) {
+			printf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html( $messages['error'][ $error ] )
+			);
+		}
+	}
+
+	public function handle_export_csv() {
+		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( isset( $_POST['ufsc_lc_nonce'] ) ) {
+			$nonce = sanitize_text_field( wp_unslash( $_POST['ufsc_lc_nonce'] ) );
+			if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_export_csv' ) ) {
+				wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 		} else {
-			check_admin_referer( 'ufsc_lc_export_licences_csv' );
+			$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
+			if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_export_licences_csv' ) ) {
+				wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 		}
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$filters = $list_table->get_sanitized_filters();
@@ -79,4 +117,9 @@ class UFSC_LC_Licences_Admin {
 		$exporter->stream_licences_csv( $filters );
 	}
 
+	private function is_licences_screen() {
+		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+		return 'ufsc-lc-licences' === $page;
+	}
 }
