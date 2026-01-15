@@ -36,7 +36,9 @@
 			return;
 		}
 
-		var url = (window.UFSC_LC_Admin && UFSC_LC_Admin.ajaxUrl) ? UFSC_LC_Admin.ajaxUrl : window.ajaxurl;
+		var url = (window.UFSC_LC_Admin && (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl))
+			? (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl)
+			: window.ajaxurl;
 		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? UFSC_LC_Admin.nonces.clubSearch : '';
 		fetch(url + '?action=ufsc_lc_club_search&term=' + encodeURIComponent(term) + '&_ajax_nonce=' + encodeURIComponent(nonce))
 			.then(function(response) { return response.json(); })
@@ -64,7 +66,9 @@
 			data.append('_ajax_nonce', UFSC_LC_Admin.nonces.saveAlias);
 		}
 
-		var url = (window.UFSC_LC_Admin && UFSC_LC_Admin.ajaxUrl) ? UFSC_LC_Admin.ajaxUrl : window.ajaxurl;
+		var url = (window.UFSC_LC_Admin && (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl))
+			? (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl)
+			: window.ajaxurl;
 		fetch(url, { method: 'POST', body: data })
 			.then(function(response) { return response.json(); })
 			.then(function(response) {

@@ -96,7 +96,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() || ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! is_admin() || ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
 			return;
 		}
 
