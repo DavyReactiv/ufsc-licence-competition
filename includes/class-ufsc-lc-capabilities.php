@@ -5,27 +5,55 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class UFSC_LC_Capabilities {
-	const CAPABILITY = 'ufsc_manage_licences';
+	const MANAGE_CAPABILITY = 'ufsc_lc_manage';
+	const IMPORT_CAPABILITY = 'ufsc_lc_import';
+	const EXPORT_CAPABILITY = 'ufsc_lc_export';
+	const LEGACY_CAPABILITY = 'ufsc_manage_licences';
 
 	public static function add_caps() {
 		$role = get_role( 'administrator' );
 		if ( $role ) {
-			$role->add_cap( self::CAPABILITY );
+			$role->add_cap( self::MANAGE_CAPABILITY );
+			$role->add_cap( self::IMPORT_CAPABILITY );
+			$role->add_cap( self::EXPORT_CAPABILITY );
 		}
 	}
 
 	public static function remove_caps() {
 		$role = get_role( 'administrator' );
 		if ( $role ) {
-			$role->remove_cap( self::CAPABILITY );
+			$role->remove_cap( self::MANAGE_CAPABILITY );
+			$role->remove_cap( self::IMPORT_CAPABILITY );
+			$role->remove_cap( self::EXPORT_CAPABILITY );
+			$role->remove_cap( self::LEGACY_CAPABILITY );
 		}
 	}
 
 	public static function user_can_manage() {
-		if ( current_user_can( self::CAPABILITY ) ) {
+		if ( current_user_can( self::MANAGE_CAPABILITY ) ) {
+			return true;
+		}
+
+		if ( current_user_can( self::LEGACY_CAPABILITY ) ) {
 			return true;
 		}
 
 		return current_user_can( 'manage_options' );
+	}
+
+	public static function user_can_import() {
+		if ( current_user_can( self::IMPORT_CAPABILITY ) ) {
+			return true;
+		}
+
+		return self::user_can_manage();
+	}
+
+	public static function user_can_export() {
+		if ( current_user_can( self::EXPORT_CAPABILITY ) ) {
+			return true;
+		}
+
+		return self::user_can_manage();
 	}
 }

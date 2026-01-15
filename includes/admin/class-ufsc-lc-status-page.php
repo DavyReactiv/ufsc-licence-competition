@@ -39,7 +39,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -192,7 +192,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_rebuild_indexes() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -209,7 +209,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_recreate_tables() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

@@ -5,10 +5,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
+require_once __DIR__ . '/class-ufsc-lc-categories.php';
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
 require_once __DIR__ . '/class-ufsc-asptt-importer.php';
 require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
 require_once __DIR__ . '/class-ufsc-licence-indexes.php';
+require_once __DIR__ . '/class-ufsc-lc-licence-migrations.php';
 require_once __DIR__ . '/class-ufsc-lc-logger.php';
 require_once __DIR__ . '/export/class-ufsc-lc-exporter.php';
 require_once __DIR__ . '/import/class-ufsc-lc-asptt-importer.php';
@@ -17,9 +19,9 @@ require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
-	const CAPABILITY      = UFSC_LC_Capabilities::CAPABILITY;
+	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.3.0';
+	const DB_VERSION        = '1.4.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	const PARENT_SLUG       = 'ufsc-licence-documents';
 
@@ -96,7 +98,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() || ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! is_admin() || ! UFSC_LC_Capabilities::user_can_manage() ) {
 			return;
 		}
 
@@ -123,6 +125,10 @@ class UFSC_LC_Plugin {
 
 		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
 		$importer->create_tables();
+
+		$migrations = new UFSC_LC_Licence_Migrations();
+		$migrations->ensure_licence_columns();
+		$migrations->backfill_categories();
 
 		$indexes = new UFSC_LC_Licence_Indexes();
 		$indexes->ensure_indexes();
