@@ -19,7 +19,7 @@ require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.3.0';
+	const DB_VERSION        = '1.4.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	const PARENT_SLUG       = 'ufsc-licence-documents';
 
