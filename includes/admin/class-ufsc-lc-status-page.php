@@ -49,6 +49,7 @@ class UFSC_LC_Status_Page {
 		$clubs_table     = $wpdb->prefix . 'ufsc_clubs';
 		$docs_table      = $wpdb->prefix . 'ufsc_licence_documents';
 		$aliases_table   = $wpdb->prefix . 'ufsc_asptt_aliases';
+		$season_column   = $this->get_season_column( $licences_table );
 
 		$tables = array(
 			'licences'  => $this->table_exists( $licences_table ),
@@ -65,13 +66,39 @@ class UFSC_LC_Status_Page {
 
 		$last_import = null;
 		if ( $tables['documents'] ) {
-			$last_import = $wpdb->get_var( "SELECT MAX(updated_at) FROM {$docs_table}" );
+			if ( $this->has_column( $docs_table, 'imported_at' ) ) {
+				$last_import = $wpdb->get_var( "SELECT MAX(imported_at) FROM {$docs_table}" );
+			} else {
+				$last_import = $wpdb->get_var( "SELECT MAX(updated_at) FROM {$docs_table}" );
+			}
+		}
+
+		$season_counts = array();
+		if ( $tables['licences'] && $season_column ) {
+			$results = $wpdb->get_results(
+				"SELECT {$season_column} AS saison, COUNT(*) AS total
+				FROM {$licences_table}
+				WHERE {$season_column} IS NOT NULL AND {$season_column} != ''
+				GROUP BY {$season_column}
+				ORDER BY {$season_column} DESC"
+			);
+			foreach ( $results as $row ) {
+				$season_counts[] = array(
+					'saison' => (string) $row->saison,
+					'total'  => (int) $row->total,
+				);
+			}
 		}
 
 		$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
 		$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
 		$status_ok      = __( 'OK', 'ufsc-licence-competition' );
 		$status_ko      = __( 'KO', 'ufsc-licence-competition' );
+		$last_import_display = '';
+		if ( $last_import ) {
+			$formatted = mysql2date( 'd/m/Y H:i', $last_import );
+			$last_import_display = '' !== $formatted ? $formatted : $last_import;
+		}
 
 		?>
 		<div class="wrap">
@@ -119,8 +146,32 @@ class UFSC_LC_Status_Page {
 						<td><?php echo isset( $counts['documents'] ) ? esc_html( (string) $counts['documents'] ) : esc_html__( 'N/A', 'ufsc-licence-competition' ); ?></td>
 					</tr>
 					<tr>
-						<th><?php esc_html_e( 'Dernière importation documents', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo $last_import ? esc_html( $last_import ) : esc_html__( 'N/A', 'ufsc-licence-competition' ); ?></td>
+						<th><?php esc_html_e( 'Dernier import', 'ufsc-licence-competition' ); ?></th>
+						<td><?php echo $last_import_display ? esc_html( $last_import_display ) : esc_html__( 'N/A', 'ufsc-licence-competition' ); ?></td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e( 'Comptes licences par saison', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php if ( empty( $season_counts ) ) : ?>
+								<?php echo esc_html__( 'N/A', 'ufsc-licence-competition' ); ?>
+							<?php else : ?>
+								<ul style="margin: 0; padding-left: 18px;">
+									<?php foreach ( $season_counts as $season ) : ?>
+										<li>
+											<?php
+											echo esc_html(
+												sprintf(
+													'%s : %d',
+													$season['saison'],
+													$season['total']
+												)
+											);
+											?>
+										</li>
+									<?php endforeach; ?>
+								</ul>
+							<?php endif; ?>
+						</td>
 					</tr>
 				</tbody>
 			</table>
@@ -178,6 +229,26 @@ class UFSC_LC_Status_Page {
 		global $wpdb;
 
 		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+	}
+
+	private function has_column( $table, $column ) {
+		global $wpdb;
+
+		$column = sanitize_key( $column );
+		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+
+		return ! empty( $exists );
+	}
+
+	private function get_season_column( $table ) {
+		$candidates = array( 'saison', 'season' );
+		foreach ( $candidates as $candidate ) {
+			if ( $this->has_column( $table, $candidate ) ) {
+				return $candidate;
+			}
+		}
+
+		return '';
 	}
 
 	private function get_status_url() {

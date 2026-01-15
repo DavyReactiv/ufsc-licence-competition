@@ -9,14 +9,17 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 }
 
 class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
+	const FILTERS_USER_META = 'ufsc_lc_licences_filters';
 	private $has_created_at = false;
 	private $has_documents_table = false;
 	private $has_source_created_at = false;
 	private $has_licence_number = false;
 	private $has_internal_note = false;
 	private $has_documents_meta_table = false;
+	private $has_season_column = false;
 	private $date_column = 'date_naissance';
 	private $licence_number_column = 'id';
+	private $season_column = '';
 	
 	public function __construct() {
 		parent::__construct(
@@ -33,6 +36,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_source_created_at = $this->has_documents_table && $this->has_column( $this->get_documents_table(), 'source_created_at' );
 		$this->has_internal_note     = $this->has_column( $this->get_licences_table(), 'note_interne' );
 		$this->has_documents_meta_table = $this->table_exists( $this->get_documents_meta_table() );
+		$this->season_column         = $this->get_season_column();
+		$this->has_season_column     = '' !== $this->season_column;
 		$this->date_column           = $this->has_created_at ? 'created_at' : 'date_naissance';
 		$this->licence_number_column = $this->has_licence_number ? 'numero_licence_delegataire' : 'id';
 	}
@@ -62,10 +67,16 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function get_bulk_actions() {
-		return array(
-			'ufsc_lc_mark_review' => __( 'Marquer à vérifier', 'ufsc-licence-competition' ),
-			'ufsc_lc_remove_pdf'  => __( 'Supprimer association PDF', 'ufsc-licence-competition' ),
+		$actions = array(
+			'ufsc_lc_mark_review'           => __( 'Marquer à vérifier', 'ufsc-licence-competition' ),
+			'ufsc_lc_remove_pdf'            => __( 'Supprimer association PDF', 'ufsc-licence-competition' ),
+			'ufsc_lc_recalculate_categories' => __( 'Recalculer catégories', 'ufsc-licence-competition' ),
 		);
+		if ( $this->has_season_column ) {
+			$actions['ufsc_lc_change_season'] = __( 'Changer saison', 'ufsc-licence-competition' );
+		}
+
+		return $actions;
 	}
 
 	public function column_cb( $item ) {
@@ -115,47 +126,98 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function get_sanitized_filters() {
+		$defaults = $this->get_filter_defaults();
+		$persisted = $this->get_persisted_filters();
+		$reset = isset( $_REQUEST['ufsc_lc_reset'] ) ? absint( $_REQUEST['ufsc_lc_reset'] ) : 0;
+		if ( $reset ) {
+			$this->clear_persisted_filters();
+			$persisted = array();
+		}
+
 		$per_page = isset( $_REQUEST['per_page'] ) ? absint( $_REQUEST['per_page'] ) : 25;
+		if ( ! isset( $_REQUEST['per_page'] ) && isset( $persisted['per_page'] ) ) {
+			$per_page = absint( $persisted['per_page'] );
+		}
 		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
 
-		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) ) : 'nom_licence';
-		$order   = isset( $_REQUEST['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_REQUEST['order'] ) ) ) : 'asc';
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) ) : $defaults['orderby'];
+		if ( ! isset( $_REQUEST['orderby'] ) && isset( $persisted['orderby'] ) ) {
+			$orderby = sanitize_text_field( $persisted['orderby'] );
+		}
+		$order   = isset( $_REQUEST['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_REQUEST['order'] ) ) ) : $defaults['order'];
+		if ( ! isset( $_REQUEST['order'] ) && isset( $persisted['order'] ) ) {
+			$order = strtolower( sanitize_text_field( $persisted['order'] ) );
+		}
 
 		$allowed_orderby = array( $this->licence_number_column, 'nom_licence', $this->date_column );
 
 		if ( ! in_array( $orderby, $allowed_orderby, true ) ) {
-			$orderby = 'nom_licence';
+			$orderby = $defaults['orderby'];
 		}
 
 		$order = 'desc' === $order ? 'DESC' : 'ASC';
 
 		$pdf_filter = isset( $_REQUEST['pdf_filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['pdf_filter'] ) ) : '';
+		if ( ! isset( $_REQUEST['pdf_filter'] ) && isset( $persisted['pdf_filter'] ) ) {
+			$pdf_filter = sanitize_key( $persisted['pdf_filter'] );
+		}
 		$pdf_filter = in_array( $pdf_filter, array( 'with', 'without' ), true ) ? $pdf_filter : '';
 
-		$tab = isset( $_REQUEST['ufsc_lc_tab'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_lc_tab'] ) ) : 'all';
+		$tab = isset( $_REQUEST['ufsc_lc_tab'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_lc_tab'] ) ) : $defaults['tab'];
+		if ( ! isset( $_REQUEST['ufsc_lc_tab'] ) && isset( $persisted['tab'] ) ) {
+			$tab = sanitize_key( $persisted['tab'] );
+		}
 		$tabs = array_keys( $this->get_tabs() );
 		if ( ! in_array( $tab, $tabs, true ) ) {
-			$tab = 'all';
+			$tab = $defaults['tab'];
 		}
 
 		$statut      = isset( $_REQUEST['statut'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['statut'] ) ) : '';
+		if ( ! isset( $_REQUEST['statut'] ) && isset( $persisted['statut'] ) ) {
+			$statut = sanitize_text_field( $persisted['statut'] );
+		}
 		$categorie   = isset( $_REQUEST['categorie'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['categorie'] ) ) : '';
+		if ( ! isset( $_REQUEST['categorie'] ) && isset( $persisted['categorie'] ) ) {
+			$categorie = sanitize_text_field( $persisted['categorie'] );
+		}
 		$competition = isset( $_REQUEST['competition'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['competition'] ) ) : '';
+		if ( ! isset( $_REQUEST['competition'] ) && isset( $persisted['competition'] ) ) {
+			$competition = sanitize_text_field( $persisted['competition'] );
+		}
+		$saison = isset( $_REQUEST['saison'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['saison'] ) ) : '';
+		if ( ! isset( $_REQUEST['saison'] ) && isset( $persisted['saison'] ) ) {
+			$saison = sanitize_text_field( $persisted['saison'] );
+		}
 
 		$statut      = $this->sanitize_filter_value( 'statut', $statut );
 		$categorie   = $this->sanitize_filter_value( 'categorie', $categorie );
 		$competition = $this->sanitize_filter_value( 'competition', $competition );
+		$saison      = $this->sanitize_filter_value( 'saison', $saison );
+
+		$search = isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
+		if ( ! isset( $_REQUEST['s'] ) && isset( $persisted['search'] ) ) {
+			$search = sanitize_text_field( $persisted['search'] );
+		}
+		$club_id = isset( $_REQUEST['club_id'] ) ? absint( $_REQUEST['club_id'] ) : 0;
+		if ( ! isset( $_REQUEST['club_id'] ) && isset( $persisted['club_id'] ) ) {
+			$club_id = absint( $persisted['club_id'] );
+		}
+		$club_search = isset( $_REQUEST['club_search'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['club_search'] ) ) : '';
+		if ( ! isset( $_REQUEST['club_search'] ) && isset( $persisted['club_search'] ) ) {
+			$club_search = sanitize_text_field( $persisted['club_search'] );
+		}
 
 		return array(
 			'per_page'    => $per_page,
 			'orderby'     => $orderby,
 			'order'       => $order,
-			'search'      => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
-			'club_id'     => isset( $_REQUEST['club_id'] ) ? absint( $_REQUEST['club_id'] ) : 0,
-			'club_search' => isset( $_REQUEST['club_search'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['club_search'] ) ) : '',
+			'search'      => $search,
+			'club_id'     => $club_id,
+			'club_search' => $club_search,
 			'statut'      => $statut,
 			'categorie'   => $categorie,
 			'competition' => $competition,
+			'saison'      => $saison,
 			'pdf_filter'  => $pdf_filter,
 			'tab'         => $tab,
 		);
@@ -163,6 +225,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 	public function get_filter_query_args() {
 		$filters = $this->get_sanitized_filters();
+		$this->persist_filters( $filters );
 		$args = array(
 			'page'        => 'ufsc-lc-licences',
 			's'           => $filters['search'],
@@ -171,6 +234,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			'statut'      => $filters['statut'],
 			'categorie'   => $filters['categorie'],
 			'competition' => $filters['competition'],
+			'saison'      => $filters['saison'],
 			'pdf_filter'  => $filters['pdf_filter'],
 			'ufsc_lc_tab' => $filters['tab'],
 			'orderby'     => $filters['orderby'],
@@ -188,12 +252,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 	private function get_tabs() {
 		return array(
-			'all'           => __( 'Toutes', 'ufsc-licence-competition' ),
-			'with_pdf'      => __( 'Avec PDF', 'ufsc-licence-competition' ),
-			'without_pdf'   => __( 'Sans PDF', 'ufsc-licence-competition' ),
-			'with_asptt'    => __( 'Avec N° ASPTT', 'ufsc-licence-competition' ),
-			'without_asptt' => __( 'Sans N° ASPTT', 'ufsc-licence-competition' ),
-			'recent_asptt'  => __( 'Date ASPTT (30 derniers jours)', 'ufsc-licence-competition' ),
+			'all'    => __( 'Toutes', 'ufsc-licence-competition' ),
+			'status' => __( 'Par statut', 'ufsc-licence-competition' ),
+			'season' => __( 'Par saison', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -206,6 +267,16 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private function get_view_query_args( $tab ) {
 		$args = $this->get_filter_query_args();
 		$args['ufsc_lc_tab'] = $tab;
+		if ( 'all' === $tab ) {
+			$args['statut'] = '';
+			$args['saison'] = '';
+		}
+		if ( 'status' === $tab ) {
+			$args['saison'] = '';
+		}
+		if ( 'season' === $tab ) {
+			$args['statut'] = '';
+		}
 
 		return $args;
 	}
@@ -220,6 +291,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$statut      = $filters['statut'];
 			$categorie   = $filters['categorie'];
 			$competition = $filters['competition'];
+			$saison      = $filters['saison'];
 			$per_page    = $filters['per_page'];
 			$pdf_filter  = $filters['pdf_filter'];
 	
@@ -284,6 +356,21 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			}
 			echo '</select>';
 
+			if ( $this->has_season_column ) {
+				echo '<label class="screen-reader-text" for="ufsc-season-filter">' . esc_html__( 'Filtrer par saison', 'ufsc-licence-competition' ) . '</label>';
+				echo '<select name="saison" id="ufsc-season-filter">';
+				echo '<option value="">' . esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' ) . '</option>';
+				foreach ( $this->get_distinct_values( 'saison' ) as $value ) {
+					printf(
+						'<option value="%s" %s>%s</option>',
+						esc_attr( $value ),
+						selected( $saison, $value, false ),
+						esc_html( $value )
+					);
+				}
+				echo '</select>';
+			}
+
 			echo '<label class="screen-reader-text" for="ufsc-pdf-filter">' . esc_html__( 'Filtrer par PDF', 'ufsc-licence-competition' ) . '</label>';
 			echo '<select name="pdf_filter" id="ufsc-pdf-filter">';
 			echo '<option value="">' . esc_html__( 'Avec/Sans PDF', 'ufsc-licence-competition' ) . '</option>';
@@ -314,9 +401,24 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', 'filter_action', false );
 			printf(
 				'<a class="button button-secondary" href="%s">%s</a>',
-				esc_url( admin_url( 'admin.php?page=ufsc-lc-licences' ) ),
+				esc_url( add_query_arg( 'ufsc_lc_reset', 1, admin_url( 'admin.php?page=ufsc-lc-licences' ) ) ),
 				esc_html__( 'Réinitialiser filtres', 'ufsc-licence-competition' )
 			);
+			echo '</div>';
+
+			echo '<div class="alignleft actions">';
+			if ( $this->has_season_column ) {
+				echo '<label class="screen-reader-text" for="ufsc-bulk-season">' . esc_html__( 'Nouvelle saison', 'ufsc-licence-competition' ) . '</label>';
+				printf(
+					'<input type="text" name="bulk_saison" id="ufsc-bulk-season" value="" placeholder="%s" class="regular-text" list="ufsc-bulk-season-list" />',
+					esc_attr__( 'Nouvelle saison…', 'ufsc-licence-competition' )
+				);
+				echo '<datalist id="ufsc-bulk-season-list">';
+				foreach ( $this->get_distinct_values( 'saison' ) as $value ) {
+					printf( '<option value="%s"></option>', esc_attr( $value ) );
+				}
+				echo '</datalist>';
+			}
 			echo '</div>';
 		}
 	
@@ -336,8 +438,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$statut = $filters['statut'];
 		$categorie = $filters['categorie'];
 		$competition = $filters['competition'];
+		$saison = $filters['saison'];
 		$pdf_filter = $filters['pdf_filter'];
-		$tab = $filters['tab'];
 
 		$licences_table  = $this->get_licences_table();
 		$clubs_table     = $this->get_clubs_table();
@@ -384,6 +486,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$params[] = $competition;
 		}
 
+		if ( '' !== $saison && $this->has_season_column ) {
+			$where[] = "l.{$this->season_column} = %s";
+			$params[] = $saison;
+		}
+
 		$join_documents = '';
 		$document_params = array();
 		$select_documents = 'NULL AS asptt_number, NULL AS date_asptt, NULL AS attachment_id';
@@ -403,27 +510,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$where[] = 'd.attachment_id IS NULL';
 			}
 
-			switch ( $tab ) {
-				case 'with_pdf':
-					$where[] = 'd.attachment_id IS NOT NULL';
-					break;
-				case 'without_pdf':
-					$where[] = 'd.attachment_id IS NULL';
-					break;
-				case 'with_asptt':
-					$where[] = "d.source_licence_number IS NOT NULL AND d.source_licence_number != ''";
-					break;
-				case 'without_asptt':
-					$where[] = "(d.source_licence_number IS NULL OR d.source_licence_number = '')";
-					break;
-				case 'recent_asptt':
-					if ( $this->has_source_created_at ) {
-						$cutoff = gmdate( 'Y-m-d H:i:s', (int) ( current_time( 'timestamp' ) - 30 * DAY_IN_SECONDS ) );
-						$where[] = 'd.source_created_at >= %s';
-						$params[] = $cutoff;
-					}
-					break;
-			}
 		}
 
 		$where_sql = '';
@@ -482,8 +568,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$statut      = $filters['statut'];
 		$categorie   = $filters['categorie'];
 		$competition = $filters['competition'];
+		$saison = $filters['saison'];
 		$pdf_filter  = $filters['pdf_filter'];
-		$tab         = $filters['tab'];
 		$orderby     = $filters['orderby'];
 		$order       = $filters['order'];
 
@@ -528,6 +614,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$params[] = $competition;
 		}
 
+		if ( '' !== $saison && $this->has_season_column ) {
+			$where[] = "l.{$this->season_column} = %s";
+			$params[] = $saison;
+		}
+
 		$join_documents = '';
 		$document_params = array();
 		$select_documents = 'NULL AS asptt_number, NULL AS date_asptt, 0 AS has_pdf';
@@ -547,27 +638,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$where[] = 'd.attachment_id IS NULL';
 			}
 
-			switch ( $tab ) {
-				case 'with_pdf':
-					$where[] = 'd.attachment_id IS NOT NULL';
-					break;
-				case 'without_pdf':
-					$where[] = 'd.attachment_id IS NULL';
-					break;
-				case 'with_asptt':
-					$where[] = "d.source_licence_number IS NOT NULL AND d.source_licence_number != ''";
-					break;
-				case 'without_asptt':
-					$where[] = "(d.source_licence_number IS NULL OR d.source_licence_number = '')";
-					break;
-				case 'recent_asptt':
-					if ( $this->has_source_created_at ) {
-						$cutoff = gmdate( 'Y-m-d H:i:s', (int) ( current_time( 'timestamp' ) - 30 * DAY_IN_SECONDS ) );
-						$where[] = 'd.source_created_at >= %s';
-						$params[] = $cutoff;
-					}
-					break;
-			}
 		}
 
 		$where_sql = '';
@@ -624,6 +694,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				break;
 			case 'ufsc_lc_remove_pdf':
 				$result = $this->handle_bulk_remove_pdf( $licence_ids );
+				break;
+			case 'ufsc_lc_recalculate_categories':
+				$result = $this->handle_bulk_recalculate_categories( $licence_ids );
+				break;
+			case 'ufsc_lc_change_season':
+				$result = $this->handle_bulk_change_season( $licence_ids );
 				break;
 			default:
 				$result = array();
@@ -697,6 +773,72 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		return array( 'type' => 'success', 'code' => 'bulk_remove_pdf' );
 	}
 
+	private function handle_bulk_recalculate_categories( array $licence_ids ) {
+		global $wpdb;
+
+		$licences_table = $this->get_licences_table();
+		$placeholders = implode( ',', array_fill( 0, count( $licence_ids ), '%d' ) );
+		$licences = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, date_naissance, categorie FROM {$licences_table} WHERE id IN ({$placeholders})",
+				$licence_ids
+			)
+		);
+
+		if ( empty( $licences ) ) {
+			return array( 'type' => 'warning', 'code' => 'bulk_recalculate_empty' );
+		}
+
+		$updated = 0;
+		foreach ( $licences as $licence ) {
+			$calculated = apply_filters( 'ufsc_lc_calculate_category', null, $licence );
+			if ( null === $calculated ) {
+				continue;
+			}
+			$calculated = (string) $calculated;
+			$wpdb->update(
+				$licences_table,
+				array( 'categorie' => $calculated ),
+				array( 'id' => (int) $licence->id ),
+				array( '%s' ),
+				array( '%d' )
+			);
+			$updated++;
+		}
+
+		if ( 0 === $updated ) {
+			return array( 'type' => 'warning', 'code' => 'bulk_recalculate_skipped' );
+		}
+
+		return array( 'type' => 'success', 'code' => 'bulk_recalculate_categories' );
+	}
+
+	private function handle_bulk_change_season( array $licence_ids ) {
+		global $wpdb;
+
+		if ( ! $this->has_season_column ) {
+			return array( 'type' => 'error', 'code' => 'season_missing' );
+		}
+
+		$new_season = isset( $_REQUEST['bulk_saison'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['bulk_saison'] ) ) : '';
+		if ( '' === $new_season ) {
+			return array( 'type' => 'warning', 'code' => 'bulk_season_missing' );
+		}
+
+		$licences_table = $this->get_licences_table();
+		$placeholders = implode( ',', array_fill( 0, count( $licence_ids ), '%d' ) );
+		$params = array_merge( array( $new_season ), $licence_ids );
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$licences_table} SET {$this->season_column} = %s WHERE id IN ({$placeholders})",
+				$params
+			)
+		);
+
+		return array( 'type' => 'success', 'code' => 'bulk_change_season' );
+	}
+
 	private function redirect_with_notice( array $notice ) {
 		$type = isset( $notice['type'] ) ? sanitize_key( $notice['type'] ) : '';
 		$code = isset( $notice['code'] ) ? sanitize_key( $notice['code'] ) : '';
@@ -758,19 +900,26 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
 		}
 	
-		private function get_distinct_values( $column ) {
-			global $wpdb;
-	
-			$allowed = array( 'statut', 'categorie', 'competition' );
-			if ( ! in_array( $column, $allowed, true ) ) {
+	private function get_distinct_values( $column ) {
+		global $wpdb;
+
+		$allowed = array( 'statut', 'categorie', 'competition', 'saison' );
+		if ( ! in_array( $column, $allowed, true ) ) {
+			return array();
+		}
+
+		$table = $this->get_licences_table();
+		$column_name = $column;
+		if ( 'saison' === $column ) {
+			if ( ! $this->has_season_column ) {
 				return array();
 			}
-	
-			$table = $this->get_licences_table();
-			$results = $wpdb->get_col( "SELECT DISTINCT {$column} FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC" );
-	
-			return array_filter( array_map( 'strval', $results ) );
+			$column_name = $this->season_column;
 		}
+		$results = $wpdb->get_col( "SELECT DISTINCT {$column_name} FROM {$table} WHERE {$column_name} IS NOT NULL AND {$column_name} != '' ORDER BY {$column_name} ASC" );
+
+		return array_filter( array_map( 'strval', $results ) );
+	}
 	
 	private function has_column( $table, $column ) {
 		global $wpdb;
@@ -794,6 +943,48 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		return in_array( $value, $allowed, true ) ? $value : '';
 	}
+
+	private function get_filter_defaults() {
+		return array(
+			'per_page'    => 25,
+			'orderby'     => 'nom_licence',
+			'order'       => 'asc',
+			'search'      => '',
+			'club_id'     => 0,
+			'club_search' => '',
+			'statut'      => '',
+			'categorie'   => '',
+			'competition' => '',
+			'saison'      => '',
+			'pdf_filter'  => '',
+			'tab'         => 'all',
+		);
+	}
+
+	private function get_persisted_filters() {
+		if ( ! is_user_logged_in() ) {
+			return array();
+		}
+
+		$stored = get_user_meta( get_current_user_id(), self::FILTERS_USER_META, true );
+		return is_array( $stored ) ? $stored : array();
+	}
+
+	private function persist_filters( array $filters ) {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		update_user_meta( get_current_user_id(), self::FILTERS_USER_META, $filters );
+	}
+
+	private function clear_persisted_filters() {
+		if ( ! is_user_logged_in() ) {
+			return;
+		}
+
+		delete_user_meta( get_current_user_id(), self::FILTERS_USER_META );
+	}
 	
 		private function get_documents_table() {
 			global $wpdb;
@@ -807,11 +998,23 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			return $wpdb->prefix . 'ufsc_licence_documents_meta';
 		}
 	
-		private function get_licences_table() {
-			global $wpdb;
-	
-			return $wpdb->prefix . 'ufsc_licences';
+	private function get_licences_table() {
+		global $wpdb;
+
+		return $wpdb->prefix . 'ufsc_licences';
+	}
+
+	private function get_season_column() {
+		$table = $this->get_licences_table();
+		$candidates = array( 'saison', 'season' );
+		foreach ( $candidates as $candidate ) {
+			if ( $this->has_column( $table, $candidate ) ) {
+				return $candidate;
+			}
 		}
+
+		return '';
+	}
 	
 	private function get_clubs_table() {
 		global $wpdb;

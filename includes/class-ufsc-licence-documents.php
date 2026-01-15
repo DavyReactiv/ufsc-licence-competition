@@ -91,7 +91,12 @@ class UFSC_LC_Licence_Documents {
 		$message = isset( $_GET['ufsc_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_message'] ) ) : '';
 
 		if ( $status && $message ) {
-			$class = ( 'success' === $status ) ? 'notice notice-success' : 'notice notice-error';
+			$notice_classes = array(
+				'success' => 'notice notice-success is-dismissible',
+				'warning' => 'notice notice-warning is-dismissible',
+				'error'   => 'notice notice-error is-dismissible',
+			);
+			$class = isset( $notice_classes[ $status ] ) ? $notice_classes[ $status ] : 'notice notice-info is-dismissible';
 			echo '<div class="' . esc_attr( $class ) . '"><p>' . esc_html( $message ) . '</p></div>';
 		}
 
