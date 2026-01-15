@@ -31,7 +31,26 @@ class UFSC_LC_Exporter {
 		$columns = $this->get_export_columns( $filters );
 
 		fwrite( $output, "\xEF\xBB\xBF" );
+    
 		fputcsv( $output, wp_list_pluck( $columns, 'label' ) );
+
+		fputcsv(
+			$output,
+			array(
+				'club',
+				'nom',
+				'prenom',
+				'dob',
+				'statut',
+				'categorie',
+				'saison',
+				'age_ref',
+				'competition',
+				'n_asptt',
+				'date_asptt',
+				'has_pdf',
+			)
+		);
 
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$offset = 0;
@@ -40,11 +59,31 @@ class UFSC_LC_Exporter {
 		do {
 			$rows = $list_table->get_export_rows_chunk( $filters, $limit, $offset );
 			foreach ( $rows as $row ) {
+
 				$line = array();
 				foreach ( $columns as $column ) {
 					$line[] = isset( $row[ $column['key'] ] ) ? $row[ $column['key'] ] : '';
 				}
 				fputcsv( $output, $line );
+
+				fputcsv(
+					$output,
+					array(
+						$row['club_name'],
+						$row['nom_licence'],
+						$row['prenom'],
+						$row['date_naissance'],
+						$row['statut'],
+						$row['category'],
+						$row['season_end_year'],
+						$row['age_ref'],
+						$row['competition'],
+						$row['asptt_number'],
+						$row['date_asptt'],
+						$row['has_pdf'],
+					)
+				);
+
 			}
 
 			$offset += $limit;
