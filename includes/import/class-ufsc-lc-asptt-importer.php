@@ -145,7 +145,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
-	public function import_from_file( $file_path, $force_club_id, $mapping = array() ) {
+	public function import_from_file( $file_path, $force_club_id, $mapping = array(), $auto_approve = true ) {
 		global $wpdb;
 
 		$use_transactions = false;
@@ -163,11 +163,13 @@ class UFSC_LC_ASPTT_Import_Service {
 			'duplicates' => 0,
 		);
 
+		$has_meta_table = $this->table_exists( $this->get_documents_meta_table() );
+
 		$process_result = $this->iterate_csv_rows_in_chunks(
 			$file_path,
 			$mapping,
 			self::IMPORT_CHUNK_SIZE,
-			function( $rows ) use ( $force_club_id, &$inserted, &$has_error, &$stats, $wpdb ) {
+			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$has_error, &$stats, $wpdb ) {
 
 				foreach ( $rows as $row ) {
 					$stats['total']++;
@@ -204,6 +206,22 @@ class UFSC_LC_ASPTT_Import_Service {
 						$data['note'],
 						$data['source_created_at']
 					);
+
+					if ( $has_meta_table ) {
+						$review_status = 'pending';
+						$link_mode     = 'manual';
+
+						if ( $auto_approve && ! empty( $data['auto_linked'] ) ) {
+							$review_status = 'approved';
+							$link_mode     = 'auto';
+						}
+
+						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'] );
+						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'link_mode', $link_mode );
+						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'review_status', $review_status );
+						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'club_resolution', $data['club_resolution'] );
+						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'person_resolution', $data['person_resolution'] );
+					}
 
 					// SQL error guard (both false return and wpdb->last_error).
 					if ( false === $doc_id || ! empty( $wpdb->last_error ) ) {
@@ -367,11 +385,13 @@ class UFSC_LC_ASPTT_Import_Service {
 		$licence_id       = 0;
 		$status           = self::STATUS_CLUB_NOT_FOUND;
 		$skip_resolution  = false;
+		$person_resolution = 'none';
 
 		$resolved = array(
 			'status'      => self::STATUS_CLUB_NOT_FOUND,
 			'club_id'     => 0,
 			'suggestions' => array(),
+			'resolution'  => 'none',
 		);
 
 		// Season + category computation at 31/12 (handled by UFSC_LC_Categories).
@@ -450,7 +470,9 @@ class UFSC_LC_ASPTT_Import_Service {
 					$stats['clubs_linked']++;
 				}
 
-				$licence_id = $this->find_licence_id( $resolved['club_id'], $nom, $prenom, $dob, $genre );
+				$licence_match    = $this->find_licence_match( $resolved['club_id'], $nom, $prenom, $dob, $genre );
+				$licence_id       = $licence_match['id'];
+				$person_resolution = $licence_match['resolution'];
 
 				if ( $licence_id ) {
 					$status = self::STATUS_LINKED;
@@ -499,6 +521,17 @@ class UFSC_LC_ASPTT_Import_Service {
 			);
 		}
 
+		$confidence = $this->compute_confidence(
+			array(
+				'status'            => $status,
+				'club_resolution'   => $resolved['resolution'],
+				'person_resolution' => $person_resolution,
+				'raw_created_at'    => $raw_created_at,
+				'source_created_at' => $source_created_at,
+				'has_error'         => ! empty( $row_errors ),
+			)
+		);
+
 		$preview = array(
 			'nom'                  => $nom,
 			'prenom'               => $prenom,
@@ -516,6 +549,11 @@ class UFSC_LC_ASPTT_Import_Service {
 			'licence_id'           => $licence_id,
 			'attachment_id'        => 0,
 			'has_error'            => ! empty( $row_errors ),
+			'confidence_score'     => $confidence['confidence_score'],
+			'link_mode'            => $confidence['link_mode'],
+			'auto_linked'          => $confidence['auto_linked'],
+			'club_resolution'      => $resolved['resolution'],
+			'person_resolution'    => $person_resolution,
 		);
 
 		$error = null;
@@ -805,6 +843,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_LINKED,
 				'club_id'     => $force_club_id,
 				'suggestions' => array(),
+				'resolution'  => 'forced',
 			);
 		}
 
@@ -813,6 +852,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_CLUB_NOT_FOUND,
 				'club_id'     => 0,
 				'suggestions' => array(),
+				'resolution'  => 'none',
 			);
 		}
 
@@ -824,6 +864,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_LINKED,
 				'club_id'     => (int) $club->id,
 				'suggestions' => array(),
+				'resolution'  => 'exact',
 			);
 		}
 
@@ -833,6 +874,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_LINKED,
 				'club_id'     => (int) $alias->club_id,
 				'suggestions' => array(),
+				'resolution'  => 'alias',
 			);
 		}
 
@@ -842,6 +884,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_LINKED,
 				'club_id'     => (int) $suggestions[0]->id,
 				'suggestions' => array(),
+				'resolution'  => 'suggestion',
 			);
 		}
 
@@ -858,6 +901,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'status'      => self::STATUS_NEEDS_REVIEW,
 				'club_id'     => 0,
 				'suggestions' => $suggestion_rows,
+				'resolution'  => 'none',
 			);
 		}
 
@@ -865,10 +909,11 @@ class UFSC_LC_ASPTT_Import_Service {
 			'status'      => self::STATUS_CLUB_NOT_FOUND,
 			'club_id'     => 0,
 			'suggestions' => array(),
+			'resolution'  => 'none',
 		);
 	}
 
-	private function find_licence_id( $club_id, $nom, $prenom, $dob, $genre ) {
+	private function find_licence_match( $club_id, $nom, $prenom, $dob, $genre ) {
 		global $wpdb;
 
 		$table = $this->get_licences_table();
@@ -878,7 +923,10 @@ class UFSC_LC_ASPTT_Import_Service {
 		$dob_value         = $this->parse_date( $dob );
 
 		if ( ! $dob_value ) {
-			return 0;
+			return array(
+				'id'         => 0,
+				'resolution' => 'none',
+			);
 		}
 
 		$sql = "SELECT id, sexe, nom_licence, prenom, date_naissance FROM {$table}
@@ -886,7 +934,10 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $club_id, $dob_value ) );
 		if ( empty( $results ) ) {
-			return 0;
+			return array(
+				'id'         => 0,
+				'resolution' => 'none',
+			);
 		}
 
 		$matches = array();
@@ -898,23 +949,95 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		if ( empty( $matches ) ) {
-			return 0;
+			return array(
+				'id'         => 0,
+				'resolution' => 'none',
+			);
 		}
 
 		if ( 1 === count( $matches ) ) {
-			return (int) $matches[0]->id;
+			return array(
+				'id'         => (int) $matches[0]->id,
+				'resolution' => 'unique',
+			);
 		}
 
 		if ( $genre ) {
 			$genre_normalized = strtolower( trim( $genre ) );
 			foreach ( $matches as $match ) {
 				if ( strtolower( $match->sexe ) === $genre_normalized ) {
-					return (int) $match->id;
+					return array(
+						'id'         => (int) $match->id,
+						'resolution' => 'gender_tiebreak',
+					);
 				}
 			}
 		}
 
-		return 0;
+		return array(
+			'id'         => 0,
+			'resolution' => 'none',
+		);
+	}
+
+	private function compute_confidence( $context ) {
+		$score = 0;
+
+		$club_resolution   = isset( $context['club_resolution'] ) ? $context['club_resolution'] : 'none';
+		$person_resolution = isset( $context['person_resolution'] ) ? $context['person_resolution'] : 'none';
+
+		switch ( $club_resolution ) {
+			case 'forced':
+				$score += 50;
+				break;
+			case 'exact':
+				$score += 45;
+				break;
+			case 'alias':
+				$score += 35;
+				break;
+			case 'suggestion':
+				$score += 25;
+				break;
+		}
+
+		switch ( $person_resolution ) {
+			case 'unique':
+				$score += 45;
+				break;
+			case 'gender_tiebreak':
+				$score += 20;
+				break;
+		}
+
+		$raw_created_at    = isset( $context['raw_created_at'] ) ? (string) $context['raw_created_at'] : '';
+		$source_created_at = isset( $context['source_created_at'] ) ? $context['source_created_at'] : null;
+
+		if ( '' !== $raw_created_at && null === $source_created_at ) {
+			$score -= 20;
+		}
+
+		if ( isset( $context['status'] ) && self::STATUS_INVALID_BIRTHDATE === $context['status'] ) {
+			$score -= 30;
+		}
+
+		$score = max( 0, min( 100, $score ) );
+
+		$has_error   = ! empty( $context['has_error'] );
+		$status      = isset( $context['status'] ) ? $context['status'] : '';
+		$auto_linked = ( self::STATUS_LINKED === $status && $score >= 85 && ! $has_error );
+
+		if ( self::STATUS_LINKED === $status ) {
+			$link_mode = $auto_linked ? 'auto' : 'manual';
+		} else {
+			$link_mode = 'none';
+		}
+
+		return array(
+			'confidence_score' => (int) $score,
+			'auto_linked'      => $auto_linked,
+			'link_mode'        => $link_mode,
+		);
 	}
 
 	private function save_alias_for_row( $force_club_id, $data ) {
@@ -1030,6 +1153,46 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		return (int) $wpdb->insert_id;
+	}
+
+	private function upsert_document_meta( $licence_id, $source, $meta_key, $meta_value ) {
+		global $wpdb;
+
+		$table = $this->get_documents_meta_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return false;
+		}
+
+		$existing = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE licence_id = %d AND source = %s AND meta_key = %s",
+				$licence_id,
+				$source,
+				$meta_key
+			)
+		);
+
+		$data = array(
+			'licence_id' => $licence_id,
+			'source'     => $source,
+			'meta_key'   => $meta_key,
+			'meta_value' => maybe_serialize( $meta_value ),
+			'updated_at' => current_time( 'mysql' ),
+		);
+
+		$formats = array( '%d', '%s', '%s', '%s', '%s' );
+
+		if ( $existing ) {
+			return false !== $wpdb->update(
+				$table,
+				$data,
+				array( 'id' => (int) $existing ),
+				$formats,
+				array( '%d' )
+			);
+		}
+
+		return false !== $wpdb->insert( $table, $data, $formats );
 	}
 
 	private function normalize_name( $value ) {
@@ -1336,6 +1499,11 @@ class UFSC_LC_ASPTT_Import_Service {
 	private function get_documents_table() {
 		global $wpdb;
 		return $wpdb->prefix . 'ufsc_licence_documents';
+	}
+
+	private function get_documents_meta_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_licence_documents_meta';
 	}
 
 	private function get_import_logs_table() {

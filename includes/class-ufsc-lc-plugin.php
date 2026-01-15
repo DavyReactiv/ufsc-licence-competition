@@ -17,6 +17,7 @@ require_once __DIR__ . '/import/class-ufsc-lc-asptt-importer.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-admin-assets.php';
 require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
+require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
 
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
@@ -86,6 +87,9 @@ class UFSC_LC_Plugin {
 
 		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
 		$importer->register();
+
+		$review_page = new UFSC_LC_ASPTT_Review_Page( new UFSC_LC_ASPTT_Import_Service() );
+		$review_page->register_actions();
 
 		$licences_admin = new UFSC_LC_Licences_Admin();
 		$licences_admin->register();
