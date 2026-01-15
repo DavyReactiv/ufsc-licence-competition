@@ -174,7 +174,7 @@ class UFSC_LC_Licence_Documents {
 
 	public function handle_download() {
 		if ( ! is_user_logged_in() ) {
-			UFSC_LC_Logger::log( 'Téléchargement refusé: utilisateur non connecté.' );
+			UFSC_LC_Logger::log( __( 'Téléchargement refusé: utilisateur non connecté.', 'ufsc-licence-competition' ) );
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -182,13 +182,19 @@ class UFSC_LC_Licence_Documents {
 		$nonce      = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
 
 		if ( ! $licence_id || ! wp_verify_nonce( $nonce, 'ufsc_lc_download_licence_pdf_' . $licence_id ) ) {
-			UFSC_LC_Logger::log( 'Téléchargement refusé: nonce invalide.', array( 'licence_id' => $licence_id ) );
+			UFSC_LC_Logger::log(
+				__( 'Téléchargement refusé: nonce invalide.', 'ufsc-licence-competition' ),
+				array( 'licence_id' => $licence_id )
+			);
 			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$licence = $this->get_licence_record( $licence_id, '' );
 		if ( ! $licence ) {
-			UFSC_LC_Logger::log( 'Téléchargement refusé: licence introuvable.', array( 'licence_id' => $licence_id ) );
+			UFSC_LC_Logger::log(
+				__( 'Téléchargement refusé: licence introuvable.', 'ufsc-licence-competition' ),
+				array( 'licence_id' => $licence_id )
+			);
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
@@ -196,7 +202,7 @@ class UFSC_LC_Licence_Documents {
 			$club = $this->get_club_by_id( (int) $licence->club_id );
 			if ( ! $club || (int) $club->responsable_id !== (int) get_current_user_id() ) {
 				UFSC_LC_Logger::log(
-					'Téléchargement refusé: utilisateur non autorisé.',
+					__( 'Téléchargement refusé: utilisateur non autorisé.', 'ufsc-licence-competition' ),
 					array(
 						'licence_id' => (int) $licence->id,
 						'club_id'    => (int) $licence->club_id,
@@ -208,13 +214,19 @@ class UFSC_LC_Licence_Documents {
 
 		$document = $this->get_document_by_licence( $licence_id );
 		if ( ! $document || ! $document->attachment_id ) {
-			UFSC_LC_Logger::log( 'Téléchargement refusé: document indisponible.', array( 'licence_id' => $licence_id ) );
+			UFSC_LC_Logger::log(
+				__( 'Téléchargement refusé: document indisponible.', 'ufsc-licence-competition' ),
+				array( 'licence_id' => $licence_id )
+			);
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
 		$file_path = get_attached_file( (int) $document->attachment_id );
 		if ( ! $file_path || ! file_exists( $file_path ) ) {
-			UFSC_LC_Logger::log( 'Téléchargement refusé: fichier introuvable.', array( 'attachment_id' => (int) $document->attachment_id ) );
+			UFSC_LC_Logger::log(
+				__( 'Téléchargement refusé: fichier introuvable.', 'ufsc-licence-competition' ),
+				array( 'attachment_id' => (int) $document->attachment_id )
+			);
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 

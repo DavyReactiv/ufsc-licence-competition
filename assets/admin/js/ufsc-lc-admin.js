@@ -19,7 +19,7 @@
 	function buildClubOptions(items) {
 		var selectLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.selectClub)
 			? UFSC_LC_Admin.strings.selectClub
-			: 'Sélectionner un club';
+			: '';
 		var options = '<option value="">' + selectLabel + '</option>';
 		items.forEach(function(item) {
 			options += '<option value="' + item.id + '">' + item.text + '</option>';
@@ -52,8 +52,8 @@
 
 	function sendAlias(rowIndex, clubId) {
 		var feedback = document.querySelector('.ufsc-alias-feedback[data-row-index="' + rowIndex + '"]');
-		var savingLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.saving : 'Enregistrement...';
-		var errorLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.errorDefault : 'Erreur';
+		var savingLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.saving : '';
+		var errorLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.errorDefault : '';
 		if (feedback) {
 			feedback.textContent = savingLabel;
 		}
@@ -100,7 +100,7 @@
 				var clubId = select ? select.value : '';
 				var selectFirstLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings)
 					? UFSC_LC_Admin.strings.selectFirst
-					: 'Veuillez sélectionner un club.';
+					: '';
 				if (!clubId) {
 					window.alert(selectFirstLabel);
 					return;

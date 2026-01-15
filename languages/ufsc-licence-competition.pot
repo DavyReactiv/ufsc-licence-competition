@@ -1,9 +1,840 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the UFSC Licence Competition package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: UFSC Licence Competition\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2024-01-01 00:00+0000\n"
+"POT-Creation-Date: 2026-01-15 02:02+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Domain: ufsc-licence-competition\n"
+
+#: includes/admin/class-ufsc-lc-status-page.php:27
+#: includes/admin/class-ufsc-lc-status-page.php:28
+#: includes/admin/class-ufsc-lc-status-page.php:78
+msgid "UFSC LC — Status"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:43
+#: includes/admin/class-ufsc-lc-status-page.php:145
+#: includes/admin/class-ufsc-lc-status-page.php:162
+#: includes/admin/class-ufsc-licences-admin.php:32
+#: includes/admin/class-ufsc-licences-admin.php:100
+#: includes/admin/class-ufsc-licences-list-table.php:606
+#: includes/class-ufsc-licence-documents.php:87
+#: includes/class-ufsc-licence-documents.php:127
+#: includes/class-ufsc-licence-documents.php:174
+#: includes/class-ufsc-licence-documents.php:207
+#: includes/class-ufsc-asptt-importer.php:79
+#: includes/class-ufsc-asptt-importer.php:333
+#: includes/class-ufsc-asptt-importer.php:389
+#: includes/class-ufsc-asptt-importer.php:439
+#: includes/class-ufsc-asptt-importer.php:464
+#: includes/class-ufsc-asptt-importer.php:504
+#: includes/class-ufsc-club-licences-shortcode.php:268
+#: includes/class-ufsc-club-licences-shortcode.php:286
+msgid "Accès refusé."
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:72
+msgid "ON"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:72
+msgid "OFF"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:73
+msgid "OK"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:74
+msgid "KO"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:82
+msgid "Version plugin (DB_VERSION)"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:86
+msgid "Version DB installée"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:90
+msgid "Legacy mode"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:94
+msgid "Table UFSC licences"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:98
+msgid "Table UFSC clubs"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:102
+msgid "Table documents add-on"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:106
+msgid "Table aliases ASPTT"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:110
+msgid "Compteur licences"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:111
+#: includes/admin/class-ufsc-lc-status-page.php:115
+#: includes/admin/class-ufsc-lc-status-page.php:119
+#: includes/admin/class-ufsc-lc-status-page.php:123
+msgid "N/A"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:114
+msgid "Compteur clubs"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:118
+msgid "Compteur documents"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:122
+msgid "Dernière importation documents"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:131
+msgid "Rebuild indexes"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:137
+msgid "Recreate tables"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-status-page.php:150
+#: includes/admin/class-ufsc-lc-status-page.php:167
+#: includes/admin/class-ufsc-licences-admin.php:106
+#: includes/admin/class-ufsc-licences-admin.php:111
+#: includes/admin/class-ufsc-licences-list-table.php:618
+#: includes/class-ufsc-licence-documents.php:132
+#: includes/class-ufsc-licence-documents.php:185
+#: includes/class-ufsc-asptt-importer.php:338
+#: includes/class-ufsc-asptt-importer.php:394
+#: includes/class-ufsc-asptt-importer.php:509
+#: includes/class-ufsc-club-licences-shortcode.php:275
+msgid "Requête invalide."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:20
+#: includes/admin/class-ufsc-licences-admin.php:21
+#: includes/admin/class-ufsc-licences-admin.php:40
+msgid "Licences"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:47
+msgid "Exporter CSV (filtres actifs)"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:57
+msgid "Rechercher"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:74
+msgid "Licences marquées à vérifier."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:75
+msgid "Associations PDF supprimées."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:78
+msgid "Action impossible : table meta des documents manquante."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-admin.php:79
+msgid "Action impossible : table des documents absente."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:43
+msgid "N° licence"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:44
+#: includes/class-ufsc-asptt-importer.php:260
+#: includes/class-ufsc-asptt-importer.php:321
+#: includes/class-ufsc-club-licences-shortcode.php:165
+#: includes/class-ufsc-club-licences-shortcode.php:194
+#: includes/import/class-ufsc-lc-asptt-importer.php:195
+msgid "Nom"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:45
+#: includes/class-ufsc-asptt-importer.php:261
+#: includes/class-ufsc-club-licences-shortcode.php:195
+msgid "Prénom"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:46
+msgid "Club"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:47
+#: includes/class-ufsc-asptt-importer.php:267
+#: includes/class-ufsc-club-licences-shortcode.php:122
+#: includes/class-ufsc-club-licences-shortcode.php:197
+msgid "Statut"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:48
+msgid "Date"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:66
+msgid "Marquer à vérifier"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:67
+msgid "Supprimer association PDF"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:98
+#: includes/class-ufsc-club-licences-shortcode.php:206
+msgid "Aucune licence trouvée."
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:104
+#: includes/admin/class-ufsc-licences-list-table.php:109
+#: includes/admin/class-ufsc-licences-list-table.php:111
+#: includes/admin/class-ufsc-licences-list-table.php:730
+#: includes/admin/class-ufsc-licences-list-table.php:742
+#: includes/class-ufsc-club-licences-shortcode.php:216
+#: includes/class-ufsc-club-licences-shortcode.php:610
+msgid "—"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:191
+#: includes/class-ufsc-club-licences-shortcode.php:135
+#: includes/class-ufsc-club-licences-shortcode.php:146
+msgid "Toutes"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:192
+#: includes/admin/class-ufsc-licences-list-table.php:293
+#: includes/class-ufsc-club-licences-shortcode.php:158
+msgid "Avec PDF"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:193
+#: includes/admin/class-ufsc-licences-list-table.php:298
+#: includes/class-ufsc-club-licences-shortcode.php:159
+msgid "Sans PDF"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:194
+msgid "Avec N° ASPTT"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:195
+msgid "Sans N° ASPTT"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:196
+msgid "Date ASPTT (30 derniers jours)"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:227
+msgid "Filtrer par club"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:229
+msgid "Tous les clubs"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:240
+msgid "Recherche club"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:244
+msgid "Recherche club…"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:247
+msgid "Filtrer par statut"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:249
+msgid "Tous les statuts"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:260
+msgid "Filtrer par catégorie"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:262
+msgid "Toutes les catégories"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:273
+msgid "Filtrer par compétition"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:275
+msgid "Toutes les compétitions"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:287
+msgid "Filtrer par PDF"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:289
+msgid "Avec/Sans PDF"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:302
+#: includes/class-ufsc-club-licences-shortcode.php:178
+msgid "Par page"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:314
+msgid "Filtrer"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:318
+msgid "Réinitialiser filtres"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:734
+#: includes/class-ufsc-club-licences-shortcode.php:144
+#: includes/class-ufsc-club-licences-shortcode.php:614
+msgid "Compétition"
+msgstr ""
+
+#: includes/admin/class-ufsc-licences-list-table.php:734
+#: includes/class-ufsc-club-licences-shortcode.php:614
+msgid "Loisir"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-admin-assets.php:68
+#: includes/class-ufsc-asptt-importer.php:288
+#: includes/class-ufsc-asptt-importer.php:302
+msgid "Sélectionner un club"
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-admin-assets.php:69
+msgid "Enregistrement..."
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-admin-assets.php:70
+msgid "Veuillez sélectionner un club."
+msgstr ""
+
+#: includes/admin/class-ufsc-lc-admin-assets.php:71
+#: includes/import/class-ufsc-lc-asptt-importer.php:202
+msgid "Erreur"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:74
+#: includes/class-ufsc-licence-documents.php:75
+msgid "UFSC Licences"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:100
+msgid "Associer un PDF de licence"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:107
+msgid "Licence ID"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:111
+msgid "Numéro licence délégataire"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:115
+msgid "PDF nominatif"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:119
+msgid "Uploader et associer"
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:139
+msgid "Veuillez fournir un identifiant ou un numéro de licence."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:144
+#: includes/class-ufsc-licence-documents.php:194
+#: includes/class-ufsc-asptt-importer.php:589
+#: includes/class-ufsc-club-licences-shortcode.php:280
+#: includes/import/class-ufsc-lc-asptt-importer.php:298
+msgid "Licence introuvable."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:148
+msgid "Aucun fichier PDF fourni."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:153
+msgid "Le fichier doit être un PDF."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:168
+msgid "PDF associé avec succès."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:173
+msgid "Téléchargement refusé: utilisateur non connecté."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:182
+msgid "Téléchargement refusé: nonce invalide."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:191
+msgid "Téléchargement refusé: licence introuvable."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:201
+msgid "Téléchargement refusé: utilisateur non autorisé."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:214
+msgid "Téléchargement refusé: document indisponible."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:217
+#: includes/class-ufsc-club-licences-shortcode.php:292
+msgid "Document indisponible."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:223
+msgid "Téléchargement refusé: fichier introuvable."
+msgstr ""
+
+#: includes/class-ufsc-licence-documents.php:226
+#: includes/class-ufsc-asptt-importer.php:485
+#: includes/class-ufsc-club-licences-shortcode.php:297
+msgid "Fichier introuvable."
+msgstr ""
+
+#: includes/export/class-ufsc-lc-exporter.php:18
+msgid "Export impossible."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:68
+#: includes/class-ufsc-asptt-importer.php:69
+#: includes/class-ufsc-asptt-importer.php:94
+msgid "Import ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:108
+msgid "Mode"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:112
+#: includes/class-ufsc-asptt-importer.php:205
+msgid "Simulation (dry-run)"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:117
+#: includes/class-ufsc-asptt-importer.php:210
+msgid "Importer"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:122
+msgid "CSV ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:125
+msgid "Fichier CSV (max 5 Mo)."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:129
+msgid "Forcer tout le fichier à un club"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:132
+msgid "Ne pas forcer"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:141
+msgid "Prévisualiser"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:145
+msgid "Fichier chargé :"
+msgstr ""
+
+#. translators: %s: club name
+#: includes/class-ufsc-asptt-importer.php:154
+#, php-format
+msgid "Mode forcer un club actif : %s"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:174
+msgid "Colonne CSV"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:175
+msgid "Mapping"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:184
+msgid "Ignorer"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:196
+msgid "Recalculer la prévisualisation"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:212
+msgid "Lancer"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:218
+msgid "Exporter les erreurs CSV"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:224
+msgid "Recharger un fichier"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:233
+msgid "Rapport"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:235
+#, php-format
+msgid "Total lignes: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:236
+#, php-format
+msgid "Clubs associés: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:237
+#, php-format
+msgid "Licences matchées: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:238
+#, php-format
+msgid "club_not_found: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:239
+#, php-format
+msgid "needs_review: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:240
+#, php-format
+msgid "licence_not_found: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:241
+#, php-format
+msgid "invalid_asptt_number: %d"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:249
+msgid "Prévisualisation"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:253
+msgid "Afficher seulement erreurs"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:255
+msgid "Rechercher nom/prénom/club/n°"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:262
+#: includes/class-ufsc-asptt-importer.php:323
+msgid "Date de naissance"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:263
+msgid "Club (Note)"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:264
+msgid "Licence UFSC"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:265
+#: includes/class-ufsc-club-licences-shortcode.php:199
+msgid "N° ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:266
+#: includes/class-ufsc-club-licences-shortcode.php:167
+msgid "Date ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:268
+msgid "Action"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:296
+#: includes/class-ufsc-asptt-importer.php:305
+msgid "Valider association"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:300
+msgid "Rechercher un club"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:322
+#: includes/import/class-ufsc-lc-asptt-importer.php:196
+msgid "Prenom"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:324
+#: includes/import/class-ufsc-lc-asptt-importer.php:199
+msgid "N° Licence"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:325
+msgid "Date de création de la licence"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:326
+#: includes/import/class-ufsc-lc-asptt-importer.php:198
+msgid "Note"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:327
+msgid "genre"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:407
+msgid "Simulation terminée (aucune donnée importée)."
+msgstr ""
+
+#. translators: %d: rows imported
+#: includes/class-ufsc-asptt-importer.php:429
+#, php-format
+msgid "Import terminé. %d enregistrements traités."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:474
+msgid "Ligne introuvable."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:479
+msgid "Données invalides."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:499
+msgid "Alias enregistré."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:514
+msgid "Aucune erreur à exporter."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:562
+#: includes/class-ufsc-asptt-importer.php:564
+#: includes/import/class-ufsc-lc-asptt-importer.php:270
+#: includes/import/class-ufsc-lc-asptt-importer.php:272
+msgid "N° Licence ASPTT manquant."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:594
+#: includes/import/class-ufsc-lc-asptt-importer.php:305
+msgid "Plusieurs clubs possibles."
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:598
+#: includes/import/class-ufsc-lc-asptt-importer.php:311
+msgid "Club introuvable."
+msgstr ""
+
+#. translators: %s: raw date string
+#: includes/class-ufsc-asptt-importer.php:605
+#: includes/import/class-ufsc-lc-asptt-importer.php:318
+#, php-format
+msgid "Date de création de la licence invalide: %s"
+msgstr ""
+
+#: includes/class-ufsc-asptt-importer.php:609
+#: includes/import/class-ufsc-lc-asptt-importer.php:322
+msgid "Date de création de la licence invalide."
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:29
+#: includes/class-ufsc-club-licences-shortcode.php:34
+msgid "Accès réservé."
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:104
+msgid "Total licences"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:108
+msgid "Avec PDF / Sans PDF"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:112
+msgid "Avec N° ASPTT / Sans N° ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:118
+msgid "Recherche"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:119
+msgid "Nom, prénom, N° ASPTT"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:124
+#: includes/class-ufsc-club-licences-shortcode.php:157
+msgid "Tous"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:133
+#: includes/class-ufsc-club-licences-shortcode.php:198
+msgid "Catégorie"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:155
+msgid "PDF"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:163
+msgid "Trier par"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:166
+#: includes/class-ufsc-club-licences-shortcode.php:196
+msgid "Date naissance"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:171
+msgid "Ordre"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:173
+msgid "Ascendant"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:174
+msgid "Descendant"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:186
+msgid "Appliquer"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:200
+msgid "Télécharger PDF"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:220
+msgid "Télécharger"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:223
+msgid "Non disponible"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:527
+msgid "Précédent"
+msgstr ""
+
+#: includes/class-ufsc-club-licences-shortcode.php:528
+msgid "Suivant"
+msgstr ""
+
+#: includes/class-ufsc-lc-logger.php:21
+#, php-format
+msgid "[UFSC LC] %s %s"
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:18
+msgid "Fichier manquant."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:22
+msgid "Erreur lors du téléversement."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:26
+msgid "Le fichier dépasse la taille maximale autorisée (5 Mo)."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:31
+msgid "Le fichier doit être un CSV."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:48
+msgid "Impossible de créer le dossier de destination."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:60
+msgid "Téléversement impossible."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:67
+msgid "Impossible de déplacer le fichier."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:152
+msgid "Erreur SQL lors de l’import ASPTT."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:170
+msgid "Import interrompu, transaction annulée."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:175
+msgid "Import interrompu, rollback partiel effectué."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:197
+msgid "DateNaissance"
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:200
+msgid "Date ASPTT brute"
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:201
+msgid "Status"
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:367
+#: includes/import/class-ufsc-lc-asptt-importer.php:417
+msgid "Fichier illisible."
+msgstr ""
+
+#: includes/import/class-ufsc-lc-asptt-importer.php:372
+#: includes/import/class-ufsc-lc-asptt-importer.php:422
+msgid "Impossible d’ouvrir le fichier."
+msgstr ""
+
+#: includes/class-ufsc-lc-plugin.php:145
+msgid "table des licences UFSC"
+msgstr ""
+
+#: includes/class-ufsc-lc-plugin.php:146
+msgid "table des clubs UFSC"
+msgstr ""
+
+#: includes/class-ufsc-lc-plugin.php:175
+#, php-format
+msgid ""
+"UFSC Licence Competition add-on: dépendances manquantes (%s). Les "
+"fonctionnalités administratives ne sont pas chargées."
+msgstr ""

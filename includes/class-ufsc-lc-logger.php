@@ -16,6 +16,12 @@ class UFSC_LC_Logger {
 		}
 
 		$payload = $context ? wp_json_encode( $context ) : '';
-		error_log( sprintf( '[UFSC LC] %s %s', $message, $payload ) );
+		error_log(
+			sprintf(
+				__( '[UFSC LC] %s %s', 'ufsc-licence-competition' ),
+				$message,
+				$payload
+			)
+		);
 	}
 }

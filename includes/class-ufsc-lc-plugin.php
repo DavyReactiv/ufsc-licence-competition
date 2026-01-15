@@ -148,8 +148,8 @@ class UFSC_LC_Plugin {
 		global $wpdb;
 
 		$tables = array(
-			$wpdb->prefix . 'ufsc_licences' => 'table des licences UFSC',
-			$wpdb->prefix . 'ufsc_clubs'    => 'table des clubs UFSC',
+			$wpdb->prefix . 'ufsc_licences' => __( 'table des licences UFSC', 'ufsc-licence-competition' ),
+			$wpdb->prefix . 'ufsc_clubs'    => __( 'table des clubs UFSC', 'ufsc-licence-competition' ),
 		);
 
 		$missing = array();
@@ -172,12 +172,7 @@ class UFSC_LC_Plugin {
 			return;
 		}
 
-		$missing = array_map(
-			function( $label ) {
-				return __( $label, 'ufsc-licence-competition' );
-			},
-			$this->dependency_missing
-		);
+		$missing = $this->dependency_missing;
 
 		printf(
 			'<div class="notice notice-error"><p>%s</p></div>',
