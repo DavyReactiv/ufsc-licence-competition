@@ -14,26 +14,18 @@ class UFSC_LC_Licences_Admin {
 
 	public function register_menu() {
 		add_submenu_page(
-			'ufsc-licence-documents',
+			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
-			'manage_options',
+			UFSC_LC_Plugin::CAPABILITY,
 			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);
-
-		add_submenu_page(
-			'ufsc-licence-documents',
-			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
-			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
-			'manage_options',
-			'ufsc-lc-status',
-			array( $this, 'render_status_page' )
-		);
+		// Status submenu is registered in UFSC_LC_Status_Page::register_menu().
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			return;
 		}
 
@@ -71,7 +63,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function handle_export_csv() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -126,103 +118,6 @@ class UFSC_LC_Licences_Admin {
 
 		fclose( $output );
 		exit;
-	}
-
-	public function render_status_page() {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-
-		global $wpdb;
-
-		$tables = array(
-			'ufsc_licences'          => $this->table_exists( 'ufsc_licences' ),
-			'ufsc_clubs'             => $this->table_exists( 'ufsc_clubs' ),
-			'ufsc_licence_documents' => $this->table_exists( 'ufsc_licence_documents' ),
-		);
-
-		$documents_count = null;
-		if ( $tables['ufsc_licence_documents'] ) {
-			$documents_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}ufsc_licence_documents" );
-		}
-
-		$missing_tables = array();
-		foreach ( $tables as $table => $exists ) {
-			if ( ! $exists ) {
-				$missing_tables[] = $table;
-			}
-		}
-
-		$plugin_active  = class_exists( 'UFSC_LC_Plugin' );
-		$legacy_enabled = false;
-		$legacy_label   = __( 'OFF', 'ufsc-licence-competition' );
-		$db_version     = '0';
-		if ( $plugin_active ) {
-			$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
-			$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
-			$db_version     = (string) get_option( UFSC_LC_Plugin::DB_VERSION_OPTION, '0' );
-		}
-		$plugin_label   = $plugin_active ? '✅' : '❌';
-
-		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'UFSC LC — Status', 'ufsc-licence-competition' ); ?></h1>
-			<?php if ( ! empty( $missing_tables ) ) : ?>
-				<div class="notice notice-error">
-					<p>
-						<?php
-						echo esc_html(
-							sprintf(
-								__( 'Dépendances manquantes : %s', 'ufsc-licence-competition' ),
-								implode( ', ', $missing_tables )
-							)
-						);
-						?>
-					</p>
-				</div>
-			<?php endif; ?>
-			<table class="widefat striped" style="max-width: 900px;">
-				<tbody>
-					<tr>
-						<th><?php esc_html_e( 'Plugin add-on actif', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $plugin_label ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Version DB installée', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $db_version ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Legacy mode', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $legacy_label ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Table UFSC licences', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['ufsc_licences'] ? '✅' : '❌' ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Table UFSC clubs', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['ufsc_clubs'] ? '✅' : '❌' ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Table documents add-on', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo esc_html( $tables['ufsc_licence_documents'] ? '✅' : '❌' ); ?></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Nombre documents', 'ufsc-licence-competition' ); ?></th>
-						<td><?php echo null !== $documents_count ? esc_html( (string) $documents_count ) : esc_html__( 'N/A', 'ufsc-licence-competition' ); ?></td>
-					</tr>
-				</tbody>
-			</table>
-		</div>
-		<?php
-	}
-
-	private function table_exists( $short_name ) {
-		global $wpdb;
-
-		$table_name = $wpdb->prefix . $short_name;
-
-		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
 	}
 
 }

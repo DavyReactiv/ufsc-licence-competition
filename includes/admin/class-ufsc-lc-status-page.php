@@ -16,17 +16,17 @@ class UFSC_LC_Status_Page {
 
 	public function register_menu() {
 		add_submenu_page(
-			'ufsc-licence-documents',
+			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
-			'manage_options',
+			UFSC_LC_Plugin::CAPABILITY,
 			'ufsc-lc-status',
 			array( $this, 'render_page' )
 		);
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			return;
 		}
 
@@ -126,7 +126,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_rebuild_indexes() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -140,7 +140,7 @@ class UFSC_LC_Status_Page {
 	}
 
 	public function handle_recreate_tables() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

@@ -280,7 +280,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			$club_id = $this->get_current_user_club_id();
 			if ( ! $club_id || (int) $licence->club_id !== (int) $club_id ) {
 				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
