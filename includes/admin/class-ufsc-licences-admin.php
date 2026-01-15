@@ -28,7 +28,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -96,7 +96,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function handle_export_csv() {
-		if ( ! current_user_can( UFSC_LC_Capabilities::CAPABILITY ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

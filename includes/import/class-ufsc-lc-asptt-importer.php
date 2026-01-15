@@ -11,6 +11,8 @@ class UFSC_LC_ASPTT_Import_Service {
 	const STATUS_NEEDS_REVIEW    = 'needs_review';
 	const STATUS_LICENCE_MISSING = 'licence_not_found';
 	const STATUS_INVALID_ASPTT_NUMBER = 'invalid_asptt_number';
+	const STATUS_INVALID_SEASON = 'invalid_season';
+	const STATUS_INVALID_BIRTHDATE = 'invalid_birthdate';
 	const MAX_FILE_SIZE = 5242880; // 5 MB.
 	const PREVIEW_DEFAULT_LIMIT = 50;
 	const PREVIEW_MIN_LIMIT = 10;
@@ -89,6 +91,8 @@ class UFSC_LC_ASPTT_Import_Service {
 			'needs_review'   => 0,
 			'licence_not_found' => 0,
 			'invalid_asptt_number' => 0,
+			'invalid_season' => 0,
+			'invalid_birthdate' => 0,
 		);
 
 		$preview_limit = $this->sanitize_preview_limit( $limit );
@@ -151,10 +155,26 @@ class UFSC_LC_ASPTT_Import_Service {
 						continue;
 					}
 
+
 					if ( empty( $data['status'] ) || self::STATUS_LINKED !== $data['status'] || '' === $data['asptt_number'] ) {
 						$stats['errors']++;
 						continue;
 					}
+				$this->update_licence_season_data(
+					(int) $data['licence_id'],
+					$data['season_end_year'],
+					$data['category'],
+					$data['age_ref']
+				);
+
+				$this->save_alias_for_row( $force_club_id, $data );
+				$doc_id = $this->upsert_document(
+					(int) $data['licence_id'],
+					$data['asptt_number'],
+					$data['attachment_id'],
+					$data['note'],
+					$data['source_created_at']
+				);
 
 					$duplicate = $this->find_document_by_source_number( $data['asptt_number'] );
 					if ( $duplicate && (int) $duplicate->licence_id !== (int) $data['licence_id'] ) {
@@ -288,6 +308,8 @@ class UFSC_LC_ASPTT_Import_Service {
 		$nom      = isset( $row['Nom'] ) ? sanitize_text_field( $row['Nom'] ) : '';
 		$prenom   = isset( $row['Prenom'] ) ? sanitize_text_field( $row['Prenom'] ) : '';
 		$dob      = isset( $row['Date de naissance'] ) ? sanitize_text_field( $row['Date de naissance'] ) : '';
+		$raw_season_end_year = isset( $row['Saison (année de fin)'] ) ? sanitize_text_field( $row['Saison (année de fin)'] ) : '';
+		$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $raw_season_end_year );
 		$asptt_no = isset( $row['N° Licence'] ) ? sanitize_text_field( $row['N° Licence'] ) : '';
 		$asptt_no = trim( $asptt_no );
 		$genre    = isset( $row['genre'] ) ? sanitize_text_field( $row['genre'] ) : '';
@@ -295,17 +317,59 @@ class UFSC_LC_ASPTT_Import_Service {
 		$source_created_at = $this->parse_source_created_at( $raw_created_at );
 		$row_errors = array();
 		$club_suggestions = array();
+		$category = '';
+		$age_ref = null;
 
 		$licence_id = 0;
 		$status     = self::STATUS_CLUB_NOT_FOUND;
+		$skip_resolution = false;
 		$resolved = array(
 			'status' => self::STATUS_CLUB_NOT_FOUND,
 			'club_id' => 0,
 			'suggestions' => array(),
 		);
 
+		if ( '' === $raw_season_end_year || null === $season_end_year ) {
+			$status = self::STATUS_INVALID_SEASON;
+			$skip_resolution = true;
+			if ( is_array( $stats ) ) {
+				$stats['invalid_season']++;
+			}
+			$row_errors[] = __( 'Saison de fin manquante ou invalide.', 'ufsc-licence-competition' );
+			$this->log_import_warning(
+				'Saison de fin manquante ou invalide.',
+				array(
+					'nom'           => $nom,
+					'prenom'        => $prenom,
+					'date_naissance'=> $dob,
+					'saison'        => $raw_season_end_year,
+				)
+			);
+		} else {
+			$computed = UFSC_LC_Categories::category_from_birthdate( $dob, $season_end_year );
+			$category = $computed['category'];
+			$age_ref = $computed['age'];
+			if ( '' === $dob || null === $age_ref ) {
+				$status = self::STATUS_INVALID_BIRTHDATE;
+				$skip_resolution = true;
+				if ( is_array( $stats ) ) {
+					$stats['invalid_birthdate']++;
+				}
+				$row_errors[] = __( 'Date de naissance invalide.', 'ufsc-licence-competition' );
+				$this->log_import_warning(
+					'Date de naissance invalide.',
+					array(
+						'nom'           => $nom,
+						'prenom'        => $prenom,
+						'date_naissance'=> $dob,
+					)
+				);
+			}
+		}
+
 		if ( '' === $asptt_no ) {
 			$status = self::STATUS_INVALID_ASPTT_NUMBER;
+			$skip_resolution = true;
 			if ( is_array( $stats ) ) {
 				$stats['invalid_asptt_number']++;
 			}
@@ -319,7 +383,9 @@ class UFSC_LC_ASPTT_Import_Service {
 					'note'          => $note,
 				)
 			);
-		} else {
+		}
+
+		if ( ! $skip_resolution && '' !== $asptt_no ) {
 			$resolved = $this->resolve_club( $note, $force_club_id );
 			$club_suggestions = $resolved['suggestions'];
 			if ( $resolved['status'] === self::STATUS_LINKED ) {
@@ -367,6 +433,9 @@ class UFSC_LC_ASPTT_Import_Service {
 			'nom'           => $nom,
 			'prenom'        => $prenom,
 			'date_naissance'=> $dob,
+			'season_end_year' => $season_end_year,
+			'category'      => $category,
+			'age_ref'       => $age_ref,
 			'note'          => $note,
 			'asptt_number'  => $asptt_no,
 			'source_created_at' => $source_created_at,
@@ -606,6 +675,16 @@ class UFSC_LC_ASPTT_Import_Service {
 			'date naissance' => 'Date de naissance',
 			'date of birth' => 'Date de naissance',
 			'birth date' => 'Date de naissance',
+			'saison' => 'Saison (année de fin)',
+			'fin de saison' => 'Saison (année de fin)',
+			'saison fin' => 'Saison (année de fin)',
+			'annee de fin de saison' => 'Saison (année de fin)',
+			'annee fin saison' => 'Saison (année de fin)',
+			'season end year' => 'Saison (année de fin)',
+			'season end' => 'Saison (année de fin)',
+			'season' => 'Saison (année de fin)',
+			'season_end_year' => 'Saison (année de fin)',
+			'saison_fin' => 'Saison (année de fin)',
 			'n licence' => 'N° Licence',
 			'no licence' => 'N° Licence',
 			'numero licence' => 'N° Licence',
@@ -1057,6 +1136,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			'Nom',
 			'Prenom',
 			'Date de naissance',
+			'Saison (année de fin)',
 			'N° Licence',
 			'Date de création de la licence',
 			'Note',
@@ -1090,6 +1170,55 @@ class UFSC_LC_ASPTT_Import_Service {
 				$ids
 			)
 		);
+	}
+
+	private function update_licence_season_data( $licence_id, $season_end_year, $category, $age_ref ) {
+		global $wpdb;
+
+		if ( ! $licence_id ) {
+			return;
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return;
+		}
+
+		if ( ! $this->column_exists( $table, 'season_end_year' ) || ! $this->column_exists( $table, 'category' ) || ! $this->column_exists( $table, 'age_ref' ) ) {
+			return;
+		}
+
+		$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year );
+		if ( null === $season_end_year ) {
+			return;
+		}
+
+		$age_ref_sql = null === $age_ref ? 'NULL' : '%d';
+		$params = array( $season_end_year, $category );
+		if ( null !== $age_ref ) {
+			$params[] = $age_ref;
+		}
+		$params[] = $licence_id;
+
+		$sql = $wpdb->prepare(
+			"UPDATE {$table} SET season_end_year = %d, category = %s, age_ref = {$age_ref_sql} WHERE id = %d",
+			$params
+		);
+		$wpdb->query( $sql );
+	}
+
+	private function table_exists( $table ) {
+		global $wpdb;
+
+		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+	}
+
+	private function column_exists( $table, $column ) {
+		global $wpdb;
+
+		$column = sanitize_key( $column );
+
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
 	}
 
 	private function get_clubs_table() {
