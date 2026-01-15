@@ -14,10 +14,10 @@ class UFSC_LC_Licences_Admin {
 
 	public function register_menu() {
 		add_submenu_page(
-			'ufsc-licence-documents',
+			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
-			'manage_options',
+			UFSC_LC_Plugin::CAPABILITY,
 			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);
@@ -25,7 +25,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function render_page() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			return;
 		}
 
@@ -63,7 +63,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function handle_export_csv() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( UFSC_LC_Plugin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 

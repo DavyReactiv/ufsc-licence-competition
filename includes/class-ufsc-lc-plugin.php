@@ -13,9 +13,11 @@ require_once __DIR__ . '/class-ufsc-lc-logger.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 
 class UFSC_LC_Plugin {
+	const CAPABILITY      = 'ufsc_lc_manage';
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
 	const DB_VERSION        = '1.3.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
+	const PARENT_SLUG       = 'ufsc-licence-documents';
 
 	private static $instance;
 	private $plugin_file;
@@ -36,14 +38,20 @@ class UFSC_LC_Plugin {
 		$this->legacy_enabled = $this->is_legacy_enabled();
 
 		register_activation_hook( $this->plugin_file, array( $this, 'activate' ) );
+		register_deactivation_hook( $this->plugin_file, array( $this, 'deactivate' ) );
 
 		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_action( 'init', array( $this, 'boot' ), 5 );
 	}
 
 	public function activate() {
+		$this->add_caps();
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+	}
+
+	public function deactivate() {
+		$this->remove_caps();
 	}
 
 	public function boot() {
@@ -80,7 +88,7 @@ class UFSC_LC_Plugin {
 	}
 
 	public function maybe_upgrade() {
-		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+		if ( ! is_admin() || ! current_user_can( self::CAPABILITY ) ) {
 			return;
 		}
 
@@ -99,6 +107,20 @@ class UFSC_LC_Plugin {
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 
 		delete_transient( 'ufsc_lc_upgrading' );
+	}
+
+	private function add_caps() {
+		$role = get_role( 'administrator' );
+		if ( $role ) {
+			$role->add_cap( self::CAPABILITY );
+		}
+	}
+
+	private function remove_caps() {
+		$role = get_role( 'administrator' );
+		if ( $role ) {
+			$role->remove_cap( self::CAPABILITY );
+		}
 	}
 
 	private function create_tables_and_indexes() {
