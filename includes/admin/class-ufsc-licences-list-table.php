@@ -101,14 +101,14 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'licence_number':
-				return ! empty( $item->licence_number ) ? esc_html( $item->licence_number ) : '&mdash;';
+				return ! empty( $item->licence_number ) ? esc_html( $item->licence_number ) : esc_html__( '—', 'ufsc-licence-competition' );
 			case 'club_name':
 			case 'nom_licence':
 			case 'prenom':
 			case 'statut':
-				return $item->{$column_name} ? esc_html( $item->{$column_name} ) : '&mdash;';
+				return $item->{$column_name} ? esc_html( $item->{$column_name} ) : esc_html__( '—', 'ufsc-licence-competition' );
 			case 'date':
-				return ! empty( $item->date_value ) ? esc_html( $item->date_value ) : '&mdash;';
+				return ! empty( $item->date_value ) ? esc_html( $item->date_value ) : esc_html__( '—', 'ufsc-licence-competition' );
 			default:
 				return '';
 		}
@@ -739,7 +739,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		private function format_date_asptt( $value ) {
 			if ( null === $value || '' === $value ) {
-				return '&mdash;';
+				return esc_html__( '—', 'ufsc-licence-competition' );
 			}
 
 			$formatted = mysql2date( 'd/m/Y H:i', $value );

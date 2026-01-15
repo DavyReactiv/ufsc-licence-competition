@@ -213,7 +213,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 								<td><?php echo esc_html( $item->date_naissance ); ?></td>
 								<td><?php echo esc_html( $item->statut ); ?></td>
 								<td><?php echo esc_html( $item->categorie ); ?></td>
-								<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : '—' ); ?></td>
+								<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td>
 									<?php if ( $item->attachment_id ) : ?>
 										<a href="<?php echo esc_url( $this->get_download_url( $item->id ) ); ?>">
@@ -607,7 +607,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 	private function format_competition( $value ) {
 		if ( null === $value || '' === $value ) {
-			return '—';
+			return __( '—', 'ufsc-licence-competition' );
 		}
 
 		if ( is_numeric( $value ) ) {

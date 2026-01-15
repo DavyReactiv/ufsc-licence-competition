@@ -149,7 +149,7 @@ class UFSC_LC_ASPTT_Import_Service {
 
 				if ( ! empty( $wpdb->last_error ) ) {
 					$has_error = true;
-					$this->log_import_warning( 'Erreur SQL lors de l’import ASPTT.', array( 'error' => $wpdb->last_error ) );
+					$this->log_import_warning( __( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ), array( 'error' => $wpdb->last_error ) );
 					return false;
 				}
 
@@ -189,7 +189,20 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$output = fopen( 'php://output', 'w' );
 		fwrite( $output, "\xEF\xBB\xBF" );
-		fputcsv( $output, array( 'Nom', 'Prenom', 'DateNaissance', 'Note', 'N° Licence', 'Date ASPTT brute', 'Status', 'Erreur' ), ';' );
+		fputcsv(
+			$output,
+			array(
+				__( 'Nom', 'ufsc-licence-competition' ),
+				__( 'Prenom', 'ufsc-licence-competition' ),
+				__( 'DateNaissance', 'ufsc-licence-competition' ),
+				__( 'Note', 'ufsc-licence-competition' ),
+				__( 'N° Licence', 'ufsc-licence-competition' ),
+				__( 'Date ASPTT brute', 'ufsc-licence-competition' ),
+				__( 'Status', 'ufsc-licence-competition' ),
+				__( 'Erreur', 'ufsc-licence-competition' ),
+			),
+			';'
+		);
 
 		foreach ( $errors as $error ) {
 			fputcsv(
@@ -256,7 +269,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			}
 			$row_errors[] = __( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' );
 			$this->log_import_warning(
-				'N° Licence ASPTT manquant.',
+				__( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' ),
 				array(
 					'nom'           => $nom,
 					'prenom'        => $prenom,
@@ -305,7 +318,10 @@ class UFSC_LC_ASPTT_Import_Service {
 				__( 'Date de création de la licence invalide: %s', 'ufsc-licence-competition' ),
 				$raw_created_at
 			);
-			$this->log_import_warning( 'Date de création de la licence invalide.', array( 'value' => $raw_created_at ) );
+			$this->log_import_warning(
+				__( 'Date de création de la licence invalide.', 'ufsc-licence-competition' ),
+				array( 'value' => $raw_created_at )
+			);
 		}
 
 		$preview = array(

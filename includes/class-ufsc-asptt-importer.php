@@ -182,9 +182,9 @@ class UFSC_LC_ASPTT_Importer {
 										<td>
 											<select name="ufsc_lc_mapping[<?php echo esc_attr( $header ); ?>]">
 												<option value=""><?php esc_html_e( 'Ignorer', 'ufsc-licence-competition' ); ?></option>
-												<?php foreach ( $this->get_mapping_options() as $option ) : ?>
-													<option value="<?php echo esc_attr( $option ); ?>" <?php selected( isset( $mapping[ $header ] ) ? $mapping[ $header ] : '', $option ); ?>>
-														<?php echo esc_html( $option ); ?>
+												<?php foreach ( $this->get_mapping_options() as $option_value => $option_label ) : ?>
+													<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( isset( $mapping[ $header ] ) ? $mapping[ $header ] : '', $option_value ); ?>>
+														<?php echo esc_html( $option_label ); ?>
 													</option>
 												<?php endforeach; ?>
 											</select>
@@ -318,13 +318,13 @@ class UFSC_LC_ASPTT_Importer {
 
 	private function get_mapping_options() {
 		return array(
-			'Nom',
-			'Prenom',
-			'Date de naissance',
-			'N° Licence',
-			'Date de création de la licence',
-			'Note',
-			'genre',
+			'Nom' => __( 'Nom', 'ufsc-licence-competition' ),
+			'Prenom' => __( 'Prenom', 'ufsc-licence-competition' ),
+			'Date de naissance' => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'N° Licence' => __( 'N° Licence', 'ufsc-licence-competition' ),
+			'Date de création de la licence' => __( 'Date de création de la licence', 'ufsc-licence-competition' ),
+			'Note' => __( 'Note', 'ufsc-licence-competition' ),
+			'genre' => __( 'genre', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -561,7 +561,7 @@ class UFSC_LC_ASPTT_Importer {
 				$stats['invalid_asptt_number']++;
 				$row_errors[] = __( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' );
 				$this->log_import_warning(
-					'N° Licence ASPTT manquant.',
+					__( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' ),
 					array(
 						'nom'           => $nom,
 						'prenom'        => $prenom,
@@ -605,7 +605,10 @@ class UFSC_LC_ASPTT_Importer {
 					__( 'Date de création de la licence invalide: %s', 'ufsc-licence-competition' ),
 					$raw_created_at
 				);
-				$this->log_import_warning( 'Date de création de la licence invalide.', array( 'value' => $raw_created_at ) );
+				$this->log_import_warning(
+					__( 'Date de création de la licence invalide.', 'ufsc-licence-competition' ),
+					array( 'value' => $raw_created_at )
+				);
 			}
 
 			$preview_rows[] = array(
