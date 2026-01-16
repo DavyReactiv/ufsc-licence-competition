@@ -53,6 +53,9 @@ class UFSC_LC_ASPTT_Review_Page {
 			<input type="hidden" name="tab" value="review" />
 			<input type="hidden" name="review_status" value="<?php echo esc_attr( $list_table->get_sanitized_filters()['review_status'] ); ?>" />
 			<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-review-search' ); ?>
+
+			<?php $this->render_sticky_bulk_bar( $list_table ); ?>
+
 			<div class="ufsc-lc-table-wrap">
 				<?php $list_table->display(); ?>
 			</div>
@@ -210,7 +213,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		$review_status = 'approve' === $action ? 'approved' : 'rejected';
-		$link_mode = 'approve' === $action ? 'manual' : $document->link_mode;
+		$link_mode     = 'approve' === $action ? 'manual' : $document->link_mode;
 
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $review_status );
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', $link_mode );
@@ -322,7 +325,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			return;
 		}
 
-		$status = isset( $_GET['ufsc_review_status'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_review_status'] ) ) : '';
+		$status  = isset( $_GET['ufsc_review_status'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_review_status'] ) ) : '';
 		$message = isset( $_GET['ufsc_review_message'] ) ? wp_unslash( $_GET['ufsc_review_message'] ) : '';
 		if ( ! $status || ! $message ) {
 			return;
@@ -361,8 +364,8 @@ class UFSC_LC_ASPTT_Review_Page {
 			return;
 		}
 
-		$current_club_id = (int) $document->club_id;
-		$has_current_club = false;
+		$current_club_id    = (int) $document->club_id;
+		$has_current_club   = false;
 		foreach ( $clubs as $club ) {
 			if ( (int) $club['id'] === $current_club_id ) {
 				$has_current_club = true;
@@ -397,6 +400,45 @@ class UFSC_LC_ASPTT_Review_Page {
 			</select>
 			<?php submit_button( __( 'Valider association', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 		</form>
+		<?php
+	}
+
+	private function render_sticky_bulk_bar( UFSC_LC_ASPTT_Review_List_Table $list_table ) {
+		$actions     = $list_table->get_bulk_actions();
+		$total_items = method_exists( $list_table, 'get_pagination_arg' ) ? (int) $list_table->get_pagination_arg( 'total_items' ) : 0;
+		?>
+		<div class="ufsc-lc-sticky-bar ufsc-lc-sticky-bar--review">
+			<div class="ufsc-lc-sticky-field">
+				<label for="ufsc-review-bulk-action" class="ufsc-lc-sticky-label"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></label>
+				<select name="action" id="ufsc-review-bulk-action">
+					<option value="-1"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $actions as $action_key => $label ) : ?>
+						<option value="<?php echo esc_attr( $action_key ); ?>"><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+
+			<button type="submit" class="button action"><?php esc_html_e( 'Appliquer', 'ufsc-licence-competition' ); ?></button>
+
+			<span
+				class="ufsc-lc-sticky-status"
+				data-total="<?php echo esc_attr( $total_items ); ?>"
+				data-selected="0"
+				data-label-lines="<?php echo esc_attr__( 'Lignes', 'ufsc-licence-competition' ); ?>"
+				data-label-selected="<?php echo esc_attr__( 'Sélectionnées', 'ufsc-licence-competition' ); ?>"
+			>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: total rows, 2: selected rows */
+						__( 'Lignes: %1$d | Sélectionnées: %2$d', 'ufsc-licence-competition' ),
+						$total_items,
+						0
+					)
+				);
+				?>
+			</span>
+		</div>
 		<?php
 	}
 
@@ -483,7 +525,7 @@ class UFSC_LC_ASPTT_Review_Page {
 	private function get_clubs_for_select( $search = '' ) {
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'ufsc_clubs';
+		$table      = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
 		$where = '';
@@ -500,7 +542,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			}
 		}
 
-		$sql = "SELECT {$select_fields} FROM {$table} {$where} ORDER BY nom ASC LIMIT 50";
+		$sql     = "SELECT {$select_fields} FROM {$table} {$where} ORDER BY nom ASC LIMIT 50";
 		$results = empty( $params ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
 
 		$data = array();
@@ -517,7 +559,7 @@ class UFSC_LC_ASPTT_Review_Page {
 	private function get_club_for_select_by_id( $club_id ) {
 		global $wpdb;
 
-		$table = $wpdb->prefix . 'ufsc_clubs';
+		$table      = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
 
@@ -680,7 +722,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			return 0;
 		}
 
-		$sql = "SELECT id, sexe, nom_licence, prenom FROM {$table} WHERE club_id = %d AND date_naissance = %s";
+		$sql     = "SELECT id, sexe, nom_licence, prenom FROM {$table} WHERE club_id = %d AND date_naissance = %s";
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $club_id, $dob_value ) );
 
 		if ( empty( $results ) ) {
