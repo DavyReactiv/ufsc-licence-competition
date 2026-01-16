@@ -209,11 +209,10 @@ class UFSC_LC_ASPTT_Import_Service {
 
 					if ( $has_meta_table ) {
 						$review_status = 'pending';
-						$link_mode     = 'manual';
+						$link_mode     = ! empty( $data['link_mode'] ) ? $data['link_mode'] : 'none';
 
 						if ( $auto_approve && ! empty( $data['auto_linked'] ) ) {
 							$review_status = 'approved';
-							$link_mode     = 'auto';
 						}
 
 						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'] );
@@ -521,7 +520,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			);
 		}
 
-		$confidence = $this->compute_confidence(
+		$confidence = $this->compute_confidence_score(
 			array(
 				'status'            => $status,
 				'club_resolution'   => $resolved['resolution'],
@@ -531,6 +530,8 @@ class UFSC_LC_ASPTT_Import_Service {
 				'has_error'         => ! empty( $row_errors ),
 			)
 		);
+
+		$review_status = $confidence['auto_linked'] ? 'auto' : 'pending';
 
 		$preview = array(
 			'nom'                  => $nom,
@@ -551,6 +552,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			'has_error'            => ! empty( $row_errors ),
 			'confidence_score'     => $confidence['confidence_score'],
 			'link_mode'            => $confidence['link_mode'],
+			'review_status'        => $review_status,
 			'auto_linked'          => $confidence['auto_linked'],
 			'club_resolution'      => $resolved['resolution'],
 			'person_resolution'    => $person_resolution,
@@ -981,6 +983,10 @@ class UFSC_LC_ASPTT_Import_Service {
 	}
 
 	private function compute_confidence( $context ) {
+		return $this->compute_confidence_score( $context );
+	}
+
+	private function compute_confidence_score( $context ) {
 		$score = 0;
 
 		$club_resolution   = isset( $context['club_resolution'] ) ? $context['club_resolution'] : 'none';
@@ -997,6 +1003,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				$score += 35;
 				break;
 			case 'suggestion':
+			case 'suggestion_unique':
 				$score += 25;
 				break;
 		}
@@ -1015,10 +1022,6 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		if ( '' !== $raw_created_at && null === $source_created_at ) {
 			$score -= 20;
-		}
-
-		if ( isset( $context['status'] ) && self::STATUS_INVALID_BIRTHDATE === $context['status'] ) {
-			$score -= 30;
 		}
 
 		$score = max( 0, min( 100, $score ) );
