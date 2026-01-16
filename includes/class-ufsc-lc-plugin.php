@@ -19,11 +19,12 @@ require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-settings-page.php';
+require_once __DIR__ . '/competitions/bootstrap.php';
 
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.4.0';
+	const DB_VERSION        = '1.5.0';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	// Must match add_menu_page slug.
 	const PARENT_SLUG       = 'ufsc-licence-documents';
@@ -100,6 +101,9 @@ class UFSC_LC_Plugin {
 
 		$shortcode = new UFSC_LC_Club_Licences_Shortcode( $this->legacy_enabled );
 		$shortcode->register();
+
+		$competitions = new \UFSC\Competitions\Bootstrap( $this->plugin_file );
+		$competitions->register();
 	}
 
 	public function load_textdomain() {
@@ -145,6 +149,10 @@ class UFSC_LC_Plugin {
 
 		$indexes = new UFSC_LC_Licence_Indexes();
 		$indexes->ensure_indexes();
+
+		if ( class_exists( '\\UFSC\\Competitions\\Db' ) ) {
+			\UFSC\Competitions\Db::create_tables();
+		}
 	}
 
 	public function recreate_tables_and_indexes() {
