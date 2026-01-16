@@ -17,6 +17,9 @@ class UFSC_LC_ASPTT_Review_Page {
 	public function register_actions() {
 		add_action( 'admin_post_ufsc_lc_asptt_review_approve', array( $this, 'handle_approve' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_review_reject', array( $this, 'handle_reject' ) );
+		add_action( 'admin_post_ufsc_lc_asptt_trash', array( $this, 'handle_trash' ) );
+		add_action( 'admin_post_ufsc_lc_asptt_restore', array( $this, 'handle_restore' ) );
+		add_action( 'admin_post_ufsc_lc_asptt_delete', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_review_set_club', array( $this, 'handle_set_club' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_review_save_alias', array( $this, 'handle_save_alias' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
@@ -44,13 +47,15 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		$list_table->views();
 		?>
-		<form method="post">
+		<form method="post" class="ufsc-lc-review-form">
 			<?php wp_nonce_field( 'ufsc_lc_asptt_review_bulk', 'ufsc_lc_asptt_review_nonce' ); ?>
 			<input type="hidden" name="page" value="ufsc-lc-import-asptt" />
 			<input type="hidden" name="tab" value="review" />
 			<input type="hidden" name="review_status" value="<?php echo esc_attr( $list_table->get_sanitized_filters()['review_status'] ); ?>" />
 			<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-review-search' ); ?>
-			<?php $list_table->display(); ?>
+			<div class="ufsc-lc-table-wrap">
+				<?php $list_table->display(); ?>
+			</div>
 		</form>
 		<?php
 	}
@@ -61,6 +66,37 @@ class UFSC_LC_ASPTT_Review_Page {
 
 	public function handle_reject() {
 		$this->handle_single_action( 'reject' );
+	}
+
+	public function handle_trash() {
+		$this->handle_single_action( 'trash' );
+	}
+
+	public function handle_restore() {
+		$this->handle_single_action( 'restore' );
+	}
+
+	public function handle_delete() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$document_id = isset( $_GET['document_id'] ) ? absint( $_GET['document_id'] ) : 0;
+		if ( ! $document_id ) {
+			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		$nonce_action = 'ufsc_lc_asptt_review_delete_' . $document_id;
+		check_admin_referer( $nonce_action );
+
+		$document = $this->get_document_row( $document_id );
+		if ( ! $document || 'ASPTT' !== $document->source ) {
+			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		$this->delete_document_data( (int) $document->document_id, (int) $document->licence_id, $document->source );
+
+		$this->redirect_with_notice( 'success', __( 'Suppression définitive effectuée.', 'ufsc-licence-competition' ) );
 	}
 
 	public function handle_set_club() {
@@ -140,6 +176,39 @@ class UFSC_LC_ASPTT_Review_Page {
 			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
 		}
 
+		$message = '';
+
+		if ( 'trash' === $action ) {
+			$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'review_status' );
+			$previous_status = $previous_status ? $previous_status : 'pending';
+			$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'prev_review_status', $previous_status );
+			$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'trash' );
+
+			$undo_url = $this->get_action_url( 'ufsc_lc_asptt_restore', (int) $document->document_id, 'ufsc_lc_asptt_review_restore_' . (int) $document->document_id );
+
+			$message = sprintf(
+				/* translators: %s: undo link */
+				__( 'Élément mis à la corbeille. %s', 'ufsc-licence-competition' ),
+				sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $undo_url ),
+					esc_html__( 'Annuler', 'ufsc-licence-competition' )
+				)
+			);
+			$this->redirect_with_notice( 'warning', $message );
+		}
+
+		if ( 'restore' === $action ) {
+			$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'prev_review_status' );
+			$restore_status  = $previous_status ? $previous_status : 'pending';
+			if ( ! in_array( $restore_status, array( 'pending', 'approved', 'rejected' ), true ) ) {
+				$restore_status = 'pending';
+			}
+			$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $restore_status );
+			$message = __( 'Élément restauré.', 'ufsc-licence-competition' );
+			$this->redirect_with_notice( 'success', $message );
+		}
+
 		$review_status = 'approve' === $action ? 'approved' : 'rejected';
 		$link_mode = 'approve' === $action ? 'manual' : $document->link_mode;
 
@@ -184,9 +253,11 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		$updated = 0;
+		$failed  = 0;
 		foreach ( $document_ids as $document_id ) {
 			$document = $this->get_document_row( $document_id );
 			if ( ! $document ) {
+				$failed++;
 				continue;
 			}
 
@@ -200,11 +271,32 @@ class UFSC_LC_ASPTT_Review_Page {
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'rejected' );
 					$updated++;
 					break;
+				case 'trash':
+					$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'review_status' );
+					$previous_status = $previous_status ? $previous_status : 'pending';
+					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'prev_review_status', $previous_status );
+					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'trash' );
+					$updated++;
+					break;
+				case 'restore':
+					$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'prev_review_status' );
+					$restore_status  = $previous_status ? $previous_status : 'pending';
+					if ( ! in_array( $restore_status, array( 'pending', 'approved', 'rejected' ), true ) ) {
+						$restore_status = 'pending';
+					}
+					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $restore_status );
+					$updated++;
+					break;
 				case 'save_alias':
 					if ( ! empty( $document->asptt_club_note ) ) {
 						$this->service->save_alias( (int) $document->club_id, $document->asptt_club_note );
 						$updated++;
+					} else {
+						$failed++;
 					}
+					break;
+				default:
+					$failed++;
 					break;
 			}
 		}
@@ -212,9 +304,10 @@ class UFSC_LC_ASPTT_Review_Page {
 		$this->notice = array(
 			'type'    => 'success',
 			'message' => sprintf(
-				/* translators: %d: number of rows */
-				esc_html__( '%d ligne(s) mises à jour.', 'ufsc-licence-competition' ),
-				$updated
+				/* translators: 1: updated count, 2: failed count */
+				esc_html__( '%1$d ligne(s) mises à jour, %2$d en échec.', 'ufsc-licence-competition' ),
+				$updated,
+				$failed
 			),
 		);
 	}
@@ -230,7 +323,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		$status = isset( $_GET['ufsc_review_status'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_review_status'] ) ) : '';
-		$message = isset( $_GET['ufsc_review_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_review_message'] ) ) : '';
+		$message = isset( $_GET['ufsc_review_message'] ) ? wp_unslash( $_GET['ufsc_review_message'] ) : '';
 		if ( ! $status || ! $message ) {
 			return;
 		}
@@ -238,7 +331,15 @@ class UFSC_LC_ASPTT_Review_Page {
 		printf(
 			'<div class="notice notice-%s"><p>%s</p></div>',
 			esc_attr( $status ),
-			esc_html( $message )
+			wp_kses(
+				$message,
+				array(
+					'a' => array(
+						'href'  => array(),
+						'class' => array(),
+					),
+				)
+			)
 		);
 	}
 
@@ -352,6 +453,19 @@ class UFSC_LC_ASPTT_Review_Page {
 		);
 	}
 
+	private function get_action_url( $action, $document_id, $nonce_action ) {
+		$url = add_query_arg(
+			array(
+				'action'      => $action,
+				'document_id' => $document_id,
+				'redirect_to' => $this->get_review_url(),
+			),
+			admin_url( 'admin-post.php' )
+		);
+
+		return wp_nonce_url( $url, $nonce_action );
+	}
+
 	private function documents_meta_table_exists() {
 		global $wpdb;
 
@@ -455,6 +569,51 @@ class UFSC_LC_ASPTT_Review_Page {
 			WHERE docs.id = %d";
 
 		return $wpdb->get_row( $wpdb->prepare( $sql, $document_id ) );
+	}
+
+	private function get_document_meta_value( $licence_id, $source, $meta_key ) {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'ufsc_licence_documents_meta';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
+			return '';
+		}
+
+		return $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT meta_value FROM {$table} WHERE licence_id = %d AND source = %s AND meta_key = %s",
+				$licence_id,
+				$source,
+				$meta_key
+			)
+		);
+	}
+
+	private function delete_document_data( $document_id, $licence_id, $source ) {
+		global $wpdb;
+
+		$meta_table = $wpdb->prefix . 'ufsc_licence_documents_meta';
+		$docs_table = $wpdb->prefix . 'ufsc_licence_documents';
+
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $meta_table ) ) === $meta_table ) {
+			$wpdb->delete(
+				$meta_table,
+				array(
+					'licence_id' => $licence_id,
+					'source'     => $source,
+				),
+				array( '%d', '%s' )
+			);
+		}
+
+		$wpdb->delete(
+			$docs_table,
+			array(
+				'id'     => $document_id,
+				'source' => $source,
+			),
+			array( '%d', '%s' )
+		);
 	}
 
 	private function upsert_document_meta( $licence_id, $source, $meta_key, $meta_value ) {

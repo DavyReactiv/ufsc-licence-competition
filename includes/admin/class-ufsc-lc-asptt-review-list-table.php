@@ -50,11 +50,20 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	}
 
 	public function get_bulk_actions() {
-		return array(
-			'approve'    => __( 'Valider sélection', 'ufsc-licence-competition' ),
-			'reject'     => __( 'Rejeter sélection', 'ufsc-licence-competition' ),
-			'save_alias' => __( 'Créer alias pour sélection', 'ufsc-licence-competition' ),
+		$filters = $this->get_sanitized_filters();
+		$actions = array(
+			'approve' => __( 'Approuver', 'ufsc-licence-competition' ),
+			'reject'  => __( 'Rejeter', 'ufsc-licence-competition' ),
+			'trash'   => __( 'Corbeille', 'ufsc-licence-competition' ),
 		);
+
+		if ( 'trash' === $filters['review_status'] ) {
+			$actions['restore'] = __( 'Restaurer', 'ufsc-licence-competition' );
+		}
+
+		$actions['save_alias'] = __( 'Créer alias pour sélection', 'ufsc-licence-competition' );
+
+		return $actions;
 	}
 
 	public function no_items() {
@@ -80,7 +89,7 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	public function column_confidence_score( $item ) {
 		$score = isset( $item->confidence_score ) ? (int) $item->confidence_score : 0;
 		return sprintf(
-			'<span class="ufsc-lc-score-badge">%d</span>',
+			'<span class="ufsc-badge ufsc-badge--info">%d</span>',
 			esc_html( $score )
 		);
 	}
@@ -98,43 +107,65 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 
 	public function column_review_status( $item ) {
 		$status = ! empty( $item->review_status ) ? $item->review_status : 'pending';
-		return esc_html( $status );
+		$labels = array(
+			'pending'  => __( 'En attente', 'ufsc-licence-competition' ),
+			'approved' => __( 'Approuvé', 'ufsc-licence-competition' ),
+			'rejected' => __( 'Rejeté', 'ufsc-licence-competition' ),
+			'trash'    => __( 'Corbeille', 'ufsc-licence-competition' ),
+		);
+		$badge_class = 'pending' === $status ? 'ufsc-badge--warning' : 'ufsc-badge--muted';
+		if ( 'approved' === $status ) {
+			$badge_class = 'ufsc-badge--success';
+		} elseif ( 'rejected' === $status ) {
+			$badge_class = 'ufsc-badge--danger';
+		}
+
+		$label = isset( $labels[ $status ] ) ? $labels[ $status ] : $status;
+
+		return sprintf(
+			'<span class="ufsc-badge %s">%s</span>',
+			esc_attr( $badge_class ),
+			esc_html( $label )
+		);
 	}
 
 	public function column_actions( $item ) {
 		$actions = array();
 		$base_url = admin_url( 'admin-post.php' );
+		$status = ! empty( $item->review_status ) ? $item->review_status : 'pending';
 
-		$approve_url = add_query_arg(
-			array(
-				'action'       => 'ufsc_lc_asptt_review_approve',
-				'document_id'  => (int) $item->document_id,
-				'redirect_to'  => $this->get_current_url(),
-			),
-			$base_url
-		);
-		$approve_url = wp_nonce_url( $approve_url, 'ufsc_lc_asptt_review_approve_' . (int) $item->document_id );
+		if ( 'trash' !== $status ) {
+			$approve_url = add_query_arg(
+				array(
+					'action'       => 'ufsc_lc_asptt_review_approve',
+					'document_id'  => (int) $item->document_id,
+					'redirect_to'  => $this->get_current_url(),
+				),
+				$base_url
+			);
+			$approve_url = wp_nonce_url( $approve_url, 'ufsc_lc_asptt_review_approve_' . (int) $item->document_id );
 
-		$reject_url = add_query_arg(
-			array(
-				'action'       => 'ufsc_lc_asptt_review_reject',
-				'document_id'  => (int) $item->document_id,
-				'redirect_to'  => $this->get_current_url(),
-			),
-			$base_url
-		);
-		$reject_url = wp_nonce_url( $reject_url, 'ufsc_lc_asptt_review_reject_' . (int) $item->document_id );
+			$reject_url = add_query_arg(
+				array(
+					'action'       => 'ufsc_lc_asptt_review_reject',
+					'document_id'  => (int) $item->document_id,
+					'redirect_to'  => $this->get_current_url(),
+				),
+				$base_url
+			);
+			$reject_url = wp_nonce_url( $reject_url, 'ufsc_lc_asptt_review_reject_' . (int) $item->document_id );
 
-		$actions['approve'] = sprintf(
-			'<a href="%s">%s</a>',
-			esc_url( $approve_url ),
-			esc_html__( 'Valider', 'ufsc-licence-competition' )
-		);
-		$actions['reject'] = sprintf(
-			'<a href="%s">%s</a>',
-			esc_url( $reject_url ),
-			esc_html__( 'Rejeter', 'ufsc-licence-competition' )
-		);
+			$actions['approve'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $approve_url ),
+				esc_html__( 'Valider', 'ufsc-licence-competition' )
+			);
+			$actions['reject'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $reject_url ),
+				esc_html__( 'Rejeter', 'ufsc-licence-competition' )
+			);
+		}
 
 		if ( ! empty( $item->asptt_club_note ) ) {
 			$alias_url = add_query_arg(
@@ -153,20 +184,71 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 			);
 		}
 
-		$choose_url = add_query_arg(
-			array(
-				'page'        => 'ufsc-lc-import-asptt',
-				'tab'         => 'review',
-				'choose_club' => 1,
-				'document_id' => (int) $item->document_id,
-			),
-			admin_url( 'admin.php' )
-		);
-		$actions['choose_club'] = sprintf(
-			'<a href="%s">%s</a>',
-			esc_url( $choose_url ),
-			esc_html__( 'Choisir club', 'ufsc-licence-competition' )
-		);
+		if ( 'trash' !== $status ) {
+			$choose_url = add_query_arg(
+				array(
+					'page'        => 'ufsc-lc-import-asptt',
+					'tab'         => 'review',
+					'choose_club' => 1,
+					'document_id' => (int) $item->document_id,
+				),
+				admin_url( 'admin.php' )
+			);
+			$actions['choose_club'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $choose_url ),
+				esc_html__( 'Choisir club', 'ufsc-licence-competition' )
+			);
+		}
+
+		if ( 'trash' === $status ) {
+			$restore_url = add_query_arg(
+				array(
+					'action'       => 'ufsc_lc_asptt_restore',
+					'document_id'  => (int) $item->document_id,
+					'redirect_to'  => $this->get_current_url(),
+				),
+				$base_url
+			);
+			$restore_url = wp_nonce_url( $restore_url, 'ufsc_lc_asptt_review_restore_' . (int) $item->document_id );
+			$actions['restore'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $restore_url ),
+				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
+			);
+
+			if ( current_user_can( 'manage_options' ) ) {
+				$delete_url = add_query_arg(
+					array(
+						'action'       => 'ufsc_lc_asptt_delete',
+						'document_id'  => (int) $item->document_id,
+						'redirect_to'  => $this->get_current_url(),
+					),
+					$base_url
+				);
+				$delete_url = wp_nonce_url( $delete_url, 'ufsc_lc_asptt_review_delete_' . (int) $item->document_id );
+				$actions['delete'] = sprintf(
+					'<a href="%s" class="ufsc-confirm-delete">%s</a>',
+					esc_url( $delete_url ),
+					esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
+				);
+			}
+		} else {
+			$trash_url = add_query_arg(
+				array(
+					'action'       => 'ufsc_lc_asptt_trash',
+					'document_id'  => (int) $item->document_id,
+					'redirect_to'  => $this->get_current_url(),
+				),
+				$base_url
+			);
+			$trash_url = wp_nonce_url( $trash_url, 'ufsc_lc_asptt_review_trash_' . (int) $item->document_id );
+			$actions['trash'] = sprintf(
+				'<a href="%s" class="ufsc-confirm-trash">%s</a>',
+				esc_url( $trash_url ),
+				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
+			);
+		}
 
 		return $this->row_actions( $actions, true );
 	}
@@ -190,10 +272,11 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	public function get_views() {
 		$current = $this->get_sanitized_filters();
 		$tabs = array(
+			'all'      => __( 'Tous', 'ufsc-licence-competition' ),
 			'pending'  => __( 'En attente', 'ufsc-licence-competition' ),
-			'approved' => __( 'Validées', 'ufsc-licence-competition' ),
-			'rejected' => __( 'Rejetées', 'ufsc-licence-competition' ),
-			'all'      => __( 'Toutes', 'ufsc-licence-competition' ),
+			'approved' => __( 'Approuvés', 'ufsc-licence-competition' ),
+			'rejected' => __( 'Rejetés', 'ufsc-licence-competition' ),
+			'trash'    => __( 'Corbeille', 'ufsc-licence-competition' ),
 		);
 
 		$views = array();
@@ -345,7 +428,7 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 
 	public function get_sanitized_filters() {
 		$review_status = isset( $_REQUEST['review_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['review_status'] ) ) : 'pending';
-		$allowed_status = array( 'pending', 'approved', 'rejected', 'all' );
+		$allowed_status = array( 'pending', 'approved', 'rejected', 'all', 'trash' );
 		if ( ! in_array( $review_status, $allowed_status, true ) ) {
 			$review_status = 'pending';
 		}

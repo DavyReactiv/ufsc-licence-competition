@@ -94,9 +94,20 @@
 		}
 
 		document.querySelectorAll('.ufsc-save-alias').forEach(function(button) {
+			var rowIndex = button.getAttribute('data-row-index');
+			var select = document.querySelector('.ufsc-club-select[data-row-index="' + rowIndex + '"]');
+
+			function toggleButton() {
+				var clubId = select ? select.value : '';
+				button.disabled = !clubId;
+			}
+
+			if (select) {
+				select.addEventListener('change', toggleButton);
+				toggleButton();
+			}
+
 			button.addEventListener('click', function() {
-				var rowIndex = this.getAttribute('data-row-index');
-				var select = document.querySelector('.ufsc-club-select[data-row-index="' + rowIndex + '"]');
 				var clubId = select ? select.value : '';
 				var selectFirstLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings)
 					? UFSC_LC_Admin.strings.selectFirst
@@ -114,6 +125,28 @@
 			var select = document.querySelector('.ufsc-club-select[data-row-index="' + rowIndex + '"]');
 			input.addEventListener('input', function() {
 				fetchClubs(input.value, select);
+			});
+		});
+
+		document.querySelectorAll('.ufsc-confirm-trash').forEach(function(link) {
+			link.addEventListener('click', function(event) {
+				var message = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.confirmTrash)
+					? UFSC_LC_Admin.strings.confirmTrash
+					: '';
+				if (!window.confirm(message)) {
+					event.preventDefault();
+				}
+			});
+		});
+
+		document.querySelectorAll('.ufsc-confirm-delete').forEach(function(link) {
+			link.addEventListener('click', function(event) {
+				var message = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.confirmDelete)
+					? UFSC_LC_Admin.strings.confirmDelete
+					: '';
+				if (!window.confirm(message)) {
+					event.preventDefault();
+				}
 			});
 		});
 	}

@@ -1,4 +1,4 @@
-.ufsc-lc-filter-row {
+.ufsc-lc-admin .ufsc-lc-filter-row {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 16px;
@@ -6,22 +6,92 @@
 	align-items: center;
 }
 
-.ufsc-lc-preview-table select,
-.ufsc-lc-preview-table input[type="text"] {
+.ufsc-lc-admin .tablenav .actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.ufsc-lc-admin .ufsc-lc-preview-table select,
+.ufsc-lc-admin .ufsc-lc-preview-table input[type="text"] {
 	max-width: 220px;
 }
 
-.ufsc-lc-preview-table .ufsc-alias-feedback {
+.ufsc-lc-admin .ufsc-lc-preview-table .ufsc-alias-feedback {
 	margin-left: 8px;
 	font-style: italic;
 }
 
-.ufsc-lc-import-logs {
+.ufsc-lc-admin .ufsc-lc-import-logs {
 	margin-top: 24px;
 }
 
-.ufsc-lc-import-log-error {
+.ufsc-lc-admin .ufsc-lc-import-log-error {
 	color: #b32d2e;
 	margin-top: 4px;
 	font-size: 12px;
+}
+
+.ufsc-lc-admin .ufsc-lc-table-wrap {
+	overflow-x: auto;
+}
+
+.ufsc-lc-admin .widefat {
+	table-layout: auto;
+	width: 100%;
+}
+
+.ufsc-lc-admin .widefat thead th {
+	position: sticky;
+	top: 32px;
+	z-index: 2;
+	background: #fff;
+}
+
+.ufsc-lc-admin .ufsc-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	line-height: 1.4;
+	background: #f0f0f1;
+	color: #1d2327;
+	white-space: nowrap;
+}
+
+.ufsc-lc-admin .ufsc-badge--success {
+	background: #d1e7dd;
+	color: #0f5132;
+}
+
+.ufsc-lc-admin .ufsc-badge--warning {
+	background: #fff3cd;
+	color: #664d03;
+}
+
+.ufsc-lc-admin .ufsc-badge--danger {
+	background: #f8d7da;
+	color: #842029;
+}
+
+.ufsc-lc-admin .ufsc-badge--info {
+	background: #cff4fc;
+	color: #055160;
+}
+
+.ufsc-lc-admin .ufsc-badge--muted {
+	background: #f6f7f7;
+	color: #50575e;
+}
+
+.ufsc-lc-admin .ufsc-lc-inline-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.ufsc-lc-admin .ufsc-lc-inline-actions .button {
+	white-space: nowrap;
 }
