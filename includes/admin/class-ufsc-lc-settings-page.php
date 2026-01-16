@@ -9,6 +9,7 @@ class UFSC_LC_Settings_Page {
 	const OPTION_DEFAULT_SEASON_END_YEAR = 'ufsc_lc_default_season_end_year';
 	const PAGE_SLUG = 'ufsc-lc-settings';
 	const DEFAULT_SEASON_END_YEAR = 2026;
+	private $menu_missing = false;
 
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ), 30 );
@@ -16,14 +17,26 @@ class UFSC_LC_Settings_Page {
 	}
 
 	public function register_admin_menu() {
-		add_submenu_page(
-			UFSC_LC_Plugin::PARENT_SLUG,
+		$parent_slug = UFSC_LC_Plugin::PARENT_SLUG;
+		if ( empty( $parent_slug ) ) {
+			$parent_slug = 'ufsc-licence-documents';
+		}
+
+		$hook_suffix = add_submenu_page(
+			$parent_slug,
 			__( 'Paramètres', 'ufsc-licence-competition' ),
 			__( 'Paramètres', 'ufsc-licence-competition' ),
 			'manage_options',
 			self::PAGE_SLUG,
 			array( $this, 'render_settings_page' )
 		);
+
+		if ( $hook_suffix ) {
+			UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+		} else {
+			$this->menu_missing = true;
+			add_action( 'admin_notices', array( $this, 'render_missing_menu_notice' ) );
+		}
 	}
 
 	public function register_settings() {
@@ -107,5 +120,16 @@ class UFSC_LC_Settings_Page {
 		$year   = UFSC_LC_Categories::sanitize_season_end_year( $option );
 
 		return $year ? $year : self::DEFAULT_SEASON_END_YEAR;
+	}
+
+	public function render_missing_menu_notice() {
+		if ( ! $this->menu_missing ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-error"><p>%s</p></div>',
+			esc_html__( 'La page Paramètres UFSC LC n’a pas pu être enregistrée. Vérifiez le slug du menu parent.', 'ufsc-licence-competition' )
+		);
 	}
 }

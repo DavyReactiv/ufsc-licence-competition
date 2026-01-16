@@ -56,6 +56,8 @@
 	color: #fff;
 	border-radius: 6px;
 	white-space: normal;
+	word-break: break-word;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 	z-index: 9999;
 }
 
@@ -143,7 +145,19 @@
 		align-items: stretch;
 	}
 
+	.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-field {
+		width: 100%;
+	}
+
+	.ufsc-lc-admin .ufsc-lc-sticky-bar .button {
+		width: 100%;
+	}
+
 	.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
 		margin-left: 0;
+	}
+
+	.ufsc-lc-admin .ufsc-lc-note:hover::after {
+		max-width: 90vw;
 	}
 }
