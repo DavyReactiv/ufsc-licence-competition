@@ -68,6 +68,8 @@ class UFSC_LC_Admin_Assets {
 					'noResults'    => __( 'Aucun club trouvé.', 'ufsc-licence-competition' ),
 					'saving'       => __( 'Enregistrement...', 'ufsc-licence-competition' ),
 					'selectFirst'  => __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' ),
+					'confirmTrash' => __( 'Mettre en corbeille ?', 'ufsc-licence-competition' ),
+					'confirmDelete' => __( 'Supprimer définitivement ?', 'ufsc-licence-competition' ),
 					'errorDefault' => __( 'Erreur', 'ufsc-licence-competition' ),
 				),
 			)

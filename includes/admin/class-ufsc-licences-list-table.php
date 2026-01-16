@@ -619,7 +619,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$document_params  = array( 'ASPTT' );
-			$select_documents = 'd.source_licence_number AS asptt_number, d.source_created_at AS date_asptt, d.attachment_id';
+			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
+			$select_documents = "d.source_licence_number AS asptt_number, {$date_asptt_sql} AS date_asptt, d.attachment_id";
 
 			if ( '' !== $search ) {
 				$where[]  = 'd.source_licence_number LIKE %s';
@@ -663,11 +664,28 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			LIMIT %d OFFSET %d";
 
 		$count_params = array_merge( $document_params, $params );
-		$total_items  = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $count_params ) );
+		$count_query  = $wpdb->prepare( $count_sql, $count_params );
+		$total_items  = (int) $wpdb->get_var( $count_query );
 
 		$offset      = ( $current_page - 1 ) * $per_page;
 		$item_params = array_merge( $document_params, $params, array( $per_page, $offset ) );
-		$this->items = $wpdb->get_results( $wpdb->prepare( $items_sql, $item_params ) );
+		$items_query = $wpdb->prepare( $items_sql, $item_params );
+		$this->items = $wpdb->get_results( $items_query );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC LC Licences count SQL: ' . $count_query );
+			error_log( 'UFSC LC Licences items SQL: ' . $items_query );
+			error_log(
+				sprintf(
+					'UFSC LC Licences pagination: paged=%d per_page=%d offset=%d total_items=%d items=%d',
+					$current_page,
+					$per_page,
+					$offset,
+					$total_items,
+					count( $this->items )
+				)
+			);
+		}
 
 		$this->set_pagination_args(
 			array(
@@ -760,7 +778,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$document_params  = array( 'ASPTT' );
-			$select_documents = 'd.source_licence_number AS asptt_number, d.source_created_at AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf';
+			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
+			$select_documents = "d.source_licence_number AS asptt_number, {$date_asptt_sql} AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
 
 			if ( '' !== $search ) {
 				$where[]  = 'd.source_licence_number LIKE %s';

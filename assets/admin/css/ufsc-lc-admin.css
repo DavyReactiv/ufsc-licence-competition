@@ -1,4 +1,4 @@
-.ufsc-lc-filter-row {
+.ufsc-lc-admin .ufsc-lc-filter-row {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 16px;
@@ -6,7 +6,8 @@
 	align-items: center;
 }
 
-.ufsc-lc-sticky-bar {
+/* Barre sticky (Import/Preview + Review si utilisé) */
+.ufsc-lc-admin .ufsc-lc-sticky-bar {
 	position: sticky;
 	top: 32px;
 	z-index: 50;
@@ -20,29 +21,30 @@
 	margin: 12px 0;
 }
 
-.ufsc-lc-sticky-bar .ufsc-lc-sticky-field {
+.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-field {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 }
 
-.ufsc-lc-sticky-bar .ufsc-lc-sticky-label {
+.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-label {
 	font-weight: 600;
 }
 
-.ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
+.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
 	margin-left: auto;
 	color: #50575e;
 	font-size: 12px;
 }
 
-.ufsc-lc-note {
+/* Tooltips "Club (Note)" */
+.ufsc-lc-admin .ufsc-lc-note {
 	position: relative;
 	cursor: help;
 	border-bottom: 1px dotted #999;
 }
 
-.ufsc-lc-note:hover::after {
+.ufsc-lc-admin .ufsc-lc-note:hover::after {
 	content: attr(data-tooltip);
 	position: absolute;
 	left: 0;
@@ -57,33 +59,91 @@
 	z-index: 9999;
 }
 
-.ufsc-lc-preview-table select,
-.ufsc-lc-preview-table input[type="text"] {
+/* Tablenav actions (évite l'empilement) */
+.ufsc-lc-admin .tablenav .actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Champs dans la table preview */
+.ufsc-lc-admin .ufsc-lc-preview-table select,
+.ufsc-lc-admin .ufsc-lc-preview-table input[type="text"] {
 	max-width: 220px;
 }
 
-.ufsc-lc-preview-table .ufsc-alias-feedback {
+.ufsc-lc-admin .ufsc-lc-preview-table .ufsc-alias-feedback {
 	margin-left: 8px;
 	font-style: italic;
 }
 
-.ufsc-lc-import-logs {
+.ufsc-lc-admin .ufsc-lc-import-logs {
 	margin-top: 24px;
 }
 
-.ufsc-lc-import-log-error {
+.ufsc-lc-admin .ufsc-lc-import-log-error {
 	color: #b32d2e;
 	margin-top: 4px;
 	font-size: 12px;
 }
 
+/* Table responsive */
+.ufsc-lc-admin .ufsc-lc-table-wrap {
+	overflow-x: auto;
+}
+
+.ufsc-lc-admin .widefat {
+	table-layout: auto;
+	width: 100%;
+}
+
+/* Sticky header */
+.ufsc-lc-admin .widefat thead th {
+	position: sticky;
+	top: 32px;
+	z-index: 2;
+	background: #fff;
+}
+
+/* Badges (score, lien, statut) */
+.ufsc-lc-admin .ufsc-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	line-height: 1.4;
+	background: #f0f0f1;
+	color: #1d2327;
+	white-space: nowrap;
+}
+
+.ufsc-lc-admin .ufsc-badge--success { background: #d1e7dd; color: #0f5132; }
+.ufsc-lc-admin .ufsc-badge--warning { background: #fff3cd; color: #664d03; }
+.ufsc-lc-admin .ufsc-badge--danger  { background: #f8d7da; color: #842029; }
+.ufsc-lc-admin .ufsc-badge--info    { background: #cff4fc; color: #055160; }
+.ufsc-lc-admin .ufsc-badge--muted   { background: #f6f7f7; color: #50575e; }
+
+/* Colonne Action compacte */
+.ufsc-lc-admin .ufsc-lc-inline-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.ufsc-lc-admin .ufsc-lc-inline-actions .button {
+	white-space: nowrap;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-	.ufsc-lc-sticky-bar {
+	.ufsc-lc-admin .ufsc-lc-sticky-bar {
 		flex-direction: column;
 		align-items: stretch;
 	}
 
-	.ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
+	.ufsc-lc-admin .ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
 		margin-left: 0;
 	}
 }
