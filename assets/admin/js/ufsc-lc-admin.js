@@ -180,11 +180,76 @@
 		});
 	}
 
+	function updateReviewSelectionCount() {
+		var status = document.querySelector('.ufsc-lc-sticky-bar--review .ufsc-lc-sticky-status');
+		if (!status) {
+			return;
+		}
+		var total = parseInt(status.getAttribute('data-total'), 10) || 0;
+		var selected = document.querySelectorAll('.wp-list-table tbody input[type="checkbox"][name="document[]"]:checked').length;
+		var labelLines = status.getAttribute('data-label-lines') || 'Lignes';
+		var labelSelected = status.getAttribute('data-label-selected') || 'Sélectionnées';
+		status.setAttribute('data-selected', String(selected));
+		status.textContent = labelLines + ': ' + total + ' | ' + labelSelected + ': ' + selected;
+	}
+
+	function applyPinnedPreviewSelection() {
+		var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
+		var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
+		if (!pinnedSelect || !pinnedApply || !pinnedApply.checked || !pinnedSelect.value) {
+			return;
+		}
+
+		document.querySelectorAll('.ufsc-lc-preview-table .ufsc-club-select').forEach(function(select) {
+			select.value = pinnedSelect.value;
+		});
+	}
+
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', bindPreviewActions);
 		document.addEventListener('DOMContentLoaded', initReviewClubSelects);
+		document.addEventListener('DOMContentLoaded', updateReviewSelectionCount);
+		document.addEventListener('DOMContentLoaded', function() {
+			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
+			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
+			var applyButton = document.querySelector('.ufsc-lc-apply-pinned');
+			if (pinnedSelect) {
+				pinnedSelect.addEventListener('change', applyPinnedPreviewSelection);
+			}
+			if (pinnedApply) {
+				pinnedApply.addEventListener('change', applyPinnedPreviewSelection);
+			}
+			if (applyButton) {
+				applyButton.addEventListener('click', applyPinnedPreviewSelection);
+			}
+		});
+		document.addEventListener('change', function(event) {
+			if (event.target && event.target.matches('.wp-list-table input[type="checkbox"]')) {
+				updateReviewSelectionCount();
+			}
+		});
 	} else {
 		bindPreviewActions();
 		initReviewClubSelects();
+		updateReviewSelectionCount();
+		(function() {
+			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
+			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
+			var applyButton = document.querySelector('.ufsc-lc-apply-pinned');
+			if (pinnedSelect) {
+				pinnedSelect.addEventListener('change', applyPinnedPreviewSelection);
+			}
+			if (pinnedApply) {
+				pinnedApply.addEventListener('change', applyPinnedPreviewSelection);
+			}
+			if (applyButton) {
+				applyButton.addEventListener('click', applyPinnedPreviewSelection);
+			}
+		})();
+		document.addEventListener('change', function(event) {
+			if (event.target && event.target.matches('.wp-list-table input[type="checkbox"]')) {
+				updateReviewSelectionCount();
+			}
+		});
 	}
 })();

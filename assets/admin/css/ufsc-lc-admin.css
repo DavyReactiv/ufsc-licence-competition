@@ -6,6 +6,57 @@
 	align-items: center;
 }
 
+.ufsc-lc-sticky-bar {
+	position: sticky;
+	top: 32px;
+	z-index: 50;
+	background: #fff;
+	border-bottom: 1px solid #ccd0d4;
+	padding: 8px;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	align-items: center;
+	margin: 12px 0;
+}
+
+.ufsc-lc-sticky-bar .ufsc-lc-sticky-field {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.ufsc-lc-sticky-bar .ufsc-lc-sticky-label {
+	font-weight: 600;
+}
+
+.ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
+	margin-left: auto;
+	color: #50575e;
+	font-size: 12px;
+}
+
+.ufsc-lc-note {
+	position: relative;
+	cursor: help;
+	border-bottom: 1px dotted #999;
+}
+
+.ufsc-lc-note:hover::after {
+	content: attr(data-tooltip);
+	position: absolute;
+	left: 0;
+	top: 100%;
+	margin-top: 6px;
+	max-width: 360px;
+	padding: 8px 10px;
+	background: #1d2327;
+	color: #fff;
+	border-radius: 6px;
+	white-space: normal;
+	z-index: 9999;
+}
+
 .ufsc-lc-preview-table select,
 .ufsc-lc-preview-table input[type="text"] {
 	max-width: 220px;
@@ -24,4 +75,15 @@
 	color: #b32d2e;
 	margin-top: 4px;
 	font-size: 12px;
+}
+
+@media (max-width: 768px) {
+	.ufsc-lc-sticky-bar {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.ufsc-lc-sticky-bar .ufsc-lc-sticky-status {
+		margin-left: 0;
+	}
 }

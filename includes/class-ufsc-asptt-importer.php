@@ -127,11 +127,14 @@ class UFSC_LC_ASPTT_Importer {
 		$file_name     = $preview && ! empty( $preview['file_name'] ) ? $preview['file_name'] : '';
 		$preview_limit = $preview && ! empty( $preview['preview_limit'] ) ? (int) $preview['preview_limit'] : UFSC_LC_ASPTT_Import_Service::PREVIEW_DEFAULT_LIMIT;
 		$force_club_id = $preview && ! empty( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
+		$pinned_club_id = $preview && ! empty( $preview['pinned_club_id'] ) ? (int) $preview['pinned_club_id'] : 0;
+		$pinned_apply   = $preview && ! empty( $preview['pinned_apply'] );
 		$default_season_end_year = $this->get_default_season_end_year();
 		$use_season_override     = $preview && ! empty( $preview['use_season_override'] );
 		$season_end_year_override = $preview && ! empty( $preview['season_end_year_override'] ) ? (int) $preview['season_end_year_override'] : $default_season_end_year;
 		$auto_save_alias = $preview && isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true;
 		$force_club    = $force_club_id ? $this->get_club_by_id( $force_club_id ) : null;
+		$pinned_club   = $pinned_club_id ? $this->get_club_by_id( $pinned_club_id ) : null;
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Import ASPTT', 'ufsc-licence-competition' ); ?></h1>
@@ -143,7 +146,7 @@ class UFSC_LC_ASPTT_Importer {
 				$review_page->render();
 				?>
 			<?php else : ?>
-				<?php $this->render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias ); ?>
+				<?php $this->render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club ); ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -174,7 +177,7 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias ) {
+	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club ) {
 		?>
 		<?php if ( ! empty( $preview['notice'] ) ) : ?>
 			<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
@@ -312,6 +315,21 @@ class UFSC_LC_ASPTT_Importer {
 					</p>
 				</div>
 			<?php endif; ?>
+			<?php if ( $pinned_apply && $pinned_club_id ) : ?>
+				<div class="notice notice-info">
+					<p>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: club name */
+								__( 'Club épinglé actif : %s', 'ufsc-licence-competition' ),
+								$pinned_club ? $pinned_club->nom : $pinned_club_id
+							)
+						);
+						?>
+					</p>
+				</div>
+			<?php endif; ?>
 
 			<?php $this->render_stats( $stats, $errors, $preview_limit ); ?>
 
@@ -323,6 +341,8 @@ class UFSC_LC_ASPTT_Importer {
 					<?php if ( $force_club_id ) : ?>
 						<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
 					<?php endif; ?>
+					<input type="hidden" name="ufsc_asptt_pinned_club_id" value="<?php echo esc_attr( $pinned_club_id ); ?>">
+					<input type="hidden" name="ufsc_asptt_pinned_apply" value="<?php echo esc_attr( $pinned_apply ? 1 : 0 ); ?>">
 					<p>
 						<strong><?php esc_html_e( 'Saison par défaut', 'ufsc-licence-competition' ); ?>:</strong>
 						<?php echo esc_html( $default_season_end_year ); ?>
@@ -389,7 +409,8 @@ class UFSC_LC_ASPTT_Importer {
 				</form>
 			<?php endif; ?>
 
-			<?php $this->render_preview_table( $rows, $preview_limit ); ?>
+			<?php $this->render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply ); ?>
+			<?php $this->render_preview_table( $rows, $preview_limit, $pinned_club_id, $pinned_apply ); ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'ufsc_lc_asptt_import', 'ufsc_lc_asptt_import_nonce' ); ?>
@@ -397,6 +418,8 @@ class UFSC_LC_ASPTT_Importer {
 				<input type="hidden" name="ufsc_asptt_use_season_override" value="<?php echo esc_attr( $use_season_override ? 1 : 0 ); ?>">
 				<input type="hidden" name="ufsc_asptt_season_end_year" value="<?php echo esc_attr( $season_end_year_override ); ?>">
 				<input type="hidden" name="ufsc_asptt_auto_save_alias" value="<?php echo esc_attr( $auto_save_alias ? 1 : 0 ); ?>">
+				<input type="hidden" name="ufsc_asptt_pinned_club_id" value="<?php echo esc_attr( $pinned_club_id ); ?>">
+				<input type="hidden" name="ufsc_asptt_pinned_apply" value="<?php echo esc_attr( $pinned_apply ? 1 : 0 ); ?>">
 				<label>
 					<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
 					<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
@@ -451,8 +474,79 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_preview_table( $rows, $preview_limit ) {
+	private function render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply ) {
+		$total_rows = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-sticky-bar ufsc-lc-sticky-bar--import">
+			<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
+			<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
+			<input type="hidden" name="ufsc_lc_reprocess" value="1">
+			<input type="hidden" name="ufsc_asptt_preview_limit" value="<?php echo esc_attr( $preview_limit ); ?>">
+			<input type="hidden" name="ufsc_asptt_use_season_override" value="<?php echo esc_attr( $use_season_override ? 1 : 0 ); ?>">
+			<input type="hidden" name="ufsc_asptt_season_end_year" value="<?php echo esc_attr( $season_end_year_override ); ?>">
+			<input type="hidden" name="ufsc_asptt_auto_save_alias" value="<?php echo esc_attr( $auto_save_alias ? 1 : 0 ); ?>">
+			<?php if ( $force_club_id ) : ?>
+				<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
+			<?php endif; ?>
+			<?php if ( ! empty( $mapping ) ) : ?>
+				<?php foreach ( $mapping as $header => $column ) : ?>
+					<input type="hidden" name="ufsc_lc_mapping[<?php echo esc_attr( $header ); ?>]" value="<?php echo esc_attr( $column ); ?>">
+				<?php endforeach; ?>
+			<?php endif; ?>
+
+			<div class="ufsc-lc-sticky-field">
+				<label for="ufsc-lc-pinned-club" class="ufsc-lc-sticky-label"><?php esc_html_e( 'Club épinglé', 'ufsc-licence-competition' ); ?></label>
+				<select name="ufsc_asptt_pinned_club_id" id="ufsc-lc-pinned-club">
+					<option value=""><?php esc_html_e( 'Ne pas épingler', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $this->get_clubs() as $club ) : ?>
+						<option value="<?php echo esc_attr( $club->id ); ?>" <?php selected( $pinned_club_id, (int) $club->id ); ?>>
+							<?php echo esc_html( $club->nom ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+
+			<div class="ufsc-lc-sticky-field">
+				<label>
+					<input type="checkbox" name="ufsc_asptt_pinned_apply" value="1" <?php checked( $pinned_apply ); ?>>
+					<?php esc_html_e( 'Appliquer à toutes les lignes', 'ufsc-licence-competition' ); ?>
+				</label>
+			</div>
+
+			<button type="submit" class="button button-secondary ufsc-lc-apply-pinned"><?php esc_html_e( 'Appliquer au tableau', 'ufsc-licence-competition' ); ?></button>
+
+			<span class="ufsc-lc-sticky-status" data-total="<?php echo esc_attr( $preview_limit ); ?>" data-selected="0">
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: preview rows, 2: total rows */
+						__( 'Lignes: %1$d / %2$d | Sélectionnées: %3$d', 'ufsc-licence-competition' ),
+						$preview_limit,
+						$total_rows,
+						0
+					)
+				);
+				?>
+			</span>
+		</form>
+		<?php
+	}
+
+	private function render_preview_table( $rows, $preview_limit, $pinned_club_id, $pinned_apply ) {
 		$rows = array_slice( $rows, 0, $preview_limit );
+		$club_map = array();
+		foreach ( $this->get_clubs() as $club ) {
+			$club_map[ (int) $club->id ] = $club->nom;
+		}
+		$status_labels = array(
+			self::STATUS_LINKED               => __( 'Lié', 'ufsc-licence-competition' ),
+			self::STATUS_CLUB_NOT_FOUND       => __( 'Club introuvable', 'ufsc-licence-competition' ),
+			self::STATUS_NEEDS_REVIEW         => __( 'À vérifier', 'ufsc-licence-competition' ),
+			self::STATUS_LICENCE_MISSING      => __( 'Licence introuvable', 'ufsc-licence-competition' ),
+			self::STATUS_INVALID_ASPTT_NUMBER => __( 'N° ASPTT invalide', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_SEASON => __( 'Saison invalide', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_BIRTHDATE => __( 'Date de naissance invalide', 'ufsc-licence-competition' ),
+		);
 		?>
 		<h2><?php esc_html_e( 'Prévisualisation', 'ufsc-licence-competition' ); ?></h2>
 		<div class="ufsc-lc-filter-row">
@@ -484,6 +578,15 @@ class UFSC_LC_ASPTT_Importer {
 			<tbody>
 				<?php foreach ( $rows as $index => $row ) : ?>
 					<?php $search_value = strtolower( trim( $row['nom'] . ' ' . $row['prenom'] . ' ' . $row['note'] . ' ' . $row['asptt_number'] ) ); ?>
+					<?php
+					$pinned_option = null;
+					if ( $pinned_apply && $pinned_club_id && isset( $club_map[ (int) $pinned_club_id ] ) ) {
+						$pinned_option = array(
+							'id'   => (int) $pinned_club_id,
+							'name' => $club_map[ (int) $pinned_club_id ],
+						);
+					}
+					?>
 					<tr data-has-error="<?php echo esc_attr( $row['has_error'] ? '1' : '0' ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>" data-status="<?php echo esc_attr( $row['status'] ); ?>">
 						<td><?php echo esc_html( $row['nom'] ); ?></td>
 						<td><?php echo esc_html( $row['prenom'] ); ?></td>
@@ -491,7 +594,29 @@ class UFSC_LC_ASPTT_Importer {
 						<td><?php echo esc_html( ! empty( $row['season_end_year'] ) ? $row['season_end_year'] : '—' ); ?></td>
 						<td><?php echo esc_html( ! empty( $row['category'] ) ? $row['category'] : '—' ); ?></td>
 						<td><?php echo esc_html( ! empty( $row['age_ref'] ) ? $row['age_ref'] : '—' ); ?></td>
-						<td><?php echo esc_html( $row['note'] ); ?></td>
+						<td>
+							<?php if ( '' !== $row['note'] ) : ?>
+								<?php
+								$club_label = isset( $club_map[ (int) $row['club_id'] ] ) ? $club_map[ (int) $row['club_id'] ] : __( '—', 'ufsc-licence-competition' );
+								$status_label = isset( $status_labels[ $row['status'] ] ) ? $status_labels[ $row['status'] ] : $row['status'];
+								$tooltip = sprintf(
+									/* translators: 1: note, 2: club name, 3: score, 4: link mode, 5: status */
+									__( 'Note: %1$s | Club: %2$s | Score: %3$s | Lien: %4$s | Statut: %5$s', 'ufsc-licence-competition' ),
+									$row['note'],
+									$club_label,
+									isset( $row['confidence_score'] ) ? (int) $row['confidence_score'] : 0,
+									isset( $row['link_mode'] ) ? $row['link_mode'] : 'none',
+									$status_label
+								);
+								$tooltip = wp_html_excerpt( $tooltip, 220, '…' );
+								?>
+								<span class="ufsc-lc-note" data-tooltip="<?php echo esc_attr( $tooltip ); ?>" title="<?php echo esc_attr( $tooltip ); ?>">
+									<?php echo esc_html( $row['note'] ); ?>
+								</span>
+							<?php else : ?>
+								<?php echo esc_html__( '—', 'ufsc-licence-competition' ); ?>
+							<?php endif; ?>
+						</td>
 						<td><?php echo esc_html( ! empty( $row['licence_id'] ) ? $row['licence_id'] : '—' ); ?></td>
 						<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
 						<td><?php echo esc_html( ! empty( $row['source_created_at'] ) ? $row['source_created_at'] : '—' ); ?></td>
@@ -508,8 +633,24 @@ class UFSC_LC_ASPTT_Importer {
 							<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
 								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
 									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+									<?php if ( $pinned_option ) : ?>
+										<?php
+										$has_pinned = false;
+										foreach ( $row['club_suggestions'] as $suggestion ) {
+											if ( (int) $suggestion['id'] === (int) $pinned_option['id'] ) {
+												$has_pinned = true;
+												break;
+											}
+										}
+										?>
+										<?php if ( ! $has_pinned ) : ?>
+											<option value="<?php echo esc_attr( $pinned_option['id'] ); ?>" selected>
+												<?php echo esc_html( $pinned_option['name'] ); ?>
+											</option>
+										<?php endif; ?>
+									<?php endif; ?>
 									<?php foreach ( $row['club_suggestions'] as $suggestion ) : ?>
-										<option value="<?php echo esc_attr( $suggestion['id'] ); ?>">
+										<option value="<?php echo esc_attr( $suggestion['id'] ); ?>" <?php selected( $pinned_apply ? $pinned_club_id : 0, (int) $suggestion['id'] ); ?>>
 											<?php echo esc_html( $suggestion['name'] ); ?>
 										</option>
 									<?php endforeach; ?>
@@ -522,6 +663,11 @@ class UFSC_LC_ASPTT_Importer {
 								<input type="text" class="ufsc-club-search" data-row-index="<?php echo esc_attr( $index ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club', 'ufsc-licence-competition' ); ?>">
 								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
 									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+									<?php if ( $pinned_option ) : ?>
+										<option value="<?php echo esc_attr( $pinned_option['id'] ); ?>" selected>
+											<?php echo esc_html( $pinned_option['name'] ); ?>
+										</option>
+									<?php endif; ?>
 								</select>
 								<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>">
 									<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
@@ -567,15 +713,35 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		$force_club_id = isset( $_POST['ufsc_asptt_force_club'] ) ? absint( $_POST['ufsc_asptt_force_club'] ) : 0;
+		$pinned_club_id = isset( $_POST['ufsc_asptt_pinned_club_id'] ) ? absint( $_POST['ufsc_asptt_pinned_club_id'] ) : 0;
+		$pinned_apply   = isset( $_POST['ufsc_asptt_pinned_apply'] );
 		$mode          = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
 		$mapping       = isset( $_POST['ufsc_lc_mapping'] ) ? $this->service->sanitize_mapping( wp_unslash( $_POST['ufsc_lc_mapping'] ) ) : array();
 		$preview_limit = isset( $_POST['ufsc_asptt_preview_limit'] ) ? $this->service->sanitize_preview_limit( wp_unslash( $_POST['ufsc_asptt_preview_limit'] ) ) : UFSC_LC_ASPTT_Import_Service::PREVIEW_DEFAULT_LIMIT;
 
 		$existing_preview = $this->get_preview();
+		$is_reprocess = isset( $_POST['ufsc_lc_reprocess'] );
+		if ( $is_reprocess ) {
+			if ( ! $pinned_club_id && ! empty( $existing_preview['pinned_club_id'] ) ) {
+				$pinned_club_id = (int) $existing_preview['pinned_club_id'];
+			}
+			if ( ! $pinned_apply && ! empty( $existing_preview['pinned_apply'] ) ) {
+				$pinned_apply = (bool) $existing_preview['pinned_apply'];
+			}
+		}
 		$use_season_override = isset( $_POST['ufsc_asptt_use_season_override'] );
 		$raw_override         = isset( $_POST['ufsc_asptt_season_end_year'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_asptt_season_end_year'] ) ) : '';
 		$season_end_year_override = $use_season_override ? UFSC_LC_Categories::sanitize_season_end_year( $raw_override ) : null;
 		$auto_save_alias = isset( $_POST['ufsc_asptt_auto_save_alias'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_save_alias'] ) : false;
+
+		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
+			$pinned_club_id = 0;
+			$pinned_apply   = false;
+		}
+
+		if ( $pinned_apply && $pinned_club_id ) {
+			$force_club_id = $pinned_club_id;
+		}
 
 		$preview = array();
 
@@ -592,7 +758,7 @@ class UFSC_LC_ASPTT_Importer {
 				$preview['file_name'] = $stored['name'];
 			}
 		} else {
-			if ( ! empty( $existing_preview['file_path'] ) && isset( $_POST['ufsc_lc_reprocess'] ) ) {
+			if ( ! empty( $existing_preview['file_path'] ) && $is_reprocess ) {
 				if ( ! $use_season_override && isset( $existing_preview['use_season_override'] ) ) {
 					$use_season_override = (bool) $existing_preview['use_season_override'];
 				}
@@ -621,6 +787,8 @@ class UFSC_LC_ASPTT_Importer {
 
 		if ( ! empty( $preview ) ) {
 			$preview['force_club_id']  = $force_club_id;
+			$preview['pinned_club_id'] = $pinned_club_id;
+			$preview['pinned_apply']   = $pinned_apply;
 			$preview['mode']           = $mode;
 			$preview['preview_limit']  = $preview_limit;
 			$preview['use_season_override'] = $use_season_override;
@@ -661,9 +829,27 @@ class UFSC_LC_ASPTT_Importer {
 			? (bool) absint( $_POST['ufsc_asptt_auto_save_alias'] )
 			: ( isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true );
 
+		$pinned_club_id = isset( $_POST['ufsc_asptt_pinned_club_id'] )
+			? absint( $_POST['ufsc_asptt_pinned_club_id'] )
+			: ( isset( $preview['pinned_club_id'] ) ? (int) $preview['pinned_club_id'] : 0 );
+		$pinned_apply = isset( $_POST['ufsc_asptt_pinned_apply'] )
+			? (bool) absint( $_POST['ufsc_asptt_pinned_apply'] )
+			: ( isset( $preview['pinned_apply'] ) ? (bool) $preview['pinned_apply'] : false );
+
+		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
+			$pinned_club_id = 0;
+			$pinned_apply   = false;
+		}
+
+		if ( $pinned_apply && $pinned_club_id ) {
+			$preview['force_club_id'] = $pinned_club_id;
+		}
+
 		$preview['use_season_override']      = $use_season_override;
 		$preview['season_end_year_override'] = $season_end_year_override;
 		$preview['auto_save_alias']          = $auto_save_alias;
+		$preview['pinned_club_id']           = $pinned_club_id;
+		$preview['pinned_apply']             = $pinned_apply;
 
 		$mode = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
 		if ( 'import' !== $mode ) {
@@ -823,6 +1009,8 @@ class UFSC_LC_ASPTT_Importer {
 		$updated['file_path']     = $preview['file_path'];
 		$updated['file_name']     = isset( $preview['file_name'] ) ? $preview['file_name'] : '';
 		$updated['force_club_id'] = $preview['force_club_id'];
+		$updated['pinned_club_id'] = isset( $preview['pinned_club_id'] ) ? (int) $preview['pinned_club_id'] : 0;
+		$updated['pinned_apply'] = isset( $preview['pinned_apply'] ) ? (bool) $preview['pinned_apply'] : false;
 		$updated['mapping']       = isset( $preview['mapping'] ) ? $preview['mapping'] : array();
 		$updated['use_season_override'] = isset( $preview['use_season_override'] ) ? (bool) $preview['use_season_override'] : false;
 		$updated['season_end_year_override'] = isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : null;

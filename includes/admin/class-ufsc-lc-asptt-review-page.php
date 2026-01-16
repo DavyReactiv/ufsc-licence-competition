@@ -50,6 +50,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			<input type="hidden" name="tab" value="review" />
 			<input type="hidden" name="review_status" value="<?php echo esc_attr( $list_table->get_sanitized_filters()['review_status'] ); ?>" />
 			<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-review-search' ); ?>
+			<?php $this->render_sticky_bulk_bar( $list_table ); ?>
 			<?php $list_table->display(); ?>
 		</form>
 		<?php
@@ -296,6 +297,45 @@ class UFSC_LC_ASPTT_Review_Page {
 			</select>
 			<?php submit_button( __( 'Valider association', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 		</form>
+		<?php
+	}
+
+	private function render_sticky_bulk_bar( UFSC_LC_ASPTT_Review_List_Table $list_table ) {
+		$actions = $list_table->get_bulk_actions();
+		$total_items = method_exists( $list_table, 'get_pagination_arg' ) ? (int) $list_table->get_pagination_arg( 'total_items' ) : 0;
+		?>
+		<div class="ufsc-lc-sticky-bar ufsc-lc-sticky-bar--review">
+			<div class="ufsc-lc-sticky-field">
+				<label for="ufsc-review-bulk-action" class="ufsc-lc-sticky-label"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></label>
+				<select name="action" id="ufsc-review-bulk-action">
+					<option value="-1"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $actions as $action_key => $label ) : ?>
+						<option value="<?php echo esc_attr( $action_key ); ?>"><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
+
+			<button type="submit" class="button action"><?php esc_html_e( 'Appliquer', 'ufsc-licence-competition' ); ?></button>
+
+			<span
+				class="ufsc-lc-sticky-status"
+				data-total="<?php echo esc_attr( $total_items ); ?>"
+				data-selected="0"
+				data-label-lines="<?php echo esc_attr__( 'Lignes', 'ufsc-licence-competition' ); ?>"
+				data-label-selected="<?php echo esc_attr__( 'Sélectionnées', 'ufsc-licence-competition' ); ?>"
+			>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: total rows, 2: selected rows */
+						__( 'Lignes: %1$d | Sélectionnées: %2$d', 'ufsc-licence-competition' ),
+						$total_items,
+						0
+					)
+				);
+				?>
+			</span>
+		</div>
 		<?php
 	}
 
