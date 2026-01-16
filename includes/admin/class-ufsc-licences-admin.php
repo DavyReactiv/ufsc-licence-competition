@@ -19,7 +19,7 @@ class UFSC_LC_Licences_Admin {
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
-			UFSC_LC_Plugin::CAPABILITY,
+			UFSC_LC_Capabilities::get_manage_capability(),
 			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);

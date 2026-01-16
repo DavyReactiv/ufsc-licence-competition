@@ -6,7 +6,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class UFSC_LC_Logger {
 	public static function log( $message, $context = array() ) {
-		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+		$logging_forced = class_exists( 'UFSC_LC_Settings_Page' ) && UFSC_LC_Settings_Page::is_logging_enabled();
+		if ( ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) && ! $logging_forced ) {
 			return;
 		}
 

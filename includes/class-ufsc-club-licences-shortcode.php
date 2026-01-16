@@ -40,6 +40,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return esc_html__( 'Accès réservé.', 'ufsc-licence-competition' );
 		}
 
+		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		if ( $required_capability && ! current_user_can( $required_capability ) ) {
+			return esc_html__( 'Accès réservé.', 'ufsc-licence-competition' );
+		}
+
 		$club_id = $this->get_current_user_club_id();
 		if ( ! $club_id ) {
 			return esc_html__( 'Accès réservé.', 'ufsc-licence-competition' );
@@ -216,7 +221,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			<div>
 				<label for="ufsc-licence-per-page"><?php esc_html_e( 'Par page', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-per-page" name="per_page">
-					<?php foreach ( array( 10, 25, 50 ) as $option ) : ?>
+					<?php foreach ( array( 10, 25, 50, 100 ) as $option ) : ?>
 						<option value="<?php echo esc_attr( $option ); ?>" <?php selected( $filters['per_page'], $option ); ?>><?php echo esc_html( $option ); ?></option>
 					<?php endforeach; ?>
 				</select>
@@ -260,10 +265,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 												<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 												<?php esc_html_e( 'Voir', 'ufsc-licence-competition' ); ?>
 											</a>
-											<a class="button button-primary button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'download', $item->id ) ); ?>">
-												<span class="dashicons dashicons-download" aria-hidden="true"></span>
-												<?php esc_html_e( 'Télécharger', 'ufsc-licence-competition' ); ?>
-											</a>
+											<?php if ( ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_pdf_download_allowed() ) : ?>
+												<a class="button button-primary button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'download', $item->id ) ); ?>">
+													<span class="dashicons dashicons-download" aria-hidden="true"></span>
+													<?php esc_html_e( 'Télécharger', 'ufsc-licence-competition' ); ?>
+												</a>
+											<?php endif; ?>
 										</div>
 									<?php else : ?>
 										<span class="ufsc-licence-badge"><?php esc_html_e( 'Non généré', 'ufsc-licence-competition' ); ?></span>
@@ -327,8 +334,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function handle_pdf_request( $disposition, $legacy = false ) {
-		if ( ! is_user_logged_in() ) {
+		$auth_required = ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_pdf_auth_required();
+		if ( $auth_required && ! is_user_logged_in() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 401 ) );
+		}
+
+		if ( 'attachment' === $disposition && class_exists( 'UFSC_LC_Settings_Page' ) && ! UFSC_LC_Settings_Page::is_pdf_download_allowed() ) {
+			wp_die( esc_html__( 'Téléchargement désactivé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;
@@ -351,7 +363,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		$require_club_match = ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_pdf_club_match_required();
+		if ( $require_club_match && ! UFSC_LC_Capabilities::user_can_manage() ) {
 			$club_id = $this->get_current_user_club_id();
 			if ( ! $club_id || (int) $licence->club_id !== (int) $club_id ) {
 				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
@@ -378,6 +391,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_filters() {
+		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;
 		$filters = array(
 			'q'          => isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '',
 			'statut'     => isset( $_GET['statut'] ) ? sanitize_text_field( wp_unslash( $_GET['statut'] ) ) : '',
@@ -387,7 +401,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			'orderby'    => isset( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : 'nom_licence',
 			'order'      => isset( $_GET['order'] ) ? strtolower( sanitize_text_field( wp_unslash( $_GET['order'] ) ) ) : 'asc',
 			'paged'      => isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1,
-			'per_page'   => isset( $_GET['per_page'] ) ? absint( $_GET['per_page'] ) : 25,
+			'per_page'   => isset( $_GET['per_page'] ) ? absint( $_GET['per_page'] ) : $default_per_page,
 		);
 
 		if ( ! in_array( $filters['orderby'], array( 'nom_licence', 'date_naissance', 'date_asptt' ), true ) ) {
@@ -396,7 +410,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$filters['order'] = 'desc' === $filters['order'] ? 'desc' : 'asc';
 
-		$filters['per_page'] = in_array( $filters['per_page'], array( 10, 25, 50 ), true ) ? $filters['per_page'] : 25;
+		$filters['per_page'] = in_array( $filters['per_page'], array( 10, 25, 50, 100 ), true ) ? $filters['per_page'] : $default_per_page;
 		$filters['pdf']      = in_array( $filters['pdf'], array( '0', '1' ), true ) ? $filters['pdf'] : '';
 
 		return $filters;

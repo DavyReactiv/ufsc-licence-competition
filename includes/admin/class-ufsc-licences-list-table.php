@@ -183,11 +183,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$persisted = array();
 		}
 
-		$per_page = isset( $_REQUEST['per_page'] ) ? absint( $_REQUEST['per_page'] ) : 25;
+		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;
+		$per_page = isset( $_REQUEST['per_page'] ) ? absint( $_REQUEST['per_page'] ) : $default_per_page;
 		if ( ! isset( $_REQUEST['per_page'] ) && isset( $persisted['per_page'] ) ) {
 			$per_page = absint( $persisted['per_page'] );
 		}
-		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : 25;
+		$per_page = in_array( $per_page, array( 25, 50, 100 ), true ) ? $per_page : $default_per_page;
 
 		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) ) : $defaults['orderby'];
 		if ( ! isset( $_REQUEST['orderby'] ) && isset( $persisted['orderby'] ) ) {
@@ -1154,8 +1155,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	private function get_filter_defaults() {
+		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;
 		return array(
-			'per_page'        => 25,
+			'per_page'        => $default_per_page,
 			'orderby'         => 'nom_licence',
 			'order'           => 'asc',
 			'search'          => '',

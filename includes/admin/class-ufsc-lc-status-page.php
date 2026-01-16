@@ -26,7 +26,7 @@ class UFSC_LC_Status_Page {
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
 			__( 'UFSC LC — Status', 'ufsc-licence-competition' ),
-			UFSC_LC_Plugin::CAPABILITY,
+			UFSC_LC_Capabilities::get_manage_capability(),
 			'ufsc-lc-status',
 			array( $this, 'render_page' )
 		);
@@ -176,13 +176,13 @@ class UFSC_LC_Status_Page {
 				</tbody>
 			</table>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 20px;">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 20px;" class="ufsc-lc-confirm" data-confirm="<?php echo esc_attr__( 'Reconstruire les index ? Cette action peut être longue.', 'ufsc-licence-competition' ); ?>">
 				<?php wp_nonce_field( self::ACTION_REBUILD_INDEXES ); ?>
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION_REBUILD_INDEXES ); ?>">
 				<?php submit_button( __( 'Rebuild indexes', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 			</form>
 
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 10px;">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top: 10px;" class="ufsc-lc-confirm" data-confirm="<?php echo esc_attr__( 'Recréer les tables ? Cette action peut modifier la base de données.', 'ufsc-licence-competition' ); ?>">
 				<?php wp_nonce_field( self::ACTION_RECREATE_TABLES ); ?>
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION_RECREATE_TABLES ); ?>">
 				<?php submit_button( __( 'Recreate tables', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
