@@ -19,6 +19,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		add_action( 'admin_post_ufsc_lc_asptt_review_reject', array( $this, 'handle_reject' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_review_set_club', array( $this, 'handle_set_club' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_review_save_alias', array( $this, 'handle_save_alias' ) );
+		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
 	}
 
 	public function render() {
@@ -68,9 +69,12 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		$document_id = isset( $_POST['document_id'] ) ? absint( $_POST['document_id'] ) : 0;
-		$club_id     = isset( $_POST['club_id'] ) ? absint( $_POST['club_id'] ) : 0;
+		$club_id_raw = isset( $_POST['club_id'] ) ? wp_unslash( $_POST['club_id'] ) : '';
+		$club_id     = ( '' !== $club_id_raw && ctype_digit( (string) $club_id_raw ) ) ? absint( $club_id_raw ) : 0;
+		$licence_id_raw = isset( $_POST['licence_id'] ) ? wp_unslash( $_POST['licence_id'] ) : '';
+		$licence_id     = ( '' !== $licence_id_raw && ctype_digit( (string) $licence_id_raw ) ) ? absint( $licence_id_raw ) : 0;
 
-		if ( ! $document_id || ! $club_id ) {
+		if ( ! $document_id || ! $club_id || ! $club_id_raw || ( $licence_id_raw && ! $licence_id ) ) {
 			$this->redirect_with_notice( 'error', __( 'Données invalides.', 'ufsc-licence-competition' ) );
 		}
 
@@ -79,6 +83,9 @@ class UFSC_LC_ASPTT_Review_Page {
 		$document = $this->get_document_row( $document_id );
 		if ( ! $document ) {
 			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
+		}
+		if ( $licence_id && (int) $document->licence_id !== $licence_id ) {
+			$this->redirect_with_notice( 'error', __( 'Licence invalide.', 'ufsc-licence-competition' ) );
 		}
 
 		$match = $this->find_matching_licence_id( $club_id, $document->nom_licence, $document->prenom, $document->date_naissance, $document->sexe );
@@ -248,9 +255,24 @@ class UFSC_LC_ASPTT_Review_Page {
 			return;
 		}
 
-		$clubs = $this->get_clubs();
+		$clubs = $this->get_clubs_for_select();
 		if ( empty( $clubs ) ) {
 			return;
+		}
+
+		$current_club_id = (int) $document->club_id;
+		$has_current_club = false;
+		foreach ( $clubs as $club ) {
+			if ( (int) $club['id'] === $current_club_id ) {
+				$has_current_club = true;
+				break;
+			}
+		}
+		if ( $current_club_id && ! $has_current_club ) {
+			$current_club = $this->get_club_for_select_by_id( $current_club_id );
+			if ( $current_club ) {
+				$clubs[] = $current_club;
+			}
 		}
 
 		?>
@@ -258,22 +280,48 @@ class UFSC_LC_ASPTT_Review_Page {
 			<?php wp_nonce_field( 'ufsc_lc_asptt_review_set_club_' . (int) $document_id ); ?>
 			<input type="hidden" name="action" value="ufsc_lc_asptt_review_set_club" />
 			<input type="hidden" name="document_id" value="<?php echo esc_attr( $document_id ); ?>" />
+			<input type="hidden" name="licence_id" value="<?php echo esc_attr( (int) $document->licence_id ); ?>" />
 			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $this->get_review_url() ); ?>" />
 			<p>
 				<strong><?php esc_html_e( 'Choisir un club pour la licence', 'ufsc-licence-competition' ); ?></strong>
 				<?php echo esc_html( $document->nom_licence . ' ' . $document->prenom ); ?>
 			</p>
-			<select name="club_id" required>
-				<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+			<select name="club_id" class="ufsc-lc-club-select" data-licence-id="<?php echo esc_attr( (int) $document->licence_id ); ?>" required>
+				<option value=""><?php esc_html_e( 'Rechercher un club…', 'ufsc-licence-competition' ); ?></option>
 				<?php foreach ( $clubs as $club ) : ?>
-					<option value="<?php echo esc_attr( $club->id ); ?>" <?php selected( (int) $club->id, (int) $document->club_id ); ?>>
-						<?php echo esc_html( $club->nom ); ?>
+					<option value="<?php echo esc_attr( $club['id'] ); ?>" <?php selected( (int) $club['id'], (int) $document->club_id ); ?>>
+						<?php echo esc_html( $club['label'] ); ?>
 					</option>
 				<?php endforeach; ?>
 			</select>
-			<?php submit_button( __( 'Valider', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
+			<?php submit_button( __( 'Valider association', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 		</form>
 		<?php
+	}
+
+	public function ajax_search_clubs() {
+		if ( ! current_user_can( 'manage_options' ) && ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
+		}
+
+		check_ajax_referer( 'ufsc_lc_search_clubs' );
+
+		$search = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
+		if ( strlen( $search ) < 2 ) {
+			wp_send_json_success( array() );
+		}
+
+		$clubs = $this->get_clubs_for_select( $search );
+		$data  = array();
+
+		foreach ( $clubs as $club ) {
+			$data[] = array(
+				'id'   => $club['id'],
+				'text' => $club['label'],
+			);
+		}
+
+		wp_send_json_success( $data );
 	}
 
 	private function redirect_with_notice( $type, $message ) {
@@ -316,6 +364,69 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
+	}
+
+	private function get_clubs_for_select( $search = '' ) {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'ufsc_clubs';
+		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
+		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
+		$where = '';
+		$params = array();
+		if ( '' !== $search ) {
+			$like = '%' . $wpdb->esc_like( $search ) . '%';
+			if ( $has_postal ) {
+				$where = 'WHERE nom LIKE %s OR code_postal LIKE %s';
+				$params[] = $like;
+				$params[] = $like;
+			} else {
+				$where = 'WHERE nom LIKE %s';
+				$params[] = $like;
+			}
+		}
+
+		$sql = "SELECT {$select_fields} FROM {$table} {$where} ORDER BY nom ASC LIMIT 50";
+		$results = empty( $params ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+
+		$data = array();
+		foreach ( $results as $club ) {
+			$data[] = array(
+				'id'    => (int) $club->id,
+				'label' => $this->format_club_label( $club ),
+			);
+		}
+
+		return $data;
+	}
+
+	private function get_club_for_select_by_id( $club_id ) {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'ufsc_clubs';
+		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
+		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
+
+		$club = $wpdb->get_row(
+			$wpdb->prepare( "SELECT {$select_fields} FROM {$table} WHERE id = %d", $club_id )
+		);
+		if ( ! $club ) {
+			return null;
+		}
+
+		return array(
+			'id'    => (int) $club->id,
+			'label' => $this->format_club_label( $club ),
+		);
+	}
+
+	private function format_club_label( $club ) {
+		$label = $club->nom;
+		if ( isset( $club->code_postal ) && '' !== $club->code_postal ) {
+			$label .= ' (' . $club->code_postal . ')';
+		}
+
+		return $label;
 	}
 
 	private function get_document_row( $document_id ) {
