@@ -127,6 +127,10 @@ class UFSC_LC_ASPTT_Importer {
 		$file_name     = $preview && ! empty( $preview['file_name'] ) ? $preview['file_name'] : '';
 		$preview_limit = $preview && ! empty( $preview['preview_limit'] ) ? (int) $preview['preview_limit'] : UFSC_LC_ASPTT_Import_Service::PREVIEW_DEFAULT_LIMIT;
 		$force_club_id = $preview && ! empty( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
+		$default_season_end_year = $this->get_default_season_end_year();
+		$use_season_override     = $preview && ! empty( $preview['use_season_override'] );
+		$season_end_year_override = $preview && ! empty( $preview['season_end_year_override'] ) ? (int) $preview['season_end_year_override'] : $default_season_end_year;
+		$auto_save_alias = $preview && isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true;
 		$force_club    = $force_club_id ? $this->get_club_by_id( $force_club_id ) : null;
 		?>
 		<div class="wrap">
@@ -139,7 +143,7 @@ class UFSC_LC_ASPTT_Importer {
 				$review_page->render();
 				?>
 			<?php else : ?>
-				<?php $this->render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats ); ?>
+				<?php $this->render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias ); ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -170,7 +174,7 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats ) {
+	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias ) {
 		?>
 		<?php if ( ! empty( $preview['notice'] ) ) : ?>
 			<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
@@ -229,6 +233,42 @@ class UFSC_LC_ASPTT_Importer {
 						</td>
 					</tr>
 					<tr>
+						<th scope="row"><?php esc_html_e( 'Option recommandée', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php esc_html_e( 'Exporter 1 CSV par club depuis l’ASPTT, puis importer ici. Si le CSV est mono-club, vous pouvez forcer le club UFSC ci-dessous.', 'ufsc-licence-competition' ); ?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Saison par défaut', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<input
+								type="number"
+								value="<?php echo esc_attr( $default_season_end_year ); ?>"
+								readonly
+							>
+							<p class="description">
+								<?php esc_html_e( 'Année de fin de saison utilisée quand le CSV ne fournit pas la saison.', 'ufsc-licence-competition' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Saison spécifique', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="ufsc_asptt_use_season_override" value="1" <?php checked( $use_season_override ); ?>>
+								<?php esc_html_e( 'Utiliser une saison spécifique pour cet import', 'ufsc-licence-competition' ); ?>
+							</label>
+							<br>
+							<input
+								type="number"
+								name="ufsc_asptt_season_end_year"
+								value="<?php echo esc_attr( $season_end_year_override ); ?>"
+								min="2000"
+								max="2100"
+							>
+						</td>
+					</tr>
+					<tr>
 						<th scope="row"><label for="ufsc_asptt_force_club"><?php esc_html_e( 'Forcer tout le fichier à un club', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
 							<select name="ufsc_asptt_force_club" id="ufsc_asptt_force_club">
@@ -237,6 +277,15 @@ class UFSC_LC_ASPTT_Importer {
 									<option value="<?php echo esc_attr( $club->id ); ?>"><?php echo esc_html( $club->nom ); ?></option>
 								<?php endforeach; ?>
 							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Alias automatique', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<label>
+								<input type="checkbox" name="ufsc_asptt_auto_save_alias" value="1" <?php checked( $auto_save_alias ); ?>>
+								<?php esc_html_e( 'Enregistrer automatiquement NOTE comme alias du club forcé', 'ufsc-licence-competition' ); ?>
+							</label>
 						</td>
 					</tr>
 				</table>
@@ -274,6 +323,29 @@ class UFSC_LC_ASPTT_Importer {
 					<?php if ( $force_club_id ) : ?>
 						<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
 					<?php endif; ?>
+					<p>
+						<strong><?php esc_html_e( 'Saison par défaut', 'ufsc-licence-competition' ); ?>:</strong>
+						<?php echo esc_html( $default_season_end_year ); ?>
+					</p>
+					<p>
+						<label>
+							<input type="checkbox" name="ufsc_asptt_use_season_override" value="1" <?php checked( $use_season_override ); ?>>
+							<?php esc_html_e( 'Utiliser une saison spécifique pour cet import', 'ufsc-licence-competition' ); ?>
+						</label>
+						<input
+							type="number"
+							name="ufsc_asptt_season_end_year"
+							value="<?php echo esc_attr( $season_end_year_override ); ?>"
+							min="2000"
+							max="2100"
+						>
+					</p>
+					<p>
+						<label>
+							<input type="checkbox" name="ufsc_asptt_auto_save_alias" value="1" <?php checked( $auto_save_alias ); ?>>
+							<?php esc_html_e( 'Enregistrer automatiquement NOTE comme alias du club forcé', 'ufsc-licence-competition' ); ?>
+						</label>
+					</p>
 
 					<p>
 						<label for="ufsc_asptt_preview_limit_mapping"><strong><?php esc_html_e( 'Lignes à prévisualiser', 'ufsc-licence-competition' ); ?></strong></label>
@@ -496,6 +568,12 @@ class UFSC_LC_ASPTT_Importer {
 		$mapping       = isset( $_POST['ufsc_lc_mapping'] ) ? $this->service->sanitize_mapping( wp_unslash( $_POST['ufsc_lc_mapping'] ) ) : array();
 		$preview_limit = isset( $_POST['ufsc_asptt_preview_limit'] ) ? $this->service->sanitize_preview_limit( wp_unslash( $_POST['ufsc_asptt_preview_limit'] ) ) : UFSC_LC_ASPTT_Import_Service::PREVIEW_DEFAULT_LIMIT;
 
+		$existing_preview = $this->get_preview();
+		$use_season_override = isset( $_POST['ufsc_asptt_use_season_override'] );
+		$raw_override         = isset( $_POST['ufsc_asptt_season_end_year'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_asptt_season_end_year'] ) ) : '';
+		$season_end_year_override = $use_season_override ? UFSC_LC_Categories::sanitize_season_end_year( $raw_override ) : null;
+		$auto_save_alias = isset( $_POST['ufsc_asptt_auto_save_alias'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_save_alias'] ) : false;
+
 		$preview = array();
 
 		if ( ! empty( $_FILES['ufsc_asptt_csv']['tmp_name'] ) ) {
@@ -506,16 +584,26 @@ class UFSC_LC_ASPTT_Importer {
 					'message' => $stored->get_error_message(),
 				);
 			} else {
-				$preview              = $this->service->build_preview( $stored['path'], $force_club_id, $mapping, $preview_limit );
+				$preview              = $this->service->build_preview( $stored['path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
 				$preview['file_path'] = $stored['path'];
 				$preview['file_name'] = $stored['name'];
 			}
 		} else {
-			$existing = $this->get_preview();
-			if ( ! empty( $existing['file_path'] ) && isset( $_POST['ufsc_lc_reprocess'] ) ) {
-				$preview              = $this->service->build_preview( $existing['file_path'], $force_club_id, $mapping, $preview_limit );
-				$preview['file_path'] = $existing['file_path'];
-				$preview['file_name'] = isset( $existing['file_name'] ) ? $existing['file_name'] : '';
+			if ( ! empty( $existing_preview['file_path'] ) && isset( $_POST['ufsc_lc_reprocess'] ) ) {
+				if ( ! $use_season_override && isset( $existing_preview['use_season_override'] ) ) {
+					$use_season_override = (bool) $existing_preview['use_season_override'];
+				}
+				if ( null === $season_end_year_override && ! empty( $existing_preview['season_end_year_override'] ) ) {
+					$season_end_year_override = (int) $existing_preview['season_end_year_override'];
+				}
+
+				if ( ! $use_season_override ) {
+					$season_end_year_override = null;
+				}
+
+				$preview              = $this->service->build_preview( $existing_preview['file_path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
+				$preview['file_path'] = $existing_preview['file_path'];
+				$preview['file_name'] = isset( $existing_preview['file_name'] ) ? $existing_preview['file_name'] : '';
 			}
 		}
 
@@ -532,6 +620,9 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['force_club_id']  = $force_club_id;
 			$preview['mode']           = $mode;
 			$preview['preview_limit']  = $preview_limit;
+			$preview['use_season_override'] = $use_season_override;
+			$preview['season_end_year_override'] = $season_end_year_override;
+			$preview['auto_save_alias'] = $auto_save_alias;
 		}
 
 		update_option( self::SESSION_KEY, $preview, false );
@@ -585,7 +676,9 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['file_path'],
 			$preview['force_club_id'],
 			isset( $preview['mapping'] ) ? $preview['mapping'] : array(),
-			$auto_approve
+			$auto_approve,
+			isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : null,
+			isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -700,7 +793,9 @@ class UFSC_LC_ASPTT_Importer {
 		$updated = $this->service->build_preview(
 			$preview['file_path'],
 			$preview['force_club_id'],
-			isset( $preview['mapping'] ) ? $preview['mapping'] : array()
+			isset( $preview['mapping'] ) ? $preview['mapping'] : array(),
+			0,
+			isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : null
 		);
 
 		if ( is_wp_error( $updated ) ) {
@@ -711,6 +806,9 @@ class UFSC_LC_ASPTT_Importer {
 		$updated['file_name']     = isset( $preview['file_name'] ) ? $preview['file_name'] : '';
 		$updated['force_club_id'] = $preview['force_club_id'];
 		$updated['mapping']       = isset( $preview['mapping'] ) ? $preview['mapping'] : array();
+		$updated['use_season_override'] = isset( $preview['use_season_override'] ) ? (bool) $preview['use_season_override'] : false;
+		$updated['season_end_year_override'] = isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : null;
+		$updated['auto_save_alias'] = isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true;
 
 		update_option( self::SESSION_KEY, $updated, false );
 
@@ -1247,6 +1345,13 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		return true;
+	}
+
+	private function get_default_season_end_year() {
+		$option = get_option( 'ufsc_lc_default_season_end_year', 2026 );
+		$year   = UFSC_LC_Categories::sanitize_season_end_year( $option );
+
+		return $year ? $year : 2026;
 	}
 
 	private function log_import_warning( $message, $context = array() ) {

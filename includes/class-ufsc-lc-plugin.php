@@ -18,6 +18,7 @@ require_once __DIR__ . '/admin/class-ufsc-lc-admin-assets.php';
 require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
+require_once __DIR__ . '/admin/class-ufsc-lc-settings-page.php';
 
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
@@ -70,6 +71,9 @@ class UFSC_LC_Plugin {
 		if ( is_admin() ) {
 			$status_page = new UFSC_LC_Status_Page();
 			$status_page->register();
+
+			$settings_page = new UFSC_LC_Settings_Page();
+			$settings_page->register();
 		}
 
 		$this->dependencies_met = $this->check_dependencies();
