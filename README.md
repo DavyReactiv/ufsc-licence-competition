@@ -77,6 +77,7 @@ Le plugin ajoute un menu **UFSC Licences** avec notamment :
 - Import ASPTT (Import + Review)
 - Statut
 - Paramètres (si activé)
+- Association sécurisée des PDF de licence (recherche par identité + club + saison, avec mode avancé).
 
 ---
 
@@ -85,6 +86,17 @@ Le plugin ajoute un menu **UFSC Licences** avec notamment :
 - Les vues clubs sont réservées aux utilisateurs authentifiés rattachés à un club (ou administrateurs).
 - Opérations sensibles protégées via mécanismes WordPress (sanitization, nonces, validation serveur).
 - Protection contre collisions de shortcodes via `shortcode_exists()` (ne redéclare pas un tag déjà utilisé ailleurs).
+- Les PDF de licences sont servis via un endpoint sécurisé (`admin-post.php?action=ufsc_lc_pdf`) avec nonce et contrôle club/licence, sans lien public direct vers les uploads.
+
+---
+
+## Checklist (tests manuels)
+
+- Associer un PDF via recherche (nom/prénom/date + club) → 1 résultat → associer.
+- Associer un PDF via recherche → plusieurs résultats → sélectionner puis associer.
+- Associer un PDF via recherche → 0 résultat → vérifier message + recherche élargie sans club.
+- Associer un PDF via le mode avancé (Licence ID direct) → associer.
+- Côté club : boutons "Voir" et "Télécharger" servent le PDF uniquement pour les licences du club connecté.
 
 ---
 

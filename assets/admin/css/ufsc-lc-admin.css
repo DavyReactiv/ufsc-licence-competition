@@ -138,6 +138,28 @@
 	white-space: nowrap;
 }
 
+/* Associer PDF licence */
+.ufsc-lc-documents .ufsc-lc-card {
+	margin: 16px 0;
+	padding: 16px;
+	border: 1px solid #ccd0d4;
+	border-radius: 8px;
+	background: #fff;
+}
+
+.ufsc-lc-documents .ufsc-lc-summary {
+	margin: 0;
+	padding-left: 18px;
+}
+
+.ufsc-lc-documents .ufsc-lc-results-table {
+	margin-top: 12px;
+}
+
+.ufsc-lc-documents .ufsc-lc-advanced-mode {
+	margin-top: 24px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.ufsc-lc-admin .ufsc-lc-sticky-bar {
