@@ -118,9 +118,73 @@
 		});
 	}
 
+	function initReviewClubSelects() {
+		var selects = document.querySelectorAll('.ufsc-lc-club-select');
+		if (!selects.length) {
+			return;
+		}
+
+		var strings = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings : {};
+		var ajaxUrl = (window.UFSC_LC_Admin && (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl))
+			? (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl)
+			: window.ajaxurl;
+		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? UFSC_LC_Admin.nonces.searchClubs : '';
+
+		function toggleSubmit(select) {
+			var form = select.closest('form');
+			var button = form ? form.querySelector('button[type="submit"], input[type="submit"]') : null;
+			if (!button) {
+				return;
+			}
+			button.disabled = !select.value;
+		}
+
+		selects.forEach(function(select) {
+			select.addEventListener('change', function() {
+				toggleSubmit(select);
+			});
+			toggleSubmit(select);
+		});
+
+		if (!(window.jQuery && window.jQuery.fn && window.jQuery.fn.select2)) {
+			return;
+		}
+
+		window.jQuery(selects).select2({
+			placeholder: strings.searchPlaceholder || '',
+			minimumInputLength: 2,
+			allowClear: true,
+			ajax: {
+				url: ajaxUrl,
+				dataType: 'json',
+				delay: 200,
+				data: function(params) {
+					return {
+						action: 'ufsc_lc_search_clubs',
+						q: params.term || '',
+						_ajax_nonce: nonce
+					};
+				},
+				processResults: function(response) {
+					var results = (response && response.success) ? (response.data || []) : [];
+					return { results: results };
+				}
+			},
+			language: {
+				noResults: function() {
+					return strings.noResults || '';
+				}
+			}
+		}).on('change', function() {
+			toggleSubmit(this);
+		});
+	}
+
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', bindPreviewActions);
+		document.addEventListener('DOMContentLoaded', initReviewClubSelects);
 	} else {
 		bindPreviewActions();
+		initReviewClubSelects();
 	}
 })();
