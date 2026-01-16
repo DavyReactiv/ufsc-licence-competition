@@ -17,6 +17,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_licence_number = false;
 	private $has_internal_note = false;
 	private $has_documents_meta_table = false;
+	private $has_competition = false;
+	private $has_email = false;
+	private $has_legacy_category = false;
 
 	// ✅ Compatibility: dynamic season column (saison|season) + explicit season_end_year.
 	private $has_season_column = false;
@@ -46,6 +49,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_source_created_at     = $this->has_documents_table && $this->has_column( $this->get_documents_table(), 'source_created_at' );
 		$this->has_internal_note         = $this->has_column( $this->get_licences_table(), 'note_interne' );
 		$this->has_documents_meta_table  = $this->table_exists( $this->get_documents_meta_table() );
+		$this->has_competition           = $this->has_column( $this->get_licences_table(), 'competition' );
+		$this->has_email                 = $this->has_column( $this->get_licences_table(), 'email' );
+		$this->has_legacy_category       = $this->has_column( $this->get_licences_table(), 'categorie' );
 
 		// Season support
 		$this->season_column       = $this->get_season_column(); // 'saison' or 'season' or ''
@@ -566,8 +572,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$search_like = '';
 		if ( '' !== $search ) {
 			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
-			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'l.email LIKE %s', 'c.nom LIKE %s' );
-			$params = array_merge( $params, array( $search_like, $search_like, $search_like, $search_like ) );
+			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'c.nom LIKE %s' );
+			$params = array_merge( $params, array( $search_like, $search_like, $search_like ) );
+
+			if ( $this->has_email ) {
+				$search_clauses[] = 'l.email LIKE %s';
+				$params[] = $search_like;
+			}
 
 			if ( $this->has_licence_number ) {
 				$search_clauses[] = 'l.numero_licence_delegataire LIKE %s';
@@ -592,13 +603,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$params[] = $statut;
 		}
 
-		if ( '' !== $categorie ) {
+		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
 			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
 			$where[] = "{$category_column} = %s";
 			$params[] = $categorie;
 		}
 
-		if ( '' !== $competition ) {
+		if ( '' !== $competition && $this->has_competition ) {
 			$where[] = 'l.competition = %s';
 			$params[] = $competition;
 		}
@@ -640,12 +651,19 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		$licence_number_sql = $this->has_licence_number ? 'l.numero_licence_delegataire' : 'l.id';
-		$category_column    = $this->has_category ? 'l.category' : 'l.categorie';
+		if ( $this->has_category ) {
+			$category_column = 'l.category';
+		} elseif ( $this->has_legacy_category ) {
+			$category_column = 'l.categorie';
+		} else {
+			$category_column = 'NULL';
+		}
 
 		// We always output season_end_year as alias; if column doesn't exist => NULL.
 		$season_column_sql  = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, l.nom_licence, l.prenom, l.statut, {$category_column} AS category, {$season_column_sql}, l.competition, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
+		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, l.nom_licence, l.prenom, l.statut, {$category_column} AS category, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
 
@@ -726,8 +744,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$search_like = '';
 		if ( '' !== $search ) {
 			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
-			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'l.email LIKE %s', 'c.nom LIKE %s' );
-			$params = array_merge( $params, array( $search_like, $search_like, $search_like, $search_like ) );
+			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'c.nom LIKE %s' );
+			$params = array_merge( $params, array( $search_like, $search_like, $search_like ) );
+
+			if ( $this->has_email ) {
+				$search_clauses[] = 'l.email LIKE %s';
+				$params[] = $search_like;
+			}
 
 			if ( $this->has_licence_number ) {
 				$search_clauses[] = 'l.numero_licence_delegataire LIKE %s';
@@ -752,13 +775,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$params[] = $statut;
 		}
 
-		if ( '' !== $categorie ) {
+		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
 			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
 			$where[] = "{$category_column} = %s";
 			$params[] = $categorie;
 		}
 
-		if ( '' !== $competition ) {
+		if ( '' !== $competition && $this->has_competition ) {
 			$where[] = 'l.competition = %s';
 			$params[] = $competition;
 		}
@@ -798,11 +821,18 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
 		}
 
-		$category_column   = $this->has_category ? 'l.category' : 'l.categorie';
+		if ( $this->has_category ) {
+			$category_column = 'l.category';
+		} elseif ( $this->has_legacy_category ) {
+			$category_column = 'l.categorie';
+		} else {
+			$category_column = 'NULL';
+		}
 		$season_column_sql = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 		$age_ref_column    = $this->has_column( $licences_table, 'age_ref' ) ? 'l.age_ref' : 'NULL AS age_ref';
 
-		$select_columns = "c.nom AS club_name, l.nom_licence, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$season_column_sql}, {$age_ref_column}, l.competition, {$select_documents}";
+		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
+		$select_columns = "c.nom AS club_name, l.nom_licence, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
 
@@ -1072,7 +1102,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		// Map "category" => real column
 		if ( 'category' === $column ) {
-			$real = $this->has_category ? 'category' : ( $this->has_column( $table, 'categorie' ) ? 'categorie' : '' );
+			$real = $this->has_category ? 'category' : ( $this->has_legacy_category ? 'categorie' : '' );
 			if ( '' === $real ) {
 				return array();
 			}
