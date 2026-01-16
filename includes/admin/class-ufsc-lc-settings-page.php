@@ -145,6 +145,11 @@ if ( ! function_exists( 'ufsc_lc_get_legacy_settings' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_sanitize_settings' ) ) {
 	function ufsc_lc_sanitize_settings( $input ) {
+		// Manual test plan (not executed):
+		// - Sauver onglet Général avec année=2027 -> persiste et reste sur Général.
+		// - Sauver onglet Import ASPTT -> persiste et reste sur Import ASPTT.
+		// - Laisser un champ number vide -> aucune erreur, garde la valeur précédente.
+		// - Saisir un mois hors 1..12 -> 1 erreur “Mois … invalide” et conservation de l’ancienne valeur.
 		$defaults = ufsc_lc_get_settings_defaults();
 		$old      = ufsc_lc_get_settings();
 		$output   = $old;
@@ -156,77 +161,107 @@ if ( ! function_exists( 'ufsc_lc_sanitize_settings' ) ) {
 		$input = wp_unslash( $input );
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR, $input ) ) {
-			$year = UFSC_LC_Categories::sanitize_season_end_year( $input[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ] );
-			if ( null === $year ) {
-				add_settings_error(
-					UFSC_LC_Settings_Page::SETTINGS_OPTION,
-					'invalid_season_end_year',
-					__( 'Année de fin de saison invalide.', 'ufsc-licence-competition' ),
-					'error'
-				);
+			$year_input = $input[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ];
+			if ( '' === $year_input || null === $year_input ) {
 				$output[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ] = $old[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ];
 			} else {
-				$output[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ] = $year;
+				$year = UFSC_LC_Categories::sanitize_season_end_year( $year_input );
+				if ( null === $year ) {
+					add_settings_error(
+						UFSC_LC_Settings_Page::SETTINGS_OPTION,
+						'invalid_season_end_year',
+						__( 'Année de fin de saison invalide.', 'ufsc-licence-competition' ),
+						'error'
+					);
+					$output[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ] = $old[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ];
+				} else {
+					$output[ UFSC_LC_Settings_Page::SETTING_DEFAULT_SEASON_END_YEAR ] = $year;
+				}
 			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_SEASON_RULE, $input ) ) {
-			$rule = sanitize_key( $input[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ] );
-			if ( ! in_array( $rule, array( 'split', 'calendar' ), true ) ) {
-				add_settings_error(
-					UFSC_LC_Settings_Page::SETTINGS_OPTION,
-					'invalid_season_rule',
-					__( 'Règle de saison invalide.', 'ufsc-licence-competition' ),
-					'error'
-				);
+			$rule_input = $input[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ];
+			if ( '' === $rule_input || null === $rule_input ) {
 				$output[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ] = $old[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ];
 			} else {
-				$output[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ] = $rule;
+				$rule = sanitize_key( $rule_input );
+				if ( ! in_array( $rule, array( 'split', 'calendar' ), true ) ) {
+					add_settings_error(
+						UFSC_LC_Settings_Page::SETTINGS_OPTION,
+						'invalid_season_rule',
+						__( 'Règle de saison invalide.', 'ufsc-licence-competition' ),
+						'error'
+					);
+					$output[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ] = $old[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ];
+				} else {
+					$output[ UFSC_LC_Settings_Page::SETTING_SEASON_RULE ] = $rule;
+				}
 			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH, $input ) ) {
-			$month = absint( $input[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ] );
-			if ( $month < 1 || $month > 12 ) {
-				add_settings_error(
-					UFSC_LC_Settings_Page::SETTINGS_OPTION,
-					'invalid_season_month',
-					__( 'Mois de début de saison invalide.', 'ufsc-licence-competition' ),
-					'error'
-				);
+			$month_input = $input[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ];
+			if ( '' === $month_input || null === $month_input ) {
 				$output[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ] = $old[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ];
 			} else {
-				$output[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ] = $month;
+				$month = absint( $month_input );
+				if ( $month < 1 || $month > 12 ) {
+					add_settings_error(
+						UFSC_LC_Settings_Page::SETTINGS_OPTION,
+						'invalid_season_month',
+						__( 'Mois de début de saison invalide.', 'ufsc-licence-competition' ),
+						'error'
+					);
+					$output[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ] = $old[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ];
+				} else {
+					$output[ UFSC_LC_Settings_Page::SETTING_SEASON_START_MONTH ] = $month;
+				}
 			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE, $input ) ) {
-			$per_page = absint( $input[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] );
-			if ( $per_page < 5 || $per_page > 500 ) {
-				add_settings_error(
-					UFSC_LC_Settings_Page::SETTINGS_OPTION,
-					'invalid_per_page',
-					__( 'Pagination invalide.', 'ufsc-licence-competition' ),
-					'error'
-				);
-				$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $defaults[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ];
+			$per_page_input = $input[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ];
+			if ( '' === $per_page_input || null === $per_page_input ) {
+				$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $old[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ];
 			} else {
-				$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $per_page;
+				$per_page = absint( $per_page_input );
+				if ( $per_page < 5 || $per_page > 500 ) {
+					add_settings_error(
+						UFSC_LC_Settings_Page::SETTINGS_OPTION,
+						'invalid_per_page',
+						__( 'Pagination invalide.', 'ufsc-licence-competition' ),
+						'error'
+					);
+					$old_per_page = absint( $old[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] );
+					if ( $old_per_page >= 5 && $old_per_page <= 500 ) {
+						$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $old_per_page;
+					} else {
+						$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $defaults[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ];
+					}
+				} else {
+					$output[ UFSC_LC_Settings_Page::SETTING_ADMIN_PER_PAGE ] = $per_page;
+				}
 			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD, $input ) ) {
-			$threshold = absint( $input[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ] );
-			if ( $threshold < 0 || $threshold > 100 ) {
-				add_settings_error(
-					UFSC_LC_Settings_Page::SETTINGS_OPTION,
-					'invalid_threshold',
-					__( 'Seuil d’auto-validation invalide.', 'ufsc-licence-competition' ),
-					'error'
-				);
+			$threshold_input = $input[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ];
+			if ( '' === $threshold_input || null === $threshold_input ) {
 				$output[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ] = $old[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ];
 			} else {
-				$output[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ] = $threshold;
+				$threshold = absint( $threshold_input );
+				if ( $threshold < 0 || $threshold > 100 ) {
+					add_settings_error(
+						UFSC_LC_Settings_Page::SETTINGS_OPTION,
+						'invalid_threshold',
+						__( 'Seuil d’auto-validation invalide.', 'ufsc-licence-competition' ),
+						'error'
+					);
+					$output[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ] = $old[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ];
+				} else {
+					$output[ UFSC_LC_Settings_Page::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD ] = $threshold;
+				}
 			}
 		}
 
@@ -249,24 +284,39 @@ if ( ! function_exists( 'ufsc_lc_sanitize_settings' ) ) {
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY, $input ) ) {
-			$capability = sanitize_key( $input[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ] );
-			$output[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ] = '' !== $capability
-				? $capability
-				: $defaults[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ];
+			$capability_input = $input[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ];
+			if ( '' === $capability_input || null === $capability_input ) {
+				$output[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ] = $old[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ];
+			} else {
+				$capability = sanitize_key( $capability_input );
+				$output[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ] = '' !== $capability
+					? $capability
+					: $old[ UFSC_LC_Settings_Page::SETTING_MANAGE_CAPABILITY ];
+			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY, $input ) ) {
-			$capability = sanitize_key( $input[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ] );
-			$output[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ] = '' !== $capability
-				? $capability
-				: $defaults[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ];
+			$capability_input = $input[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ];
+			if ( '' === $capability_input || null === $capability_input ) {
+				$output[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ] = $old[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ];
+			} else {
+				$capability = sanitize_key( $capability_input );
+				$output[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ] = '' !== $capability
+					? $capability
+					: $old[ UFSC_LC_Settings_Page::SETTING_IMPORT_CAPABILITY ];
+			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY, $input ) ) {
-			$capability = sanitize_key( $input[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ] );
-			$output[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ] = '' !== $capability
-				? $capability
-				: $defaults[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ];
+			$capability_input = $input[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ];
+			if ( '' === $capability_input || null === $capability_input ) {
+				$output[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ] = $old[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ];
+			} else {
+				$capability = sanitize_key( $capability_input );
+				$output[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ] = '' !== $capability
+					? $capability
+					: $old[ UFSC_LC_Settings_Page::SETTING_EXPORT_CAPABILITY ];
+			}
 		}
 
 		if ( array_key_exists( UFSC_LC_Settings_Page::SETTING_PDF_REQUIRE_AUTH, $input ) ) {
@@ -333,7 +383,6 @@ class UFSC_LC_Settings_Page {
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ), 30 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
-		add_filter( 'redirect_post_location', array( $this, 'filter_settings_redirect' ), 10, 2 );
 		add_action( 'update_option_' . self::SETTINGS_OPTION, array( $this, 'sync_legacy_options' ), 10, 2 );
 	}
 
@@ -627,7 +676,21 @@ class UFSC_LC_Settings_Page {
 				do_settings_sections( $this->get_tab_page_slug( $active_tab ) );
 				submit_button( __( 'Enregistrer', 'ufsc-licence-competition' ) );
 				?>
-				<input type="hidden" name="ufsc_lc_active_tab" value="<?php echo esc_attr( $active_tab ); ?>">
+				<?php
+				$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+				if ( '' === $request_uri || false === strpos( $request_uri, 'tab=' ) ) {
+					$referer_url = add_query_arg(
+						array(
+							'page' => self::PAGE_SLUG,
+							'tab'  => $active_tab,
+						),
+						admin_url( 'admin.php' )
+					);
+					?>
+					<input type="hidden" name="_wp_http_referer" value="<?php echo esc_attr( $referer_url ); ?>">
+					<?php
+				}
+				?>
 			</form>
 			<?php $this->render_tab_footer( $active_tab ); ?>
 		</div>
@@ -940,28 +1003,6 @@ class UFSC_LC_Settings_Page {
 			'<div class="notice notice-error"><p>%s</p></div>',
 			esc_html__( 'La page Paramètres UFSC LC n’a pas pu être enregistrée. Vérifiez le slug du menu parent.', 'ufsc-licence-competition' )
 		);
-	}
-
-	public function filter_settings_redirect( $location, $status ) {
-		if ( empty( $_POST['option_page'] ) ) {
-			return $location;
-		}
-
-		$option_page = sanitize_key( wp_unslash( $_POST['option_page'] ) );
-		if ( self::SETTINGS_GROUP !== $option_page ) {
-			return $location;
-		}
-
-		if ( empty( $_POST['ufsc_lc_active_tab'] ) ) {
-			return $location;
-		}
-
-		$tab = sanitize_key( wp_unslash( $_POST['ufsc_lc_active_tab'] ) );
-		if ( '' === $tab ) {
-			return $location;
-		}
-
-		return add_query_arg( 'tab', $tab, $location );
 	}
 
 	public function sync_legacy_options( $old_value, $new_value ) {
