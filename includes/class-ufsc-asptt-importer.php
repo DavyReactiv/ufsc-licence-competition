@@ -402,7 +402,7 @@ class UFSC_LC_ASPTT_Importer {
 					<th><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Score', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Lien', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+					<th><?php esc_html_e( 'Statut review', 'ufsc-licence-competition' ); ?></th>
 					<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
 				</tr>
 			</thead>
@@ -422,7 +422,13 @@ class UFSC_LC_ASPTT_Importer {
 						<td><?php echo esc_html( ! empty( $row['source_created_at'] ) ? $row['source_created_at'] : '—' ); ?></td>
 						<td><?php echo esc_html( isset( $row['confidence_score'] ) ? (int) $row['confidence_score'] : 0 ); ?></td>
 						<td><?php echo esc_html( isset( $row['link_mode'] ) ? $row['link_mode'] : 'none' ); ?></td>
-						<td><?php echo esc_html( $row['status'] ); ?></td>
+						<?php
+						$review_status = isset( $row['review_status'] ) ? $row['review_status'] : ( ! empty( $row['auto_linked'] ) ? 'auto' : 'pending' );
+						$review_label = ( 'auto' === $review_status )
+							? __( 'Auto', 'ufsc-licence-competition' )
+							: __( 'En attente', 'ufsc-licence-competition' );
+						?>
+						<td><?php echo esc_html( $review_label ); ?></td>
 						<td>
 							<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
 								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">

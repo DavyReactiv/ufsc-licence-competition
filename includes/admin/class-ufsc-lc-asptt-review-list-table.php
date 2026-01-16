@@ -276,8 +276,13 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		}
 
 		if ( 'all' !== $this->filters['review_status'] ) {
-			$where[] = 'meta_review.meta_value = %s';
-			$params[] = $this->filters['review_status'];
+			if ( 'pending' === $this->filters['review_status'] ) {
+				$where[] = "(meta_review.meta_value = %s OR meta_review.meta_value IS NULL OR meta_review.meta_value = '')";
+				$params[] = 'pending';
+			} else {
+				$where[] = 'meta_review.meta_value = %s';
+				$params[] = $this->filters['review_status'];
+			}
 		}
 
 		if ( $this->filters['score_min'] ) {
