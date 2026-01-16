@@ -133,7 +133,7 @@ class UFSC_LC_ASPTT_Importer {
 		$auto_save_alias = $preview && isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true;
 		$force_club    = $force_club_id ? $this->get_club_by_id( $force_club_id ) : null;
 		?>
-		<div class="wrap">
+		<div class="wrap ufsc-lc-admin">
 			<h1><?php esc_html_e( 'Import ASPTT', 'ufsc-licence-competition' ); ?></h1>
 			<?php $this->render_tabs( $tab ); ?>
 
@@ -359,7 +359,8 @@ class UFSC_LC_ASPTT_Importer {
 						>
 					</p>
 
-					<table class="widefat striped">
+					<div class="ufsc-lc-table-wrap">
+						<table class="widefat striped">
 						<thead>
 							<tr>
 								<th><?php esc_html_e( 'Colonne CSV', 'ufsc-licence-competition' ); ?></th>
@@ -383,7 +384,8 @@ class UFSC_LC_ASPTT_Importer {
 								</tr>
 							<?php endforeach; ?>
 						</tbody>
-					</table>
+						</table>
+					</div>
 
 					<?php submit_button( __( 'Recalculer la prévisualisation', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
 				</form>
@@ -462,79 +464,101 @@ class UFSC_LC_ASPTT_Importer {
 			</label>
 			<input type="search" id="ufsc-asptt-search" placeholder="<?php esc_attr_e( 'Rechercher nom/prénom/club/n°', 'ufsc-licence-competition' ); ?>" style="min-width:280px;">
 		</div>
-		<table class="widefat fixed striped ufsc-lc-preview-table">
-			<thead>
-				<tr>
-					<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Âge réf.', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Club (Note)', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Licence UFSC', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Score', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Lien', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Statut review', 'ufsc-licence-competition' ); ?></th>
-					<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
-				</tr>
-			</thead>
-			<tbody>
-				<?php foreach ( $rows as $index => $row ) : ?>
-					<?php $search_value = strtolower( trim( $row['nom'] . ' ' . $row['prenom'] . ' ' . $row['note'] . ' ' . $row['asptt_number'] ) ); ?>
-					<tr data-has-error="<?php echo esc_attr( $row['has_error'] ? '1' : '0' ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>" data-status="<?php echo esc_attr( $row['status'] ); ?>">
-						<td><?php echo esc_html( $row['nom'] ); ?></td>
-						<td><?php echo esc_html( $row['prenom'] ); ?></td>
-						<td><?php echo esc_html( $row['date_naissance'] ); ?></td>
-						<td><?php echo esc_html( ! empty( $row['season_end_year'] ) ? $row['season_end_year'] : '—' ); ?></td>
-						<td><?php echo esc_html( ! empty( $row['category'] ) ? $row['category'] : '—' ); ?></td>
-						<td><?php echo esc_html( ! empty( $row['age_ref'] ) ? $row['age_ref'] : '—' ); ?></td>
-						<td><?php echo esc_html( $row['note'] ); ?></td>
-						<td><?php echo esc_html( ! empty( $row['licence_id'] ) ? $row['licence_id'] : '—' ); ?></td>
-						<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
-						<td><?php echo esc_html( ! empty( $row['source_created_at'] ) ? $row['source_created_at'] : '—' ); ?></td>
-						<td><?php echo esc_html( isset( $row['confidence_score'] ) ? (int) $row['confidence_score'] : 0 ); ?></td>
-						<td><?php echo esc_html( isset( $row['link_mode'] ) ? $row['link_mode'] : 'none' ); ?></td>
-						<?php
-						$review_status = isset( $row['review_status'] ) ? $row['review_status'] : ( ! empty( $row['auto_linked'] ) ? 'auto' : 'pending' );
-						$review_label = ( 'auto' === $review_status )
-							? __( 'Auto', 'ufsc-licence-competition' )
-							: __( 'En attente', 'ufsc-licence-competition' );
-						?>
-						<td><?php echo esc_html( $review_label ); ?></td>
-						<td>
-							<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
-								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
-									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
-									<?php foreach ( $row['club_suggestions'] as $suggestion ) : ?>
-										<option value="<?php echo esc_attr( $suggestion['id'] ); ?>">
-											<?php echo esc_html( $suggestion['name'] ); ?>
-										</option>
-									<?php endforeach; ?>
-								</select>
-								<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>">
-									<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
-								</button>
-								<span class="ufsc-alias-feedback" data-row-index="<?php echo esc_attr( $index ); ?>"></span>
-							<?php elseif ( self::STATUS_CLUB_NOT_FOUND === $row['status'] ) : ?>
-								<input type="text" class="ufsc-club-search" data-row-index="<?php echo esc_attr( $index ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club', 'ufsc-licence-competition' ); ?>">
-								<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
-									<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
-								</select>
-								<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>">
-									<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
-								</button>
-								<span class="ufsc-alias-feedback" data-row-index="<?php echo esc_attr( $index ); ?>"></span>
-							<?php else : ?>
-								<span>—</span>
-							<?php endif; ?>
-						</td>
+		<div class="ufsc-lc-table-wrap">
+			<table class="widefat fixed striped ufsc-lc-preview-table">
+				<thead>
+					<tr>
+						<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Âge réf.', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Club (Note)', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Licence UFSC', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Score', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Lien', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Statut review', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
 					</tr>
-				<?php endforeach; ?>
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					<?php foreach ( $rows as $index => $row ) : ?>
+						<?php $search_value = strtolower( trim( $row['nom'] . ' ' . $row['prenom'] . ' ' . $row['note'] . ' ' . $row['asptt_number'] ) ); ?>
+						<tr data-has-error="<?php echo esc_attr( $row['has_error'] ? '1' : '0' ); ?>" data-search="<?php echo esc_attr( $search_value ); ?>" data-status="<?php echo esc_attr( $row['status'] ); ?>">
+							<td><?php echo esc_html( $row['nom'] ); ?></td>
+							<td><?php echo esc_html( $row['prenom'] ); ?></td>
+							<td><?php echo esc_html( $row['date_naissance'] ); ?></td>
+							<td><?php echo esc_html( ! empty( $row['season_end_year'] ) ? $row['season_end_year'] : '—' ); ?></td>
+							<td><?php echo esc_html( ! empty( $row['category'] ) ? $row['category'] : '—' ); ?></td>
+							<td><?php echo esc_html( ! empty( $row['age_ref'] ) ? $row['age_ref'] : '—' ); ?></td>
+							<td><?php echo esc_html( $row['note'] ); ?></td>
+							<td><?php echo esc_html( ! empty( $row['licence_id'] ) ? $row['licence_id'] : '—' ); ?></td>
+							<td><?php echo esc_html( $row['asptt_number'] ); ?></td>
+							<td><?php echo esc_html( ! empty( $row['source_created_at'] ) ? $row['source_created_at'] : '—' ); ?></td>
+							<td>
+								<span class="ufsc-badge ufsc-badge--info">
+									<?php echo esc_html( isset( $row['confidence_score'] ) ? (int) $row['confidence_score'] : 0 ); ?>
+								</span>
+							</td>
+							<td>
+								<span class="ufsc-badge ufsc-badge--muted">
+									<?php echo esc_html( isset( $row['link_mode'] ) ? $row['link_mode'] : 'none' ); ?>
+								</span>
+							</td>
+							<?php
+							$review_status = isset( $row['review_status'] ) ? $row['review_status'] : ( ! empty( $row['auto_linked'] ) ? 'auto' : 'pending' );
+							$review_label  = ( 'auto' === $review_status )
+								? __( 'Auto', 'ufsc-licence-competition' )
+								: __( 'En attente', 'ufsc-licence-competition' );
+							$review_badge_class = 'auto' === $review_status ? 'ufsc-badge--success' : 'ufsc-badge--warning';
+							?>
+							<td>
+								<span class="ufsc-badge <?php echo esc_attr( $review_badge_class ); ?>">
+									<?php echo esc_html( $review_label ); ?>
+								</span>
+							</td>
+							<td>
+								<?php if ( empty( $row['club_id'] ) && in_array( $row['status'], array( self::STATUS_NEEDS_REVIEW, self::STATUS_CLUB_NOT_FOUND ), true ) ) : ?>
+									<span class="ufsc-badge ufsc-badge--warning"><?php esc_html_e( 'À associer', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<?php if ( self::STATUS_NEEDS_REVIEW === $row['status'] && ! empty( $row['club_suggestions'] ) ) : ?>
+									<div class="ufsc-lc-inline-actions">
+										<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
+											<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+											<?php foreach ( $row['club_suggestions'] as $suggestion ) : ?>
+												<option value="<?php echo esc_attr( $suggestion['id'] ); ?>">
+													<?php echo esc_html( $suggestion['name'] ); ?>
+												</option>
+											<?php endforeach; ?>
+										</select>
+										<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>" disabled>
+											<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
+										</button>
+										<span class="ufsc-alias-feedback" data-row-index="<?php echo esc_attr( $index ); ?>"></span>
+									</div>
+								<?php elseif ( self::STATUS_CLUB_NOT_FOUND === $row['status'] ) : ?>
+									<div class="ufsc-lc-inline-actions">
+										<input type="text" class="ufsc-club-search" data-row-index="<?php echo esc_attr( $index ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club', 'ufsc-licence-competition' ); ?>">
+										<select class="ufsc-club-select" data-row-index="<?php echo esc_attr( $index ); ?>">
+											<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+										</select>
+										<button type="button" class="button ufsc-save-alias" data-row-index="<?php echo esc_attr( $index ); ?>" disabled>
+											<?php esc_html_e( 'Valider association', 'ufsc-licence-competition' ); ?>
+										</button>
+										<span class="ufsc-alias-feedback" data-row-index="<?php echo esc_attr( $index ); ?>"></span>
+									</div>
+								<?php else : ?>
+									<span>—</span>
+								<?php endif; ?>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
 		<?php
 	}
 
