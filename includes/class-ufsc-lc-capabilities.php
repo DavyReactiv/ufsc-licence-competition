@@ -30,7 +30,8 @@ class UFSC_LC_Capabilities {
 	}
 
 	public static function user_can_manage() {
-		if ( current_user_can( self::MANAGE_CAPABILITY ) ) {
+		$capability = self::get_manage_capability();
+		if ( $capability && current_user_can( $capability ) ) {
 			return true;
 		}
 
@@ -42,7 +43,8 @@ class UFSC_LC_Capabilities {
 	}
 
 	public static function user_can_import() {
-		if ( current_user_can( self::IMPORT_CAPABILITY ) ) {
+		$capability = self::get_import_capability();
+		if ( $capability && current_user_can( $capability ) ) {
 			return true;
 		}
 
@@ -50,10 +52,35 @@ class UFSC_LC_Capabilities {
 	}
 
 	public static function user_can_export() {
-		if ( current_user_can( self::EXPORT_CAPABILITY ) ) {
+		$capability = self::get_export_capability();
+		if ( $capability && current_user_can( $capability ) ) {
 			return true;
 		}
 
 		return self::user_can_manage();
+	}
+
+	public static function get_manage_capability() {
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) ) {
+			return UFSC_LC_Settings_Page::get_manage_capability();
+		}
+
+		return self::MANAGE_CAPABILITY;
+	}
+
+	public static function get_import_capability() {
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) ) {
+			return UFSC_LC_Settings_Page::get_import_capability();
+		}
+
+		return self::IMPORT_CAPABILITY;
+	}
+
+	public static function get_export_capability() {
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) ) {
+			return UFSC_LC_Settings_Page::get_export_capability();
+		}
+
+		return self::EXPORT_CAPABILITY;
 	}
 }

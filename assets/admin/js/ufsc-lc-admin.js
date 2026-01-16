@@ -140,6 +140,26 @@
 		});
 	}
 
+	function bindConfirmActions() {
+		document.querySelectorAll('.ufsc-lc-confirm').forEach(function(element) {
+			var message = element.getAttribute('data-confirm') || '';
+			if (!message) {
+				return;
+			}
+			var handler = function(event) {
+				if (!window.confirm(message)) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			};
+			if (element.tagName === 'FORM') {
+				element.addEventListener('submit', handler);
+			} else {
+				element.addEventListener('click', handler);
+			}
+		});
+	}
+
 	function initReviewClubSelects() {
 		var selects = document.querySelectorAll('.ufsc-lc-club-select');
 		if (!selects.length) {
@@ -231,6 +251,7 @@
 		document.addEventListener('DOMContentLoaded', bindPreviewActions);
 		document.addEventListener('DOMContentLoaded', initReviewClubSelects);
 		document.addEventListener('DOMContentLoaded', updateReviewSelectionCount);
+		document.addEventListener('DOMContentLoaded', bindConfirmActions);
 		document.addEventListener('DOMContentLoaded', function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
@@ -254,6 +275,7 @@
 		bindPreviewActions();
 		initReviewClubSelects();
 		updateReviewSelectionCount();
+		bindConfirmActions();
 		(function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');

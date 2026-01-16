@@ -100,7 +100,7 @@ class UFSC_LC_ASPTT_Importer {
 			$parent_slug,
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
 			__( 'Import ASPTT', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::IMPORT_CAPABILITY,
+			UFSC_LC_Capabilities::get_import_capability(),
 			'ufsc-lc-import-asptt',
 			array( $this, 'render_admin_page' )
 		);
@@ -238,8 +238,9 @@ class UFSC_LC_ASPTT_Importer {
 	private function render_cancel_actions( $preview, $last_import ) {
 		$has_preview  = ! empty( $preview['file_path'] );
 		$has_rollback = ! empty( $last_import['created_documents'] ) || ! empty( $last_import['created_meta'] );
+		$rollback_enabled = ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_asptt_rollback_enabled();
 
-		if ( ! $has_preview && ! $has_rollback ) {
+		if ( ! $has_preview && ( ! $has_rollback || ! $rollback_enabled ) ) {
 			return;
 		}
 		?>
@@ -255,7 +256,7 @@ class UFSC_LC_ASPTT_Importer {
 				</form>
 			<?php endif; ?>
 
-			<?php if ( $has_rollback ) : ?>
+			<?php if ( $has_rollback && $rollback_enabled ) : ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php wp_nonce_field( 'ufsc_lc_asptt_cancel_import', 'ufsc_lc_asptt_cancel_nonce' ); ?>
 					<input type="hidden" name="action" value="ufsc_lc_asptt_cancel_import">
@@ -271,6 +272,9 @@ class UFSC_LC_ASPTT_Importer {
 
 	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club ) {
 		$last_import = $this->get_last_import();
+		$auto_validate_threshold = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_asptt_auto_validate_threshold() : 0;
+		$auto_validate_score = $this->get_auto_validate_score( $stats );
+		$auto_approve_default = 0 === $auto_validate_threshold ? true : ( $auto_validate_score >= $auto_validate_threshold );
 		?>
 		<?php if ( ! empty( $preview['notice'] ) ) : ?>
 			<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
@@ -526,8 +530,16 @@ class UFSC_LC_ASPTT_Importer {
 				<br>
 
 				<label>
-					<input type="checkbox" name="ufsc_asptt_auto_approve" value="1" checked>
-					<?php esc_html_e( 'Auto-valider si score ≥ 85', 'ufsc-licence-competition' ); ?>
+					<input type="checkbox" name="ufsc_asptt_auto_approve" value="1" <?php checked( $auto_approve_default ); ?>>
+					<?php
+					echo esc_html(
+						sprintf(
+							__( 'Auto-valider si score ≥ %1$d (score actuel : %2$d)', 'ufsc-licence-competition' ),
+							$auto_validate_threshold,
+							$auto_validate_score
+						)
+					);
+					?>
 				</label>
 
 				<?php submit_button( __( 'Lancer', 'ufsc-licence-competition' ), 'primary', 'submit', false ); ?>
@@ -1125,6 +1137,12 @@ class UFSC_LC_ASPTT_Importer {
 		$redirect_url  = $this->get_admin_url();
 
 		if ( 'rollback' === $cancel_action ) {
+			if ( class_exists( 'UFSC_LC_Settings_Page' ) && ! UFSC_LC_Settings_Page::is_asptt_rollback_enabled() ) {
+				$redirect_url = $this->add_notice_args( $redirect_url, 'warning', __( 'L’annulation des imports est désactivée.', 'ufsc-licence-competition' ) );
+				wp_safe_redirect( $redirect_url );
+				exit;
+			}
+
 			$last_import = $this->get_last_import();
 			if ( empty( $last_import['created_documents'] ) && empty( $last_import['created_meta'] ) ) {
 				$redirect_url = $this->add_notice_args( $redirect_url, 'warning', __( 'Aucun import récent à annuler.', 'ufsc-licence-competition' ) );
@@ -1207,6 +1225,17 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		wp_send_json_success( $items );
+	}
+
+	private function get_auto_validate_score( $stats ) {
+		$total = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
+		if ( $total <= 0 ) {
+			return 0;
+		}
+
+		$linked = isset( $stats['licences_linked'] ) ? (int) $stats['licences_linked'] : 0;
+
+		return (int) round( ( $linked / $total ) * 100 );
 	}
 
 	public function ajax_save_alias() {

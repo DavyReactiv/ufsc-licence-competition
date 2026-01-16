@@ -73,7 +73,7 @@ class UFSC_LC_Licence_Documents {
 		$hook_suffix = add_menu_page(
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
-			UFSC_LC_Plugin::CAPABILITY,
+			UFSC_LC_Capabilities::get_manage_capability(),
 			UFSC_LC_Plugin::PARENT_SLUG,
 			array( $this, 'render_admin_page' ),
 			'dashicons-media-document',
