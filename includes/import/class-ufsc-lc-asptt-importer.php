@@ -154,6 +154,8 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$inserted  = array();
+		$created_documents = array();
+		$created_meta = array();
 		$has_error = false;
 
 		$stats = array(
@@ -169,7 +171,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			$file_path,
 			$mapping,
 			self::IMPORT_CHUNK_SIZE,
-			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$has_error, &$stats, $wpdb, $season_end_year_override, $auto_save_alias ) {
+			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$created_documents, &$created_meta, &$has_error, &$stats, $wpdb, $season_end_year_override, $auto_save_alias ) {
 
 				foreach ( $rows as $row ) {
 					$stats['total']++;
@@ -200,13 +202,22 @@ class UFSC_LC_ASPTT_Import_Service {
 					$this->save_alias_for_row( $force_club_id, $data, $auto_save_alias );
 
 					// Upsert document.
-					$doc_id = $this->upsert_document(
+					$doc_result = $this->upsert_document(
 						(int) $data['licence_id'],
 						$data['asptt_number'],
 						$data['attachment_id'],
 						$data['note'],
 						$data['source_created_at']
 					);
+
+					if ( false === $doc_result || ! empty( $wpdb->last_error ) ) {
+						$has_error = true;
+						$this->log_import_warning(
+							__( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ),
+							array( 'error' => $wpdb->last_error )
+						);
+						return false;
+					}
 
 					if ( $has_meta_table ) {
 						$review_status = 'pending';
@@ -216,21 +227,26 @@ class UFSC_LC_ASPTT_Import_Service {
 							$review_status = 'approved';
 						}
 
-						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'] );
-						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'link_mode', $link_mode );
-						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'review_status', $review_status );
-						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'club_resolution', $data['club_resolution'] );
-						$this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'person_resolution', $data['person_resolution'] );
-					}
-
-					// SQL error guard (both false return and wpdb->last_error).
-					if ( false === $doc_id || ! empty( $wpdb->last_error ) ) {
-						$has_error = true;
-						$this->log_import_warning(
-							__( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ),
-							array( 'error' => $wpdb->last_error )
-						);
-						return false;
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'] );
+						if ( $meta_result && $meta_result['created'] ) {
+							$created_meta[] = (int) $meta_result['id'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'link_mode', $link_mode );
+						if ( $meta_result && $meta_result['created'] ) {
+							$created_meta[] = (int) $meta_result['id'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'review_status', $review_status );
+						if ( $meta_result && $meta_result['created'] ) {
+							$created_meta[] = (int) $meta_result['id'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'club_resolution', $data['club_resolution'] );
+						if ( $meta_result && $meta_result['created'] ) {
+							$created_meta[] = (int) $meta_result['id'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'person_resolution', $data['person_resolution'] );
+						if ( $meta_result && $meta_result['created'] ) {
+							$created_meta[] = (int) $meta_result['id'];
+						}
 					}
 
 					// Duplicate check for business key (ASPTT number) pointing to another licence.
@@ -251,7 +267,10 @@ class UFSC_LC_ASPTT_Import_Service {
 						continue;
 					}
 
-					$inserted[] = (int) $doc_id;
+					$inserted[] = (int) $doc_result['id'];
+					if ( $doc_result['created'] ) {
+						$created_documents[] = (int) $doc_result['id'];
+					}
 					$stats['ok']++;
 				}
 
@@ -276,6 +295,8 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		return array(
 			'inserted'          => $inserted,
+			'created_documents' => array_values( array_unique( $created_documents ) ),
+			'created_meta'      => array_values( array_unique( $created_meta ) ),
 			'used_transactions' => $use_transactions,
 			'stats'             => $stats,
 		);
@@ -1155,7 +1176,10 @@ class UFSC_LC_ASPTT_Import_Service {
 				return false;
 			}
 
-			return (int) $existing;
+			return array(
+				'id'      => (int) $existing,
+				'created' => false,
+			);
 		}
 
 		$data['imported_at'] = current_time( 'mysql' );
@@ -1173,7 +1197,10 @@ class UFSC_LC_ASPTT_Import_Service {
 			return false;
 		}
 
-		return (int) $wpdb->insert_id;
+		return array(
+			'id'      => (int) $wpdb->insert_id,
+			'created' => true,
+		);
 	}
 
 	private function upsert_document_meta( $licence_id, $source, $meta_key, $meta_value ) {
@@ -1204,16 +1231,67 @@ class UFSC_LC_ASPTT_Import_Service {
 		$formats = array( '%d', '%s', '%s', '%s', '%s' );
 
 		if ( $existing ) {
-			return false !== $wpdb->update(
+			$updated = false !== $wpdb->update(
 				$table,
 				$data,
 				array( 'id' => (int) $existing ),
 				$formats,
 				array( '%d' )
 			);
+			return array(
+				'id'      => (int) $existing,
+				'created' => false,
+				'updated' => $updated,
+			);
 		}
 
-		return false !== $wpdb->insert( $table, $data, $formats );
+		$inserted = false !== $wpdb->insert( $table, $data, $formats );
+		return array(
+			'id'      => $inserted ? (int) $wpdb->insert_id : 0,
+			'created' => $inserted,
+			'updated' => false,
+		);
+	}
+
+	public function rollback_import_batch( $batch ) {
+		$documents = isset( $batch['created_documents'] ) ? array_map( 'absint', (array) $batch['created_documents'] ) : array();
+		$meta      = isset( $batch['created_meta'] ) ? array_map( 'absint', (array) $batch['created_meta'] ) : array();
+
+		$documents = array_values( array_filter( array_unique( $documents ) ) );
+		$meta      = array_values( array_filter( array_unique( $meta ) ) );
+
+		if ( empty( $documents ) && empty( $meta ) ) {
+			return new WP_Error( 'asptt_rollback_empty', __( 'Aucun élément à annuler.', 'ufsc-licence-competition' ) );
+		}
+
+		global $wpdb;
+
+		if ( ! empty( $meta ) ) {
+			$meta_table = $this->get_documents_meta_table();
+			if ( $this->table_exists( $meta_table ) ) {
+				$placeholders = implode( ',', array_fill( 0, count( $meta ), '%d' ) );
+				$wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM {$meta_table} WHERE id IN ({$placeholders})",
+						$meta
+					)
+				);
+			}
+		}
+
+		if ( ! empty( $documents ) ) {
+			$table        = $this->get_documents_table();
+			$placeholders = implode( ',', array_fill( 0, count( $documents ), '%d' ) );
+
+			$wpdb->query(
+				$wpdb->prepare(
+					"DELETE FROM {$table} WHERE id IN ({$placeholders})",
+					$documents
+				)
+			);
+		}
+
+		return true;
 	}
 
 	private function normalize_name( $value ) {

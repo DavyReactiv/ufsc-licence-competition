@@ -21,6 +21,7 @@ class UFSC_LC_ASPTT_Importer {
 	const STATUS_INVALID_ASPTT_NUMBER = UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_ASPTT_NUMBER;
 
 	const SESSION_KEY = 'ufsc_lc_asptt_preview';
+	const LAST_IMPORT_KEY = 'ufsc_lc_asptt_last_import';
 
 	private $legacy_enabled = false;
 	private $service;
@@ -34,6 +35,7 @@ class UFSC_LC_ASPTT_Importer {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_upload', array( $this, 'handle_upload' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_import', array( $this, 'handle_import' ) );
+		add_action( 'admin_post_ufsc_lc_asptt_cancel_import', array( $this, 'handle_cancel_import' ) );
 		add_action( 'wp_ajax_ufsc_lc_club_search', array( $this, 'ajax_search_clubs' ) );
 		add_action( 'wp_ajax_ufsc_lc_asptt_save_alias', array( $this, 'ajax_save_alias' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_export_errors', array( $this, 'handle_export_errors' ) );
@@ -41,6 +43,7 @@ class UFSC_LC_ASPTT_Importer {
 		if ( $this->legacy_enabled ) {
 			add_action( 'admin_post_ufsc_asptt_upload', array( $this, 'handle_upload' ) );
 			add_action( 'admin_post_ufsc_asptt_import', array( $this, 'handle_import' ) );
+			add_action( 'admin_post_ufsc_asptt_cancel_import', array( $this, 'handle_cancel_import' ) );
 			add_action( 'wp_ajax_ufsc_club_search', array( $this, 'ajax_search_clubs' ) );
 			add_action( 'wp_ajax_ufsc_asptt_save_alias', array( $this, 'ajax_save_alias' ) );
 			add_action( 'admin_post_ufsc_asptt_export_errors', array( $this, 'handle_export_errors' ) );
@@ -148,6 +151,7 @@ class UFSC_LC_ASPTT_Importer {
 		?>
 		<div class="wrap ufsc-lc-admin">
 			<h1><?php esc_html_e( 'Import ASPTT', 'ufsc-licence-competition' ); ?></h1>
+			<?php $this->render_admin_notice(); ?>
 			<?php $this->render_tabs( $tab ); ?>
 
 			<?php if ( 'review' === $tab ) : ?>
@@ -207,7 +211,66 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
+	private function render_admin_notice() {
+		$type    = isset( $_GET['ufsc_lc_notice_type'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_lc_notice_type'] ) ) : '';
+		$message_raw = isset( $_GET['ufsc_lc_notice'] ) ? wp_unslash( $_GET['ufsc_lc_notice'] ) : '';
+		$message     = '' !== $message_raw ? sanitize_text_field( rawurldecode( $message_raw ) ) : '';
+
+		if ( '' === $type || '' === $message ) {
+			return;
+		}
+
+		$classes = array(
+			'success' => 'notice notice-success is-dismissible',
+			'warning' => 'notice notice-warning is-dismissible',
+			'error'   => 'notice notice-error is-dismissible',
+			'info'    => 'notice notice-info is-dismissible',
+		);
+		$class = isset( $classes[ $type ] ) ? $classes[ $type ] : 'notice notice-info is-dismissible';
+
+		printf(
+			'<div class="%s"><p>%s</p></div>',
+			esc_attr( $class ),
+			esc_html( $message )
+		);
+	}
+
+	private function render_cancel_actions( $preview, $last_import ) {
+		$has_preview  = ! empty( $preview['file_path'] );
+		$has_rollback = ! empty( $last_import['created_documents'] ) || ! empty( $last_import['created_meta'] );
+
+		if ( ! $has_preview && ! $has_rollback ) {
+			return;
+		}
+		?>
+		<div class="ufsc-lc-filter-row">
+			<?php if ( $has_preview ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_lc_asptt_cancel_import', 'ufsc_lc_asptt_cancel_nonce' ); ?>
+					<input type="hidden" name="action" value="ufsc_lc_asptt_cancel_import">
+					<input type="hidden" name="cancel_action" value="preview">
+					<button type="submit" class="button button-secondary" onclick="return confirm('<?php echo esc_js( __( 'Annuler cette prévisualisation ?', 'ufsc-licence-competition' ) ); ?>');">
+						<?php esc_html_e( 'Annuler la prévisualisation', 'ufsc-licence-competition' ); ?>
+					</button>
+				</form>
+			<?php endif; ?>
+
+			<?php if ( $has_rollback ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_lc_asptt_cancel_import', 'ufsc_lc_asptt_cancel_nonce' ); ?>
+					<input type="hidden" name="action" value="ufsc_lc_asptt_cancel_import">
+					<input type="hidden" name="cancel_action" value="rollback">
+					<button type="submit" class="button button-link-delete" onclick="return confirm('<?php echo esc_js( __( 'Annuler le dernier import ? Seuls les documents ASPTT créés seront supprimés.', 'ufsc-licence-competition' ) ); ?>');">
+						<?php esc_html_e( 'Annuler le dernier import', 'ufsc-licence-competition' ); ?>
+					</button>
+				</form>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
 	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club ) {
+		$last_import = $this->get_last_import();
 		?>
 		<?php if ( ! empty( $preview['notice'] ) ) : ?>
 			<div class="notice notice-<?php echo esc_attr( $preview['notice']['type'] ); ?>">
@@ -439,6 +502,7 @@ class UFSC_LC_ASPTT_Importer {
 			<?php endif; ?>
 
 			<?php $this->render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply ); ?>
+			<?php $this->render_cancel_actions( $preview, $last_import ); ?>
 			<?php $this->render_preview_table( $rows, $preview_limit, $pinned_club_id, $pinned_apply ); ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -1039,10 +1103,54 @@ class UFSC_LC_ASPTT_Importer {
 			}
 
 			$preview['notice'] = $notice;
+			$this->persist_last_import( $preview, $result );
 		}
 
 		update_option( self::SESSION_KEY, $preview, false );
 		wp_safe_redirect( $this->get_admin_url() );
+		exit;
+	}
+
+	public function handle_cancel_import() {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$nonce = isset( $_POST['ufsc_lc_asptt_cancel_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_cancel_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_cancel_import' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$cancel_action = isset( $_POST['cancel_action'] ) ? sanitize_key( wp_unslash( $_POST['cancel_action'] ) ) : '';
+		$redirect_url  = $this->get_admin_url();
+
+		if ( 'rollback' === $cancel_action ) {
+			$last_import = $this->get_last_import();
+			if ( empty( $last_import['created_documents'] ) && empty( $last_import['created_meta'] ) ) {
+				$redirect_url = $this->add_notice_args( $redirect_url, 'warning', __( 'Aucun import récent à annuler.', 'ufsc-licence-competition' ) );
+				wp_safe_redirect( $redirect_url );
+				exit;
+			}
+
+			$result = $this->service->rollback_import_batch( $last_import );
+			if ( is_wp_error( $result ) ) {
+				$redirect_url = $this->add_notice_args( $redirect_url, 'error', $result->get_error_message() );
+				wp_safe_redirect( $redirect_url );
+				exit;
+			}
+
+			delete_option( self::LAST_IMPORT_KEY );
+			$redirect_url = $this->add_notice_args( $redirect_url, 'success', __( 'Dernier import annulé.', 'ufsc-licence-competition' ) );
+			wp_safe_redirect( $redirect_url );
+			exit;
+		}
+
+		$preview = $this->get_preview();
+		$this->clear_preview_files( $preview );
+		delete_option( self::SESSION_KEY );
+
+		$redirect_url = $this->add_notice_args( $redirect_url, 'success', __( 'Prévisualisation annulée.', 'ufsc-licence-competition' ) );
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 
@@ -1185,6 +1293,58 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_preview() {
 		$preview = get_option( self::SESSION_KEY, array() );
 		return is_array( $preview ) ? $preview : array();
+	}
+
+	private function get_last_import() {
+		$last_import = get_option( self::LAST_IMPORT_KEY, array() );
+		return is_array( $last_import ) ? $last_import : array();
+	}
+
+	private function persist_last_import( $preview, $result ) {
+		$created_documents = isset( $result['created_documents'] ) ? array_map( 'absint', (array) $result['created_documents'] ) : array();
+		$created_meta      = isset( $result['created_meta'] ) ? array_map( 'absint', (array) $result['created_meta'] ) : array();
+
+		$created_documents = array_values( array_filter( array_unique( $created_documents ) ) );
+		$created_meta      = array_values( array_filter( array_unique( $created_meta ) ) );
+
+		if ( empty( $created_documents ) && empty( $created_meta ) ) {
+			return;
+		}
+
+		update_option(
+			self::LAST_IMPORT_KEY,
+			array(
+				'file_name'         => isset( $preview['file_name'] ) ? sanitize_text_field( $preview['file_name'] ) : '',
+				'created_at'        => current_time( 'mysql' ),
+				'created_documents' => $created_documents,
+				'created_meta'      => $created_meta,
+			),
+			false
+		);
+	}
+
+	private function clear_preview_files( $preview ) {
+		if ( empty( $preview['file_path'] ) ) {
+			return;
+		}
+
+		$file_path  = wp_normalize_path( $preview['file_path'] );
+		$upload_dir = wp_upload_dir();
+		$base_dir   = trailingslashit( wp_normalize_path( $upload_dir['basedir'] ) );
+
+		if ( 0 === strpos( $file_path, $base_dir ) && file_exists( $file_path ) ) {
+			wp_delete_file( $file_path );
+		}
+	}
+
+	private function add_notice_args( $url, $type, $message ) {
+		return add_query_arg(
+			array(
+				'ufsc_lc_notice_type' => $type,
+				'ufsc_lc_notice'      => $message,
+			),
+			$url
+		);
 	}
 
 	private function get_admin_url() {
