@@ -98,7 +98,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
-	public function build_preview( $file_path, $force_club_id, $mapping = array(), $limit = 0 ) {
+	public function build_preview( $file_path, $force_club_id, $mapping = array(), $limit = 0, $season_end_year_override = null ) {
 		$preview_rows = array();
 		$errors       = array();
 		$stats        = array(
@@ -125,7 +125,7 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		foreach ( $parsed['rows'] as $row ) {
 			$stats['total']++;
-			$result = $this->process_row( $row, $force_club_id, $stats );
+			$result = $this->process_row( $row, $force_club_id, $stats, $season_end_year_override );
 
 			if ( $result['preview'] ) {
 				$preview_rows[] = $result['preview'];
@@ -145,7 +145,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
-	public function import_from_file( $file_path, $force_club_id, $mapping = array(), $auto_approve = true ) {
+	public function import_from_file( $file_path, $force_club_id, $mapping = array(), $auto_approve = true, $season_end_year_override = null, $auto_save_alias = true ) {
 		global $wpdb;
 
 		$use_transactions = false;
@@ -169,12 +169,12 @@ class UFSC_LC_ASPTT_Import_Service {
 			$file_path,
 			$mapping,
 			self::IMPORT_CHUNK_SIZE,
-			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$has_error, &$stats, $wpdb ) {
+			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$has_error, &$stats, $wpdb, $season_end_year_override, $auto_save_alias ) {
 
 				foreach ( $rows as $row ) {
 					$stats['total']++;
 
-					$result = $this->process_row( $row, $force_club_id );
+					$result = $this->process_row( $row, $force_club_id, null, $season_end_year_override );
 					$data   = $result['data'];
 
 					if ( ! empty( $result['error'] ) ) {
@@ -196,7 +196,7 @@ class UFSC_LC_ASPTT_Import_Service {
 					);
 
 					// Save alias (force club mode).
-					$this->save_alias_for_row( $force_club_id, $data );
+					$this->save_alias_for_row( $force_club_id, $data, $auto_save_alias );
 
 					// Upsert document.
 					$doc_id = $this->upsert_document(
@@ -360,13 +360,14 @@ class UFSC_LC_ASPTT_Import_Service {
 		return $limit;
 	}
 
-	private function process_row( $row, $force_club_id, &$stats = null ) {
+	private function process_row( $row, $force_club_id, &$stats = null, $season_end_year_override = null ) {
 		$note               = isset( $row['Note'] ) ? sanitize_text_field( $row['Note'] ) : '';
 		$nom                = isset( $row['Nom'] ) ? sanitize_text_field( $row['Nom'] ) : '';
 		$prenom             = isset( $row['Prenom'] ) ? sanitize_text_field( $row['Prenom'] ) : '';
 		$dob                = isset( $row['Date de naissance'] ) ? sanitize_text_field( $row['Date de naissance'] ) : '';
 		$raw_season_end_year = isset( $row['Saison (année de fin)'] ) ? sanitize_text_field( $row['Saison (année de fin)'] ) : '';
 		$season_end_year     = UFSC_LC_Categories::sanitize_season_end_year( $raw_season_end_year );
+		$season_end_year_override = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year_override );
 
 		$asptt_no = isset( $row['N° Licence'] ) ? sanitize_text_field( $row['N° Licence'] ) : '';
 		$asptt_no = trim( $asptt_no );
@@ -394,7 +395,16 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 
 		// Season + category computation at 31/12 (handled by UFSC_LC_Categories).
-		if ( '' === $raw_season_end_year || null === $season_end_year ) {
+		if ( null === $season_end_year && null !== $season_end_year_override ) {
+			$season_end_year = $season_end_year_override;
+		}
+
+		if ( null === $season_end_year ) {
+			$default_season_end_year = $this->get_default_season_end_year();
+			$season_end_year         = UFSC_LC_Categories::sanitize_season_end_year( $default_season_end_year );
+		}
+
+		if ( null === $season_end_year ) {
 			$status          = self::STATUS_INVALID_SEASON;
 			$skip_resolution = true;
 
@@ -1043,10 +1053,17 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
-	private function save_alias_for_row( $force_club_id, $data ) {
-		if ( ! empty( $force_club_id ) && '' !== $data['note'] ) {
+	private function save_alias_for_row( $force_club_id, $data, $auto_save_alias ) {
+		if ( $auto_save_alias && ! empty( $force_club_id ) && '' !== $data['note'] ) {
 			$this->save_alias( (int) $force_club_id, $data['note'] );
 		}
+	}
+
+	private function get_default_season_end_year() {
+		$option = get_option( 'ufsc_lc_default_season_end_year', 2026 );
+		$year   = UFSC_LC_Categories::sanitize_season_end_year( $option );
+
+		return $year ? $year : 2026;
 	}
 
 	public function save_alias( $club_id, $alias ) {
