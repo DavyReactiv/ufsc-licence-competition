@@ -952,4 +952,287 @@ class UFSC_LC_ASPTT_Importer {
 					'user_id'      => get_current_user_id(),
 					'file_name'    => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
 					'mode'         => 'dry_run',
-					'total_rows'   => isset( $preview['stats']['total'] ) ? (
+					'total_rows'   => isset( $preview['stats']['total'] ) ? (int) $preview['stats']['total'] : 0,
+					'success_rows' => 0,
+					'error_rows'   => 0,
+					'status'       => 'completed',
+				)
+			);
+
+			$preview['notice'] = array(
+				'type'    => 'info',
+				'message' => __( 'Simulation enregistrée.', 'ufsc-licence-competition' ),
+			);
+
+			update_option( self::SESSION_KEY, $preview, false );
+			wp_safe_redirect( $this->get_admin_url() );
+			exit;
+		}
+
+		$auto_approve  = isset( $_POST['ufsc_asptt_auto_approve'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_approve'] ) : true;
+		$force_club_id = isset( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
+		$mapping       = isset( $preview['mapping'] ) ? $preview['mapping'] : array();
+
+		$result = $this->service->import_from_file(
+			$preview['file_path'],
+			$force_club_id,
+			$mapping,
+			$auto_approve,
+			$season_end_year_override,
+			$auto_save_alias
+		);
+
+		if ( is_wp_error( $result ) ) {
+			$this->service->insert_import_log(
+				array(
+					'user_id'       => get_current_user_id(),
+					'file_name'     => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
+					'mode'          => 'import',
+					'status'        => 'failed',
+					'error_message' => $result->get_error_message(),
+				)
+			);
+
+			$preview['notice'] = array(
+				'type'    => 'error',
+				'message' => $result->get_error_message(),
+			);
+		} else {
+			$stats        = isset( $result['stats'] ) ? $result['stats'] : array();
+			$total_rows   = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
+			$success_rows = isset( $stats['ok'] ) ? (int) $stats['ok'] : 0;
+			$error_rows   = isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
+
+			$this->service->insert_import_log(
+				array(
+					'user_id'      => get_current_user_id(),
+					'file_name'    => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
+					'mode'         => 'import',
+					'total_rows'   => $total_rows,
+					'success_rows' => $success_rows,
+					'error_rows'   => $error_rows,
+					'status'       => 'completed',
+				)
+			);
+
+			$message = sprintf(
+				/* translators: 1: success rows, 2: error rows */
+				__( 'Import terminé. Succès: %1$d, erreurs: %2$d.', 'ufsc-licence-competition' ),
+				$success_rows,
+				$error_rows
+			);
+
+			$notice = array(
+				'type'    => $error_rows ? 'warning' : 'success',
+				'message' => $message,
+			);
+
+			if ( $error_rows ) {
+				$notice['review_link']  = add_query_arg(
+					array(
+						'page' => 'ufsc-lc-import-asptt',
+						'tab'  => 'review',
+					),
+					admin_url( 'admin.php' )
+				);
+				$notice['review_label'] = __( 'Aller au review', 'ufsc-licence-competition' );
+			}
+
+			$preview['notice'] = $notice;
+		}
+
+		update_option( self::SESSION_KEY, $preview, false );
+		wp_safe_redirect( $this->get_admin_url() );
+		exit;
+	}
+
+	public function handle_export_errors() {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$nonce = isset( $_POST['ufsc_lc_asptt_errors_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_errors_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_export_errors' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$preview = $this->get_preview();
+		$errors  = isset( $preview['errors'] ) ? $preview['errors'] : array();
+
+		if ( empty( $errors ) ) {
+			wp_safe_redirect( $this->get_admin_url() );
+			exit;
+		}
+
+		$this->service->export_errors_csv( $errors );
+	}
+
+	public function ajax_search_clubs() {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_club_search' );
+
+		$term = isset( $_GET['term'] ) ? sanitize_text_field( wp_unslash( $_GET['term'] ) ) : '';
+		if ( '' === $term ) {
+			wp_send_json_success( array() );
+		}
+
+		global $wpdb;
+		$table = $this->get_clubs_table();
+		$like  = '%' . $wpdb->esc_like( $term ) . '%';
+
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT 20",
+				$like
+			)
+		);
+
+		$items = array();
+		foreach ( $results as $club ) {
+			$items[] = array(
+				'id'   => (int) $club->id,
+				'text' => $club->nom,
+			);
+		}
+
+		wp_send_json_success( $items );
+	}
+
+	public function ajax_save_alias() {
+		if ( ! UFSC_LC_Capabilities::user_can_import() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_asptt_save_alias' );
+
+		$row_index_raw = isset( $_POST['row_index'] ) ? wp_unslash( $_POST['row_index'] ) : '';
+		$club_id_raw   = isset( $_POST['club_id'] ) ? wp_unslash( $_POST['club_id'] ) : '';
+
+		$row_index = ( '' !== $row_index_raw && ctype_digit( (string) $row_index_raw ) ) ? (int) $row_index_raw : -1;
+		$club_id   = ( '' !== $club_id_raw && ctype_digit( (string) $club_id_raw ) ) ? (int) $club_id_raw : 0;
+
+		if ( $row_index < 0 || $club_id <= 0 ) {
+			wp_send_json_error( array( 'message' => __( 'Données invalides.', 'ufsc-licence-competition' ) ), 400 );
+		}
+
+		$preview = $this->get_preview();
+		$rows    = isset( $preview['rows'] ) ? $preview['rows'] : array();
+		$row     = isset( $rows[ $row_index ] ) ? $rows[ $row_index ] : null;
+		$note    = $row && isset( $row['note'] ) ? $row['note'] : '';
+
+		if ( '' === $note ) {
+			wp_send_json_error( array( 'message' => __( 'Aucun alias à enregistrer.', 'ufsc-licence-competition' ) ), 400 );
+		}
+
+		$this->service->save_alias( $club_id, $note );
+		wp_send_json_success( array( 'message' => __( 'Association enregistrée.', 'ufsc-licence-competition' ) ) );
+	}
+
+	private function render_import_logs() {
+		$logs = $this->service->get_import_logs( 10 );
+
+		if ( empty( $logs ) ) {
+			return;
+		}
+		?>
+		<div class="ufsc-lc-import-logs">
+			<h2><?php esc_html_e( 'Historique des imports', 'ufsc-licence-competition' ); ?></h2>
+			<div class="ufsc-lc-table-wrap">
+				<table class="widefat striped">
+					<thead>
+						<tr>
+							<th><?php esc_html_e( 'Date', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Fichier', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Mode', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Total', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Succès', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Erreurs', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Utilisateur', 'ufsc-licence-competition' ); ?></th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ( $logs as $log ) : ?>
+							<?php $user = get_user_by( 'id', (int) $log->user_id ); ?>
+							<tr>
+								<td><?php echo esc_html( $log->created_at ); ?></td>
+								<td><?php echo esc_html( $log->file_name ); ?></td>
+								<td><?php echo esc_html( $log->mode ); ?></td>
+								<td><?php echo esc_html( $log->total_rows ); ?></td>
+								<td><?php echo esc_html( $log->success_rows ); ?></td>
+								<td><?php echo esc_html( $log->error_rows ); ?></td>
+								<td><?php echo esc_html( $log->status ); ?></td>
+								<td><?php echo esc_html( $user ? $user->display_name : (string) $log->user_id ); ?></td>
+							</tr>
+							<?php if ( ! empty( $log->error_message ) ) : ?>
+								<tr>
+									<td colspan="8">
+										<div class="ufsc-lc-import-log-error"><?php echo esc_html( $log->error_message ); ?></div>
+									</td>
+								</tr>
+							<?php endif; ?>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<?php
+	}
+
+	private function get_preview() {
+		$preview = get_option( self::SESSION_KEY, array() );
+		return is_array( $preview ) ? $preview : array();
+	}
+
+	private function get_admin_url() {
+		return add_query_arg(
+			array(
+				'page' => 'ufsc-lc-import-asptt',
+			),
+			admin_url( 'admin.php' )
+		);
+	}
+
+	private function get_default_season_end_year() {
+		$option = get_option( 'ufsc_lc_default_season_end_year', 2026 );
+		$year   = UFSC_LC_Categories::sanitize_season_end_year( $option );
+
+		return $year ? $year : 2026;
+	}
+
+	private function get_clubs() {
+		global $wpdb;
+
+		$table = $this->get_clubs_table();
+
+		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
+	}
+
+	private function get_club_by_id( $club_id ) {
+		global $wpdb;
+
+		$table = $this->get_clubs_table();
+
+		return $wpdb->get_row(
+			$wpdb->prepare( "SELECT id, nom FROM {$table} WHERE id = %d", $club_id )
+		);
+	}
+
+	private function get_clubs_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_clubs';
+	}
+
+	private function get_aliases_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_asptt_aliases';
+	}
+
+	private function get_import_logs_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_asptt_import_logs';
+	}
+}
