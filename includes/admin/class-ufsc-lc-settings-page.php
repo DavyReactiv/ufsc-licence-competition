@@ -11,7 +11,7 @@ class UFSC_LC_Settings_Page {
 	const DEFAULT_SEASON_END_YEAR = 2026;
 
 	public function register() {
-		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
+		add_action( 'admin_menu', array( $this, 'register_admin_menu' ), 30 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 	}
 
@@ -20,7 +20,7 @@ class UFSC_LC_Settings_Page {
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Paramètres', 'ufsc-licence-competition' ),
 			__( 'Paramètres', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::MANAGE_CAPABILITY,
+			'manage_options',
 			self::PAGE_SLUG,
 			array( $this, 'render_settings_page' )
 		);
@@ -68,7 +68,7 @@ class UFSC_LC_Settings_Page {
 	}
 
 	public function render_settings_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 		?>
