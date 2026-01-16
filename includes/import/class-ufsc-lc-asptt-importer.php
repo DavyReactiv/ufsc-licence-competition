@@ -1082,6 +1082,10 @@ class UFSC_LC_ASPTT_Import_Service {
 	}
 
 	private function get_default_season_end_year() {
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) ) {
+			return UFSC_LC_Settings_Page::get_default_season_end_year();
+		}
+
 		$option = get_option( 'ufsc_lc_default_season_end_year', 2026 );
 		$year   = UFSC_LC_Categories::sanitize_season_end_year( $option );
 
