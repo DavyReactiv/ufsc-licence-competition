@@ -174,7 +174,8 @@ class UFSC_LC_ASPTT_Import_Service {
 				foreach ( $rows as $row ) {
 					$stats['total']++;
 
-					$result = $this->process_row( $row, $force_club_id, null, $season_end_year_override );
+					$stats_tmp = null;
+					$result    = $this->process_row( $row, $force_club_id, $stats_tmp, $season_end_year_override );
 					$data   = $result['data'];
 
 					if ( ! empty( $result['error'] ) ) {
