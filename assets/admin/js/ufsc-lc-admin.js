@@ -128,17 +128,6 @@
 			});
 		});
 
-		document.querySelectorAll('.ufsc-confirm-trash').forEach(function(link) {
-			link.addEventListener('click', function(event) {
-				var message = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.confirmTrash)
-					? UFSC_LC_Admin.strings.confirmTrash
-					: '';
-				if (!window.confirm(message)) {
-					event.preventDefault();
-				}
-			});
-		});
-
 		document.querySelectorAll('.ufsc-confirm-delete').forEach(function(link) {
 			link.addEventListener('click', function(event) {
 				var message = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.confirmDelete)

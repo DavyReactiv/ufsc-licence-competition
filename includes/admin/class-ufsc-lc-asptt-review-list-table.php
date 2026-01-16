@@ -244,7 +244,7 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 			);
 			$trash_url = wp_nonce_url( $trash_url, 'ufsc_lc_asptt_review_trash_' . (int) $item->document_id );
 			$actions['trash'] = sprintf(
-				'<a href="%s" class="ufsc-confirm-trash">%s</a>',
+				'<a href="%s">%s</a>',
 				esc_url( $trash_url ),
 				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
 			);
