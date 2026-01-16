@@ -14,13 +14,20 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	public function register() {
-		add_shortcode( 'ufsc_lc_club_licences_asptt', array( $this, 'render_shortcode' ) );
+		$this->register_shortcode( 'ufsc_lc_club_licences_asptt' );
+		$this->register_shortcode( 'ufsc_lc_licences' );
 		add_action( 'admin_post_ufsc_lc_download_asptt_pdf', array( $this, 'handle_download' ) );
 
 		if ( $this->legacy_enabled ) {
-			add_shortcode( 'ufsc_club_licences_asptt', array( $this, 'render_shortcode' ) );
-			add_shortcode( 'ufsc_licences', array( $this, 'render_shortcode' ) );
+			$this->register_shortcode( 'ufsc_club_licences_asptt' );
+			$this->register_shortcode( 'ufsc_licences' );
 			add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
+		}
+	}
+
+	private function register_shortcode( $tag ) {
+		if ( ! shortcode_exists( $tag ) ) {
+			add_shortcode( $tag, array( $this, 'render_shortcode' ) );
 		}
 	}
 
