@@ -394,6 +394,9 @@ class UFSC_LC_ASPTT_Importer {
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<?php wp_nonce_field( 'ufsc_lc_asptt_import', 'ufsc_lc_asptt_import_nonce' ); ?>
 				<input type="hidden" name="action" value="ufsc_lc_asptt_import">
+				<input type="hidden" name="ufsc_asptt_use_season_override" value="<?php echo esc_attr( $use_season_override ? 1 : 0 ); ?>">
+				<input type="hidden" name="ufsc_asptt_season_end_year" value="<?php echo esc_attr( $season_end_year_override ); ?>">
+				<input type="hidden" name="ufsc_asptt_auto_save_alias" value="<?php echo esc_attr( $auto_save_alias ? 1 : 0 ); ?>">
 				<label>
 					<input type="radio" name="ufsc_asptt_mode" value="dry_run" checked>
 					<?php esc_html_e( 'Simulation (dry-run)', 'ufsc-licence-competition' ); ?>
@@ -647,6 +650,21 @@ class UFSC_LC_ASPTT_Importer {
 			exit;
 		}
 
+		$use_season_override = isset( $_POST['ufsc_asptt_use_season_override'] )
+			? (bool) absint( $_POST['ufsc_asptt_use_season_override'] )
+			: ( isset( $preview['use_season_override'] ) ? (bool) $preview['use_season_override'] : false );
+		$raw_override = isset( $_POST['ufsc_asptt_season_end_year'] )
+			? sanitize_text_field( wp_unslash( $_POST['ufsc_asptt_season_end_year'] ) )
+			: ( isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : '' );
+		$season_end_year_override = $use_season_override ? UFSC_LC_Categories::sanitize_season_end_year( $raw_override ) : null;
+		$auto_save_alias = isset( $_POST['ufsc_asptt_auto_save_alias'] )
+			? (bool) absint( $_POST['ufsc_asptt_auto_save_alias'] )
+			: ( isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true );
+
+		$preview['use_season_override']      = $use_season_override;
+		$preview['season_end_year_override'] = $season_end_year_override;
+		$preview['auto_save_alias']          = $auto_save_alias;
+
 		$mode = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
 		if ( 'import' !== $mode ) {
 			$this->service->insert_import_log(
@@ -677,8 +695,8 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['force_club_id'],
 			isset( $preview['mapping'] ) ? $preview['mapping'] : array(),
 			$auto_approve,
-			isset( $preview['season_end_year_override'] ) ? $preview['season_end_year_override'] : null,
-			isset( $preview['auto_save_alias'] ) ? (bool) $preview['auto_save_alias'] : true
+			$season_end_year_override,
+			$auto_save_alias
 		);
 
 		if ( is_wp_error( $result ) ) {
