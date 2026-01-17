@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Admin\Tables\Competitions_Table;
@@ -23,6 +24,7 @@ class Competitions_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_competition', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_archive_competition', array( $this, 'handle_archive' ) );
 	}
 
 	public function render() {
@@ -46,18 +48,22 @@ class Competitions_Page {
 		}
 
 		$list_table = new Competitions_Table();
+		$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_COMPETITIONS );
 		$list_table->prepare_items();
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
-			<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'ufsc-competitions', 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
+			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
 			<hr class="wp-header-end">
+			<?php $this->render_helper_notice( __( 'Créer et piloter vos événements (type, discipline, dates, statuts, forclusion).', 'ufsc-licence-competition' ) ); ?>
 			<?php $list_table->views(); ?>
-			<form method="get">
-				<input type="hidden" name="page" value="ufsc-competitions" />
+			<form method="post">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_COMPETITIONS ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-search' ); ?>
-				<?php $list_table->display(); ?>
+				<div class="ufsc-competitions-table-wrap">
+					<?php $list_table->display(); ?>
+				</div>
 			</form>
 		</div>
 		<?php
@@ -89,28 +95,32 @@ class Competitions_Page {
 		$data['discipline'] = DisciplineRegistry::normalize( $data['discipline'] );
 
 		if ( '' === $data['name'] || '' === $data['discipline'] || '' === $data['type'] || '' === $data['season'] ) {
-			$this->redirect_with_notice( 'ufsc-competitions', 'error_required', $id, $data );
+			$this->redirect_with_notice( Menu::PAGE_COMPETITIONS, 'error_required', $id, $data );
 		}
 
 		if ( $id ) {
 			$this->repository->update( $id, $data );
-			$this->redirect_with_notice( 'ufsc-competitions', 'updated', $id );
+			$this->redirect_with_notice( Menu::PAGE_COMPETITIONS, 'updated', $id );
 		}
 
 		$new_id = $this->repository->insert( $data );
-		$this->redirect_with_notice( 'ufsc-competitions', 'created', $new_id );
+		$this->redirect_with_notice( Menu::PAGE_COMPETITIONS, 'created', $new_id );
 	}
 
 	public function handle_trash() {
-		$this->handle_simple_action( 'ufsc_competitions_trash_competition', 'trash', 'ufsc-competitions' );
+		$this->handle_simple_action( 'ufsc_competitions_trash_competition', 'trash', Menu::PAGE_COMPETITIONS );
 	}
 
 	public function handle_restore() {
-		$this->handle_simple_action( 'ufsc_competitions_restore_competition', 'restore', 'ufsc-competitions' );
+		$this->handle_simple_action( 'ufsc_competitions_restore_competition', 'restore', Menu::PAGE_COMPETITIONS );
 	}
 
 	public function handle_delete() {
-		$this->handle_simple_action( 'ufsc_competitions_delete_competition', 'delete', 'ufsc-competitions' );
+		$this->handle_simple_action( 'ufsc_competitions_delete_competition', 'delete', Menu::PAGE_COMPETITIONS );
+	}
+
+	public function handle_archive() {
+		$this->handle_simple_action( 'ufsc_competitions_archive_competition', 'archive', Menu::PAGE_COMPETITIONS );
 	}
 
 	private function handle_simple_action( $action, $method, $page_slug ) {
@@ -129,12 +139,22 @@ class Competitions_Page {
 			case 'trash':
 				$this->repository->soft_delete( $id );
 				$this->redirect_with_notice( $page_slug, 'trashed' );
+				break;
 			case 'restore':
 				$this->repository->restore( $id );
 				$this->redirect_with_notice( $page_slug, 'restored' );
+				break;
 			case 'delete':
+				if ( ! Capabilities::user_can_delete() ) {
+					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+				}
 				$this->repository->delete( $id );
 				$this->redirect_with_notice( $page_slug, 'deleted' );
+				break;
+			case 'archive':
+				$this->repository->archive( $id );
+				$this->redirect_with_notice( $page_slug, 'archived' );
+				break;
 		}
 	}
 
@@ -160,6 +180,7 @@ class Competitions_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la compétition', 'ufsc-licence-competition' ) : __( 'Nouvelle compétition', 'ufsc-licence-competition' ) ); ?></h1>
+			<?php $this->render_helper_notice( __( 'Créer et piloter vos événements (type, discipline, dates, statuts, forclusion).', 'ufsc-licence-competition' ) ); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_competition' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_competition">
@@ -279,6 +300,7 @@ class Competitions_Page {
 			'trashed'       => __( 'Compétition déplacée dans la corbeille.', 'ufsc-licence-competition' ),
 			'restored'      => __( 'Compétition restaurée.', 'ufsc-licence-competition' ),
 			'deleted'       => __( 'Compétition supprimée définitivement.', 'ufsc-licence-competition' ),
+			'archived'      => __( 'Compétition archivée.', 'ufsc-licence-competition' ),
 			'error_required'=> __( 'Veuillez renseigner les champs obligatoires.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 		);
@@ -289,5 +311,60 @@ class Competitions_Page {
 
 		$type = 'error_required' === $notice || 'not_found' === $notice ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
+	}
+
+	private function render_helper_notice( $message ) {
+		printf(
+			'<div class="notice notice-info ufsc-competitions-helper"><p>%s</p></div>',
+			esc_html( $message )
+		);
+	}
+
+	private function maybe_handle_bulk_actions( Competitions_Table $list_table, $page_slug ) {
+		$action = $list_table->current_action();
+		if ( ! $action ) {
+			return;
+		}
+
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( 'bulk-' . $list_table->_args['plural'] );
+
+		$ids = isset( $_POST['ids'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['ids'] ) ) : array();
+		$ids = array_filter( $ids );
+		if ( ! $ids ) {
+			return;
+		}
+
+		foreach ( $ids as $id ) {
+			switch ( $action ) {
+				case 'trash':
+					$this->repository->soft_delete( $id );
+					break;
+				case 'restore':
+					$this->repository->restore( $id );
+					break;
+				case 'delete':
+					if ( ! Capabilities::user_can_delete() ) {
+						wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+					}
+					$this->repository->delete( $id );
+					break;
+				case 'archive':
+					$this->repository->archive( $id );
+					break;
+			}
+		}
+
+		$notice_map = array(
+			'trash'   => 'trashed',
+			'restore' => 'restored',
+			'delete'  => 'deleted',
+			'archive' => 'archived',
+		);
+
+		$this->redirect_with_notice( $page_slug, $notice_map[ $action ] ?? 'updated' );
 	}
 }

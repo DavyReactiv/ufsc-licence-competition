@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -39,8 +40,9 @@ class Print_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Impression', 'ufsc-licence-competition' ); ?></h1>
+			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Imprimer fiches combats, tableaux, poules, brackets.', 'ufsc-licence-competition' ); ?></p></div>
 			<form method="get" class="ufsc-competitions-print-filter">
-				<input type="hidden" name="page" value="ufsc-competition-print" />
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_PRINT ); ?>" />
 				<label for="ufsc_print_competition" class="screen-reader-text"><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></label>
 				<select name="competition_id" id="ufsc_print_competition">
 					<option value="0"><?php esc_html_e( 'Sélectionner une compétition', 'ufsc-licence-competition' ); ?></option>

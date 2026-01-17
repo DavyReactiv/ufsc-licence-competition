@@ -20,4 +20,8 @@ class Capabilities {
 
 		return current_user_can( 'manage_options' );
 	}
+
+	public static function user_can_delete() {
+		return current_user_can( 'manage_options' );
+	}
 }

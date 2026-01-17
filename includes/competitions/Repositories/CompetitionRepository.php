@@ -93,6 +93,26 @@ class CompetitionRepository {
 		return $this->set_deleted_at( $id, null, 'restore' );
 	}
 
+	public function archive( $id ) {
+		global $wpdb;
+
+		$updated = $wpdb->update(
+			Db::competitions_table(),
+			array(
+				'status'     => 'archived',
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id() ?: null,
+			),
+			array( 'id' => absint( $id ) ),
+			array( '%s', '%s', '%d' ),
+			array( '%d' )
+		);
+
+		$this->logger->log( 'archive', 'competition', $id, 'Competition archived.', array() );
+
+		return $updated;
+	}
+
 	public function delete( $id ) {
 		global $wpdb;
 

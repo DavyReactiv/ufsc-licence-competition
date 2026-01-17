@@ -2,6 +2,8 @@
 
 namespace UFSC\Competitions\Admin\Tables;
 
+use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
@@ -42,10 +44,10 @@ class Categories_Table extends \WP_List_Table {
 		$current_page = max( 1, (int) $this->get_pagenum() );
 
 		$filters = array(
-			'view'           => isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all',
-			'competition_id' => isset( $_GET['ufsc_competition_id'] ) ? absint( $_GET['ufsc_competition_id'] ) : 0,
-			'discipline'     => isset( $_GET['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_discipline'] ) ) : '',
-			'search'         => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
+			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
+			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
+			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
 		$this->filters = $filters;
@@ -65,6 +67,7 @@ class Categories_Table extends \WP_List_Table {
 
 	public function get_columns() {
 		return array(
+			'cb'          => '<input type="checkbox" />',
 			'name'        => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline'  => __( 'Discipline', 'ufsc-licence-competition' ),
@@ -89,10 +92,26 @@ class Categories_Table extends \WP_List_Table {
 		return $views;
 	}
 
+	public function get_bulk_actions() {
+		$actions = array();
+		$view = $this->filters['view'] ?? 'all';
+
+		if ( 'trash' === $view ) {
+			$actions['restore'] = __( 'Restaurer', 'ufsc-licence-competition' );
+			if ( Capabilities::user_can_delete() ) {
+				$actions['delete'] = __( 'Supprimer définitivement', 'ufsc-licence-competition' );
+			}
+		} else {
+			$actions['trash'] = __( 'Mettre à la corbeille', 'ufsc-licence-competition' );
+		}
+
+		return $actions;
+	}
+
 	protected function column_name( $item ) {
 		$edit_url = add_query_arg(
 			array(
-				'page'        => 'ufsc-competition-categories',
+				'page'        => Menu::PAGE_CATEGORIES,
 				'ufsc_action' => 'edit',
 				'id'          => $item->id,
 			),
@@ -105,8 +124,9 @@ class Categories_Table extends \WP_List_Table {
 		if ( empty( $item->deleted_at ) ) {
 			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
 			$actions['trash'] = sprintf(
-				'<a href="%s">%s</a>',
+				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
 				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_category', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_category_' . $item->id ) ),
+				esc_attr__( 'Mettre cette catégorie à la corbeille ?', 'ufsc-licence-competition' ),
 				esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
 			);
 		} else {
@@ -115,14 +135,21 @@ class Categories_Table extends \WP_List_Table {
 				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_restore_category', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_restore_category_' . $item->id ) ),
 				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
 			);
-			$actions['delete'] = sprintf(
-				'<a href="%s" class="submitdelete">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_delete_category', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_delete_category_' . $item->id ) ),
-				esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
-			);
+			if ( Capabilities::user_can_delete() ) {
+				$actions['delete'] = sprintf(
+					'<a href="%s" class="submitdelete ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
+					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_delete_category', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_delete_category_' . $item->id ) ),
+					esc_attr__( 'Supprimer définitivement cette catégorie ?', 'ufsc-licence-competition' ),
+					esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
+				);
+			}
 		}
 
 		return $title . $this->row_actions( $actions );
+	}
+
+	public function column_cb( $item ) {
+		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', absint( $item->id ) );
 	}
 
 	protected function column_default( $item, $column_name ) {
@@ -181,7 +208,16 @@ class Categories_Table extends \WP_List_Table {
 	}
 
 	private function get_page_url() {
-		return admin_url( 'admin.php?page=ufsc-competition-categories' );
+		return admin_url( 'admin.php?page=' . $this->get_current_page_slug() );
+	}
+
+	private function get_current_page_slug() {
+		$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : '';
+		if ( '' === $page ) {
+			return Menu::PAGE_CATEGORIES;
+		}
+
+		return $page;
 	}
 
 	private function get_competition_name( $competition_id ) {
