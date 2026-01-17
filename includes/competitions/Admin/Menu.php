@@ -8,7 +8,9 @@ use UFSC\Competitions\Admin\Pages\Categories_Page;
 use UFSC\Competitions\Admin\Pages\Entries_Page;
 use UFSC\Competitions\Admin\Pages\Quality_Page;
 use UFSC\Competitions\Admin\Pages\Print_Page;
-use UFSC\Competitions\Admin\Pages\Placeholder_Page;
+use UFSC\Competitions\Admin\Pages\Guide_Page;
+use UFSC\Competitions\Admin\Pages\Bouts_Page;
+use UFSC\Competitions\Admin\Pages\Settings_Page;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -23,6 +25,7 @@ class Menu {
 	const PAGE_PRINT = 'ufsc_competitions_print';
 	const PAGE_BOUTS = 'ufsc_competitions_bouts';
 	const PAGE_SETTINGS = 'ufsc_competitions_settings';
+	const PAGE_GUIDE = 'ufsc_competitions_guide';
 
 	private static $registered = false;
 
@@ -102,6 +105,14 @@ class Menu {
 		$entries_page = new Entries_Page();
 		$entries_page->register_actions();
 
+		$bouts_page = new Bouts_Page();
+		$bouts_page->register_actions();
+
+		$settings_page = new Settings_Page();
+		$settings_page->register_actions();
+
+		$guide_page = new Guide_Page();
+
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
 			__( 'Compétitions', 'ufsc-licence-competition' ),
@@ -152,22 +163,34 @@ class Menu {
 		);
 		$assets->register( $hook_suffix );
 
-		$placeholder = new Placeholder_Page();
-		$subpages = array(
-			self::PAGE_BOUTS => __( 'Combats', 'ufsc-licence-competition' ),
-			self::PAGE_SETTINGS => __( 'Paramètres', 'ufsc-licence-competition' ),
+		$hook_suffix = add_submenu_page(
+			self::PARENT_SLUG,
+			__( 'Combats', 'ufsc-licence-competition' ),
+			__( 'Combats', 'ufsc-licence-competition' ),
+			$capability,
+			self::PAGE_BOUTS,
+			array( $bouts_page, 'render' )
 		);
+		$assets->register( $hook_suffix );
 
-		foreach ( $subpages as $slug => $label ) {
-			$hook_suffix = add_submenu_page(
-				self::PARENT_SLUG,
-				$label,
-				$label,
-				$capability,
-				$slug,
-				array( $placeholder, 'render' )
-			);
-			$assets->register( $hook_suffix );
-		}
+		$hook_suffix = add_submenu_page(
+			self::PARENT_SLUG,
+			__( 'Paramètres', 'ufsc-licence-competition' ),
+			__( 'Paramètres', 'ufsc-licence-competition' ),
+			$capability,
+			self::PAGE_SETTINGS,
+			array( $settings_page, 'render' )
+		);
+		$assets->register( $hook_suffix );
+
+		$hook_suffix = add_submenu_page(
+			self::PARENT_SLUG,
+			__( 'Aide & Guide', 'ufsc-licence-competition' ),
+			__( 'Aide & Guide', 'ufsc-licence-competition' ),
+			$capability,
+			self::PAGE_GUIDE,
+			array( $guide_page, 'render' )
+		);
+		$assets->register( $hook_suffix );
 	}
 }

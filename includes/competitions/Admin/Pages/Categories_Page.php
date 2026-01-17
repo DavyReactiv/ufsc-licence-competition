@@ -92,6 +92,13 @@ class Categories_Page {
 			'format'         => isset( $_POST['format'] ) ? sanitize_text_field( wp_unslash( $_POST['format'] ) ) : '',
 		);
 
+		if ( $data['competition_id'] ) {
+			$competition = $this->competition_repository->get( $data['competition_id'], true );
+			if ( $competition ) {
+				$data['discipline'] = $competition->discipline;
+			}
+		}
+
 		$data['discipline'] = DisciplineRegistry::normalize( $data['discipline'] );
 
 		if ( '' === $data['name'] || '' === $data['discipline'] ) {
@@ -166,6 +173,14 @@ class Categories_Page {
 		);
 
 		$competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
+		$locked_discipline = '';
+		if ( $values['competition_id'] ) {
+			$competition = $this->competition_repository->get( $values['competition_id'], true );
+			if ( $competition ) {
+				$locked_discipline = $competition->discipline;
+				$values['discipline'] = $competition->discipline;
+			}
+		}
 		$disciplines  = DisciplineRegistry::get_disciplines();
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer la catégorie', 'ufsc-licence-competition' );
 		?>
@@ -184,12 +199,18 @@ class Categories_Page {
 					<tr>
 						<th scope="row"><label for="ufsc_category_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<select name="discipline" id="ufsc_category_discipline" class="regular-text" required>
-								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
-								<?php foreach ( $disciplines as $value => $label ) : ?>
-									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['discipline'], $value ); ?>><?php echo esc_html( $label ); ?></option>
-								<?php endforeach; ?>
-							</select>
+							<?php if ( $locked_discipline ) : ?>
+								<input type="hidden" name="discipline" value="<?php echo esc_attr( $locked_discipline ); ?>">
+								<input type="text" class="regular-text" value="<?php echo esc_attr( DisciplineRegistry::get_label( $locked_discipline ) ); ?>" readonly>
+								<p class="description"><?php esc_html_e( 'La discipline est héritée de la compétition.', 'ufsc-licence-competition' ); ?></p>
+							<?php else : ?>
+								<select name="discipline" id="ufsc_category_discipline" class="regular-text" required>
+									<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+									<?php foreach ( $disciplines as $value => $label ) : ?>
+										<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['discipline'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							<?php endif; ?>
 						</td>
 					</tr>
 					<tr>

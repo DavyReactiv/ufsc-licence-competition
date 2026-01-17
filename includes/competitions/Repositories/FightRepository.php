@@ -16,6 +16,19 @@ class FightRepository {
 		$this->logger = new LogService();
 	}
 
+	public function get( $id, $include_deleted = false ) {
+		global $wpdb;
+
+		$where_deleted = $include_deleted ? '' : 'AND deleted_at IS NULL';
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM " . Db::fights_table() . " WHERE id = %d {$where_deleted}",
+				absint( $id )
+			)
+		);
+	}
+
 	public function list( array $filters, $limit, $offset ) {
 		global $wpdb;
 
@@ -24,6 +37,14 @@ class FightRepository {
 		$sql  .= $wpdb->prepare( ' LIMIT %d OFFSET %d', absint( $limit ), absint( $offset ) );
 
 		return $wpdb->get_results( $sql );
+	}
+
+	public function count( array $filters ) {
+		global $wpdb;
+
+		$where = $this->build_where( $filters );
+
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . Db::fights_table() . " {$where}" );
 	}
 
 	public function insert( array $data ) {
@@ -43,6 +64,44 @@ class FightRepository {
 		return $id;
 	}
 
+	public function update( $id, array $data ) {
+		global $wpdb;
+
+		$prepared = $this->sanitize( $data );
+		$prepared['updated_at'] = current_time( 'mysql' );
+		$prepared['updated_by'] = get_current_user_id() ?: null;
+
+		$updated = $wpdb->update(
+			Db::fights_table(),
+			$prepared,
+			array( 'id' => absint( $id ) ),
+			$this->get_update_format(),
+			array( '%d' )
+		);
+
+		$this->logger->log( 'update', 'fight', $id, 'Fight updated.', array( 'data' => $prepared ) );
+
+		return $updated;
+	}
+
+	public function soft_delete( $id ) {
+		return $this->set_deleted_at( $id, current_time( 'mysql' ), 'trash' );
+	}
+
+	public function restore( $id ) {
+		return $this->set_deleted_at( $id, null, 'restore' );
+	}
+
+	public function delete( $id ) {
+		global $wpdb;
+
+		$deleted = $wpdb->delete( Db::fights_table(), array( 'id' => absint( $id ) ), array( '%d' ) );
+
+		$this->logger->log( 'delete', 'fight', $id, 'Fight deleted permanently.', array() );
+
+		return $deleted;
+	}
+
 	public function delete_by_competition( $competition_id ) {
 		global $wpdb;
 
@@ -55,6 +114,27 @@ class FightRepository {
 		$this->logger->log( 'rollback', 'fight', $competition_id, 'Fight generation rollback.', array() );
 
 		return $deleted;
+	}
+
+	private function set_deleted_at( $id, $deleted_at, $action ) {
+		global $wpdb;
+
+		$updated = $wpdb->update(
+			Db::fights_table(),
+			array(
+				'deleted_at' => $deleted_at,
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id() ?: null,
+				'deleted_by' => $deleted_at ? ( get_current_user_id() ?: null ) : null,
+			),
+			array( 'id' => absint( $id ) ),
+			array( '%s', '%s', '%d', '%d' ),
+			array( '%d' )
+		);
+
+		$this->logger->log( $action, 'fight', $id, 'Fight status changed.', array( 'deleted_at' => $deleted_at ) );
+
+		return $updated;
 	}
 
 	private function sanitize( array $data ) {
@@ -82,8 +162,23 @@ class FightRepository {
 
 		$where = array( '1=1' );
 
+		$view = $filters['view'] ?? 'all';
+
+		if ( 'trash' === $view ) {
+			$where[] = 'deleted_at IS NOT NULL';
+		} else {
+			$where[] = 'deleted_at IS NULL';
+		}
+
 		if ( ! empty( $filters['competition_id'] ) ) {
 			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
+		}
+
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
+			$ids = array_filter( array_map( 'absint', $filters['competition_ids'] ) );
+			if ( $ids ) {
+				$where[] = 'competition_id IN (' . implode( ',', $ids ) . ')';
+			}
 		}
 
 		if ( ! empty( $filters['category_id'] ) ) {
@@ -99,5 +194,9 @@ class FightRepository {
 
 	private function get_insert_format() {
 		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
+	}
+
+	private function get_update_format() {
+		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d' );
 	}
 }

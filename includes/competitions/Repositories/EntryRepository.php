@@ -168,6 +168,13 @@ class EntryRepository {
 			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
 		}
 
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
+			$ids = array_filter( array_map( 'absint', $filters['competition_ids'] ) );
+			if ( $ids ) {
+				$where[] = 'competition_id IN (' . implode( ',', $ids ) . ')';
+			}
+		}
+
 		if ( ! empty( $filters['status'] ) ) {
 			$where[] = $wpdb->prepare( 'status = %s', sanitize_key( $filters['status'] ) );
 		}

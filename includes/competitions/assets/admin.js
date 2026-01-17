@@ -36,10 +36,12 @@ document.addEventListener('submit', (event) => {
     return;
   }
 
-  if (action === 'trash' || action === 'delete') {
+  if (action === 'trash' || action === 'delete' || action === 'archive') {
     const message =
       action === 'delete'
         ? 'Supprimer définitivement les éléments sélectionnés ?'
+        : action === 'archive'
+        ? 'Archiver les éléments sélectionnés ?'
         : 'Mettre les éléments sélectionnés à la corbeille ?';
     if (!window.confirm(message)) {
       event.preventDefault();

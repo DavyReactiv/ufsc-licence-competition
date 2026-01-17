@@ -29,6 +29,20 @@ class CategoryRepository {
 		);
 	}
 
+	public function get_by_competition_and_name( $competition_id, $name, $include_deleted = true ) {
+		global $wpdb;
+
+		$where_deleted = $include_deleted ? '' : 'AND deleted_at IS NULL';
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM " . Db::categories_table() . " WHERE competition_id = %d AND name = %s {$where_deleted}",
+				absint( $competition_id ),
+				sanitize_text_field( $name )
+			)
+		);
+	}
+
 	public function list( array $filters, $limit, $offset ) {
 		global $wpdb;
 

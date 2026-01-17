@@ -120,6 +120,11 @@ class Competitions_Table extends \WP_List_Table {
 
 		$actions = array();
 		if ( empty( $item->deleted_at ) ) {
+			$actions['view'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'view', 'id' => $item->id ), admin_url( 'admin.php' ) ) ),
+				esc_html__( 'Voir', 'ufsc-licence-competition' )
+			);
 			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
 			if ( 'archived' !== $item->status ) {
 				$actions['archive'] = sprintf(

@@ -123,6 +123,32 @@ class CompetitionRepository {
 		return $deleted;
 	}
 
+	public function update_status( $id, $status ) {
+		global $wpdb;
+
+		$status_options = array( 'draft', 'preparing', 'open', 'running', 'closed', 'archived' );
+		$status = sanitize_key( $status );
+		if ( ! in_array( $status, $status_options, true ) ) {
+			return false;
+		}
+
+		$updated = $wpdb->update(
+			Db::competitions_table(),
+			array(
+				'status'     => $status,
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id() ?: null,
+			),
+			array( 'id' => absint( $id ) ),
+			array( '%s', '%s', '%d' ),
+			array( '%d' )
+		);
+
+		$this->logger->log( 'status', 'competition', $id, 'Competition status updated.', array( 'status' => $status ) );
+
+		return $updated;
+	}
+
 	private function set_deleted_at( $id, $deleted_at, $action ) {
 		global $wpdb;
 
