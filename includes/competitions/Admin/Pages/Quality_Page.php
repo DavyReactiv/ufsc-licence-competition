@@ -33,8 +33,10 @@ class Quality_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Contrôles qualité', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Contrôlez les inscriptions avant génération des combats.', 'ufsc-licence-competition' ); ?></p>
-			<?php $table->display(); ?>
+			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Détecter anomalies licences, catégories incohérentes, poids manquants.', 'ufsc-licence-competition' ); ?></p></div>
+			<div class="ufsc-competitions-table-wrap">
+				<?php $table->display(); ?>
+			</div>
 		</div>
 		<?php
 	}

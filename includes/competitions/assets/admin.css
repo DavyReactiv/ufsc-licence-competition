@@ -10,6 +10,18 @@
 	margin-top: 16px;
 }
 
+.ufsc-competitions-admin .ufsc-competitions-helper {
+	margin: 12px 0 16px;
+}
+
+.ufsc-competitions-table-wrap {
+	overflow-x: auto;
+}
+
+.ufsc-competitions-table-wrap .wp-list-table {
+	min-width: 960px;
+}
+
 .ufsc-competitions-admin .widefat {
 	max-width: 100%;
 }

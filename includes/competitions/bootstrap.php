@@ -34,6 +34,8 @@ require_once __DIR__ . '/Admin/Pages/Print_Page.php';
 require_once __DIR__ . '/Admin/Pages/Placeholder_Page.php';
 
 class Bootstrap {
+	private static $initialized = false;
+	private static $module_registered = false;
 	private static $instance;
 	private $plugin_file;
 
@@ -42,6 +44,12 @@ class Bootstrap {
 	}
 
 	public static function init( $plugin_file ) {
+		if ( self::$initialized ) {
+			return self::$instance;
+		}
+
+		self::$initialized = true;
+
 		if ( null === self::$instance ) {
 			self::$instance = new self( $plugin_file );
 			self::$instance->register();
@@ -58,6 +66,11 @@ class Bootstrap {
 	}
 
 	public function register_module() {
+		if ( self::$module_registered ) {
+			return;
+		}
+		self::$module_registered = true;
+
 		if ( ! is_admin() ) {
 			return;
 		}
