@@ -331,14 +331,14 @@ class UFSC_LC_ASPTT_Import_Service {
 			fputcsv(
 				$output,
 				array(
-					$error['nom'],
-					$error['prenom'],
-					$error['date_naissance'],
-					$error['note'],
-					$error['asptt_number'],
-					$error['source_created_at_raw'],
-					$error['status'],
-					$error['error'],
+					$this->sanitize_csv_value( $error['nom'] ),
+					$this->sanitize_csv_value( $error['prenom'] ),
+					$this->sanitize_csv_value( $error['date_naissance'] ),
+					$this->sanitize_csv_value( $error['note'] ),
+					$this->sanitize_csv_value( $error['asptt_number'] ),
+					$this->sanitize_csv_value( $error['source_created_at_raw'] ),
+					$this->sanitize_csv_value( $error['status'] ),
+					$this->sanitize_csv_value( $error['error'] ),
 				),
 				';'
 			);
@@ -1310,6 +1310,19 @@ class UFSC_LC_ASPTT_Import_Service {
 		$value = preg_replace( '/\s+/', ' ', $value );
 
 		return trim( $value );
+	}
+
+	private function sanitize_csv_value( $value ) {
+		$value = (string) $value;
+		if ( '' === $value ) {
+			return $value;
+		}
+
+		if ( preg_match( '/^[=+\-@]/', $value ) ) {
+			return "'" . $value;
+		}
+
+		return $value;
 	}
 
 	private function parse_date( $value ) {
