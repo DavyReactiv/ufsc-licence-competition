@@ -9,6 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once __DIR__ . '/Db.php';
 require_once __DIR__ . '/Capabilities.php';
 require_once __DIR__ . '/Services/DisciplineRegistry.php';
+require_once __DIR__ . '/Services/CategoryPresetRegistry.php';
 require_once __DIR__ . '/Services/CategoryAssigner.php';
 require_once __DIR__ . '/Services/PoolGenerator.php';
 require_once __DIR__ . '/Services/BracketGenerator.php';
@@ -25,13 +26,16 @@ require_once __DIR__ . '/Admin/Menu.php';
 require_once __DIR__ . '/Admin/Tables/Competitions_Table.php';
 require_once __DIR__ . '/Admin/Tables/Categories_Table.php';
 require_once __DIR__ . '/Admin/Tables/Entries_Table.php';
+require_once __DIR__ . '/Admin/Tables/Fights_Table.php';
 require_once __DIR__ . '/Admin/Tables/Quality_Table.php';
 require_once __DIR__ . '/Admin/Pages/Competitions_Page.php';
 require_once __DIR__ . '/Admin/Pages/Categories_Page.php';
 require_once __DIR__ . '/Admin/Pages/Entries_Page.php';
+require_once __DIR__ . '/Admin/Pages/Bouts_Page.php';
+require_once __DIR__ . '/Admin/Pages/Settings_Page.php';
+require_once __DIR__ . '/Admin/Pages/Guide_Page.php';
 require_once __DIR__ . '/Admin/Pages/Quality_Page.php';
 require_once __DIR__ . '/Admin/Pages/Print_Page.php';
-require_once __DIR__ . '/Admin/Pages/Placeholder_Page.php';
 
 class Bootstrap {
 	private static $initialized = false;
