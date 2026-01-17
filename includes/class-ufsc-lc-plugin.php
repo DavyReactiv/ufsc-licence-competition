@@ -19,7 +19,10 @@ require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-settings-page.php';
-require_once __DIR__ . '/competitions/bootstrap.php';
+$competitions_bootstrap = __DIR__ . '/competitions/bootstrap.php';
+if ( file_exists( $competitions_bootstrap ) ) {
+	require_once $competitions_bootstrap;
+}
 
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
@@ -59,6 +62,19 @@ class UFSC_LC_Plugin {
 		$role = get_role( 'administrator' );
 		if ( $role && ! $role->has_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY ) ) {
 			$role->add_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY );
+		}
+		if ( $role ) {
+			$competition_caps = array(
+				'ufsc_manage_competitions',
+				'ufsc_manage_competition_results',
+				'ufsc_club_manage_entries',
+			);
+
+			foreach ( $competition_caps as $capability ) {
+				if ( ! $role->has_cap( $capability ) ) {
+					$role->add_cap( $capability );
+				}
+			}
 		}
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
@@ -102,8 +118,9 @@ class UFSC_LC_Plugin {
 		$shortcode = new UFSC_LC_Club_Licences_Shortcode( $this->legacy_enabled );
 		$shortcode->register();
 
-		$competitions = new \UFSC\Competitions\Bootstrap( $this->plugin_file );
-		$competitions->register();
+		if ( class_exists( '\\UFSC\\Competitions\\Bootstrap' ) ) {
+			\UFSC\Competitions\Bootstrap::init( $this->plugin_file );
+		}
 	}
 
 	public function load_textdomain() {

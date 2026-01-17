@@ -20,10 +20,20 @@ require_once __DIR__ . '/Admin/Pages/Categories_Page.php';
 require_once __DIR__ . '/Admin/Pages/Placeholder_Page.php';
 
 class Bootstrap {
+	private static $instance;
 	private $plugin_file;
 
 	public function __construct( $plugin_file ) {
 		$this->plugin_file = $plugin_file;
+	}
+
+	public static function init( $plugin_file ) {
+		if ( null === self::$instance ) {
+			self::$instance = new self( $plugin_file );
+			self::$instance->register();
+		}
+
+		return self::$instance;
 	}
 
 	public function register() {
