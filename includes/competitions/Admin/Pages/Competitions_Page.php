@@ -92,11 +92,31 @@ class Competitions_Page {
 	}
 
 	public function handle_save() {
-		if ( ! Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		$action_value = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
+		$nonce_value  = isset( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
+		$nonce_ok     = $nonce_value ? wp_verify_nonce( $nonce_value, 'ufsc_competitions_save_competition' ) : false;
+		$can_manage   = Capabilities::user_can_manage();
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				sprintf(
+					'[UFSC LC] competitions save: action=%s user=%d nonce_present=%s nonce_ok=%s can_manage=%s',
+					$action_value,
+					get_current_user_id(),
+					$nonce_value ? 'yes' : 'no',
+					$nonce_ok ? 'yes' : 'no',
+					$can_manage ? 'yes' : 'no'
+				)
+			);
 		}
 
-		check_admin_referer( 'ufsc_competitions_save_competition' );
+		if ( ! $can_manage ) {
+			$this->redirect_with_notice( Menu::PAGE_COMPETITIONS, 'error_permission' );
+		}
+
+		if ( ! $nonce_ok ) {
+			$this->redirect_with_notice( Menu::PAGE_COMPETITIONS, 'error_nonce' );
+		}
 
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		$data = array(
@@ -415,6 +435,8 @@ class Competitions_Page {
 			'fights_exists' => __( 'Des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
 			'fights_blocked' => __( 'Impossible de générer les combats : catégories ou inscriptions validées manquantes.', 'ufsc-licence-competition' ),
 			'error_required'=> __( 'Veuillez renseigner les champs obligatoires.', 'ufsc-licence-competition' ),
+			'error_nonce'   => __( 'Requête expirée ou invalide. Merci de réessayer.', 'ufsc-licence-competition' ),
+			'error_permission' => __( 'Vous ne disposez pas des droits nécessaires pour créer une compétition.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 		);
 
@@ -422,7 +444,7 @@ class Competitions_Page {
 			return;
 		}
 
-		$error_notices = array( 'error_required', 'not_found', 'preset_missing', 'fights_exists', 'fights_blocked' );
+		$error_notices = array( 'error_required', 'error_nonce', 'error_permission', 'not_found', 'preset_missing', 'fights_exists', 'fights_blocked' );
 		$type = in_array( $notice, $error_notices, true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
