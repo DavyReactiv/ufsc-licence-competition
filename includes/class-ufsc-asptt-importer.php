@@ -924,20 +924,27 @@ class UFSC_LC_ASPTT_Importer {
 			}
 		} else {
 			if ( ! empty( $existing_preview['file_path'] ) && $is_reprocess ) {
-				if ( ! $use_season_override && isset( $existing_preview['use_season_override'] ) ) {
-					$use_season_override = (bool) $existing_preview['use_season_override'];
-				}
-				if ( null === $season_end_year_override && ! empty( $existing_preview['season_end_year_override'] ) ) {
-					$season_end_year_override = (int) $existing_preview['season_end_year_override'];
-				}
+				if ( ! $this->is_valid_preview_path( $existing_preview['file_path'] ) ) {
+					$preview['notice'] = array(
+						'type'    => 'error',
+						'message' => __( 'Le fichier de prévisualisation est introuvable ou invalide. Merci de recharger le CSV.', 'ufsc-licence-competition' ),
+					);
+				} else {
+					if ( ! $use_season_override && isset( $existing_preview['use_season_override'] ) ) {
+						$use_season_override = (bool) $existing_preview['use_season_override'];
+					}
+					if ( null === $season_end_year_override && ! empty( $existing_preview['season_end_year_override'] ) ) {
+						$season_end_year_override = (int) $existing_preview['season_end_year_override'];
+					}
 
-				if ( ! $use_season_override ) {
-					$season_end_year_override = null;
-				}
+					if ( ! $use_season_override ) {
+						$season_end_year_override = null;
+					}
 
-				$preview              = $this->service->build_preview( $existing_preview['file_path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
-				$preview['file_path'] = $existing_preview['file_path'];
-				$preview['file_name'] = isset( $existing_preview['file_name'] ) ? $existing_preview['file_name'] : '';
+					$preview              = $this->service->build_preview( $existing_preview['file_path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
+					$preview['file_path'] = $existing_preview['file_path'];
+					$preview['file_name'] = isset( $existing_preview['file_name'] ) ? $existing_preview['file_name'] : '';
+				}
 			}
 		}
 
@@ -980,6 +987,12 @@ class UFSC_LC_ASPTT_Importer {
 		$preview = $this->get_preview();
 		if ( empty( $preview['file_path'] ) ) {
 			wp_safe_redirect( $this->get_admin_url() );
+			exit;
+		}
+		if ( ! $this->is_valid_preview_path( $preview['file_path'] ) ) {
+			delete_option( self::SESSION_KEY );
+			$redirect = $this->add_notice_args( $this->get_admin_url(), 'error', __( 'Le fichier d’import est introuvable ou invalide. Merci de recharger le CSV.', 'ufsc-licence-competition' ) );
+			wp_safe_redirect( $redirect );
 			exit;
 		}
 
@@ -1417,6 +1430,22 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_clubs_table() {
 		global $wpdb;
 		return $wpdb->prefix . 'ufsc_clubs';
+	}
+
+	private function is_valid_preview_path( $file_path ) {
+		if ( ! $file_path ) {
+			return false;
+		}
+
+		$upload_dir = wp_upload_dir();
+		$base_dir   = trailingslashit( wp_normalize_path( $upload_dir['basedir'] ) ) . 'ufsc-lc/';
+		$path       = wp_normalize_path( $file_path );
+
+		if ( 0 !== strpos( $path, $base_dir ) ) {
+			return false;
+		}
+
+		return is_readable( $file_path );
 	}
 
 	private function get_aliases_table() {
