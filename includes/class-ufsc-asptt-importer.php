@@ -968,7 +968,7 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['auto_save_alias']           = $auto_save_alias;
 		}
 
-		update_option( self::SESSION_KEY, $preview, false );
+		$this->persist_preview( $preview );
 
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
@@ -990,7 +990,7 @@ class UFSC_LC_ASPTT_Importer {
 			exit;
 		}
 		if ( ! $this->is_valid_preview_path( $preview['file_path'] ) ) {
-			delete_option( self::SESSION_KEY );
+			$this->clear_preview();
 			$redirect = $this->add_notice_args( $this->get_admin_url(), 'error', __( 'Le fichier d’import est introuvable ou invalide. Merci de recharger le CSV.', 'ufsc-licence-competition' ) );
 			wp_safe_redirect( $redirect );
 			exit;
@@ -1053,7 +1053,7 @@ class UFSC_LC_ASPTT_Importer {
 				'message' => __( 'Simulation enregistrée.', 'ufsc-licence-competition' ),
 			);
 
-			update_option( self::SESSION_KEY, $preview, false );
+			$this->persist_preview( $preview );
 			wp_safe_redirect( $this->get_admin_url() );
 			exit;
 		}
@@ -1131,7 +1131,7 @@ class UFSC_LC_ASPTT_Importer {
 			$this->persist_last_import( $preview, $result );
 		}
 
-		update_option( self::SESSION_KEY, $preview, false );
+		$this->persist_preview( $preview );
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
 	}
@@ -1178,7 +1178,7 @@ class UFSC_LC_ASPTT_Importer {
 
 		$preview = $this->get_preview();
 		$this->clear_preview_files( $preview );
-		delete_option( self::SESSION_KEY );
+		$this->clear_preview();
 
 		$redirect_url = $this->add_notice_args( $redirect_url, 'success', __( 'Prévisualisation annulée.', 'ufsc-licence-competition' ) );
 		wp_safe_redirect( $redirect_url );
@@ -1333,8 +1333,38 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	private function get_preview() {
-		$preview = get_option( self::SESSION_KEY, array() );
+		$user_id = get_current_user_id();
+		$preview = array();
+
+		if ( $user_id ) {
+			$preview = get_user_meta( $user_id, self::SESSION_KEY, true );
+		}
+
+		if ( empty( $preview ) ) {
+			$preview = get_option( self::SESSION_KEY, array() );
+		}
+
 		return is_array( $preview ) ? $preview : array();
+	}
+
+	private function persist_preview( $preview ) {
+		$user_id = get_current_user_id();
+
+		if ( $user_id ) {
+			update_user_meta( $user_id, self::SESSION_KEY, $preview );
+			delete_option( self::SESSION_KEY );
+			return;
+		}
+
+		update_option( self::SESSION_KEY, $preview, false );
+	}
+
+	private function clear_preview() {
+		$user_id = get_current_user_id();
+
+		if ( $user_id ) {
+			delete_user_meta( $user_id, self::SESSION_KEY );
+		}
 	}
 
 	private function get_last_import() {
