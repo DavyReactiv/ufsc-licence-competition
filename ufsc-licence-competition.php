@@ -2,8 +2,10 @@
 /**
  * Plugin Name: UFSC Licence Competition
  * Description: Add-on UFSC pour associer des PDF nominatives aux licences officielles et préparer les évolutions compétitions.
+ * Plugin URI: https://studioreactiv.fr/
  * Version: 1.4.0
- * Author: UFSC
+ * Author: StudioReactiv
+ * Author URI: https://studioreactiv.fr/
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: ufsc-licence-competition
