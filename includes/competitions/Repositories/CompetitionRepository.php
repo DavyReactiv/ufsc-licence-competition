@@ -112,9 +112,10 @@ class CompetitionRepository {
 				'deleted_at' => $deleted_at,
 				'updated_at' => current_time( 'mysql' ),
 				'updated_by' => get_current_user_id() ?: null,
+				'deleted_by' => $deleted_at ? ( get_current_user_id() ?: null ) : null,
 			),
 			array( 'id' => absint( $id ) ),
-			array( '%s', '%s', '%d' ),
+			array( '%s', '%s', '%d', '%d' ),
 			array( '%d' )
 		);
 
@@ -124,7 +125,7 @@ class CompetitionRepository {
 	}
 
 	private function sanitize( array $data ) {
-		$status_options = array( 'draft', 'open', 'closed' );
+		$status_options = array( 'draft', 'preparing', 'open', 'running', 'closed', 'archived' );
 
 		$status = sanitize_text_field( $data['status'] ?? 'draft' );
 		if ( ! in_array( $status, $status_options, true ) ) {
@@ -141,6 +142,9 @@ class CompetitionRepository {
 			'end_date'             => $this->sanitize_date( $data['end_date'] ?? null ),
 			'registration_deadline'=> $this->sanitize_date( $data['registration_deadline'] ?? null ),
 			'status'               => $status,
+			'age_reference'        => sanitize_text_field( $data['age_reference'] ?? '12-31' ),
+			'weight_tolerance'     => isset( $data['weight_tolerance'] ) ? (float) $data['weight_tolerance'] : 1.0,
+			'allowed_formats'      => sanitize_text_field( $data['allowed_formats'] ?? '' ),
 		);
 	}
 
@@ -174,6 +178,10 @@ class CompetitionRepository {
 			$where[] = $wpdb->prepare( 'status = %s', sanitize_text_field( $filters['status'] ) );
 		}
 
+		if ( ! empty( $filters['discipline'] ) ) {
+			$where[] = $wpdb->prepare( 'discipline = %s', sanitize_text_field( $filters['discipline'] ) );
+		}
+
 		if ( ! empty( $filters['search'] ) ) {
 			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
 			$where[] = $wpdb->prepare( '(name LIKE %s OR location LIKE %s)', $like, $like );
@@ -183,10 +191,10 @@ class CompetitionRepository {
 	}
 
 	private function get_insert_format() {
-		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
+		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%d', '%d', '%s', '%s' );
 	}
 
 	private function get_update_format() {
-		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' );
+		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%d' );
 	}
 }

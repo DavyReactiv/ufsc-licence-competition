@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Admin\Tables\Competitions_Table;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -80,7 +81,12 @@ class Competitions_Page {
 			'end_date'              => isset( $_POST['end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['end_date'] ) ) : '',
 			'registration_deadline' => isset( $_POST['registration_deadline'] ) ? sanitize_text_field( wp_unslash( $_POST['registration_deadline'] ) ) : '',
 			'status'                => isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'draft',
+			'age_reference'         => isset( $_POST['age_reference'] ) ? sanitize_text_field( wp_unslash( $_POST['age_reference'] ) ) : '12-31',
+			'weight_tolerance'      => isset( $_POST['weight_tolerance'] ) ? sanitize_text_field( wp_unslash( $_POST['weight_tolerance'] ) ) : '1',
+			'allowed_formats'       => isset( $_POST['allowed_formats'] ) ? sanitize_text_field( wp_unslash( $_POST['allowed_formats'] ) ) : '',
 		);
+
+		$data['discipline'] = DisciplineRegistry::normalize( $data['discipline'] );
 
 		if ( '' === $data['name'] || '' === $data['discipline'] || '' === $data['type'] || '' === $data['season'] ) {
 			$this->redirect_with_notice( 'ufsc-competitions', 'error_required', $id, $data );
@@ -144,9 +150,13 @@ class Competitions_Page {
 			'end_date'              => $item->end_date ?? '',
 			'registration_deadline' => $item->registration_deadline ?? '',
 			'status'                => $item->status ?? 'draft',
+			'age_reference'         => $item->age_reference ?? '12-31',
+			'weight_tolerance'      => $item->weight_tolerance ?? 1,
+			'allowed_formats'       => $item->allowed_formats ?? '',
 		);
 
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer la compétition', 'ufsc-licence-competition' );
+		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la compétition', 'ufsc-licence-competition' ) : __( 'Nouvelle compétition', 'ufsc-licence-competition' ) ); ?></h1>
@@ -161,13 +171,20 @@ class Competitions_Page {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_competition_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="discipline" type="text" id="ufsc_competition_discipline" class="regular-text" value="<?php echo esc_attr( $values['discipline'] ); ?>" required></td>
+						<td>
+							<select name="discipline" id="ufsc_competition_discipline" class="regular-text" required>
+								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+								<?php foreach ( $disciplines as $value => $label ) : ?>
+									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['discipline'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_competition_type"><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
 							<select name="type" id="ufsc_competition_type" class="regular-text" required>
-								<?php $types = array( 'championnat' => __( 'Championnat', 'ufsc-licence-competition' ), 'open' => __( 'Open', 'ufsc-licence-competition' ), 'gala' => __( 'Gala', 'ufsc-licence-competition' ), 'interclub' => __( 'Interclub', 'ufsc-licence-competition' ) ); ?>
+								<?php $types = array( 'regional' => __( 'Régional', 'ufsc-licence-competition' ), 'national' => __( 'National', 'ufsc-licence-competition' ), 'open' => __( 'Open', 'ufsc-licence-competition' ), 'gala' => __( 'Gala', 'ufsc-licence-competition' ), 'interclub' => __( 'Interclub', 'ufsc-licence-competition' ) ); ?>
 								<?php foreach ( $types as $value => $label ) : ?>
 									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['type'], $value ); ?>><?php echo esc_html( $label ); ?></option>
 								<?php endforeach; ?>
@@ -199,9 +216,32 @@ class Competitions_Page {
 						<td>
 							<select name="status" id="ufsc_competition_status" class="regular-text">
 								<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
+								<option value="preparing" <?php selected( $values['status'], 'preparing' ); ?>><?php esc_html_e( 'Préparation', 'ufsc-licence-competition' ); ?></option>
 								<option value="open" <?php selected( $values['status'], 'open' ); ?>><?php esc_html_e( 'Ouvert', 'ufsc-licence-competition' ); ?></option>
+								<option value="running" <?php selected( $values['status'], 'running' ); ?>><?php esc_html_e( 'En cours', 'ufsc-licence-competition' ); ?></option>
 								<option value="closed" <?php selected( $values['status'], 'closed' ); ?>><?php esc_html_e( 'Clos', 'ufsc-licence-competition' ); ?></option>
+								<option value="archived" <?php selected( $values['status'], 'archived' ); ?>><?php esc_html_e( 'Archivé', 'ufsc-licence-competition' ); ?></option>
 							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_competition_age_reference"><?php esc_html_e( 'Référence d\'âge', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="age_reference" id="ufsc_competition_age_reference" class="regular-text">
+								<option value="12-31" <?php selected( $values['age_reference'], '12-31' ); ?>><?php esc_html_e( '31/12', 'ufsc-licence-competition' ); ?></option>
+								<option value="08-31" <?php selected( $values['age_reference'], '08-31' ); ?>><?php esc_html_e( '31/08', 'ufsc-licence-competition' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_competition_weight_tolerance"><?php esc_html_e( 'Tolérance pesée (kg)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="weight_tolerance" type="number" step="0.1" min="0" id="ufsc_competition_weight_tolerance" value="<?php echo esc_attr( $values['weight_tolerance'] ); ?>"></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_competition_allowed_formats"><?php esc_html_e( 'Formats autorisés', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<input name="allowed_formats" type="text" id="ufsc_competition_allowed_formats" class="regular-text" value="<?php echo esc_attr( $values['allowed_formats'] ); ?>" placeholder="<?php esc_attr_e( 'pool, single_elim', 'ufsc-licence-competition' ); ?>">
+							<p class="description"><?php esc_html_e( 'Séparer par des virgules.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 				</table>

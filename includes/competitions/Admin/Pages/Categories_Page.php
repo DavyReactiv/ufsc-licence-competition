@@ -6,6 +6,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Admin\Tables\Categories_Table;
+use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -75,6 +76,7 @@ class Categories_Page {
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		$data = array(
 			'competition_id' => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'discipline'     => isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '',
 			'name'           => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
 			'age_min'        => isset( $_POST['age_min'] ) ? sanitize_text_field( wp_unslash( $_POST['age_min'] ) ) : '',
 			'age_max'        => isset( $_POST['age_max'] ) ? sanitize_text_field( wp_unslash( $_POST['age_max'] ) ) : '',
@@ -85,7 +87,9 @@ class Categories_Page {
 			'format'         => isset( $_POST['format'] ) ? sanitize_text_field( wp_unslash( $_POST['format'] ) ) : '',
 		);
 
-		if ( '' === $data['name'] ) {
+		$data['discipline'] = DisciplineRegistry::normalize( $data['discipline'] );
+
+		if ( '' === $data['name'] || '' === $data['discipline'] ) {
 			$this->redirect_with_notice( 'ufsc-competition-categories', 'error_required', $id );
 		}
 
@@ -139,6 +143,7 @@ class Categories_Page {
 		$values = array(
 			'id'             => $item->id ?? 0,
 			'competition_id' => $item->competition_id ?? 0,
+			'discipline'     => $item->discipline ?? '',
 			'name'           => $item->name ?? '',
 			'age_min'        => $item->age_min ?? '',
 			'age_max'        => $item->age_max ?? '',
@@ -150,6 +155,7 @@ class Categories_Page {
 		);
 
 		$competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
+		$disciplines  = DisciplineRegistry::get_disciplines();
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer la catégorie', 'ufsc-licence-competition' );
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -162,6 +168,17 @@ class Categories_Page {
 					<tr>
 						<th scope="row"><label for="ufsc_category_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="name" type="text" id="ufsc_category_name" class="regular-text" value="<?php echo esc_attr( $values['name'] ); ?>" required></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_category_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="discipline" id="ufsc_category_discipline" class="regular-text" required>
+								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+								<?php foreach ( $disciplines as $value => $label ) : ?>
+									<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['discipline'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_category_competition"><?php esc_html_e( 'Compétition (optionnel)', 'ufsc-licence-competition' ); ?></label></th>
@@ -233,7 +250,7 @@ class Categories_Page {
 			'trashed'       => __( 'Catégorie déplacée dans la corbeille.', 'ufsc-licence-competition' ),
 			'restored'      => __( 'Catégorie restaurée.', 'ufsc-licence-competition' ),
 			'deleted'       => __( 'Catégorie supprimée définitivement.', 'ufsc-licence-competition' ),
-			'error_required'=> __( 'Veuillez renseigner le nom de la catégorie.', 'ufsc-licence-competition' ),
+			'error_required'=> __( 'Veuillez renseigner le nom et la discipline de la catégorie.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Catégorie introuvable.', 'ufsc-licence-competition' ),
 		);
 

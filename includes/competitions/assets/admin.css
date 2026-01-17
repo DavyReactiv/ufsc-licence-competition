@@ -9,3 +9,53 @@
 .ufsc-competitions-admin .notice {
 	margin-top: 16px;
 }
+
+.ufsc-competitions-admin .widefat {
+	max-width: 100%;
+}
+
+.ufsc-competitions-print-filter {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.ufsc-print-area {
+	background: #fff;
+	padding: 16px;
+	border: 1px solid #ccd0d4;
+}
+
+.ufsc-print-header h1 {
+	margin-bottom: 8px;
+}
+
+.ufsc-print-meta {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+@media print {
+	#adminmenuwrap,
+	#adminmenuback,
+	#wpadminbar,
+	.update-nag,
+	.notice,
+	.page-title-action,
+	.ufsc-competitions-print-filter,
+	.nav-tab-wrapper,
+	#wpfooter {
+		display: none !important;
+	}
+
+	.ufsc-print-area {
+		border: none;
+		padding: 0;
+	}
+}

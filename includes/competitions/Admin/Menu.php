@@ -5,6 +5,9 @@ namespace UFSC\Competitions\Admin;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Pages\Competitions_Page;
 use UFSC\Competitions\Admin\Pages\Categories_Page;
+use UFSC\Competitions\Admin\Pages\Entries_Page;
+use UFSC\Competitions\Admin\Pages\Quality_Page;
+use UFSC\Competitions\Admin\Pages\Print_Page;
 use UFSC\Competitions\Admin\Pages\Placeholder_Page;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -43,6 +46,9 @@ class Menu {
 		$categories_page = new Categories_Page();
 		$categories_page->register_actions();
 
+		$entries_page = new Entries_Page();
+		$entries_page->register_actions();
+
 		$hook_suffix = add_submenu_page(
 			'ufsc-competitions',
 			__( 'Compétitions', 'ufsc-licence-competition' ),
@@ -63,11 +69,39 @@ class Menu {
 		);
 		$assets->register( $hook_suffix );
 
+		$hook_suffix = add_submenu_page(
+			'ufsc-competitions',
+			__( 'Inscriptions', 'ufsc-licence-competition' ),
+			__( 'Inscriptions', 'ufsc-licence-competition' ),
+			$capability,
+			'ufsc-competition-registrations',
+			array( $entries_page, 'render' )
+		);
+		$assets->register( $hook_suffix );
+
+		$hook_suffix = add_submenu_page(
+			'ufsc-competitions',
+			__( 'Contrôles qualité', 'ufsc-licence-competition' ),
+			__( 'Contrôles qualité', 'ufsc-licence-competition' ),
+			$capability,
+			'ufsc-competition-quality',
+			array( new Quality_Page(), 'render' )
+		);
+		$assets->register( $hook_suffix );
+
+		$hook_suffix = add_submenu_page(
+			'ufsc-competitions',
+			__( 'Impression', 'ufsc-licence-competition' ),
+			__( 'Impression', 'ufsc-licence-competition' ),
+			$capability,
+			'ufsc-competition-print',
+			array( new Print_Page(), 'render' )
+		);
+		$assets->register( $hook_suffix );
+
 		$placeholder = new Placeholder_Page();
 		$subpages = array(
-			'ufsc-competition-registrations' => __( 'Inscriptions', 'ufsc-licence-competition' ),
 			'ufsc-competition-bouts' => __( 'Combats', 'ufsc-licence-competition' ),
-			'ufsc-competition-print' => __( 'Impression', 'ufsc-licence-competition' ),
 			'ufsc-competition-settings' => __( 'Paramètres', 'ufsc-licence-competition' ),
 		);
 
