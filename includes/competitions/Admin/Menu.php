@@ -20,6 +20,9 @@ class Menu {
 		$capability = defined( 'UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY' )
 			? \UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY
 			: 'manage_options';
+		if ( ! current_user_can( $capability ) && current_user_can( 'manage_options' ) ) {
+			$capability = 'manage_options';
+		}
 
 		$assets = new Assets();
 
