@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-class CategoryRepository {
+class EntryRepository {
 	private $logger;
 
 	public function __construct() {
@@ -23,8 +23,20 @@ class CategoryRepository {
 
 		return $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM " . Db::categories_table() . " WHERE id = %d {$where_deleted}",
+				"SELECT * FROM " . Db::entries_table() . " WHERE id = %d {$where_deleted}",
 				absint( $id )
+			)
+		);
+	}
+
+	public function get_by_competition_licensee( $competition_id, $licensee_id ) {
+		global $wpdb;
+
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT * FROM ' . Db::entries_table() . ' WHERE competition_id = %d AND licensee_id = %d',
+				absint( $competition_id ),
+				absint( $licensee_id )
 			)
 		);
 	}
@@ -33,7 +45,7 @@ class CategoryRepository {
 		global $wpdb;
 
 		$where = $this->build_where( $filters );
-		$sql   = "SELECT * FROM " . Db::categories_table() . " {$where} ORDER BY name ASC";
+		$sql   = "SELECT * FROM " . Db::entries_table() . " {$where} ORDER BY created_at DESC";
 		$sql  .= $wpdb->prepare( ' LIMIT %d OFFSET %d', absint( $limit ), absint( $offset ) );
 
 		return $wpdb->get_results( $sql );
@@ -44,23 +56,22 @@ class CategoryRepository {
 
 		$where = $this->build_where( $filters );
 
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . Db::categories_table() . " {$where}" );
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . Db::entries_table() . " {$where}" );
 	}
 
 	public function insert( array $data ) {
 		global $wpdb;
 
 		$prepared = $this->sanitize( $data );
-
 		$prepared['created_at'] = current_time( 'mysql' );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['created_by'] = get_current_user_id() ?: null;
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
-		$wpdb->insert( Db::categories_table(), $prepared, $this->get_insert_format() );
+		$wpdb->insert( Db::entries_table(), $prepared, $this->get_insert_format() );
 		$id = (int) $wpdb->insert_id;
 
-		$this->logger->log( 'create', 'category', $id, 'Category created.', array( 'data' => $prepared ) );
+		$this->logger->log( 'create', 'entry', $id, 'Entry created.', array( 'data' => $prepared ) );
 
 		return $id;
 	}
@@ -73,14 +84,14 @@ class CategoryRepository {
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
 		$updated = $wpdb->update(
-			Db::categories_table(),
+			Db::entries_table(),
 			$prepared,
 			array( 'id' => absint( $id ) ),
 			$this->get_update_format(),
 			array( '%d' )
 		);
 
-		$this->logger->log( 'update', 'category', $id, 'Category updated.', array( 'data' => $prepared ) );
+		$this->logger->log( 'update', 'entry', $id, 'Entry updated.', array( 'data' => $prepared ) );
 
 		return $updated;
 	}
@@ -96,9 +107,9 @@ class CategoryRepository {
 	public function delete( $id ) {
 		global $wpdb;
 
-		$deleted = $wpdb->delete( Db::categories_table(), array( 'id' => absint( $id ) ), array( '%d' ) );
+		$deleted = $wpdb->delete( Db::entries_table(), array( 'id' => absint( $id ) ), array( '%d' ) );
 
-		$this->logger->log( 'delete', 'category', $id, 'Category deleted permanently.', array() );
+		$this->logger->log( 'delete', 'entry', $id, 'Entry deleted permanently.', array() );
 
 		return $deleted;
 	}
@@ -107,7 +118,7 @@ class CategoryRepository {
 		global $wpdb;
 
 		$updated = $wpdb->update(
-			Db::categories_table(),
+			Db::entries_table(),
 			array(
 				'deleted_at' => $deleted_at,
 				'updated_at' => current_time( 'mysql' ),
@@ -119,23 +130,25 @@ class CategoryRepository {
 			array( '%d' )
 		);
 
-		$this->logger->log( $action, 'category', $id, 'Category status changed.', array( 'deleted_at' => $deleted_at ) );
+		$this->logger->log( $action, 'entry', $id, 'Entry status changed.', array( 'deleted_at' => $deleted_at ) );
 
 		return $updated;
 	}
 
 	private function sanitize( array $data ) {
+		$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn' );
+		$status = sanitize_key( $data['status'] ?? 'draft' );
+		if ( ! in_array( $status, $allowed_status, true ) ) {
+			$status = 'draft';
+		}
+
 		return array(
-			'competition_id' => isset( $data['competition_id'] ) && '' !== $data['competition_id'] ? absint( $data['competition_id'] ) : null,
-			'discipline'     => sanitize_text_field( $data['discipline'] ?? '' ),
-			'name'           => sanitize_text_field( $data['name'] ?? '' ),
-			'age_min'        => isset( $data['age_min'] ) && '' !== $data['age_min'] ? absint( $data['age_min'] ) : null,
-			'age_max'        => isset( $data['age_max'] ) && '' !== $data['age_max'] ? absint( $data['age_max'] ) : null,
-			'weight_min'     => isset( $data['weight_min'] ) && '' !== $data['weight_min'] ? (float) $data['weight_min'] : null,
-			'weight_max'     => isset( $data['weight_max'] ) && '' !== $data['weight_max'] ? (float) $data['weight_max'] : null,
-			'sex'            => sanitize_text_field( $data['sex'] ?? '' ),
-			'level'          => sanitize_text_field( $data['level'] ?? '' ),
-			'format'         => sanitize_text_field( $data['format'] ?? '' ),
+			'competition_id' => absint( $data['competition_id'] ?? 0 ),
+			'category_id'    => isset( $data['category_id'] ) && '' !== $data['category_id'] ? absint( $data['category_id'] ) : null,
+			'club_id'        => isset( $data['club_id'] ) && '' !== $data['club_id'] ? absint( $data['club_id'] ) : null,
+			'licensee_id'    => absint( $data['licensee_id'] ?? 0 ),
+			'status'         => $status,
+			'assigned_at'    => isset( $data['assigned_at'] ) ? sanitize_text_field( $data['assigned_at'] ) : null,
 		);
 	}
 
@@ -155,23 +168,23 @@ class CategoryRepository {
 			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
 		}
 
-		if ( ! empty( $filters['discipline'] ) ) {
-			$where[] = $wpdb->prepare( 'discipline = %s', sanitize_text_field( $filters['discipline'] ) );
+		if ( ! empty( $filters['status'] ) ) {
+			$where[] = $wpdb->prepare( 'status = %s', sanitize_key( $filters['status'] ) );
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
 			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$where[] = $wpdb->prepare( 'name LIKE %s', $like );
+			$where[] = $wpdb->prepare( 'licensee_id LIKE %s', $like );
 		}
 
 		return 'WHERE ' . implode( ' AND ', $where );
 	}
 
 	private function get_insert_format() {
-		return array( '%d', '%s', '%s', '%d', '%d', '%f', '%f', '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
+		return array( '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s' );
 	}
 
 	private function get_update_format() {
-		return array( '%d', '%s', '%s', '%d', '%d', '%f', '%f', '%s', '%s', '%s', '%s', '%d' );
+		return array( '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%d' );
 	}
 }

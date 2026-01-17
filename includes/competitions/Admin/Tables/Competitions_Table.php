@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -38,6 +39,7 @@ class Competitions_Table extends \WP_List_Table {
 		$filters = array(
 			'view'   => isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all',
 			'status' => isset( $_GET['ufsc_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_status'] ) ) : '',
+			'discipline' => isset( $_GET['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_discipline'] ) ) : '',
 			'search' => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
 		);
 
@@ -123,6 +125,7 @@ class Competitions_Table extends \WP_List_Table {
 	protected function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'discipline':
+				return esc_html( DisciplineRegistry::get_label( $item->discipline ) );
 			case 'type':
 			case 'season':
 				return esc_html( $item->{$column_name} );
@@ -149,14 +152,26 @@ class Competitions_Table extends \WP_List_Table {
 		}
 
 		$status = $this->filters['status'] ?? '';
+		$discipline = $this->filters['discipline'] ?? '';
+		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
 			<label class="screen-reader-text" for="ufsc_status_filter"><?php esc_html_e( 'Filtrer par statut', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_status" id="ufsc_status_filter">
 				<option value=""><?php esc_html_e( 'Tous les statuts', 'ufsc-licence-competition' ); ?></option>
 				<option value="draft" <?php selected( $status, 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
+				<option value="preparing" <?php selected( $status, 'preparing' ); ?>><?php esc_html_e( 'Préparation', 'ufsc-licence-competition' ); ?></option>
 				<option value="open" <?php selected( $status, 'open' ); ?>><?php esc_html_e( 'Ouvert', 'ufsc-licence-competition' ); ?></option>
+				<option value="running" <?php selected( $status, 'running' ); ?>><?php esc_html_e( 'En cours', 'ufsc-licence-competition' ); ?></option>
 				<option value="closed" <?php selected( $status, 'closed' ); ?>><?php esc_html_e( 'Clos', 'ufsc-licence-competition' ); ?></option>
+				<option value="archived" <?php selected( $status, 'archived' ); ?>><?php esc_html_e( 'Archivé', 'ufsc-licence-competition' ); ?></option>
+			</select>
+			<label class="screen-reader-text" for="ufsc_discipline_filter"><?php esc_html_e( 'Filtrer par discipline', 'ufsc-licence-competition' ); ?></label>
+			<select name="ufsc_discipline" id="ufsc_discipline_filter">
+				<option value=""><?php esc_html_e( 'Toutes les disciplines', 'ufsc-licence-competition' ); ?></option>
+				<?php foreach ( $disciplines as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline, $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
 			</select>
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 		</div>
@@ -205,8 +220,11 @@ class Competitions_Table extends \WP_List_Table {
 	private function format_status( $status ) {
 		$labels = array(
 			'draft'  => __( 'Brouillon', 'ufsc-licence-competition' ),
+			'preparing' => __( 'Préparation', 'ufsc-licence-competition' ),
 			'open'   => __( 'Ouvert', 'ufsc-licence-competition' ),
+			'running' => __( 'En cours', 'ufsc-licence-competition' ),
 			'closed' => __( 'Clos', 'ufsc-licence-competition' ),
+			'archived' => __( 'Archivé', 'ufsc-licence-competition' ),
 		);
 
 		return $labels[ $status ] ?? $status;
