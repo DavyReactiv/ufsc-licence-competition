@@ -28,6 +28,7 @@ class Menu {
 	const PAGE_GUIDE = 'ufsc_competitions_guide';
 
 	private static $registered = false;
+	private static $actions_registered = false;
 
 	public function register() {
 		if ( self::$registered ) {
@@ -37,6 +38,29 @@ class Menu {
 
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 40 );
 		add_action( 'admin_init', array( $this, 'maybe_redirect_legacy_pages' ) );
+		add_action( 'admin_init', array( $this, 'register_actions' ) );
+	}
+
+	public function register_actions() {
+		if ( self::$actions_registered ) {
+			return;
+		}
+		self::$actions_registered = true;
+
+		$competitions_page = new Competitions_Page();
+		$competitions_page->register_actions();
+
+		$categories_page = new Categories_Page();
+		$categories_page->register_actions();
+
+		$entries_page = new Entries_Page();
+		$entries_page->register_actions();
+
+		$bouts_page = new Bouts_Page();
+		$bouts_page->register_actions();
+
+		$settings_page = new Settings_Page();
+		$settings_page->register_actions();
 	}
 
 	public function maybe_redirect_legacy_pages() {
@@ -97,20 +121,10 @@ class Menu {
 		$assets->register( $hook_suffix );
 
 		$competitions_page = new Competitions_Page();
-		$competitions_page->register_actions();
-
 		$categories_page = new Categories_Page();
-		$categories_page->register_actions();
-
 		$entries_page = new Entries_Page();
-		$entries_page->register_actions();
-
 		$bouts_page = new Bouts_Page();
-		$bouts_page->register_actions();
-
 		$settings_page = new Settings_Page();
-		$settings_page->register_actions();
-
 		$guide_page = new Guide_Page();
 
 		$hook_suffix = add_submenu_page(
