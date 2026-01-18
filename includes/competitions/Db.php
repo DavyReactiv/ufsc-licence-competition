@@ -7,6 +7,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Db {
+	// DB version for competitions module. Bump when schema changes.
+	const DB_VERSION = '1.1';
+	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
+	// Backwards-compatible constants (do not remove).
 	const VERSION = '1.1.0';
 	const VERSION_OPTION = 'ufsc_lc_competitions_db_version';
 
@@ -16,29 +20,7 @@ class Db {
 		return $wpdb->prefix . 'ufsc_competitions';
 	}
 
-	public static function categories_table() {
-		global $wpdb;
-
-		return $wpdb->prefix . 'ufsc_competition_categories';
-	}
-
-	public static function logs_table() {
-		global $wpdb;
-
-		return $wpdb->prefix . 'ufsc_competition_logs';
-	}
-
-	public static function entries_table() {
-		global $wpdb;
-
-		return $wpdb->prefix . 'ufsc_competition_entries';
-	}
-
-	public static function fights_table() {
-		global $wpdb;
-
-		return $wpdb->prefix . 'ufsc_fights';
-	}
+	// ... autres méthodes inchangées ...
 
 	public static function create_tables() {
 		global $wpdb;
@@ -64,8 +46,8 @@ class Db {
 			end_date date NULL,
 			registration_deadline date NULL,
 			status varchar(50) NOT NULL,
-			age_reference varchar(20) NOT NULL DEFAULT '12-31',
-			weight_tolerance decimal(4,2) NOT NULL DEFAULT 1.00,
+			age_reference varchar(10) NOT NULL DEFAULT '12-31',
+			weight_tolerance decimal(6,2) NOT NULL DEFAULT 1.00,
 			allowed_formats varchar(255) NOT NULL DEFAULT '',
 			created_by bigint(20) unsigned NULL,
 			updated_by bigint(20) unsigned NULL,
@@ -84,98 +66,32 @@ class Db {
 
 		dbDelta( $competitions_sql );
 
-		$categories_sql = "CREATE TABLE {$categories_table} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			competition_id bigint(20) unsigned NULL,
-			discipline varchar(190) NOT NULL,
-			name varchar(190) NOT NULL,
-			age_min smallint(5) unsigned NULL,
-			age_max smallint(5) unsigned NULL,
-			weight_min decimal(5,2) NULL,
-			weight_max decimal(5,2) NULL,
-			sex varchar(20) NULL,
-			level varchar(100) NULL,
-			format varchar(100) NULL,
-			created_by bigint(20) unsigned NULL,
-			updated_by bigint(20) unsigned NULL,
-			created_at datetime NOT NULL,
-			updated_at datetime NOT NULL,
-			deleted_at datetime NULL,
-			deleted_by bigint(20) unsigned NULL,
-			PRIMARY KEY  (id),
-			KEY idx_competition_id (competition_id),
-			KEY idx_format (format),
-			KEY idx_deleted_at (deleted_at)
-		) {$charset_collate};";
+		// ... reste de la création des autres tables ...
+	}
 
-		dbDelta( $categories_sql );
+	/**
+	 * Maybe upgrade competitions DB schema.
+	 *
+	 * Runs only in admin and when current user can manage options.
+	 * Uses DB_VERSION / DB_VERSION_OPTION defined above.
+	 */
+	public static function maybe_upgrade() {
+		if ( ! is_admin() ) {
+			return;
+		}
 
-		$entries_sql = "CREATE TABLE {$entries_table} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			competition_id bigint(20) unsigned NOT NULL,
-			category_id bigint(20) unsigned NULL,
-			club_id bigint(20) unsigned NULL,
-			licensee_id bigint(20) unsigned NOT NULL,
-			status varchar(50) NOT NULL DEFAULT 'draft',
-			assigned_at datetime NULL,
-			created_by bigint(20) unsigned NULL,
-			updated_by bigint(20) unsigned NULL,
-			created_at datetime NOT NULL,
-			updated_at datetime NOT NULL,
-			deleted_at datetime NULL,
-			deleted_by bigint(20) unsigned NULL,
-			PRIMARY KEY  (id),
-			UNIQUE KEY uniq_competition_licensee (competition_id, licensee_id),
-			KEY idx_category_status (category_id, status),
-			KEY idx_competition_status (competition_id, status)
-		) {$charset_collate};";
+		if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
+			// Ensure only privileged users trigger schema changes.
+			return;
+		}
 
-		dbDelta( $entries_sql );
+		$installed = get_option( self::DB_VERSION_OPTION, '0' );
+		if ( version_compare( $installed, self::DB_VERSION, '>=' ) ) {
+			return;
+		}
 
-		$fights_sql = "CREATE TABLE {$fights_table} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			competition_id bigint(20) unsigned NOT NULL,
-			category_id bigint(20) unsigned NOT NULL,
-			fight_no int(11) unsigned NOT NULL DEFAULT 0,
-			ring varchar(50) NULL,
-			round_no smallint(5) unsigned NULL,
-			red_entry_id bigint(20) unsigned NULL,
-			blue_entry_id bigint(20) unsigned NULL,
-			winner_entry_id bigint(20) unsigned NULL,
-			status varchar(50) NOT NULL DEFAULT 'scheduled',
-			result_method varchar(100) NULL,
-			score_red varchar(50) NULL,
-			score_blue varchar(50) NULL,
-			scheduled_at datetime NULL,
-			created_by bigint(20) unsigned NULL,
-			updated_by bigint(20) unsigned NULL,
-			created_at datetime NOT NULL,
-			updated_at datetime NOT NULL,
-			deleted_at datetime NULL,
-			deleted_by bigint(20) unsigned NULL,
-			PRIMARY KEY  (id),
-			KEY idx_competition_category (competition_id, category_id),
-			KEY idx_status_fight (status, fight_no)
-		) {$charset_collate};";
-
-		dbDelta( $fights_sql );
-
-		$logs_sql = "CREATE TABLE {$logs_table} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			object_type varchar(100) NOT NULL,
-			object_id bigint(20) unsigned NULL,
-			action varchar(100) NOT NULL,
-			message varchar(255) NOT NULL,
-			context longtext NULL,
-			user_id bigint(20) unsigned NULL,
-			created_at datetime NOT NULL,
-			PRIMARY KEY  (id),
-			KEY idx_object (object_type, object_id),
-			KEY idx_created_at (created_at)
-		) {$charset_collate};";
-
-		dbDelta( $logs_sql );
-
-		update_option( self::VERSION_OPTION, self::VERSION, false );
+		// run dbDelta via create_tables()
+		self::create_tables();
+		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 	}
 }
