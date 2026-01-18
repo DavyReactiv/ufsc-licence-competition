@@ -6,22 +6,47 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Competitions DB helper.
+ */
 class Db {
-	// DB version for competitions module. Bump when schema changes.
+	// Module DB version (bump when schema changes)
 	const DB_VERSION = '1.1';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	// Backwards-compatible constants (do not remove).
+
+	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
 	const VERSION_OPTION = 'ufsc_lc_competitions_db_version';
 
 	public static function competitions_table() {
 		global $wpdb;
-
 		return $wpdb->prefix . 'ufsc_competitions';
 	}
 
-	// ... autres méthodes inchangées ...
+	public static function categories_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_competition_categories';
+	}
 
+	public static function logs_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_competition_logs';
+	}
+
+	public static function entries_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_competition_entries';
+	}
+
+	public static function fights_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_fights';
+	}
+
+	/**
+	 * Create (or update) tables used by competitions module.
+	 * Uses dbDelta so existing tables get altered to include missing columns.
+	 */
 	public static function create_tables() {
 		global $wpdb;
 
@@ -66,22 +91,86 @@ class Db {
 
 		dbDelta( $competitions_sql );
 
-		// ... reste de la création des autres tables ...
+		$categories_sql = "CREATE TABLE {$categories_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			competition_id bigint(20) unsigned NULL,
+			discipline varchar(190) NOT NULL,
+			name varchar(190) NOT NULL,
+			age_min smallint(5) unsigned NULL,
+			age_max smallint(5) unsigned NULL,
+			weight_min decimal(5,2) NULL,
+			weight_max decimal(5,2) NULL,
+			sex varchar(20) NULL,
+			level varchar(100) NULL,
+			format varchar(100) NULL,
+			created_by bigint(20) unsigned NULL,
+			updated_by bigint(20) unsigned NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_competition (competition_id),
+			KEY idx_discipline (discipline)
+		) {$charset_collate};";
+
+		dbDelta( $categories_sql );
+
+		$logs_sql = "CREATE TABLE {$logs_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			competition_id bigint(20) unsigned NULL,
+			action varchar(50) NOT NULL,
+			user_id bigint(20) unsigned NULL,
+			message text NULL,
+			meta text NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_competition (competition_id),
+			KEY idx_created_at (created_at)
+		) {$charset_collate};";
+
+		dbDelta( $logs_sql );
+
+		$entries_sql = "CREATE TABLE {$entries_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			competition_id bigint(20) unsigned NOT NULL,
+			category_id bigint(20) unsigned NULL,
+			license_id bigint(20) unsigned NULL,
+			club_id bigint(20) unsigned NULL,
+			participant_name varchar(255) NOT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_competition (competition_id)
+		) {$charset_collate};";
+
+		dbDelta( $entries_sql );
+
+		$fights_sql = "CREATE TABLE {$fights_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			competition_id bigint(20) unsigned NOT NULL,
+			round smallint(5) unsigned NULL,
+			red_entry_id bigint(20) unsigned NULL,
+			blue_entry_id bigint(20) unsigned NULL,
+			result varchar(50) NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_competition (competition_id)
+		) {$charset_collate};";
+
+		dbDelta( $fights_sql );
 	}
 
 	/**
 	 * Maybe upgrade competitions DB schema.
 	 *
-	 * Runs only in admin and when current user can manage options.
-	 * Uses DB_VERSION / DB_VERSION_OPTION defined above.
+	 * Called on admin_init. Only runs for capable admins to avoid accidental upgrades from front requests.
 	 */
 	public static function maybe_upgrade() {
+		// Only run in admin context.
 		if ( ! is_admin() ) {
 			return;
 		}
 
+		// Only privileged users.
 		if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
-			// Ensure only privileged users trigger schema changes.
 			return;
 		}
 
@@ -90,8 +179,18 @@ class Db {
 			return;
 		}
 
-		// run dbDelta via create_tables()
+		// Ensure only one concurrent upgrade attempt (short transient)
+		if ( get_transient( 'ufsc_competitions_upgrading' ) ) {
+			return;
+		}
+
+		set_transient( 'ufsc_competitions_upgrading', 1, 60 );
+
+		// dbDelta will create missing columns if table exists.
 		self::create_tables();
+
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+
+		delete_transient( 'ufsc_competitions_upgrading' );
 	}
 }
