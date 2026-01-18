@@ -64,6 +64,8 @@ class Bootstrap {
 
 	public function register() {
 		add_action( 'init', array( $this, 'register_module' ) );
+		// Ensure competitions DB can be upgraded automatically when admin visits.
+		add_action( 'admin_init', array( '\\UFSC\\Competitions\\Db', 'maybe_upgrade' ) );
 		if ( did_action( 'init' ) ) {
 			$this->register_module();
 		}
