@@ -52,12 +52,28 @@ class CompetitionRepository {
 
 		$prepared = $this->sanitize( $data );
 
-		$prepared['created_at'] = current_time( 'mysql' );
-		$prepared['updated_at'] = current_time( 'mysql' );
+		/*
+		 * Order of keys must match get_insert_format():
+		 * name, discipline, type, season, location, start_date, end_date,
+		 * registration_deadline, status, age_reference, weight_tolerance,
+		 * allowed_formats, created_by, updated_by, created_at, updated_at
+		 */
 		$prepared['created_by'] = get_current_user_id() ?: null;
 		$prepared['updated_by'] = get_current_user_id() ?: null;
+		$prepared['created_at'] = current_time( 'mysql' );
+		$prepared['updated_at'] = current_time( 'mysql' );
 
-		$wpdb->insert( Db::competitions_table(), $prepared, $this->get_insert_format() );
+		$result = $wpdb->insert( Db::competitions_table(), $prepared, $this->get_insert_format() );
+
+		if ( false === $result ) {
+			// Log error via LogService and PHP error log when WP_DEBUG
+			$this->logger->log( 'error', 'competition', 0, 'Competition insert failed.', array( 'error' => $wpdb->last_error, 'data' => $prepared ) );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC Competition insert failed: ' . $wpdb->last_error . ' — data: ' . print_r( $prepared, true ) );
+			}
+			return 0;
+		}
+
 		$id = (int) $wpdb->insert_id;
 
 		$this->logger->log( 'create', 'competition', $id, 'Competition created.', array( 'data' => $prepared ) );
@@ -79,6 +95,14 @@ class CompetitionRepository {
 			$this->get_update_format(),
 			array( '%d' )
 		);
+
+		if ( false === $updated ) {
+			$this->logger->log( 'error', 'competition', $id, 'Competition update failed.', array( 'error' => $wpdb->last_error, 'data' => $prepared ) );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC Competition update failed (id ' . intval( $id ) . '): ' . $wpdb->last_error . ' — data: ' . print_r( $prepared, true ) );
+			}
+			return false;
+		}
 
 		$this->logger->log( 'update', 'competition', $id, 'Competition updated.', array( 'data' => $prepared ) );
 
