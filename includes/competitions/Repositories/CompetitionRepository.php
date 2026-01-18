@@ -1,6 +1,6 @@
 <?php
 
-namespace UFSC\Competitions;
+namespace UFSC\Competitions\Repositories;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
