@@ -4,10 +4,10 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
-use UFSC\Competitions\Repositories\CompetitionRepository;
-use UFSC\Competitions\Repositories\CategoryRepository;
-use UFSC\Competitions\Repositories\EntryRepository;
-use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\CompetitionRepository;
+use UFSC\Competitions\CategoryRepository;
+use UFSC\Competitions\EntryRepository;
+use UFSC\Competitions\FightRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\CategoryPresetRegistry;
 use UFSC\Competitions\Admin\Tables\Competitions_Table;
