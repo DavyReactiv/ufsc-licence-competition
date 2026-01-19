@@ -4,6 +4,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Licence migrations and non-destructive schema alterations.
+ * Defensive SQL: column-by-column ALTER, FK added in separate query after checks.
+ */
 class UFSC_LC_Licence_Migrations {
 	const BATCH_SIZE = 250;
 
@@ -15,41 +19,105 @@ class UFSC_LC_Licence_Migrations {
 			return;
 		}
 
-		$changes = array();
-
-		if ( ! $this->has_column( $table, 'season_end_year' ) ) {
-			$changes[] = 'season_end_year int(4) NULL';
-		}
-
-		if ( ! $this->has_column( $table, 'category' ) ) {
-			$changes[] = 'category varchar(50) NULL';
-		}
-
-		if ( ! $this->has_column( $table, 'age_ref' ) ) {
-			$changes[] = 'age_ref int(3) NULL';
-		}
-
-		if ( empty( $changes ) ) {
-			return;
-		}
-
-		$schema_row = $wpdb->get_row( "SHOW CREATE TABLE {$table}", ARRAY_N );
-		if ( empty( $schema_row[1] ) ) {
-			return;
-		}
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-		$schema_sql = $schema_row[1];
-		$schema_sql = preg_replace(
-			'/\\)\\s*ENGINE/i',
-			', ' . implode( ', ', $changes ) . ') ENGINE',
-			$schema_sql,
-			1
+		// Columns to add (name => definition)
+		$columns = array(
+			'season_end_year' => 'season_end_year int(4) NULL',
+			'category'        => 'category varchar(50) NULL',
+			'age_ref'         => 'age_ref int(3) NULL',
 		);
 
-		if ( $schema_sql ) {
-			dbDelta( $schema_sql );
+		foreach ( $columns as $col => $definition ) {
+			if ( $this->has_column( $table, $col ) ) {
+				continue;
+			}
+
+			// Use single ALTER TABLE ADD COLUMN per column for maximum compatibility
+			$sql = "ALTER TABLE {$table} ADD COLUMN {$definition}";
+			$res = $wpdb->query( $sql );
+
+			if ( false === $res ) {
+				$msg = "UFSC Licence Migrations: failed to add column {$col} to {$table}: {$wpdb->last_error}";
+				if ( class_exists( 'UFSC_LC_Logger' ) ) {
+					UFSC_LC_Logger::log( $msg );
+				} else {
+					error_log( $msg );
+				}
+				// continue, do not abort activation
+			}
+		}
+
+		// Defensive: attempt to add a FK from licences.club_id -> ufsc_clubs.id
+		$clubs_table = $this->get_clubs_table();
+
+		if ( $this->table_exists( $table ) && $this->table_exists( $clubs_table ) && $this->column_exists( $table, 'club_id' ) && $this->column_exists( $clubs_table, 'id' ) ) {
+			// Check engines via information_schema (table names without prefix)
+			$lic_table_name = str_replace( $wpdb->prefix, '', $table );
+			$clubs_table_name = str_replace( $wpdb->prefix, '', $clubs_table );
+
+			$lic_engine = $wpdb->get_var( $wpdb->prepare(
+				"SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+				$lic_table_name
+			) );
+			$club_engine = $wpdb->get_var( $wpdb->prepare(
+				"SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+				$clubs_table_name
+			) );
+
+			if ( 'InnoDB' === $lic_engine && 'InnoDB' === $club_engine ) {
+				// Check existing FK
+				$exists = $wpdb->get_var( $wpdb->prepare(
+					"SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s AND REFERENCED_TABLE_NAME = %s",
+					$lic_table_name,
+					'club_id',
+					$clubs_table_name
+				) );
+
+				if ( empty( $exists ) ) {
+					// Ensure index on club_id (required for FK)
+					$has_index = $wpdb->get_var( $wpdb->prepare(
+						"SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+						$lic_table_name,
+						'club_id'
+					) );
+
+					if ( empty( $has_index ) ) {
+						$idx_sql = "ALTER TABLE {$table} ADD INDEX idx_club_id (club_id)";
+						$idx_res = $wpdb->query( $idx_sql );
+						if ( false === $idx_res ) {
+							$msg = "UFSC Licence Migrations: failed to add index idx_club_id on {$table}: {$wpdb->last_error}";
+							if ( class_exists( 'UFSC_LC_Logger' ) ) {
+								UFSC_LC_Logger::log( $msg );
+							} else {
+								error_log( $msg );
+							}
+							// continue; FK may still fail, but we proceed defensively
+						}
+					}
+
+					// Add FK constraint (separate statement)
+					$constraint_name = $wpdb->prefix . 'fk_licence_club_id';
+					$constraint_name = preg_replace( '/[^a-zA-Z0-9_]/', '_', $constraint_name );
+					$fk_sql = "ALTER TABLE {$table} ADD CONSTRAINT {$constraint_name} FOREIGN KEY (club_id) REFERENCES {$clubs_table}(id) ON DELETE SET NULL ON UPDATE CASCADE";
+					$fk_res = $wpdb->query( $fk_sql );
+					if ( false === $fk_res ) {
+						$msg = "UFSC Licence Migrations: failed to add foreign key {$constraint_name} on {$table}: {$wpdb->last_error}";
+						if ( class_exists( 'UFSC_LC_Logger' ) ) {
+							UFSC_LC_Logger::log( $msg );
+						} else {
+							error_log( $msg );
+						}
+						// Do not abort activation.
+					}
+				}
+			} else {
+				// Engine not InnoDB: log and skip FK creation.
+				$msg = "UFSC Licence Migrations: skipping FK add for {$table} -> {$clubs_table} because engine is not InnoDB (lic: {$lic_engine}, clubs: {$club_engine}).";
+				if ( class_exists( 'UFSC_LC_Logger' ) ) {
+					UFSC_LC_Logger::log( $msg );
+				} else {
+					error_log( $msg );
+				}
+			}
 		}
 	}
 
@@ -103,6 +171,13 @@ class UFSC_LC_Licence_Migrations {
 		} while ( ! empty( $rows ) );
 	}
 
+	/**
+	 * Check whether a column exists in a table.
+	 *
+	 * @param string $table
+	 * @param string $column
+	 * @return bool
+	 */
 	private function has_column( $table, $column ) {
 		global $wpdb;
 
@@ -112,15 +187,41 @@ class UFSC_LC_Licence_Migrations {
 		return ! empty( $exists );
 	}
 
+	/**
+	 * Alias kept for compatibility in other parts of plugin.
+	 *
+	 * @param string $table
+	 * @return bool
+	 */
 	private function table_exists( $table ) {
 		global $wpdb;
-
 		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
 	}
 
+	/**
+	 * Return licences table name.
+	 *
+	 * @return string
+	 */
 	private function get_licences_table() {
 		global $wpdb;
-
 		return $wpdb->prefix . 'ufsc_licences';
+	}
+
+	/**
+	 * Return clubs table name.
+	 *
+	 * @return string
+	 */
+	private function get_clubs_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_clubs';
+	}
+
+	/**
+	 * Convenience wrapper used elsewhere in plugin.
+	 */
+	private function column_exists( $table, $column ) {
+		return $this->has_column( $table, $column );
 	}
 }
