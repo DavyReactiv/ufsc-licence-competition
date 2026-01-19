@@ -21,6 +21,16 @@ require_once __DIR__ . '/Repositories/CategoryRepository.php';
 require_once __DIR__ . '/Repositories/EntryRepository.php';
 require_once __DIR__ . '/Repositories/FightRepository.php';
 require_once __DIR__ . '/Repositories/LogRepository.php';
+
+/*
+ * ClubRepository is a new/required repository used by admin pages.
+ * Load it here so classes under Admin can safely use it.
+ */
+$club_repo_path = __DIR__ . '/Repositories/ClubRepository.php';
+if ( file_exists( $club_repo_path ) ) {
+	require_once $club_repo_path;
+}
+
 require_once __DIR__ . '/Admin/Assets.php';
 require_once __DIR__ . '/Admin/Menu.php';
 require_once __DIR__ . '/Admin/Tables/Competitions_Table.php';
