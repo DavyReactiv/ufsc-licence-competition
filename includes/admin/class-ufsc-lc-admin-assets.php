@@ -31,22 +31,31 @@ class UFSC_LC_Admin_Assets {
 	}
 
 	public function enqueue( $hook_suffix ) {
+		// Only enqueue when a registered page requests it
 		if ( empty( $this->pages[ $hook_suffix ] ) ) {
 			return;
 		}
 
+		$css_path = UFSC_LC_PLUGIN_DIR . 'assets/admin/css/ufsc-lc-admin.css';
+		$css_url  = UFSC_LC_URL . 'assets/admin/css/ufsc-lc-admin.css';
+		$ver_css  = file_exists( $css_path ) ? filemtime( $css_path ) : UFSC_LC_Plugin::DB_VERSION;
+
 		wp_enqueue_style(
 			'ufsc-lc-admin-style',
-			UFSC_LC_URL . 'assets/admin/css/ufsc-lc-admin.css',
+			$css_url,
 			array(),
-			UFSC_LC_Plugin::DB_VERSION
+			$ver_css
 		);
+
+		$js_path = UFSC_LC_PLUGIN_DIR . 'assets/admin/js/ufsc-lc-admin.js';
+		$js_url  = UFSC_LC_URL . 'assets/admin/js/ufsc-lc-admin.js';
+		$ver_js  = file_exists( $js_path ) ? filemtime( $js_path ) : UFSC_LC_Plugin::DB_VERSION;
 
 		wp_enqueue_script(
 			'ufsc-lc-admin-script',
-			UFSC_LC_URL . 'assets/admin/js/ufsc-lc-admin.js',
+			$js_url,
 			array(),
-			UFSC_LC_Plugin::DB_VERSION,
+			$ver_js,
 			true
 		);
 
@@ -73,5 +82,12 @@ class UFSC_LC_Admin_Assets {
 				),
 			)
 		);
+
+		// Safety: if an old/legacy handle was accidentally enqueued elsewhere and points to a missing file,
+		// deregister it to avoid 404s in the console. This only removes the handle; it won't affect correct assets.
+		if ( wp_style_is( 'user-club-admin', 'registered' ) && ! wp_style_is( 'user-club-admin', 'enqueued' ) ) {
+			// if registered but not enqueued, don't force enqueue; remove registration if it's broken.
+			wp_deregister_style( 'user-club-admin' );
+		}
 	}
 }
