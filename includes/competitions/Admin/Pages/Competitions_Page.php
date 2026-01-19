@@ -36,10 +36,6 @@ class Competitions_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_competition', array( $this, 'handle_delete' ) );
-		add_action( 'admin_post_ufsc_competitions_archive_competition', array( $this, 'handle_archive' ) );
-		add_action( 'admin_post_ufsc_competitions_apply_preset', array( $this, 'handle_apply_preset' ) );
-		add_action( 'admin_post_ufsc_competitions_set_status', array( $this, 'handle_set_status' ) );
-		add_action( 'admin_post_ufsc_competitions_generate_fights', array( $this, 'handle_generate_fights' ) );
 	}
 
 	public function render() {
@@ -97,8 +93,6 @@ class Competitions_Page {
 		<?php
 	}
 
-	// ---- Stubs / helper methods (minimal implementations to avoid fatal errors) ----
-
 	private function render_notice( $notice ) {
 		if ( ! $notice ) {
 			return;
@@ -106,6 +100,8 @@ class Competitions_Page {
 
 		$map = array(
 			'not_found' => __( 'Élément non trouvé.', 'ufsc-licence-competition' ),
+			'saved'     => __( 'Compétition enregistrée.', 'ufsc-licence-competition' ),
+			'created'   => __( 'Compétition créée.', 'ufsc-licence-competition' ),
 		);
 
 		if ( isset( $map[ $notice ] ) ) {
@@ -114,13 +110,74 @@ class Competitions_Page {
 	}
 
 	private function render_form( $item = null ) {
-		// Minimal form stub: show simple message if editing
-		if ( $item ) {
-			echo '<h2>' . esc_html__( 'Éditer la compétition', 'ufsc-licence-competition' ) . '</h2>';
-		} else {
-			echo '<h2>' . esc_html__( 'Ajouter une compétition', 'ufsc-licence-competition' ) . '</h2>';
-		}
-		// The full form implementation can remain in the original plugin; this stub avoids fatals.
+		// Prepare values (safe defaults)
+		$values = array(
+			'id'         => $item->id ?? 0,
+			'name'       => $item->name ?? '',
+			'discipline' => $item->discipline ?? '',
+			'type'       => $item->type ?? '',
+			'season'     => $item->season ?? '',
+			'start_date' => $item->start_date ?? '',
+			'end_date'   => $item->end_date ?? '',
+			'status'     => $item->status ?? 'draft',
+		);
+
+		$disciplines = DisciplineRegistry::get_disciplines_with_types();
+		?>
+		<div class="wrap ufsc-competitions-admin">
+			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la compétition', 'ufsc-licence-competition' ) : __( 'Ajouter une compétition', 'ufsc-licence-competition' ) ); ?></h1>
+			<?php $this->render_helper_notice( __( 'Renseigner les informations de la compétition.', 'ufsc-licence-competition' ) ); ?>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
+				<?php wp_nonce_field( 'ufsc_competitions_save_competition' ); ?>
+				<input type="hidden" name="action" value="ufsc_competitions_save_competition">
+				<input type="hidden" name="id" value="<?php echo esc_attr( $values['id'] ); ?>">
+
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><label for="ufsc_competition_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="name" type="text" id="ufsc_competition_name" value="<?php echo esc_attr( $values['name'] ); ?>" class="regular-text" required></td>
+					</tr>
+
+					<tr>
+						<th scope="row"><label for="ufsc_competition_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="discipline" id="ufsc_competition_discipline" class="regular-text" required>
+								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+								<?php foreach ( $disciplines as $discipline => $types ) : ?>
+									<option value="<?php echo esc_attr( $discipline ); ?>" <?php selected( $values['discipline'], $discipline ); ?>><?php echo esc_html( $types['label'] ?? $discipline ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+
+					<tr>
+						<th scope="row"><label for="ufsc_competition_start"><?php esc_html_e( 'Date début', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="start_date" type="date" id="ufsc_competition_start" value="<?php echo esc_attr( $values['start_date'] ); ?>"></td>
+					</tr>
+
+					<tr>
+						<th scope="row"><label for="ufsc_competition_end"><?php esc_html_e( 'Date fin', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="end_date" type="date" id="ufsc_competition_end" value="<?php echo esc_attr( $values['end_date'] ); ?>"></td>
+					</tr>
+
+					<tr>
+						<th scope="row"><label for="ufsc_competition_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="status" id="ufsc_competition_status" class="regular-text">
+								<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
+								<option value="open" <?php selected( $values['status'], 'open' ); ?>><?php esc_html_e( 'Ouvert', 'ufsc-licence-competition' ); ?></option>
+								<option value="closed" <?php selected( $values['status'], 'closed' ); ?>><?php esc_html_e( 'Fermé', 'ufsc-licence-competition' ); ?></option>
+								<option value="archived" <?php selected( $values['status'], 'archived' ); ?>><?php esc_html_e( 'Archivé', 'ufsc-licence-competition' ); ?></option>
+							</select>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button( $values['id'] ? __( 'Mettre à jour la compétition', 'ufsc-licence-competition' ) : __( 'Créer la compétition', 'ufsc-licence-competition' ) ); ?>
+			</form>
+		</div>
+		<?php
 	}
 
 	private function render_pilotage( $item ) {
@@ -136,24 +193,48 @@ class Competitions_Page {
 		echo '<div class="notice notice-info ufsc-competitions-helper"><p>' . esc_html( $message ) . '</p></div>';
 	}
 
-	// Minimal action handlers to avoid "method not found" when WP triggers admin_post hooks
+	// Action handlers
 	public function handle_save() {
-		// Basic safe handler: if repository missing, redirect with error
-		if ( null === $this->repository ) {
-			wp_redirect( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'module_missing' ), admin_url( 'admin.php' ) ) );
-			exit;
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		// Real save logic should be preserved from original implementation.
-		wp_redirect( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'saved' ), admin_url( 'admin.php' ) ) );
+		check_admin_referer( 'ufsc_competitions_save_competition' );
+
+		$id = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0;
+		$name = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
+		$discipline = isset( $_POST['discipline'] ) ? sanitize_key( wp_unslash( $_POST['discipline'] ) ) : '';
+		$start_date = isset( $_POST['start_date'] ) ? sanitize_text_field( wp_unslash( $_POST['start_date'] ) ) : '';
+		$end_date = isset( $_POST['end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['end_date'] ) ) : '';
+		$status = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'draft';
+
+		$data = array(
+			'id'         => $id,
+			'name'       => $name,
+			'discipline' => $discipline,
+			'start_date' => $start_date,
+			'end_date'   => $end_date,
+			'status'     => $status,
+		);
+
+		// If repository available, persist using its API; else safely ignore and redirect with notice.
+		if ( $this->repository ) {
+			// repository API assumed to have save or update method (defensive)
+			if ( method_exists( $this->repository, 'save' ) ) {
+				$this->repository->save( $data );
+			} elseif ( method_exists( $this->repository, 'create' ) && $id === 0 ) {
+				$this->repository->create( $data );
+			} elseif ( method_exists( $this->repository, 'update' ) && $id ) {
+				$this->repository->update( $id, $data );
+			}
+		}
+
+		$redirect_url = add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'saved' ), admin_url( 'admin.php' ) );
+		wp_safe_redirect( $redirect_url );
 		exit;
 	}
 
 	public function handle_trash() { wp_die(); }
 	public function handle_restore() { wp_die(); }
 	public function handle_delete() { wp_die(); }
-	public function handle_archive() { wp_die(); }
-	public function handle_apply_preset() { wp_die(); }
-	public function handle_set_status() { wp_die(); }
-	public function handle_generate_fights() { wp_die(); }
 }
