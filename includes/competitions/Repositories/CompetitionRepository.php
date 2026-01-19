@@ -2,12 +2,20 @@
 
 namespace UFSC\Competitions\Repositories;
 
+use UFSC\Competitions\Db;
+use UFSC\Competitions\Services\LogService;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 require_once __DIR__ . '/../Services/LogService.php';
 
+/**
+ * CompetitionRepository
+ *
+ * Minimal, defensive repository implementation compatible with existing EntryRepository style.
+ */
 class CompetitionRepository {
 	private $logger;
 
@@ -87,18 +95,11 @@ class CompetitionRepository {
 		$result = $wpdb->insert( Db::competitions_table(), $filtered_prepared, $filtered_formats );
 
 		if ( false === $result ) {
-			$this->logger->log( 'error', 'competition', 0, 'Competition insert failed.', array( 'error' => $wpdb->last_error, 'data' => $filtered_prepared ) );
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC Competition insert failed: ' . $wpdb->last_error . ' — data: ' . print_r( $filtered_prepared, true ) );
-			}
+			$this->logger->log( 'error', 'competition', 0, 'Competition insert failed: db insert returned false.', array( 'data' => $filtered_prepared, 'formats' => $filtered_formats, 'wpdb_error' => $wpdb->last_error ) );
 			return 0;
 		}
 
-		$id = (int) $wpdb->insert_id;
-
-		$this->logger->log( 'create', 'competition', $id, 'Competition created.', array( 'data' => $filtered_prepared ) );
-
-		return $id;
+		return (int) $wpdb->insert_id;
 	}
 
 	public function update( $id, array $data ) {
@@ -108,260 +109,158 @@ class CompetitionRepository {
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
-		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $prepared, $this->get_update_format() );
-
-		if ( empty( $filtered_prepared ) ) {
-			$this->logger->log( 'error', 'competition', $id, 'Competition update aborted: no valid columns after filtering.', array( 'data' => $prepared ) );
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC Competition update aborted (id ' . intval( $id ) . '): no valid columns after filtering — data: ' . print_r( $prepared, true ) );
-			}
-			return false;
-		}
-
 		$updated = $wpdb->update(
 			Db::competitions_table(),
-			$filtered_prepared,
+			$prepared,
 			array( 'id' => absint( $id ) ),
-			$filtered_formats,
+			$this->get_update_format(),
 			array( '%d' )
 		);
 
-		if ( false === $updated ) {
-			$this->logger->log( 'error', 'competition', $id, 'Competition update failed.', array( 'error' => $wpdb->last_error, 'data' => $filtered_prepared ) );
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC Competition update failed (id ' . intval( $id ) . '): ' . $wpdb->last_error . ' — data: ' . print_r( $filtered_prepared, true ) );
-			}
-			return false;
-		}
-
-		$this->logger->log( 'update', 'competition', $id, 'Competition updated.', array( 'data' => $filtered_prepared ) );
+		$this->logger->log( 'update', 'competition', $id, 'Competition updated.', array( 'data' => $prepared ) );
 
 		return $updated;
 	}
 
-	public function soft_delete( $id ) {
-		return $this->set_deleted_at( $id, current_time( 'mysql' ), 'trash' );
-	}
-
-	public function restore( $id ) {
-		return $this->set_deleted_at( $id, null, 'restore' );
-	}
-
-	public function archive( $id ) {
+	public function trash( $id ) {
 		global $wpdb;
 
 		$updated = $wpdb->update(
 			Db::competitions_table(),
 			array(
-				'status'     => 'archived',
-				'updated_at' => current_time( 'mysql' ),
-				'updated_by' => get_current_user_id() ?: null,
+				'deleted_at' => current_time( 'mysql' ),
+				'deleted_by' => get_current_user_id() ?: null,
 			),
 			array( 'id' => absint( $id ) ),
-			array( '%s', '%s', '%d' ),
+			array( '%s', '%d' ),
 			array( '%d' )
 		);
 
-		$this->logger->log( 'archive', 'competition', $id, 'Competition archived.', array() );
-
-		return $updated;
-	}
-
-	public function delete( $id ) {
-		global $wpdb;
-
-		$deleted = $wpdb->delete( Db::competitions_table(), array( 'id' => absint( $id ) ), array( '%d' ) );
-
-		$this->logger->log( 'delete', 'competition', $id, 'Competition deleted permanently.', array() );
-
-		return $deleted;
-	}
-
-	public function update_status( $id, $status ) {
-		global $wpdb;
-
-		$status_options = array( 'draft', 'preparing', 'open', 'running', 'closed', 'archived' );
-		$status = sanitize_key( $status );
-		if ( ! in_array( $status, $status_options, true ) ) {
-			return false;
-		}
-
-		$updated = $wpdb->update(
-			Db::competitions_table(),
-			array(
-				'status'     => $status,
-				'updated_at' => current_time( 'mysql' ),
-				'updated_by' => get_current_user_id() ?: null,
-			),
-			array( 'id' => absint( $id ) ),
-			array( '%s', '%s', '%d' ),
-			array( '%d' )
-		);
-
-		$this->logger->log( 'status', 'competition', $id, 'Competition status updated.', array( 'status' => $status ) );
-
-		return $updated;
-	}
-
-	private function set_deleted_at( $id, $deleted_at, $action ) {
-		global $wpdb;
-
-		$updated = $wpdb->update(
-			Db::competitions_table(),
-			array(
-				'deleted_at' => $deleted_at,
-				'updated_at' => current_time( 'mysql' ),
-				'updated_by' => get_current_user_id() ?: null,
-			),
-			array( 'id' => absint( $id ) ),
-			array( '%s', '%s', '%d' ),
-			array( '%d' )
-		);
-
-		$this->logger->log( $action, 'competition', $id, 'Competition moved to ' . $action . '.', array() );
+		$this->logger->log( 'trash', 'competition', $id, 'Competition trashed.' );
 
 		return $updated;
 	}
 
 	/**
-	 * Sanitize incoming data before insert/update.
-	 *
-	 * Returns associative array in the canonical order expected by get_insert_format.
+	 * Sanitize input array: keep only allowed keys and basic sanitization.
 	 */
-	private function sanitize( $data ) {
-		$status_options = array( 'draft', 'preparing', 'open', 'running', 'closed', 'archived' );
-
-		$status = sanitize_text_field( $data['status'] ?? 'draft' );
-		if ( ! in_array( $status, $status_options, true ) ) {
-			$status = 'draft';
-		}
-
-		return array(
-			'name'                 => sanitize_text_field( $data['name'] ?? '' ),
-			'discipline'           => sanitize_text_field( $data['discipline'] ?? '' ),
-			'type'                 => sanitize_text_field( $data['type'] ?? '' ),
-			'season'               => sanitize_text_field( $data['season'] ?? '' ),
-			'location'             => sanitize_text_field( $data['location'] ?? '' ),
-			'start_date'           => $this->sanitize_date( $data['start_date'] ?? null ),
-			'end_date'             => $this->sanitize_date( $data['end_date'] ?? null ),
-			'registration_deadline'=> $this->sanitize_date( $data['registration_deadline'] ?? null ),
-			'status'               => $status,
-			'age_reference'        => sanitize_text_field( $data['age_reference'] ?? '12-31' ),
-			'weight_tolerance'     => isset( $data['weight_tolerance'] ) ? (float) $data['weight_tolerance'] : 1.0,
-			'allowed_formats'      => sanitize_text_field( $data['allowed_formats'] ?? '' ),
+	private function sanitize( array $data ) {
+		$allowed = array(
+			'name', 'discipline', 'type', 'season', 'location',
+			'start_date', 'end_date', 'registration_deadline', 'status',
+			'age_reference', 'weight_tolerance', 'allowed_formats',
+			'created_by', 'updated_by', 'created_at', 'updated_at',
 		);
-	}
 
-	private function sanitize_date( $value ) {
-		$value = sanitize_text_field( (string) $value );
-		if ( '' === $value ) {
-			return null;
+		$sanitized = array();
+		foreach ( $allowed as $key ) {
+			if ( array_key_exists( $key, $data ) ) {
+				$value = $data[ $key ];
+				// Very conservative sanitization:
+				if ( is_string( $value ) ) {
+					$sanitized[ $key ] = sanitize_text_field( $value );
+				} else {
+					$sanitized[ $key ] = $value;
+				}
+			}
 		}
 
-		$date = date_create_from_format( 'Y-m-d', $value );
-		if ( $date && $date->format( 'Y-m-d' ) === $value ) {
-			return $value;
-		}
-
-		return null;
+		return $sanitized;
 	}
 
+	/**
+	 * Build a WHERE clause from filters (very small, safe implementation).
+	 */
 	private function build_where( array $filters ) {
 		global $wpdb;
 
 		$where = array( '1=1' );
 
-		$view = $filters['view'] ?? 'all';
-		if ( 'trash' === $view ) {
-			$where[] = 'deleted_at IS NOT NULL';
-		} else {
-			$where[] = 'deleted_at IS NULL';
-		}
-
-		if ( ! empty( $filters['status'] ) ) {
-			$where[] = $wpdb->prepare( 'status = %s', sanitize_text_field( $filters['status'] ) );
-		}
-
-		if ( ! empty( $filters['discipline'] ) ) {
-			$where[] = $wpdb->prepare( 'discipline = %s', sanitize_text_field( $filters['discipline'] ) );
-		}
-
-		if ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$where[] = $wpdb->prepare( '(name LIKE %s OR location LIKE %s)', $like, $like );
-		}
-
-		return 'WHERE ' . implode( ' AND ', $where );
-	}
-
-	/**
-	 * Format array for insert: order must follow sanitize() keys plus created/updated fields.
-	 *
-	 * Note: filter_prepared_and_formats_for_db will align and trim formats dynamically to match actual columns.
-	 */
-	private function get_insert_format() {
-		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%d', '%d', '%s', '%s' );
-	}
-
-	/**
-	 * Format array for update: must align with sanitize() returned keys order used during update.
-	 */
-	private function get_update_format() {
-		// Update format corresponds to keys returned by sanitize() plus updated_at, updated_by when present.
-		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%s', '%d' );
-	}
-
-	/**
-	 * Return array of column names for competitions table (cached).
-	 *
-	 * @return string[]
-	 */
-	private function get_table_columns() {
-		global $wpdb;
-
-		$table = Db::competitions_table();
-		if ( isset( self::$table_columns_cache[ $table ] ) ) {
-			return self::$table_columns_cache[ $table ];
-		}
-
-		$cols = array();
-		$rows = $wpdb->get_results( "DESCRIBE {$table}" );
-		if ( is_array( $rows ) ) {
-			foreach ( $rows as $r ) {
-				if ( isset( $r->Field ) ) {
-					$cols[] = $r->Field;
-				}
+		if ( ! empty( $filters['view'] ) && 'all' !== $filters['view'] ) {
+			if ( 'active' === $filters['view'] ) {
+				$where[] = "deleted_at IS NULL";
 			}
 		}
 
-		self::$table_columns_cache[ $table ] = $cols;
-		return $cols;
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
+			$ids = array_map( 'absint', $filters['competition_ids'] );
+			if ( count( $ids ) ) {
+				$where[] = 'id IN (' . implode( ',', $ids ) . ')';
+			}
+		}
+
+		if ( ! empty( $filters['search'] ) ) {
+			$search = esc_sql( like_escape( $filters['search'] ) );
+			$where[] = "name LIKE '%{$search}%'";
+		}
+
+		$where_sql = 'WHERE ' . implode( ' AND ', $where );
+
+		return $where_sql;
 	}
 
 	/**
-	 * Given a $prepared associative array and a formats array (ordered), remove keys that are not present
-	 * in the actual DB table and return the filtered prepared array and corresponding formats preserving order.
-	 *
-	 * @param array $prepared assoc name => value
-	 * @param array $formats indexed formats aligned with keys order expected
-	 * @return array [ filtered_prepared_assoc, filtered_formats_indexed ]
+	 * Filter prepared data and formats according to actual DB columns.
+	 * This avoids inserting unknown columns when schema is out of date.
 	 */
 	private function filter_prepared_and_formats_for_db( array $prepared, array $formats ) {
-		$columns = $this->get_table_columns();
+		global $wpdb;
+
+		$table = Db::competitions_table();
+
+		// Cache columns per table name
+		if ( ! isset( self::$table_columns_cache[ $table ] ) ) {
+			$cols = $wpdb->get_col( "DESCRIBE {$table}", 0 );
+			self::$table_columns_cache[ $table ] = is_array( $cols ) ? $cols : array();
+		}
+
+		$columns = array_flip( self::$table_columns_cache[ $table ] );
+
 		$filtered_prepared = array();
 		$filtered_formats = array();
 
-		// Ensure formats mapping aligns with the $prepared keys order.
 		$keys = array_keys( $prepared );
-		foreach ( $keys as $i => $key ) {
-			if ( in_array( $key, $columns, true ) ) {
-				$filtered_prepared[ $key ] = $prepared[ $key ];
-				// If formats array is shorter than keys, fallback to %s
-				$fmt = isset( $formats[ $i ] ) ? $formats[ $i ] : '%s';
-				$filtered_formats[] = $fmt;
+		foreach ( $keys as $i => $k ) {
+			if ( isset( $columns[ $k ] ) ) {
+				$filtered_prepared[ $k ] = $prepared[ $k ];
+				$filtered_formats[] = isset( $formats[ $i ] ) ? $formats[ $i ] : '%s';
 			}
 		}
 
 		return array( $filtered_prepared, $filtered_formats );
+	}
+
+	/**
+	 * Insert formats order for insert()
+	 */
+	private function get_insert_format() {
+		return array(
+			'%s', // name
+			'%s', // discipline
+			'%s', // type
+			'%s', // season
+			'%s', // location
+			'%s', // start_date
+			'%s', // end_date
+			'%s', // registration_deadline
+			'%s', // status
+			'%s', // age_reference
+			'%f', // weight_tolerance
+			'%s', // allowed_formats
+			'%d', // created_by
+			'%d', // updated_by
+			'%s', // created_at
+			'%s', // updated_at
+		);
+	}
+
+	/**
+	 * Update formats fallback
+	 */
+	private function get_update_format() {
+		// We return an array of formats for values in $prepared (used by $wpdb->update).
+		// When $wpdb->update is invoked with an array of formats, it uses them.
+		// Use safe defaults.
+		return array( '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%f', '%s', '%d', '%d', '%s', '%s' );
 	}
 }
