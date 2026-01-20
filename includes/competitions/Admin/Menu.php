@@ -16,6 +16,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Admin menu registration for Competitions module.
+ *
+ * - Instantiates page classes and calls register_actions() immediately so admin_post/wp_ajax hooks
+ *   are registered early (AJAX endpoints must be available on admin-ajax.php).
+ * - Defers add_submenu_page() calls to the 'admin_menu' hook to ensure WP core builds proper admin URLs
+ *   (prevents incorrect pretty rewrite like /wp-admin/ufsc-competitions).
+ * - Uses UFSC_LC_Admin_Assets::register_page() as the single assets loader to avoid double-enqueue.
+ * - Logs and surfaces admin notices for missing pages/hooks (no fatal).
+ */
 class Menu {
 	const PARENT_SLUG        = 'ufsc-licence-documents';
 	const PAGE_COMPETITIONS  = 'ufsc-competitions';
@@ -27,10 +37,16 @@ class Menu {
 	const PAGE_GUIDE         = 'ufsc-competitions-guide';
 	const PAGE_QUALITY       = 'ufsc-competitions-quality';
 
+	/** @var array list of admin_menu failures to show as notices */
+	private $admin_menu_failures = array();
+
+	/**
+	 * Register pages: instantiate pages & register actions now, build WP menus on admin_menu.
+	 */
 	public function register() {
 		$capability = \UFSC_LC_Capabilities::get_manage_capability();
 
-		// Instantiate pages defensively: if class missing, log and continue.
+		// Instantiate pages defensively (constructors may register ajax/admin_post hooks).
 		$competitions_page = $this->safe_instance( Competitions_Page::class );
 		$categories_page   = $this->safe_instance( Categories_Page::class );
 		$entries_page      = $this->safe_instance( Entries_Page::class );
@@ -40,7 +56,7 @@ class Menu {
 		$quality_page      = $this->safe_instance( Quality_Page::class );
 		$print_page        = $this->safe_instance( Print_Page::class );
 
-		// If page objects expose register_actions(), call it now so admin_post / ajax hooks are set.
+		// Call register_actions() on instantiated pages so admin_post / ajax hooks are registered early.
 		foreach ( array(
 			$competitions_page,
 			$categories_page,
@@ -65,34 +81,116 @@ class Menu {
 			}
 		}
 
-		// Helper to register a submenu only if page object exists.
-		$register_submenu = function( $page_obj, $page_title, $menu_title, $page_slug ) use ( $capability ) {
-			if ( ! $page_obj ) {
-				return;
-			}
-			$hook_suffix = add_submenu_page(
-				self::PARENT_SLUG,
-				$page_title,
-				$menu_title,
-				$capability,
-				$page_slug,
-				array( $page_obj, 'render' )
-			);
+		// Defer actual menu creation to admin_menu hook (correct timing for WP to generate admin.php?page=... links).
+		add_action(
+			'admin_menu',
+			function() use ( $capability, $competitions_page, $categories_page, $entries_page, $bouts_page, $settings_page, $guide_page, $quality_page, $print_page ) {
+				$this->build_submenus( $capability, $competitions_page, $categories_page, $entries_page, $bouts_page, $settings_page, $guide_page, $quality_page, $print_page );
+			},
+			30
+		);
 
-			if ( $hook_suffix ) {
-				// Use central loader only to avoid duplicate enqueue
-				\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
-			}
-		};
+		// If any menu failed to register, display admin_notice for administrators.
+		if ( ! empty( $this->admin_menu_failures ) ) {
+			add_action( 'admin_notices', array( $this, 'render_admin_menu_failures_notice' ) );
+		}
+	}
 
-		$register_submenu( $competitions_page, __( 'Compétitions', 'ufsc-licence-competition' ), __( 'Compétitions', 'ufsc-licence-competition' ), self::PAGE_COMPETITIONS );
-		$register_submenu( $categories_page,   __( 'Catégories & formats', 'ufsc-licence-competition' ), __( 'Catégories & formats', 'ufsc-licence-competition' ), self::PAGE_CATEGORIES );
-		$register_submenu( $entries_page,      __( 'Inscriptions', 'ufsc-licence-competition' ), __( 'Inscriptions', 'ufsc-licence-competition' ), self::PAGE_ENTRIES );
-		$register_submenu( $quality_page,      __( 'Contrôles qualité', 'ufsc-licence-competition' ), __( 'Contrôles qualité', 'ufsc-licence-competition' ), self::PAGE_QUALITY );
-		$register_submenu( $bouts_page,        __( 'Combats', 'ufsc-licence-competition' ), __( 'Combats', 'ufsc-licence-competition' ), self::PAGE_BOUTS );
-		$register_submenu( $print_page,        __( 'Impression', 'ufsc-licence-competition' ), __( 'Impression', 'ufsc-licence-competition' ), self::PAGE_PRINT );
-		$register_submenu( $settings_page,     __( 'Paramètres', 'ufsc-licence-competition' ), __( 'Paramètres', 'ufsc-licence-competition' ), self::PAGE_SETTINGS );
-		$register_submenu( $guide_page,        __( 'Guide', 'ufsc-licence-competition' ), __( 'Guide', 'ufsc-licence-competition' ), self::PAGE_GUIDE );
+	/**
+	 * Build and register submenu pages (called on admin_menu).
+	 *
+	 * @param string $capability
+	 * @param object|null ...$pages
+	 * @return void
+	 */
+	private function build_submenus( $capability ) {
+		$args = func_get_args();
+		array_shift( $args ); // remove capability
+		$pages = $args;
+
+		// Use single central assets loader: UFSC_LC_Admin_Assets
+		foreach ( array(
+			array( 'page' => $pages[0] ?? null, 'title' => __( 'Compétitions', 'ufsc-licence-competition' ), 'menu' => __( 'Compétitions', 'ufsc-licence-competition' ), 'slug' => self::PAGE_COMPETITIONS ),
+			array( 'page' => $pages[1] ?? null, 'title' => __( 'Catégories & formats', 'ufsc-licence-competition' ), 'menu' => __( 'Catégories & formats', 'ufsc-licence-competition' ), 'slug' => self::PAGE_CATEGORIES ),
+			array( 'page' => $pages[2] ?? null, 'title' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'menu' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'slug' => self::PAGE_ENTRIES ),
+			array( 'page' => $pages[6] ?? null, 'title' => __( 'Contrôles qualité', 'ufsc-licence-competition' ), 'menu' => __( 'Contrôles qualité', 'ufsc-licence-competition' ), 'slug' => self::PAGE_QUALITY ),
+			array( 'page' => $pages[3] ?? null, 'title' => __( 'Combats', 'ufsc-licence-competition' ), 'menu' => __( 'Combats', 'ufsc-licence-competition' ), 'slug' => self::PAGE_BOUTS ),
+			array( 'page' => $pages[7] ?? null, 'title' => __( 'Impression', 'ufsc-licence-competition' ), 'menu' => __( 'Impression', 'ufsc-licence-competition' ), 'slug' => self::PAGE_PRINT ),
+			array( 'page' => $pages[4] ?? null, 'title' => __( 'Paramètres', 'ufsc-licence-competition' ), 'menu' => __( 'Paramètres', 'ufsc-licence-competition' ), 'slug' => self::PAGE_SETTINGS ),
+			array( 'page' => $pages[5] ?? null, 'title' => __( 'Guide', 'ufsc-licence-competition' ), 'menu' => __( 'Guide', 'ufsc-licence-competition' ), 'slug' => self::PAGE_GUIDE ),
+		) as $cfg ) {
+			$this->maybe_register_submenu( $cfg['page'], $cfg['title'], $cfg['menu'], $cfg['slug'], $capability );
+		}
+	}
+
+	/**
+	 * Register a single submenu if page object exists.
+	 *
+	 * @param object|null $page_obj
+	 * @param string      $page_title
+	 * @param string      $menu_title
+	 * @param string      $page_slug
+	 * @param string      $capability
+	 * @return void
+	 */
+	private function maybe_register_submenu( $page_obj, $page_title, $menu_title, $page_slug, $capability ) {
+		if ( ! $page_obj ) {
+			$this->admin_menu_failures[] = sprintf( 'Page class for slug "%s" not instantiated.', $page_slug );
+			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+				\UFSC_LC_Logger::log( sprintf( 'UFSC Competitions: Page class for slug "%s" not instantiated.', $page_slug ) );
+			} else {
+				error_log( sprintf( '[UFSC LC] Page class for slug "%s" not instantiated.', $page_slug ) );
+			}
+			return;
+		}
+
+		$hook_suffix = add_submenu_page(
+			self::PARENT_SLUG,
+			$page_title,
+			$menu_title,
+			$capability,
+			$page_slug,
+			array( $page_obj, 'render' )
+		);
+
+		if ( ! $hook_suffix ) {
+			// Record failure for admin notice
+			$this->admin_menu_failures[] = sprintf( 'Failed to register submenu for slug "%s".', $page_slug );
+			$message = sprintf( 'UFSC Competitions: Failed to register submenu for slug "%s".', $page_slug );
+			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+				\UFSC_LC_Logger::log( $message );
+			} else {
+				error_log( $message );
+			}
+			return;
+		}
+
+		// Use singleton UFSC_LC_Admin_Assets to enqueue admin assets only for registered pages.
+		\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+	}
+
+	/**
+	 * Show admin notice when menu registration issues occurred.
+	 *
+	 * Runs only for users with manage capability.
+	 */
+	public function render_admin_menu_failures_notice() {
+		if ( ! current_user_can( \UFSC_LC_Capabilities::get_manage_capability() ) ) {
+			return;
+		}
+
+		if ( empty( $this->admin_menu_failures ) ) {
+			return;
+		}
+
+		echo '<div class="notice notice-error"><p>';
+		echo esc_html__( 'UFSC Competitions — problème d\'enregistrement des sous-menus :', 'ufsc-licence-competition' );
+		echo '<ul>';
+		foreach ( $this->admin_menu_failures as $msg ) {
+			echo '<li>' . esc_html( $msg ) . '</li>';
+		}
+		echo '</ul>';
+		echo '</p></div>';
 	}
 
 	/**
@@ -122,6 +220,7 @@ class Menu {
 			} else {
 				error_log( $message );
 			}
+			$this->admin_menu_failures[] = $message;
 			return null;
 		}
 	}
