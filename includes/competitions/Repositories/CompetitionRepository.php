@@ -15,12 +15,6 @@ class CompetitionRepository {
 		// constructor if needed
 	}
 
-	/**
-	 * Save data: insert or update depending on id
-	 *
-	 * @param array $data
-	 * @return int Inserted/updated ID
-	 */
 	public function save( array $data ): int {
 		global $wpdb;
 
@@ -28,36 +22,29 @@ class CompetitionRepository {
 
 		$id = isset( $san['id'] ) ? absint( $san['id'] ) : 0;
 		$prepared = $san;
-		// remove id from prepared to avoid inserting it
 		unset( $prepared['id'] );
 
-		// Build formats dynamically
 		$formats = array_map( array( $this, 'value_to_format' ), array_values( $prepared ) );
 
-		// Filter according to actual DB columns
 		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $prepared, $formats );
 
 		$table = Db::competitions_table();
 
 		if ( $id ) {
-			// defensive update
 			$update_data = $filtered_prepared;
 			$update_formats = $filtered_formats;
 			if ( empty( $update_data ) ) {
-				// nothing to update
 				return $id;
 			}
 			$where = array( 'id' => $id );
 			$where_format = array( '%d' );
 			$updated = $wpdb->update( $table, $update_data, $where, $update_formats, $where_format );
 			if ( $updated === false ) {
-				// log maybe
 				return $id;
 			}
 			return $id;
 		}
 
-		// insert
 		if ( empty( $filtered_prepared ) ) {
 			return 0;
 		}
@@ -68,9 +55,6 @@ class CompetitionRepository {
 		return (int) $wpdb->insert_id;
 	}
 
-	/**
-	 * Defensive update method (keeps compatibility)
-	 */
 	public function update( $id, array $data ) {
 		global $wpdb;
 		$id = absint( $id );
@@ -94,12 +78,6 @@ class CompetitionRepository {
 		return $wpdb->update( $table, $filtered_prepared, $where, $filtered_formats, $where_format );
 	}
 
-	/**
-	 * Determine SQL format string for a PHP value
-	 *
-	 * @param mixed $v
-	 * @return string
-	 */
 	private function value_to_format( $v ) {
 		if ( is_int( $v ) ) {
 			return '%d';
@@ -107,16 +85,12 @@ class CompetitionRepository {
 		if ( is_float( $v ) || is_double( $v ) ) {
 			return '%f';
 		}
-		// default to string
 		return '%s';
 	}
 
 	/**
 	 * Sanitize incoming data array for competitions.
-	 * Extended to include organizer_*, venue_*, event_*, reg_*, weighin_* keys.
-	 *
-	 * @param array $data
-	 * @return array
+	 * Accept only known keys to avoid blocking other modules.
 	 */
 	public function sanitize( array $data ) {
 		$allowed = array(
@@ -134,9 +108,8 @@ class CompetitionRepository {
 			'updated_by',
 			// organizer snapshot
 			'organizer_club_id',
+			'organizer_club_name',
 			'organizer_region',
-			'organizer_email',
-			'organizer_phone',
 			// venue
 			'venue_name',
 			'venue_address1',
@@ -144,34 +117,24 @@ class CompetitionRepository {
 			'venue_postcode',
 			'venue_city',
 			'venue_region',
-			'venue_country',
-			'venue_maps_url',
-			'venue_access_info',
-			// event
-			'event_start_date',
-			'event_end_date',
-			'event_start_time',
-			'event_end_time',
-			// registration
-			'reg_open_date',
-			'reg_open_time',
-			'reg_close_date',
-			'reg_close_time',
-			// weighin
-			'weighin_date',
-			'weighin_start_time',
-			'weighin_end_time',
-			'weighin_location_text',
+			// datetimes (stored as 'Y-m-d H:i:s')
+			'event_start_datetime',
+			'event_end_datetime',
+			'registration_open_datetime',
+			'registration_close_datetime',
+			'weighin_start_datetime',
+			'weighin_end_datetime',
+			// contact
+			'contact_email',
+			'contact_phone',
 		);
 
 		$sanitized = array();
 		foreach ( $data as $k => $v ) {
 			if ( ! in_array( $k, $allowed, true ) ) {
-				// ignore unknown keys (avoid blocking other modules)
 				continue;
 			}
 
-			// specific sanitization
 			switch ( $k ) {
 				case 'id':
 				case 'organizer_club_id':
@@ -184,46 +147,22 @@ class CompetitionRepository {
 					$sanitized[ $k ] = is_numeric( $v ) ? (float) $v : 0.0;
 					break;
 
-				case 'organizer_email':
+				case 'contact_email':
 					$sanitized[ $k ] = sanitize_email( $v );
 					break;
 
-				case 'organizer_phone':
+				case 'contact_phone':
 					$sanitized[ $k ] = sanitize_text_field( $v );
 					break;
 
-				case 'venue_maps_url':
-					$sanitized[ $k ] = esc_url_raw( $v );
-					break;
-
-				case 'venue_access_info':
-				case 'weighin_location_text':
-					$sanitized[ $k ] = sanitize_textarea_field( $v );
-					break;
-
-				case 'venue_country':
-					$sanitized[ $k ] = strtoupper( substr( sanitize_text_field( $v ), 0, 2 ) );
-					break;
-
-				case 'event_start_date':
-				case 'event_end_date':
-				case 'reg_open_date':
-				case 'reg_close_date':
-				case 'weighin_date':
-					// accept YYYY-MM-DD or empty
-					$pat = '/^\d{4}-\d{2}-\d{2}$/';
-					$sanitized[ $k ] = ( is_string( $v ) && preg_match( $pat, $v ) ) ? $v : null;
-					break;
-
-				case 'event_start_time':
-				case 'event_end_time':
-				case 'reg_open_time':
-				case 'reg_close_time':
-				case 'weighin_start_time':
-				case 'weighin_end_time':
-					// accept HH:MM or HH:MM:SS
-					$pat = '/^\d{2}:\d{2}(:\d{2})?$/';
-					$sanitized[ $k ] = ( is_string( $v ) && preg_match( $pat, $v ) ) ? $v : null;
+				case 'event_start_datetime':
+				case 'event_end_datetime':
+				case 'registration_open_datetime':
+				case 'registration_close_datetime':
+				case 'weighin_start_datetime':
+				case 'weighin_end_datetime':
+					// Accept datetime-local (YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM:SS)
+					$sanitized[ $k ] = $this->sanitize_datetime( $v );
 					break;
 
 				default:
@@ -240,46 +179,43 @@ class CompetitionRepository {
 	}
 
 	/**
-	 * Build a WHERE clause from filters (very small, safe implementation).
+	 * Normalize datetime inputs to 'Y-m-d H:i:s' or null.
+	 *
+	 * Accepts:
+	 * - 'YYYY-MM-DDTHH:MM' (datetime-local default)
+	 * - 'YYYY-MM-DD HH:MM:SS'
+	 * - 'YYYY-MM-DD HH:MM'
 	 */
-	private function build_where( array $filters ) {
-		global $wpdb;
+	private function sanitize_datetime( $value ) {
+		if ( null === $value || '' === $value ) {
+			return null;
+		}
+		$value = (string) $value;
+		// replace T with space (from datetime-local)
+		$value = str_replace( 'T', ' ', $value );
 
-		$where = array( '1=1' );
+		// If seconds missing, append :00
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $value ) ) {
+			$value .= ':00';
+		}
 
-		if ( ! empty( $filters['view'] ) && 'all' !== $filters['view'] ) {
-			if ( 'active' === $filters['view'] ) {
-				$where[] = "deleted_at IS NULL";
+		// Validate final format
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value ) ) {
+			// optional: further check with strtotime
+			$ts = strtotime( $value );
+			if ( false !== $ts ) {
+				return date( 'Y-m-d H:i:s', $ts );
 			}
 		}
 
-		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
-			$ids = array_map( 'absint', $filters['competition_ids'] );
-			if ( count( $ids ) ) {
-				$where[] = 'id IN (' . implode( ',', $ids ) . ')';
-			}
-		}
-
-		if ( ! empty( $filters['search'] ) ) {
-			$search = esc_sql( like_escape( $filters['search'] ) );
-			$where[] = "name LIKE '%{$search}%'";
-		}
-
-		$where_sql = 'WHERE ' . implode( ' AND ', $where );
-
-		return $where_sql;
+		return null;
 	}
 
-	/**
-	 * Filter prepared data and formats according to actual DB columns.
-	 * This avoids inserting unknown columns when schema is out of date.
-	 */
 	private function filter_prepared_and_formats_for_db( array $prepared, array $formats ) {
 		global $wpdb;
 
 		$table = Db::competitions_table();
 
-		// Cache columns per table name
 		if ( ! isset( self::$table_columns_cache[ $table ] ) ) {
 			$cols = $wpdb->get_col( "DESCRIBE {$table}", 0 );
 			self::$table_columns_cache[ $table ] = is_array( $cols ) ? $cols : array();
@@ -300,6 +236,4 @@ class CompetitionRepository {
 
 		return array( $filtered_prepared, $filtered_formats );
 	}
-
-	// ... (autres méthodes existantes du repository peuvent rester inchangées)
 }
