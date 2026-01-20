@@ -51,6 +51,28 @@ class Competitions_Table extends \WP_List_Table {
 			$filters['view'] = 'all';
 		}
 
+		/**
+		 * Sorting support:
+		 * WP_List_Table sends orderby/order in request.
+		 * We translate into repository filters: order_by/order_dir.
+		 */
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : '';
+		$order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( wp_unslash( $_REQUEST['order'] ) ) ) : '';
+
+		// Map table column keys -> DB columns (repository allowlist will enforce safety too)
+		$sortable_map = array(
+			'name'    => 'name',
+			'season'  => 'season',
+			'status'  => 'status',
+			'event'   => 'event_start_datetime',
+			'updated' => 'updated_at',
+		);
+
+		if ( $orderby && isset( $sortable_map[ $orderby ] ) ) {
+			$filters['order_by']  = $sortable_map[ $orderby ];
+			$filters['order_dir'] = ( 'ASC' === $order ) ? 'ASC' : 'DESC';
+		}
+
 		$this->filters = $filters;
 
 		$total_items = (int) $this->repository->count( $filters );
@@ -79,14 +101,12 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	protected function get_sortable_columns() {
-		// Sorting requires repository support (order_by/order_dir).
-		// If repository ignores these, WP will still send args but it won't break.
 		return array(
 			'name'    => array( 'name', false ),
 			'season'  => array( 'season', false ),
 			'status'  => array( 'status', false ),
-			'event'   => array( 'event_start_datetime', true ),
-			'updated' => array( 'updated_at', true ),
+			'event'   => array( 'event', true ),
+			'updated' => array( 'updated', true ),
 		);
 	}
 
@@ -115,7 +135,7 @@ class Competitions_Table extends \WP_List_Table {
 		// Remove pagination when switching views
 		$base_url_no_paged = remove_query_arg( array( 'paged' ), $base_url );
 
-		$views = array(
+		return array(
 			'all'   => sprintf(
 				'<a href="%s" class="%s">%s</a>',
 				esc_url( remove_query_arg( array( 'ufsc_view' ), $base_url_no_paged ) ),
@@ -129,8 +149,6 @@ class Competitions_Table extends \WP_List_Table {
 				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
 			),
 		);
-
-		return $views;
 	}
 
 	public function column_cb( $item ) {
@@ -157,7 +175,11 @@ class Competitions_Table extends \WP_List_Table {
 		$is_deleted = ! empty( $item->deleted_at );
 
 		if ( ! $is_deleted ) {
-			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			$actions['edit'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $edit_url ),
+				esc_html__( 'Modifier', 'ufsc-licence-competition' )
+			);
 
 			$actions['trash'] = sprintf(
 				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
@@ -276,20 +298,18 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	/**
-	 * IMPORTANT:
-	 * - We keep the page slug, current view, and filters.
-	 * - But we avoid keeping 'paged' when switching views (handled in get_views()).
+	 * Keep page slug, current view, filters and sorting for pagination.
 	 */
 	private function get_page_url() {
 		$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : Menu::PAGE_COMPETITIONS;
 		$url  = admin_url( 'admin.php?page=' . $page );
 
-		// Keep view if present
+		// View
 		if ( isset( $_REQUEST['ufsc_view'] ) ) {
 			$url = add_query_arg( 'ufsc_view', sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ), $url );
 		}
 
-		// Preserve filters (so pagination keeps them)
+		// Filters
 		if ( isset( $_REQUEST['ufsc_status'] ) && '' !== (string) wp_unslash( $_REQUEST['ufsc_status'] ) ) {
 			$url = add_query_arg( 'ufsc_status', sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ), $url );
 		}
@@ -301,6 +321,14 @@ class Competitions_Table extends \WP_List_Table {
 		}
 		if ( isset( $_REQUEST['s'] ) && '' !== (string) wp_unslash( $_REQUEST['s'] ) ) {
 			$url = add_query_arg( 's', sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ), $url );
+		}
+
+		// Sorting (for pagination persistence)
+		if ( isset( $_REQUEST['orderby'] ) && '' !== (string) wp_unslash( $_REQUEST['orderby'] ) ) {
+			$url = add_query_arg( 'orderby', sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ), $url );
+		}
+		if ( isset( $_REQUEST['order'] ) && '' !== (string) wp_unslash( $_REQUEST['order'] ) ) {
+			$url = add_query_arg( 'order', sanitize_key( wp_unslash( $_REQUEST['order'] ) ), $url );
 		}
 
 		return $url;
