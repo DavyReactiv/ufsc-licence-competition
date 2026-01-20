@@ -1,7 +1,10 @@
 <?php
-/**
- * DB schema for competitions module
- */
+
+namespace UFSC\Competitions;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 class Db {
 	// Module DB version (bump when schema/index changes)
@@ -38,8 +41,25 @@ class Db {
 	}
 
 	/**
-	 * Create (or update) tables used by competitions module.
-	 * Uses dbDelta so existing tables get altered to include missing columns.
+	 * Maybe upgrade DB: compare option and run create_tables if needed.
+	 */
+	public static function maybe_upgrade() {
+		$option = get_option( self::DB_VERSION_OPTION, '' );
+		if ( $option === self::DB_VERSION ) {
+			return;
+		}
+
+		try {
+			self::create_tables();
+			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+		} catch ( \Throwable $e ) {
+			// Never fatal: log and continue
+			error_log( 'UFSC Competitions DB upgrade failed: ' . $e->getMessage() );
+		}
+	}
+
+	/**
+	 * Create or update tables using dbDelta (non-destructive).
 	 */
 	public static function create_tables() {
 		global $wpdb;
@@ -54,34 +74,30 @@ class Db {
 		$entries_table      = self::entries_table();
 		$fights_table       = self::fights_table();
 
+		// Note: avoid SQL comments inside the CREATE TABLE string (dbDelta sensitivity)
 		$competitions_sql = "CREATE TABLE {$competitions_table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			name varchar(190) NOT NULL,
 			discipline varchar(190) NOT NULL,
 			type varchar(100) NOT NULL,
 			season varchar(50) NOT NULL,
-			-- organizer snapshot
 			organizer_club_id bigint(20) unsigned NULL,
 			organizer_club_name varchar(190) NULL,
 			organizer_region varchar(190) NULL,
-			-- venue separate from club
 			venue_name varchar(190) NULL,
 			venue_address1 varchar(190) NULL,
 			venue_address2 varchar(190) NULL,
 			venue_postcode varchar(20) NULL,
 			venue_city varchar(190) NULL,
 			venue_region varchar(190) NULL,
-			-- datetimes
 			event_start_datetime datetime NULL,
 			event_end_datetime datetime NULL,
 			registration_open_datetime datetime NULL,
 			registration_close_datetime datetime NULL,
 			weighin_start_datetime datetime NULL,
 			weighin_end_datetime datetime NULL,
-			-- contact
 			contact_email varchar(190) NULL,
 			contact_phone varchar(50) NULL,
-			-- existing / legacy
 			location varchar(190) NULL,
 			registration_deadline date NULL,
 			status varchar(50) NOT NULL,
@@ -126,6 +142,7 @@ class Db {
 		) {$charset_collate};";
 
 		dbDelta( $categories_sql );
-		// other tables unchanged
+
+		// leave other tables as-is if present; they are created elsewhere if needed
 	}
 }
