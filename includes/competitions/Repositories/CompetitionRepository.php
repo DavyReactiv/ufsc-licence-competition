@@ -8,6 +8,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * CompetitionRepository
+ *
+ * Provides a backward-compatible repository API expected by admin pages/tables:
+ * - get($id, $include_deleted = false)
+ * - list(array $filters = [], $limit = 20, $offset = 0)
+ * - count(array $filters = [])
+ * - insert(array $data)
+ * - update($id, array $data)
+ * - trash($id)
+ *
+ * Internally uses save()/sanitize()/filter_prepared_and_formats_for_db for safety.
+ */
 class CompetitionRepository {
 	private static $table_columns_cache = array();
 
@@ -16,10 +29,139 @@ class CompetitionRepository {
 	}
 
 	/**
-	 * Save data: insert or update depending on id
+	 * Backwards compatible "list" method.
+	 *
+	 * @param array $filters
+	 * @param int $limit
+	 * @param int $offset
+	 * @return array List of rows (objects)
+	 */
+	public function list( array $filters = array(), $limit = 20, $offset = 0 ) {
+		global $wpdb;
+
+		$table = Db::competitions_table();
+
+		$where = $this->build_where( $filters );
+
+		$order_by = 'event_start_datetime DESC';
+		if ( ! empty( $filters['order_by'] ) ) {
+			$order_by = esc_sql( $filters['order_by'] );
+			if ( ! empty( $filters['order_dir'] ) && in_array( strtoupper( $filters['order_dir'] ), array( 'ASC', 'DESC' ), true ) ) {
+				$order_by .= ' ' . strtoupper( $filters['order_dir'] );
+			}
+		}
+
+		$limit = (int) $limit;
+		$offset = (int) $offset;
+		$sql = $wpdb->prepare( "SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d", $limit, $offset );
+
+		$rows = $wpdb->get_results( $sql );
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Count rows matching filters.
+	 *
+	 * @param array $filters
+	 * @return int
+	 */
+	public function count( array $filters = array() ) {
+		global $wpdb;
+		$table = Db::competitions_table();
+		$where = $this->build_where( $filters );
+		$sql = "SELECT COUNT(1) FROM {$table} {$where}";
+		$count = $wpdb->get_var( $sql );
+		return (int) $count;
+	}
+
+	/**
+	 * Get a single competition by ID.
+	 *
+	 * @param int $id
+	 * @param bool $include_deleted
+	 * @return object|null
+	 */
+	public function get( $id, $include_deleted = false ) {
+		global $wpdb;
+		$id = absint( $id );
+		if ( ! $id ) {
+			return null;
+		}
+		$table = Db::competitions_table();
+		$sql = $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id );
+		$row = $wpdb->get_row( $sql );
+		if ( $row && ! $include_deleted ) {
+			if ( isset( $row->deleted_at ) && ! empty( $row->deleted_at ) ) {
+				return null;
+			}
+		}
+		return $row;
+	}
+
+	/**
+	 * Insert a new competition (wrapper around save).
 	 *
 	 * @param array $data
-	 * @return int Inserted/updated ID
+	 * @return int inserted ID or 0
+	 */
+	public function insert( array $data ) {
+		// Ensure id not passed
+		unset( $data['id'] );
+		return $this->save( $data );
+	}
+
+	/**
+	 * Update a competition by ID (wrapper around save).
+	 *
+	 * @param int $id
+	 * @param array $data
+	 * @return bool|int returns id on success, false on failure
+	 */
+	public function update( $id, array $data ) {
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+		$data['id'] = $id;
+		$result = $this->save( $data );
+		return $result ? $id : false;
+	}
+
+	/**
+	 * Move to trash (soft delete) by setting deleted_at and deleted_by.
+	 *
+	 * @param int $id
+	 * @return bool
+	 */
+	public function trash( $id ) {
+		global $wpdb;
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+
+		$table = Db::competitions_table();
+		$data = array(
+			'deleted_at' => current_time( 'mysql' ),
+			'deleted_by' => get_current_user_id() ? get_current_user_id() : null,
+		);
+
+		$formats = array( '%s', '%d' );
+		$where = array( 'id' => $id );
+		$where_format = array( '%d' );
+
+		$updated = $wpdb->update( $table, $data, $where, $formats, $where_format );
+
+		return $updated !== false;
+	}
+
+	/**
+	 * Save (insert or update) a competition.
+	 * Keeps existing save semantics: returns inserted id or existing id on update.
+	 *
+	 * @param array $data
+	 * @return int
 	 */
 	public function save( array $data ): int {
 		global $wpdb;
@@ -33,7 +175,6 @@ class CompetitionRepository {
 		$user_id = get_current_user_id() ? get_current_user_id() : null;
 
 		if ( $id ) {
-			// update flow
 			$san['updated_at'] = $now;
 			if ( $user_id ) {
 				$san['updated_by'] = $user_id;
@@ -51,8 +192,7 @@ class CompetitionRepository {
 			$where_format = array( '%d' );
 
 			$updated = $wpdb->update( $table, $filtered_prepared, $where, $filtered_formats, $where_format );
-			if ( false === $updated ) {
-				// log and return existing id
+			if ( $updated === false ) {
 				error_log( 'UFSC CompetitionRepository: update failed: ' . $wpdb->last_error );
 			}
 			return $id;
@@ -83,10 +223,9 @@ class CompetitionRepository {
 		return (int) $wpdb->insert_id;
 	}
 
-	public function update( $id, array $data ) {
-		return $this->save( array_merge( $data, array( 'id' => $id ) ) );
-	}
-
+	/**
+	 * Helper: determine SQL format string for a PHP value
+	 */
 	private function value_to_format( $v ) {
 		if ( is_int( $v ) ) {
 			return '%d';
@@ -98,7 +237,10 @@ class CompetitionRepository {
 	}
 
 	/**
-	 * Sanitize incoming data array for competitions.
+	 * Sanitize incoming data for competitions (accepts new keys).
+	 *
+	 * @param array $data
+	 * @return array
 	 */
 	public function sanitize( array $data ) {
 		$allowed = array(
@@ -115,28 +257,23 @@ class CompetitionRepository {
 			'allowed_formats',
 			'created_by',
 			'updated_by',
-			// organizer snapshot
 			'organizer_club_id',
 			'organizer_club_name',
 			'organizer_region',
-			// venue
 			'venue_name',
 			'venue_address1',
 			'venue_address2',
 			'venue_postcode',
 			'venue_city',
 			'venue_region',
-			// datetimes
 			'event_start_datetime',
 			'event_end_datetime',
 			'registration_open_datetime',
 			'registration_close_datetime',
 			'weighin_start_datetime',
 			'weighin_end_datetime',
-			// contact
 			'contact_email',
 			'contact_phone',
-			// legacy
 			'created_at',
 			'updated_at',
 			'deleted_at',
@@ -148,7 +285,6 @@ class CompetitionRepository {
 			if ( ! in_array( $k, $allowed, true ) ) {
 				continue;
 			}
-
 			switch ( $k ) {
 				case 'id':
 				case 'organizer_club_id':
@@ -179,10 +315,6 @@ class CompetitionRepository {
 					$sanitized[ $k ] = $this->sanitize_datetime( $v );
 					break;
 
-				case 'venue_maps_url':
-					$sanitized[ $k ] = esc_url_raw( $v );
-					break;
-
 				default:
 					if ( is_string( $v ) ) {
 						$sanitized[ $k ] = sanitize_text_field( $v );
@@ -198,10 +330,6 @@ class CompetitionRepository {
 
 	/**
 	 * Normalize datetime inputs to 'Y-m-d H:i:s' or null.
-	 *
-	 * Accepts:
-	 * - 'YYYY-MM-DDTHH:MM' (datetime-local)
-	 * - 'YYYY-MM-DD HH:MM:SS'
 	 */
 	private function sanitize_datetime( $value ) {
 		if ( null === $value || '' === $value ) {
@@ -221,6 +349,61 @@ class CompetitionRepository {
 		return null;
 	}
 
+	/**
+	 * Build WHERE clause from filters.
+	 *
+	 * Supported filters:
+	 * - view: 'all'|'active' (deleted)
+	 * - competition_ids (array)
+	 * - search (string)
+	 * - discipline, season, status
+	 */
+	private function build_where( array $filters ) {
+		global $wpdb;
+
+		$where = array( '1=1' );
+
+		if ( ! empty( $filters['view'] ) && 'all' !== $filters['view'] ) {
+			if ( 'active' === $filters['view'] ) {
+				$where[] = 'deleted_at IS NULL';
+			}
+		}
+
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
+			$ids = array_map( 'absint', $filters['competition_ids'] );
+			if ( count( $ids ) ) {
+				$where[] = 'id IN (' . implode( ',', $ids ) . ')';
+			}
+		}
+
+		if ( ! empty( $filters['search'] ) ) {
+			$search = esc_sql( like_escape( $filters['search'] ) );
+			$where[] = "name LIKE '%{$search}%'";
+		}
+
+		if ( ! empty( $filters['discipline'] ) ) {
+			$discipline = esc_sql( $filters['discipline'] );
+			$where[] = "discipline = '{$discipline}'";
+		}
+
+		if ( ! empty( $filters['season'] ) ) {
+			$season = esc_sql( $filters['season'] );
+			$where[] = "season = '{$season}'";
+		}
+
+		if ( ! empty( $filters['status'] ) ) {
+			$status = esc_sql( $filters['status'] );
+			$where[] = "status = '{$status}'";
+		}
+
+		$where_sql = 'WHERE ' . implode( ' AND ', $where );
+
+		return $where_sql;
+	}
+
+	/**
+	 * Filter prepared data and formats according to actual DB columns.
+	 */
 	private function filter_prepared_and_formats_for_db( array $prepared, array $formats ) {
 		global $wpdb;
 
