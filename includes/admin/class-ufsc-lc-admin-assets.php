@@ -4,6 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Admin assets loader with robust fallbacks to avoid undefined constants.
+ *
+ * Enqueue only on registered admin pages via UFSC_LC_Admin_Assets::register_page()
+ */
+
 class UFSC_LC_Admin_Assets {
 	private static $instance;
 	private $pages = array();
@@ -26,35 +32,82 @@ class UFSC_LC_Admin_Assets {
 		if ( null === self::$instance ) {
 			self::$instance = new self();
 		}
-
 		return self::$instance;
 	}
 
+	/**
+	 * Resolve a reliable base dir for plugin files.
+	 *
+	 * @return string
+	 */
+	private function get_base_dir() {
+		if ( defined( 'UFSC_LC_DIR' ) ) {
+			return rtrim( UFSC_LC_DIR, '/\\' ) . '/';
+		}
+		if ( defined( 'UFSC_LC_FILE' ) ) {
+			return plugin_dir_path( UFSC_LC_FILE );
+		}
+		// fallback to this file's directory (best effort)
+		return plugin_dir_path( __DIR__ . '/..' );
+	}
+
+	/**
+	 * Resolve a reliable base URL for plugin assets.
+	 *
+	 * @return string
+	 */
+	private function get_base_url() {
+		if ( defined( 'UFSC_LC_URL' ) ) {
+			return rtrim( UFSC_LC_URL, '/\\' ) . '/';
+		}
+		if ( defined( 'UFSC_LC_FILE' ) ) {
+			return plugin_dir_url( UFSC_LC_FILE );
+		}
+		// fallback: derive from base dir (best effort)
+		return plugins_url( '/', $this->get_base_dir() );
+	}
+
+	/**
+	 * Enqueue styles/scripts only for registered pages.
+	 *
+	 * @param string $hook_suffix
+	 */
 	public function enqueue( $hook_suffix ) {
-		// Only enqueue when a registered page requests it
+		// Only load on pages we registered
 		if ( empty( $this->pages[ $hook_suffix ] ) ) {
 			return;
 		}
 
-		$css_path = UFSC_LC_PLUGIN_DIR . 'assets/admin/css/ufsc-lc-admin.css';
-		$css_url  = UFSC_LC_URL . 'assets/admin/css/ufsc-lc-admin.css';
-		$ver_css  = file_exists( $css_path ) ? filemtime( $css_path ) : UFSC_LC_Plugin::DB_VERSION;
+		$base_dir = $this->get_base_dir();
+		$base_url = $this->get_base_url();
+
+		// Admin CSS
+		$css_path = $base_dir . 'assets/admin/css/ufsc-lc-admin.css';
+		$css_url  = $base_url . 'assets/admin/css/ufsc-lc-admin.css';
+		$ver = '1.0.0';
+		if ( file_exists( $css_path ) ) {
+			$ver = filemtime( $css_path );
+		}
 
 		wp_enqueue_style(
 			'ufsc-lc-admin-style',
 			$css_url,
 			array(),
-			$ver_css
+			$ver
 		);
 
-		$js_path = UFSC_LC_PLUGIN_DIR . 'assets/admin/js/ufsc-lc-admin.js';
-		$js_url  = UFSC_LC_URL . 'assets/admin/js/ufsc-lc-admin.js';
-		$ver_js  = file_exists( $js_path ) ? filemtime( $js_path ) : UFSC_LC_Plugin::DB_VERSION;
+		// Admin JS
+		$js_path = $base_dir . 'assets/admin/js/ufsc-lc-admin.js';
+		$js_url  = $base_url . 'assets/admin/js/ufsc-lc-admin.js';
+		$ver_js  = '1.0.0';
+		if ( file_exists( $js_path ) ) {
+			$ver_js = filemtime( $js_path );
+		}
 
 		wp_enqueue_script(
 			'ufsc-lc-admin-script',
 			$js_url,
-			array(),
+			array( 'jquery' ),
 			$ver_js,
 			true
 		);
@@ -64,29 +117,12 @@ class UFSC_LC_Admin_Assets {
 			'UFSC_LC_Admin',
 			array(
 				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'ufsc_lc_nonce' => wp_create_nonce( 'ufsc_lc_nonce' ),
-				'nonces'  => array(
-					'clubSearch' => wp_create_nonce( 'ufsc_lc_club_search' ),
-					'searchClubs' => wp_create_nonce( 'ufsc_lc_search_clubs' ),
-					'saveAlias'  => wp_create_nonce( 'ufsc_lc_asptt_save_alias' ),
-				),
-				'strings' => array(
-					'selectClub'   => __( 'Sélectionner un club', 'ufsc-licence-competition' ),
-					'searchPlaceholder' => __( 'Rechercher un club…', 'ufsc-licence-competition' ),
-					'noResults'    => __( 'Aucun club trouvé.', 'ufsc-licence-competition' ),
-					'saving'       => __( 'Enregistrement...', 'ufsc-licence-competition' ),
-					'selectFirst'  => __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' ),
-					'confirmDelete' => __( 'Supprimer définitivement ?', 'ufsc-licence-competition' ),
-					'errorDefault' => __( 'Erreur', 'ufsc-licence-competition' ),
-				),
 			)
 		);
 
-		// Safety: if an old/legacy handle was accidentally enqueued elsewhere and points to a missing file,
-		// deregister it to avoid 404s in the console. This only removes the handle; it won't affect correct assets.
+		// Defensive: if old handle 'user-club-admin' registered and points to missing file, deregister to avoid 404
 		if ( wp_style_is( 'user-club-admin', 'registered' ) && ! wp_style_is( 'user-club-admin', 'enqueued' ) ) {
-			// if registered but not enqueued, don't force enqueue; remove registration if it's broken.
 			wp_deregister_style( 'user-club-admin' );
 		}
 	}
