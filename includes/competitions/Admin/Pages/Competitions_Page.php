@@ -8,9 +8,6 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
-use UFSC\Competitions\Services\DisciplineRegistry;
-use UFSC\Competitions\Services\CategoryPresetRegistry;
-use UFSC\Competitions\Admin\Tables\Competitions_Table;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -24,20 +21,20 @@ class Competitions_Page {
 	private $club_repository;
 
 	public function __construct() {
-		// Defensive instantiation to avoid fatals when components are missing.
+		// Defensive instantiation: avoid fatal if classes missing
 		$this->repository = class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' ) ? new CompetitionRepository() : null;
 		$this->categories = class_exists( '\\UFSC\\Competitions\\Repositories\\CategoryRepository' ) ? new CategoryRepository() : null;
 		$this->entries = class_exists( '\\UFSC\\Competitions\\Repositories\\EntryRepository' ) ? new EntryRepository() : null;
 		$this->fights = class_exists( '\\UFSC\\Competitions\\Repositories\\FightRepository' ) ? new FightRepository() : null;
 
-		// ClubRepository may be new; instantiate only if available.
+		// ClubRepository may not exist in older versions; guard
 		if ( class_exists( '\\UFSC\\Competitions\\Repositories\\ClubRepository' ) ) {
 			$this->club_repository = new \UFSC\Competitions\Repositories\ClubRepository();
 		} else {
 			$this->club_repository = null;
 		}
 
-		// Register AJAX for club lookup (handler guards against missing repository)
+		// register AJAX handler even if repo missing; handler will guard and return error
 		add_action( 'wp_ajax_ufsc_get_club', array( $this, 'ajax_get_club' ) );
 	}
 
@@ -50,7 +47,7 @@ class Competitions_Page {
 
 	public function render() {
 		if ( null === $this->repository ) {
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'UFSC Competitions: module competitions non disponible — vérifiez le chargement du plugin.', 'ufsc-licence-competition' ) . '</p></div>';
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'UFSC Competitions: module unavailable — please check plugin files.', 'ufsc-licence-competition' ) . '</p></div>';
 			return;
 		}
 
@@ -66,30 +63,19 @@ class Competitions_Page {
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			$item = null;
-			if ( 'edit' === $action && $id && $this->repository ) {
-				// repository->get method expected; keep defensive
-				if ( method_exists( $this->repository, 'get' ) ) {
-					$item = $this->repository->get( $id, true );
-				}
+			if ( 'edit' === $action && $id && method_exists( $this->repository, 'get' ) ) {
+				$item = $this->repository->get( $id, true );
 			}
 			$this->render_form( $item );
 			return;
 		}
 
-		if ( 'view' === $action && $id && $this->repository ) {
-			if ( method_exists( $this->repository, 'get' ) ) {
-				$item = $this->repository->get( $id, true );
-				if ( $item ) {
-					$this->render_pilotage( $item );
-					return;
-				}
-			}
-			$this->render_notice( 'not_found' );
+		$list_table = null;
+		if ( class_exists( '\\UFSC\\Competitions\\Admin\\Tables\\Competitions_Table' ) ) {
+			$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
+			$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_COMPETITIONS );
+			$list_table->prepare_items();
 		}
-
-		$list_table = new Competitions_Table();
-		$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_COMPETITIONS );
-		$list_table->prepare_items();
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -97,11 +83,13 @@ class Competitions_Page {
 			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
 			<hr class="wp-header-end">
 			<?php $this->render_helper_notice( __( 'Gérer les compétitions, catégories, inscriptions et tableaux.', 'ufsc-licence-competition' ) ); ?>
-			<?php $list_table->views(); ?>
-			<form method="post">
-				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_COMPETITIONS ); ?>" />
-				<?php $list_table->display(); ?>
-			</form>
+			<?php if ( $list_table ) : ?>
+				<?php $list_table->views(); ?>
+				<form method="post">
+					<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_COMPETITIONS ); ?>" />
+					<?php $list_table->display(); ?>
+				</form>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -123,7 +111,6 @@ class Competitions_Page {
 	}
 
 	private function render_form( $item = null ) {
-		// Values with safe defaults
 		$values = array(
 			'id' => $item->id ?? 0,
 			'name' => $item->name ?? '',
@@ -131,39 +118,26 @@ class Competitions_Page {
 			'type' => $item->type ?? '',
 			'season' => $item->season ?? '',
 			'status' => $item->status ?? 'draft',
-			// organizer snapshot
 			'organizer_club_id' => $item->organizer_club_id ?? 0,
+			'organizer_club_name' => $item->organizer_club_name ?? '',
 			'organizer_region' => $item->organizer_region ?? '',
-			'organizer_email' => $item->organizer_email ?? '',
-			'organizer_phone' => $item->organizer_phone ?? '',
-			// venue
 			'venue_name' => $item->venue_name ?? '',
 			'venue_address1' => $item->venue_address1 ?? '',
 			'venue_address2' => $item->venue_address2 ?? '',
 			'venue_postcode' => $item->venue_postcode ?? '',
 			'venue_city' => $item->venue_city ?? '',
 			'venue_region' => $item->venue_region ?? '',
-			'venue_country' => $item->venue_country ?? 'FR',
-			'venue_maps_url' => $item->venue_maps_url ?? '',
-			'venue_access_info' => $item->venue_access_info ?? '',
-			// event
-			'event_start_date' => $item->event_start_date ?? '',
-			'event_end_date' => $item->event_end_date ?? '',
-			'event_start_time' => $item->event_start_time ?? '',
-			'event_end_time' => $item->event_end_time ?? '',
-			// registration
-			'reg_open_date' => $item->reg_open_date ?? '',
-			'reg_open_time' => $item->reg_open_time ?? '',
-			'reg_close_date' => $item->reg_close_date ?? '',
-			'reg_close_time' => $item->reg_close_time ?? '',
-			// weighin
-			'weighin_date' => $item->weighin_date ?? '',
-			'weighin_start_time' => $item->weighin_start_time ?? '',
-			'weighin_end_time' => $item->weighin_end_time ?? '',
-			'weighin_location_text' => $item->weighin_location_text ?? '',
+			'event_start_datetime' => $item->event_start_datetime ?? '',
+			'event_end_datetime' => $item->event_end_datetime ?? '',
+			'registration_open_datetime' => $item->registration_open_datetime ?? '',
+			'registration_close_datetime' => $item->registration_close_datetime ?? '',
+			'weighin_start_datetime' => $item->weighin_start_datetime ?? '',
+			'weighin_end_datetime' => $item->weighin_end_datetime ?? '',
+			'contact_email' => $item->contact_email ?? '',
+			'contact_phone' => $item->contact_phone ?? '',
 		);
 
-		$disciplines = class_exists( '\\UFSC\\Competitions\\Services\\DisciplineRegistry' ) ? \UFSC\Competitions\Services\DisciplineRegistry::get_disciplines_with_types() : array();
+		// Prepare clubs list if repository available
 		$clubs = array();
 		if ( $this->club_repository && method_exists( $this->club_repository, 'list_for_select' ) ) {
 			$clubs = $this->club_repository->list_for_select();
@@ -173,52 +147,37 @@ class Competitions_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la compétition', 'ufsc-licence-competition' ) : __( 'Ajouter une compétition', 'ufsc-licence-competition' ) ); ?></h1>
-			<?php $this->render_helper_notice( __( 'Renseigner les informations de la compétition. Les adresses du club et du lieu sont distinctes.', 'ufsc-licence-competition' ) ); ?>
-
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_competition' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_competition">
 				<input type="hidden" name="id" value="<?php echo esc_attr( $values['id'] ); ?>">
 
-				<h2><?php esc_html_e( 'Identité & calendrier', 'ufsc-licence-competition' ); ?></h2>
+				<h2><?php esc_html_e( 'Informations générales', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="ufsc_comp_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_comp_name" name="name" type="text" value="<?php echo esc_attr( $values['name'] ); ?>" class="regular-text" required></td>
+						<th><label for="ufsc_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_name" name="name" type="text" value="<?php echo esc_attr( $values['name'] ); ?>" class="regular-text" required></td>
 					</tr>
-
 					<tr>
-						<th><label for="ufsc_comp_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
+						<th><label for="ufsc_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_discipline" name="discipline" type="text" value="<?php echo esc_attr( $values['discipline'] ); ?>" class="regular-text" required></td>
+					</tr>
+					<tr>
+						<th><label for="ufsc_type"><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_type" name="type" type="text" value="<?php echo esc_attr( $values['type'] ); ?>" class="regular-text" required></td>
+					</tr>
+					<tr>
+						<th><label for="ufsc_season"><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_season" name="season" type="text" value="<?php echo esc_attr( $values['season'] ); ?>" class="regular-text"></td>
+					</tr>
+					<tr>
+						<th><label for="ufsc_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<select id="ufsc_comp_discipline" name="discipline" required>
-								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
-								<?php foreach ( $disciplines as $d => $meta ) : ?>
-									<option value="<?php echo esc_attr( $d ); ?>" <?php selected( $values['discipline'], $d ); ?>><?php echo esc_html( $meta['label'] ?? $d ); ?></option>
-								<?php endforeach; ?>
-							</select>
-						</td>
-					</tr>
-
-					<tr>
-						<th><label for="ufsc_comp_type"><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_comp_type" name="type" type="text" value="<?php echo esc_attr( $values['type'] ); ?>" class="regular-text" required></td>
-					</tr>
-
-					<tr>
-						<th><label for="ufsc_comp_season"><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_comp_season" name="season" type="text" value="<?php echo esc_attr( $values['season'] ); ?>" class="regular-text" required></td>
-					</tr>
-
-					<tr>
-						<th><label for="ufsc_comp_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
-						<td>
-							<select id="ufsc_comp_status" name="status">
+							<select id="ufsc_status" name="status">
 								<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
-								<option value="preparing" <?php selected( $values['status'], 'preparing' ); ?>><?php esc_html_e( 'Préparation', 'ufsc-licence-competition' ); ?></option>
-								<option value="open" <?php selected( $values['status'], 'open' ); ?>><?php esc_html_e( 'Inscriptions ouvertes', 'ufsc-licence-competition' ); ?></option>
-								<option value="running" <?php selected( $values['status'], 'running' ); ?>><?php esc_html_e( 'En cours', 'ufsc-licence-competition' ); ?></option>
-								<option value="closed" <?php selected( $values['status'], 'closed' ); ?>><?php esc_html_e( 'Clôturée', 'ufsc-licence-competition' ); ?></option>
-								<option value="archived" <?php selected( $values['status'], 'archived' ); ?>><?php esc_html_e( 'Archivée', 'ufsc-licence-competition' ); ?></option>
+								<option value="open" <?php selected( $values['status'], 'open' ); ?>><?php esc_html_e( 'Ouvert', 'ufsc-licence-competition' ); ?></option>
+								<option value="closed" <?php selected( $values['status'], 'closed' ); ?>><?php esc_html_e( 'Fermé', 'ufsc-licence-competition' ); ?></option>
+								<option value="archived" <?php selected( $values['status'], 'archived' ); ?>><?php esc_html_e( 'Archivé', 'ufsc-licence-competition' ); ?></option>
 							</select>
 						</td>
 					</tr>
@@ -226,45 +185,43 @@ class Competitions_Page {
 
 				<h2><?php esc_html_e( 'Club organisateur', 'ufsc-licence-competition' ); ?></h2>
 				<?php if ( ! $this->club_repository ) : ?>
-					<div class="notice notice-warning"><p><?php esc_html_e( 'ClubRepository non chargé — sélection du club désactivée. Vérifiez le chargement du module competitions.', 'ufsc-licence-competition' ); ?></p></div>
+					<div class="notice notice-warning"><p><?php esc_html_e( 'Club repository non disponible. Vous pouvez saisir le nom du club manuellement.', 'ufsc-licence-competition' ); ?></p></div>
 				<?php endif; ?>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="ufsc_org_club"><?php esc_html_e( 'Club organisateur', 'ufsc-licence-competition' ); ?></label></th>
+						<th><label for="ufsc_organizer_club_id"><?php esc_html_e( 'Club organisateur', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<select id="ufsc_org_club" name="organizer_club_id" <?php echo $this->club_repository ? 'required' : 'disabled'; ?>>
-								<option value="0"><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
-								<?php foreach ( $clubs as $cid => $label ) : ?>
-									<option value="<?php echo esc_attr( $cid ); ?>" <?php selected( $values['organizer_club_id'], $cid ); ?>><?php echo esc_html( $label ); ?></option>
-								<?php endforeach; ?>
-							</select>
-							<p class="description"><?php esc_html_e( 'Les informations du club sont stockées dans la table des clubs. Seule une snapshot (région/email/tel) est conservée ici.', 'ufsc-licence-competition' ); ?></p>
+							<?php if ( $this->club_repository ) : ?>
+								<select id="ufsc_organizer_club_id" name="organizer_club_id">
+									<option value="0"><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
+									<?php foreach ( $clubs as $cid => $label ) : ?>
+										<option value="<?php echo esc_attr( $cid ); ?>" <?php selected( $values['organizer_club_id'], $cid ); ?>><?php echo esc_html( $label ); ?></option>
+									<?php endforeach; ?>
+								</select>
+							<?php else : ?>
+								<input id="ufsc_organizer_club_name" name="organizer_club_name" type="text" value="<?php echo esc_attr( $values['organizer_club_name'] ); ?>" class="regular-text">
+							<?php endif; ?>
+							<p class="description"><?php esc_html_e( 'L’adresse du club n’est pas utilisée automatiquement comme lieu de la compétition.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
-
 					<tr>
-						<th><?php esc_html_e( 'Infos club (snapshot)', 'ufsc-licence-competition' ); ?></th>
-						<td>
-							<input type="text" readonly class="regular-text" id="ufsc_org_region" placeholder="<?php esc_attr_e( 'Région', 'ufsc-licence-competition' ); ?>" value="<?php echo esc_attr( $values['organizer_region'] ); ?>">
-							<input type="text" readonly class="regular-text" id="ufsc_org_email" placeholder="<?php esc_attr_e( 'Email', 'ufsc-licence-competition' ); ?>" value="<?php echo esc_attr( $values['organizer_email'] ); ?>">
-							<input type="text" readonly class="regular-text" id="ufsc_org_phone" placeholder="<?php esc_attr_e( 'Téléphone', 'ufsc-licence-competition' ); ?>" value="<?php echo esc_attr( $values['organizer_phone'] ); ?>">
-						</td>
+						<th><label><?php esc_html_e( 'Région du club (snapshot)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input readonly class="regular-text" value="<?php echo esc_attr( $values['organizer_region'] ); ?>"></td>
 					</tr>
 				</table>
 
-				<h2><?php esc_html_e( 'Lieu de la compétition (manifestation)', 'ufsc-licence-competition' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Adresse distincte de l’adresse du club. Vous pouvez copier l’adresse du club manuellement si nécessaire.', 'ufsc-licence-competition' ); ?></p>
+				<h2><?php esc_html_e( 'Lieu de la manifestation (venue)', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
 						<th><label for="ufsc_venue_name"><?php esc_html_e( 'Nom du lieu', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input id="ufsc_venue_name" name="venue_name" type="text" value="<?php echo esc_attr( $values['venue_name'] ); ?>" class="regular-text" required></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_venue_address1"><?php esc_html_e( 'Adresse (ligne 1)', 'ufsc-licence-competition' ); ?></label></th>
+						<th><label for="ufsc_venue_address1"><?php esc_html_e( 'Adresse 1', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input id="ufsc_venue_address1" name="venue_address1" type="text" value="<?php echo esc_attr( $values['venue_address1'] ); ?>" class="regular-text" required></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_venue_address2"><?php esc_html_e( 'Complément d\'adresse', 'ufsc-licence-competition' ); ?></label></th>
+						<th><label for="ufsc_venue_address2"><?php esc_html_e( 'Adresse 2', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input id="ufsc_venue_address2" name="venue_address2" type="text" value="<?php echo esc_attr( $values['venue_address2'] ); ?>" class="regular-text"></td>
 					</tr>
 					<tr>
@@ -279,153 +236,60 @@ class Competitions_Page {
 						<th><label for="ufsc_venue_region"><?php esc_html_e( 'Région', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input id="ufsc_venue_region" name="venue_region" type="text" value="<?php echo esc_attr( $values['venue_region'] ); ?>" class="regular-text" required></td>
 					</tr>
-					<tr>
-						<th><label for="ufsc_venue_country"><?php esc_html_e( 'Pays', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_venue_country" name="venue_country" type="text" value="<?php echo esc_attr( $values['venue_country'] ); ?>" class="small-text"></td>
-					</tr>
-					<tr>
-						<th><label for="ufsc_venue_maps_url"><?php esc_html_e( 'URL carte / plan', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_venue_maps_url" name="venue_maps_url" type="url" value="<?php echo esc_attr( $values['venue_maps_url'] ); ?>" class="regular-text"></td>
-					</tr>
-					<tr>
-						<th><label for="ufsc_venue_access_info"><?php esc_html_e( 'Accès / remarques', 'ufsc-licence-competition' ); ?></label></th>
-						<td><textarea id="ufsc_venue_access_info" name="venue_access_info" rows="4" class="large-text"><?php echo esc_textarea( $values['venue_access_info'] ); ?></textarea></td>
-					</tr>
-					<tr>
-						<th><?php esc_html_e( 'Actions', 'ufsc-licence-competition' ); ?></th>
-						<td>
-							<button type="button" id="ufsc_copy_club_address" class="button" <?php echo $this->club_repository ? '' : 'disabled'; ?>><?php esc_html_e( 'Copier l\'adresse du club', 'ufsc-licence-competition' ); ?></button>
-						</td>
-					</tr>
 				</table>
 
-				<h2><?php esc_html_e( 'Dates & horaires de la manifestation', 'ufsc-licence-competition' ); ?></h2>
+				<h2><?php esc_html_e( 'Dates & horaires', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="ufsc_event_start_date"><?php esc_html_e( 'Date début', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_event_start_date" name="event_start_date" type="date" value="<?php echo esc_attr( $values['event_start_date'] ); ?>" required></td>
+						<th><label for="ufsc_event_start_datetime"><?php esc_html_e( 'Date & heure début', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_event_start_datetime" name="event_start_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['event_start_datetime'] ) ); ?>" required></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_event_end_date"><?php esc_html_e( 'Date fin', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_event_end_date" name="event_end_date" type="date" value="<?php echo esc_attr( $values['event_end_date'] ); ?>"></td>
-					</tr>
-					<tr>
-						<th><label for="ufsc_event_start_time"><?php esc_html_e( 'Heure début', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_event_start_time" name="event_start_time" type="time" value="<?php echo esc_attr( $values['event_start_time'] ); ?>"></td>
-					</tr>
-					<tr>
-						<th><label for="ufsc_event_end_time"><?php esc_html_e( 'Heure fin', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_event_end_time" name="event_end_time" type="time" value="<?php echo esc_attr( $values['event_end_time'] ); ?>"></td>
+						<th><label for="ufsc_event_end_datetime"><?php esc_html_e( 'Date & heure fin', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_event_end_datetime" name="event_end_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['event_end_datetime'] ) ); ?>"></td>
 					</tr>
 				</table>
 
 				<h2><?php esc_html_e( 'Inscriptions', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="ufsc_reg_open_date"><?php esc_html_e( 'Ouverture', 'ufsc-licence-competition' ); ?></label></th>
-						<td>
-							<input id="ufsc_reg_open_date" name="reg_open_date" type="date" value="<?php echo esc_attr( $values['reg_open_date'] ); ?>">
-							<input id="ufsc_reg_open_time" name="reg_open_time" type="time" value="<?php echo esc_attr( $values['reg_open_time'] ); ?>">
-						</td>
+						<th><label for="ufsc_registration_open_datetime"><?php esc_html_e( 'Ouverture', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_registration_open_datetime" name="registration_open_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['registration_open_datetime'] ) ); ?>"></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_reg_close_date"><?php esc_html_e( 'Fermeture', 'ufsc-licence-competition' ); ?></label></th>
-						<td>
-							<input id="ufsc_reg_close_date" name="reg_close_date" type="date" value="<?php echo esc_attr( $values['reg_close_date'] ); ?>">
-							<input id="ufsc_reg_close_time" name="reg_close_time" type="time" value="<?php echo esc_attr( $values['reg_close_time'] ); ?>">
-						</td>
+						<th><label for="ufsc_registration_close_datetime"><?php esc_html_e( 'Fermeture', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_registration_close_datetime" name="registration_close_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['registration_close_datetime'] ) ); ?>"></td>
 					</tr>
 				</table>
 
 				<h2><?php esc_html_e( 'Pesée', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th><label for="ufsc_weighin_date"><?php esc_html_e( 'Date de pesée', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_weighin_date" name="weighin_date" type="date" value="<?php echo esc_attr( $values['weighin_date'] ); ?>"></td>
+						<th><label for="ufsc_weighin_start_datetime"><?php esc_html_e( 'Début pesée', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_weighin_start_datetime" name="weighin_start_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['weighin_start_datetime'] ) ); ?>"></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_weighin_start"><?php esc_html_e( 'Heure début', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_weighin_start" name="weighin_start_time" type="time" value="<?php echo esc_attr( $values['weighin_start_time'] ); ?>"></td>
+						<th><label for="ufsc_weighin_end_datetime"><?php esc_html_e( 'Fin pesée', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_weighin_end_datetime" name="weighin_end_datetime" type="datetime-local" value="<?php echo esc_attr( str_replace( ' ', 'T', $values['weighin_end_datetime'] ) ); ?>"></td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Contact', 'ufsc-licence-competition' ); ?></h2>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="ufsc_contact_email"><?php esc_html_e( 'Email contact', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_contact_email" name="contact_email" type="email" value="<?php echo esc_attr( $values['contact_email'] ); ?>" class="regular-text"></td>
 					</tr>
 					<tr>
-						<th><label for="ufsc_weighin_end"><?php esc_html_e( 'Heure fin', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input id="ufsc_weighin_end" name="weighin_end_time" type="time" value="<?php echo esc_attr( $values['weighin_end_time'] ); ?>"></td>
-					</tr>
-					<tr>
-						<th><label for="ufsc_weighin_location"><?php esc_html_e( 'Lieu de pesée (si différent)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><textarea id="ufsc_weighin_location" name="weighin_location_text" rows="3" class="large-text"><?php echo esc_textarea( $values['weighin_location_text'] ); ?></textarea></td>
+						<th><label for="ufsc_contact_phone"><?php esc_html_e( 'Téléphone contact', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input id="ufsc_contact_phone" name="contact_phone" type="text" value="<?php echo esc_attr( $values['contact_phone'] ); ?>" class="regular-text"></td>
 					</tr>
 				</table>
 
 				<?php submit_button( $values['id'] ? __( 'Mettre à jour la compétition', 'ufsc-licence-competition' ) : __( 'Créer la compétition', 'ufsc-licence-competition' ) ); ?>
 			</form>
 		</div>
-
-		<script>
-		( function() {
-			document.addEventListener( 'DOMContentLoaded', function() {
-				var btn = document.getElementById('ufsc_copy_club_address');
-				if (!btn) return;
-				btn.addEventListener('click', function() {
-					if (btn.disabled) {
-						return;
-					}
-					var select = document.getElementById('ufsc_org_club');
-					if (!select) return;
-					var clubId = select.value;
-					if (!clubId || clubId === '0') {
-						alert('<?php echo esc_js( __( 'Sélectionnez d\'abord un club.', 'ufsc-licence-competition' ) ); ?>');
-						return;
-					}
-
-					// Fetch club via admin-ajax
-					var data = new FormData();
-					data.append('action', 'ufsc_get_club');
-					data.append('club_id', clubId);
-					data.append('nonce', '<?php echo esc_js( $ajax_nonce ); ?>');
-
-					fetch('<?php echo esc_url_raw( admin_url( 'admin-ajax.php' ) ); ?>', {
-						method: 'POST',
-						credentials: 'same-origin',
-						body: data
-					}).then(function(res){ return res.json(); }).then(function(json){
-						if (!json || !json.success) {
-							alert('<?php echo esc_js( __( 'Impossible de récupérer l\'adresse du club.', 'ufsc-licence-competition' ) ); ?>');
-							return;
-						}
-						var club = json.data;
-						if (club.adresse) {
-							document.getElementById('ufsc_venue_address1').value = club.adresse || '';
-						}
-						if (club.complement_adresse) {
-							document.getElementById('ufsc_venue_address2').value = club.complement_adresse || '';
-						}
-						if (club.code_postal) {
-							document.getElementById('ufsc_venue_postcode').value = club.code_postal || '';
-						}
-						if (club.ville) {
-							document.getElementById('ufsc_venue_city').value = club.ville || '';
-						}
-						if (club.region) {
-							document.getElementById('ufsc_venue_region').value = club.region || '';
-						}
-					}).catch(function(){
-						alert('<?php echo esc_js( __( 'Erreur réseau lors de la récupération du club.', 'ufsc-licence-competition' ) ); ?>');
-					});
-				});
-			});
-		} )();
-		</script>
 		<?php
-	}
-
-	private function render_pilotage( $item ) {
-		echo '<h2>' . esc_html( $item->name ) . '</h2>';
-		// pilotage display stub
-	}
-
-	private function maybe_handle_bulk_actions( $list_table, $page ) {
-		// noop stub (left for compatibility)
 	}
 
 	private function render_helper_notice( $message ) {
@@ -434,29 +298,33 @@ class Competitions_Page {
 
 	public function handle_save() {
 		if ( ! Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
 		check_admin_referer( 'ufsc_competitions_save_competition' );
 
 		$input = wp_unslash( $_POST );
-		$data = array();
+
+		// Fields to accept
 		$fields = array(
 			'id','name','discipline','type','season','status',
-			'organizer_club_id','venue_name','venue_address1','venue_address2','venue_postcode','venue_city','venue_region','venue_country','venue_maps_url','venue_access_info',
-			'event_start_date','event_end_date','event_start_time','event_end_time',
-			'reg_open_date','reg_open_time','reg_close_date','reg_close_time',
-			'weighin_date','weighin_start_time','weighin_end_time','weighin_location_text'
+			'organizer_club_id','organizer_club_name','organizer_region',
+			'venue_name','venue_address1','venue_address2','venue_postcode','venue_city','venue_region',
+			'event_start_datetime','event_end_datetime',
+			'registration_open_datetime','registration_close_datetime',
+			'weighin_start_datetime','weighin_end_datetime',
+			'contact_email','contact_phone'
 		);
 
+		$data = array();
 		foreach ( $fields as $f ) {
 			if ( isset( $input[ $f ] ) ) {
 				$data[ $f ] = $input[ $f ];
 			}
 		}
 
-		// Required validation
-		$required = array( 'name','discipline','type','season','organizer_club_id','venue_name','venue_address1','venue_postcode','venue_city','venue_region','event_start_date' );
+		// Basic required validation
+		$required = array( 'name','discipline','type','venue_name','venue_address1','venue_postcode','venue_city','event_start_datetime' );
 		foreach ( $required as $r ) {
 			if ( empty( $data[ $r ] ) ) {
 				$redirect = add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add', 'ufsc_notice' => 'invalid' ), admin_url( 'admin.php' ) );
@@ -465,42 +333,31 @@ class Competitions_Page {
 			}
 		}
 
-		// snapshot organizer info if repository available
-		$clubId = absint( $data['organizer_club_id'] ?? 0 );
-		$club = null;
-		if ( $clubId && $this->club_repository && method_exists( $this->club_repository, 'get' ) ) {
-			$club = $this->club_repository->get( $clubId );
+		// If organizer_club_id present and ClubRepository available, snapshot club info
+		$club_id = isset( $data['organizer_club_id'] ) ? absint( $data['organizer_club_id'] ) : 0;
+		if ( $club_id && $this->club_repository && method_exists( $this->club_repository, 'get' ) ) {
+			$club = $this->club_repository->get( $club_id );
 			if ( $club ) {
-				$data['organizer_region'] = $club->region ?? '';
-				$data['organizer_email'] = $club->email ?? '';
-				$data['organizer_phone'] = $club->telephone ?? ( $club->phone ?? '' );
+				$data['organizer_club_name'] = $club->nom ?? $data['organizer_club_name'] ?? '';
+				$data['organizer_region'] = $club->region ?? $data['organizer_region'] ?? '';
+			}
+		} elseif ( $club_id ) {
+			// fallback: query WPDB if repo missing
+			global $wpdb;
+			$clubs_table = $wpdb->prefix . 'ufsc_clubs';
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT nom, region FROM {$clubs_table} WHERE id = %d", $club_id ) );
+			if ( $row ) {
+				$data['organizer_club_name'] = $row->nom ?? $data['organizer_club_name'] ?? '';
+				$data['organizer_region'] = $row->region ?? $data['organizer_region'] ?? '';
 			}
 		}
 
-		// event_end_date default
-		if ( empty( $data['event_end_date'] ) ) {
-			$data['event_end_date'] = $data['event_start_date'];
+		// Ensure event_end defaults to start if empty
+		if ( empty( $data['event_end_datetime'] ) && ! empty( $data['event_start_datetime'] ) ) {
+			$data['event_end_datetime'] = $data['event_start_datetime'];
 		}
 
-		// registration window logic
-		if ( ! empty( $data['reg_open_date'] ) && ! empty( $data['reg_close_date'] ) ) {
-			if ( strtotime( $data['reg_open_date'] ) > strtotime( $data['reg_close_date'] ) ) {
-				$redirect = add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add', 'ufsc_notice' => 'invalid' ), admin_url( 'admin.php' ) );
-				wp_safe_redirect( $redirect );
-				exit;
-			}
-		}
-
-		// weighin ordering
-		if ( ! empty( $data['weighin_start_time'] ) && ! empty( $data['weighin_end_time'] ) ) {
-			if ( strtotime( $data['weighin_start_time'] ) > strtotime( $data['weighin_end_time'] ) ) {
-				$redirect = add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add', 'ufsc_notice' => 'invalid' ), admin_url( 'admin.php' ) );
-				wp_safe_redirect( $redirect );
-				exit;
-			}
-		}
-
-		// Persist via repository
+		// Convert datetime-local values to 'Y-m-d H:i:s' format (handled in repository sanitize)
 		$id = 0;
 		if ( $this->repository && method_exists( $this->repository, 'save' ) ) {
 			$id = $this->repository->save( $data );
@@ -512,14 +369,9 @@ class Competitions_Page {
 	}
 
 	/**
-	 * Ajax: return club info for copy operations.
+	 * AJAX: return club info (safe subset) if repository available.
 	 */
 	public function ajax_get_club() {
-		// Guard: repository required
-		if ( ! $this->club_repository ) {
-			wp_send_json_error( 'club_repository_missing', 500 );
-		}
-
 		if ( ! Capabilities::user_can_manage() && ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error( 'forbidden', 403 );
 		}
@@ -529,6 +381,10 @@ class Competitions_Page {
 		$club_id = isset( $_POST['club_id'] ) ? absint( wp_unslash( $_POST['club_id'] ) ) : 0;
 		if ( ! $club_id ) {
 			wp_send_json_error( 'missing' );
+		}
+
+		if ( ! $this->club_repository || ! method_exists( $this->club_repository, 'get' ) ) {
+			wp_send_json_error( 'club_repo_missing', 500 );
 		}
 
 		$club = $this->club_repository->get( $club_id );
