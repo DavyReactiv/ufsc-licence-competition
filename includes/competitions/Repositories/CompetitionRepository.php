@@ -23,14 +23,45 @@ if ( ! defined( 'ABSPATH' ) ) {
  * - deleted_at, deleted_by
  */
 class CompetitionRepository {
+
 	private static $table_columns_cache = array();
+
+	/**
+	 * Allowed columns for ORDER BY (safety).
+	 * Must match real DB column names in competitions table.
+	 *
+	 * @var string[]
+	 */
+	private $allowed_order_cols = array(
+		'event_start_datetime',
+		'event_end_datetime',
+		'registration_open_datetime',
+		'registration_close_datetime',
+		'weighin_start_datetime',
+		'weighin_end_datetime',
+		'name',
+		'discipline',
+		'type',
+		'season',
+		'status',
+		'updated_at',
+		'created_at',
+	);
 
 	public function __construct() {
 		// noop
 	}
 
+	/**
+	 * Optional helper: check if a row exists (even deleted if include_deleted true).
+	 */
+	public function exists( $id, $include_deleted = true ): bool {
+		return (bool) $this->get( $id, (bool) $include_deleted );
+	}
+
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
+
 		$id = absint( $id );
 		if ( ! $id ) {
 			return null;
@@ -42,6 +73,7 @@ class CompetitionRepository {
 		if ( $row && ! $include_deleted && ! empty( $row->deleted_at ) ) {
 			return null;
 		}
+
 		return $row ?: null;
 	}
 
@@ -53,13 +85,7 @@ class CompetitionRepository {
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
-		$order_by           = 'event_start_datetime DESC';
-		$allowed_order_cols = array( 'event_start_datetime', 'name', 'season', 'status', 'updated_at', 'created_at' );
-
-		if ( ! empty( $filters['order_by'] ) && in_array( $filters['order_by'], $allowed_order_cols, true ) ) {
-			$dir      = ( ! empty( $filters['order_dir'] ) && 'ASC' === strtoupper( (string) $filters['order_dir'] ) ) ? 'ASC' : 'DESC';
-			$order_by = esc_sql( $filters['order_by'] ) . ' ' . $dir;
-		}
+		$order_by = $this->build_order_by( $filters );
 
 		$sql = $wpdb->prepare(
 			"SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d",
@@ -79,6 +105,7 @@ class CompetitionRepository {
 
 		$sql = "SELECT COUNT(1) FROM {$table} {$where}";
 		$val = $wpdb->get_var( $sql );
+
 		return (int) $val;
 	}
 
@@ -93,7 +120,8 @@ class CompetitionRepository {
 			return false;
 		}
 		$data['id'] = $id;
-		$saved_id   = $this->save( $data );
+
+		$saved_id = $this->save( $data );
 		return $saved_id ? $id : false;
 	}
 
@@ -117,6 +145,7 @@ class CompetitionRepository {
 			error_log( 'UFSC CompetitionRepository trash error: ' . $wpdb->last_error );
 			return false;
 		}
+
 		return true;
 	}
 
@@ -153,6 +182,7 @@ class CompetitionRepository {
 			error_log( 'UFSC CompetitionRepository restore error: ' . $wpdb->last_error );
 			return false;
 		}
+
 		return true;
 	}
 
@@ -171,6 +201,7 @@ class CompetitionRepository {
 			error_log( 'UFSC CompetitionRepository delete error: ' . $wpdb->last_error );
 			return false;
 		}
+
 		return true;
 	}
 
@@ -202,6 +233,7 @@ class CompetitionRepository {
 			if ( false === $updated ) {
 				error_log( 'UFSC CompetitionRepository update error: ' . $wpdb->last_error );
 			}
+
 			return $id;
 		}
 
@@ -262,6 +294,30 @@ class CompetitionRepository {
 		return 'WHERE ' . implode( ' AND ', $where );
 	}
 
+	/**
+	 * Safe ORDER BY builder (prevents SQL injection + aligns with WP_List_Table sorting).
+	 */
+	private function build_order_by( array $filters ): string {
+		$default = 'event_start_datetime DESC';
+
+		$order_by = isset( $filters['order_by'] ) ? (string) $filters['order_by'] : '';
+		$order_dir = isset( $filters['order_dir'] ) ? (string) $filters['order_dir'] : '';
+
+		if ( '' === $order_by ) {
+			return $default;
+		}
+
+		// Whitelist
+		if ( ! in_array( $order_by, $this->allowed_order_cols, true ) ) {
+			return $default;
+		}
+
+		$dir = ( 'ASC' === strtoupper( $order_dir ) ) ? 'ASC' : 'DESC';
+
+		// esc_sql is OK here, but whitelist already protects us
+		return esc_sql( $order_by ) . ' ' . $dir;
+	}
+
 	private function value_to_format( $v ) {
 		if ( is_int( $v ) ) {
 			return '%d';
@@ -288,6 +344,7 @@ class CompetitionRepository {
 
 		$value = (string) $value;
 		$value = str_replace( 'T', ' ', $value );
+		$value = trim( $value );
 
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $value ) ) {
 			$value .= ':00';
