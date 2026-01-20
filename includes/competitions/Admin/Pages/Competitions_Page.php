@@ -112,6 +112,18 @@ class Competitions_Page {
 				if ( isset( $_GET['ufsc_view'] ) ) {
 					echo '<input type="hidden" name="ufsc_view" value="' . esc_attr( sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) ) . '" />';
 				}
+
+				/**
+				 * ✅ Keep sorting when searching/filtering
+				 * WP_List_Table uses orderby/order in querystring.
+				 */
+				if ( isset( $_GET['orderby'] ) && '' !== (string) wp_unslash( $_GET['orderby'] ) ) {
+					echo '<input type="hidden" name="orderby" value="' . esc_attr( sanitize_key( wp_unslash( $_GET['orderby'] ) ) ) . '" />';
+				}
+				if ( isset( $_GET['order'] ) && '' !== (string) wp_unslash( $_GET['order'] ) ) {
+					echo '<input type="hidden" name="order" value="' . esc_attr( sanitize_key( wp_unslash( $_GET['order'] ) ) ) . '" />';
+				}
+
 				$list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions' );
 				$list_table->display();
 				?>
