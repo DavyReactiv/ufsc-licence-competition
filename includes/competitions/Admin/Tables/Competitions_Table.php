@@ -15,7 +15,11 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 }
 
 class Competitions_Table extends \WP_List_Table {
+
+	/** @var CompetitionRepository */
 	private $repository;
+
+	/** @var array */
 	private $filters = array();
 
 	public function __construct() {
@@ -59,7 +63,7 @@ class Competitions_Table extends \WP_List_Table {
 		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : '';
 		$order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( wp_unslash( $_REQUEST['order'] ) ) ) : '';
 
-		// Map table column keys -> DB columns (repository allowlist will enforce safety too)
+		// Map table column keys -> DB columns
 		$sortable_map = array(
 			'name'    => 'name',
 			'season'  => 'season',
@@ -75,8 +79,8 @@ class Competitions_Table extends \WP_List_Table {
 
 		$this->filters = $filters;
 
-		$total_items = (int) $this->repository->count( $filters );
-		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$total_items   = (int) $this->repository->count( $filters );
+		$this->items   = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
 		$this->set_pagination_args(
 			array(
@@ -101,6 +105,12 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	protected function get_sortable_columns() {
+		/**
+		 * Important:
+		 * - left key = column key in this table
+		 * - first value = what WP will send in ?orderby=
+		 * We use: name/season/status/event/updated to match prepare_items() mapping.
+		 */
 		return array(
 			'name'    => array( 'name', false ),
 			'season'  => array( 'season', false ),
@@ -117,9 +127,11 @@ class Competitions_Table extends \WP_List_Table {
 			$actions = array(
 				'restore' => __( 'Restaurer', 'ufsc-licence-competition' ),
 			);
+
 			if ( Capabilities::user_can_delete() ) {
 				$actions['delete'] = __( 'Supprimer définitivement', 'ufsc-licence-competition' );
 			}
+
 			return $actions;
 		}
 
