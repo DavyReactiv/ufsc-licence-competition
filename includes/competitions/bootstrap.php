@@ -41,6 +41,8 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/StandingsCalculator.php',
 		$base . '/Services/PrintRenderer.php',
 		$base . '/Services/LogService.php',
+		// Repository helpers must be available to all repos
+		$base . '/Repositories/RepositoryHelpers.php',
 		// Repositories (ClubRepository must be loaded here)
 		$base . '/Repositories/CompetitionRepository.php',
 		$base . '/Repositories/CategoryRepository.php',
