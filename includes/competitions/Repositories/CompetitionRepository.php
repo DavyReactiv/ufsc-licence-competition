@@ -12,70 +12,79 @@ class CompetitionRepository {
 	private static $table_columns_cache = array();
 
 	public function __construct() {
-		// constructor if needed
+		// noop
 	}
 
+	/**
+	 * Save data: insert or update depending on id
+	 *
+	 * @param array $data
+	 * @return int Inserted/updated ID
+	 */
 	public function save( array $data ): int {
 		global $wpdb;
 
 		$san = $this->sanitize( $data );
 
 		$id = isset( $san['id'] ) ? absint( $san['id'] ) : 0;
-		$prepared = $san;
-		unset( $prepared['id'] );
 
-		$formats = array_map( array( $this, 'value_to_format' ), array_values( $prepared ) );
-
-		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $prepared, $formats );
-
-		$table = Db::competitions_table();
+		// auto timestamps and user info
+		$now = current_time( 'mysql' );
+		$user_id = get_current_user_id() ? get_current_user_id() : null;
 
 		if ( $id ) {
-			$update_data = $filtered_prepared;
-			$update_formats = $filtered_formats;
-			if ( empty( $update_data ) ) {
+			// update flow
+			$san['updated_at'] = $now;
+			if ( $user_id ) {
+				$san['updated_by'] = $user_id;
+			}
+			unset( $san['id'] );
+			$formats = array_map( array( $this, 'value_to_format' ), array_values( $san ) );
+			list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $san, $formats );
+
+			if ( empty( $filtered_prepared ) ) {
 				return $id;
 			}
+
+			$table = Db::competitions_table();
 			$where = array( 'id' => $id );
 			$where_format = array( '%d' );
-			$updated = $wpdb->update( $table, $update_data, $where, $update_formats, $where_format );
-			if ( $updated === false ) {
-				return $id;
+
+			$updated = $wpdb->update( $table, $filtered_prepared, $where, $filtered_formats, $where_format );
+			if ( false === $updated ) {
+				// log and return existing id
+				error_log( 'UFSC CompetitionRepository: update failed: ' . $wpdb->last_error );
 			}
 			return $id;
 		}
 
+		// insert flow
+		$san['created_at'] = $now;
+		$san['updated_at'] = $now;
+		if ( $user_id ) {
+			$san['created_by'] = $user_id;
+			$san['updated_by'] = $user_id;
+		}
+
+		unset( $san['id'] );
+		$formats = array_map( array( $this, 'value_to_format' ), array_values( $san ) );
+		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $san, $formats );
+
 		if ( empty( $filtered_prepared ) ) {
 			return 0;
 		}
+
+		$table = Db::competitions_table();
 		$inserted = $wpdb->insert( $table, $filtered_prepared, $filtered_formats );
 		if ( false === $inserted ) {
+			error_log( 'UFSC CompetitionRepository: insert failed: ' . $wpdb->last_error );
 			return 0;
 		}
 		return (int) $wpdb->insert_id;
 	}
 
 	public function update( $id, array $data ) {
-		global $wpdb;
-		$id = absint( $id );
-		if ( ! $id ) {
-			return false;
-		}
-
-		$san = $this->sanitize( $data );
-		unset( $san['id'] );
-		$formats = array_map( array( $this, 'value_to_format' ), array_values( $san ) );
-		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $san, $formats );
-
-		if ( empty( $filtered_prepared ) ) {
-			return false;
-		}
-
-		$table = Db::competitions_table();
-		$where = array( 'id' => $id );
-		$where_format = array( '%d' );
-
-		return $wpdb->update( $table, $filtered_prepared, $where, $filtered_formats, $where_format );
+		return $this->save( array_merge( $data, array( 'id' => $id ) ) );
 	}
 
 	private function value_to_format( $v ) {
@@ -90,7 +99,6 @@ class CompetitionRepository {
 
 	/**
 	 * Sanitize incoming data array for competitions.
-	 * Accept only known keys to avoid blocking other modules.
 	 */
 	public function sanitize( array $data ) {
 		$allowed = array(
@@ -101,6 +109,7 @@ class CompetitionRepository {
 			'season',
 			'status',
 			'location',
+			'registration_deadline',
 			'age_reference',
 			'weight_tolerance',
 			'allowed_formats',
@@ -117,7 +126,7 @@ class CompetitionRepository {
 			'venue_postcode',
 			'venue_city',
 			'venue_region',
-			// datetimes (stored as 'Y-m-d H:i:s')
+			// datetimes
 			'event_start_datetime',
 			'event_end_datetime',
 			'registration_open_datetime',
@@ -127,6 +136,11 @@ class CompetitionRepository {
 			// contact
 			'contact_email',
 			'contact_phone',
+			// legacy
+			'created_at',
+			'updated_at',
+			'deleted_at',
+			'deleted_by',
 		);
 
 		$sanitized = array();
@@ -140,6 +154,7 @@ class CompetitionRepository {
 				case 'organizer_club_id':
 				case 'created_by':
 				case 'updated_by':
+				case 'deleted_by':
 					$sanitized[ $k ] = absint( $v );
 					break;
 
@@ -161,8 +176,11 @@ class CompetitionRepository {
 				case 'registration_close_datetime':
 				case 'weighin_start_datetime':
 				case 'weighin_end_datetime':
-					// Accept datetime-local (YYYY-MM-DDTHH:MM or YYYY-MM-DD HH:MM:SS)
 					$sanitized[ $k ] = $this->sanitize_datetime( $v );
+					break;
+
+				case 'venue_maps_url':
+					$sanitized[ $k ] = esc_url_raw( $v );
 					break;
 
 				default:
@@ -182,32 +200,24 @@ class CompetitionRepository {
 	 * Normalize datetime inputs to 'Y-m-d H:i:s' or null.
 	 *
 	 * Accepts:
-	 * - 'YYYY-MM-DDTHH:MM' (datetime-local default)
+	 * - 'YYYY-MM-DDTHH:MM' (datetime-local)
 	 * - 'YYYY-MM-DD HH:MM:SS'
-	 * - 'YYYY-MM-DD HH:MM'
 	 */
 	private function sanitize_datetime( $value ) {
 		if ( null === $value || '' === $value ) {
 			return null;
 		}
 		$value = (string) $value;
-		// replace T with space (from datetime-local)
 		$value = str_replace( 'T', ' ', $value );
-
-		// If seconds missing, append :00
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $value ) ) {
 			$value .= ':00';
 		}
-
-		// Validate final format
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value ) ) {
-			// optional: further check with strtotime
 			$ts = strtotime( $value );
 			if ( false !== $ts ) {
 				return date( 'Y-m-d H:i:s', $ts );
 			}
 		}
-
 		return null;
 	}
 
