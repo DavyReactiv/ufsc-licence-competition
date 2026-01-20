@@ -2,130 +2,32 @@
 
 namespace UFSC\Competitions\Admin;
 
-use UFSC\Competitions\Capabilities;
-use UFSC\Competitions\Admin\Pages\Competitions_Page;
-use UFSC\Competitions\Admin\Pages\Categories_Page;
-use UFSC\Competitions\Admin\Pages\Entries_Page;
-use UFSC\Competitions\Admin\Pages\Quality_Page;
-use UFSC\Competitions\Admin\Pages\Print_Page;
-use UFSC\Competitions\Admin\Pages\Guide_Page;
-use UFSC\Competitions\Admin\Pages\Bouts_Page;
-use UFSC\Competitions\Admin\Pages\Settings_Page;
-
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 class Menu {
-	const PARENT_SLUG = 'ufsc_competitions';
-	const PAGE_COMPETITIONS = 'ufsc_competitions_competitions';
-	const PAGE_CATEGORIES = 'ufsc_competitions_categories';
-	const PAGE_ENTRIES = 'ufsc_competitions_registrations';
-	const PAGE_QUALITY = 'ufsc_competitions_quality';
-	const PAGE_PRINT = 'ufsc_competitions_print';
-	const PAGE_BOUTS = 'ufsc_competitions_bouts';
-	const PAGE_SETTINGS = 'ufsc_competitions_settings';
-	const PAGE_GUIDE = 'ufsc_competitions_guide';
-
-	private static $registered = false;
-	private static $actions_registered = false;
+	const PARENT_SLUG        = 'ufsc-licence-documents';
+	const PAGE_COMPETITIONS  = 'ufsc-competitions';
+	const PAGE_CATEGORIES    = 'ufsc-competitions-categories';
+	const PAGE_ENTRIES       = 'ufsc-competitions-entries';
+	const PAGE_BOUTS         = 'ufsc-competitions-bouts';
+	const PAGE_SETTINGS      = 'ufsc-competitions-settings';
+	const PAGE_PRINT         = 'ufsc-competitions-print';
+	const PAGE_GUIDE         = 'ufsc-competitions-guide';
+	const PAGE_QUALITY       = 'ufsc-competitions-quality';
 
 	public function register() {
-		if ( self::$registered ) {
-			return;
-		}
-		self::$registered = true;
-
-		add_action( 'admin_menu', array( $this, 'register_menu' ), 40 );
-		add_action( 'admin_init', array( $this, 'maybe_redirect_legacy_pages' ) );
-		add_action( 'admin_init', array( $this, 'register_actions' ) );
-	}
-
-	public function register_actions() {
-		if ( self::$actions_registered ) {
-			return;
-		}
-		self::$actions_registered = true;
-
-		$competitions_page = new Competitions_Page();
-		$competitions_page->register_actions();
-
-		$categories_page = new Categories_Page();
-		$categories_page->register_actions();
-
-		$entries_page = new Entries_Page();
-		$entries_page->register_actions();
-
-		$bouts_page = new Bouts_Page();
-		$bouts_page->register_actions();
-
-		$settings_page = new Settings_Page();
-		$settings_page->register_actions();
-	}
-
-	public function maybe_redirect_legacy_pages() {
-		if ( ! is_admin() || ! isset( $_GET['page'] ) || ! empty( $_POST ) ) {
-			return;
-		}
-
-		$current = sanitize_key( wp_unslash( $_GET['page'] ) );
-		$map = array(
-			'ufsc-competitions'            => self::PAGE_COMPETITIONS,
-			'ufsc-competition-categories'  => self::PAGE_CATEGORIES,
-			'ufsc-competition-registrations' => self::PAGE_ENTRIES,
-			'ufsc-competition-quality'     => self::PAGE_QUALITY,
-			'ufsc-competition-print'       => self::PAGE_PRINT,
-			'ufsc-competition-bouts'       => self::PAGE_BOUTS,
-			'ufsc-competition-settings'    => self::PAGE_SETTINGS,
-			self::PARENT_SLUG              => self::PAGE_COMPETITIONS,
-		);
-
-		if ( ! isset( $map[ $current ] ) || $map[ $current ] === $current ) {
-			return;
-		}
-
-		$params = array();
-		foreach ( wp_unslash( $_GET ) as $key => $value ) {
-			if ( 'page' === $key ) {
-				continue;
-			}
-			$params[ sanitize_key( $key ) ] = is_array( $value )
-				? array_map( 'sanitize_text_field', $value )
-				: sanitize_text_field( $value );
-		}
-		$params['page'] = $map[ $current ];
-
-		wp_safe_redirect( add_query_arg( $params, admin_url( 'admin.php' ) ) );
-		exit;
-	}
-
-	public function register_menu() {
-		$capability = defined( 'UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY' )
-			? \UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY
-			: 'manage_options';
-		if ( ! current_user_can( $capability ) && current_user_can( 'manage_options' ) ) {
-			$capability = 'manage_options';
-		}
+		$capability = \UFSC_LC_Capabilities::get_manage_capability();
 
 		$assets = new Assets();
 
-		$hook_suffix = add_menu_page(
-			__( 'UFSC – Compétitions', 'ufsc-licence-competition' ),
-			__( 'UFSC – Compétitions', 'ufsc-licence-competition' ),
-			$capability,
-			self::PARENT_SLUG,
-			array( new Competitions_Page(), 'render' ),
-			'dashicons-groups',
-			31
-		);
-		$assets->register( $hook_suffix );
-
 		$competitions_page = new Competitions_Page();
-		$categories_page = new Categories_Page();
-		$entries_page = new Entries_Page();
-		$bouts_page = new Bouts_Page();
-		$settings_page = new Settings_Page();
-		$guide_page = new Guide_Page();
+		$categories_page   = new Categories_Page();
+		$entries_page      = new Entries_Page();
+		$bouts_page        = new Bouts_Page();
+		$settings_page     = new Settings_Page();
+		$guide_page        = new Guide_Page();
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -135,7 +37,11 @@ class Menu {
 			self::PAGE_COMPETITIONS,
 			array( $competitions_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -145,7 +51,11 @@ class Menu {
 			self::PAGE_CATEGORIES,
 			array( $categories_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -155,7 +65,11 @@ class Menu {
 			self::PAGE_ENTRIES,
 			array( $entries_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -165,7 +79,11 @@ class Menu {
 			self::PAGE_QUALITY,
 			array( new Quality_Page(), 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -175,7 +93,11 @@ class Menu {
 			self::PAGE_PRINT,
 			array( new Print_Page(), 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -185,7 +107,11 @@ class Menu {
 			self::PAGE_BOUTS,
 			array( $bouts_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -195,7 +121,11 @@ class Menu {
 			self::PAGE_SETTINGS,
 			array( $settings_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 
 		$hook_suffix = add_submenu_page(
 			self::PARENT_SLUG,
@@ -205,6 +135,10 @@ class Menu {
 			self::PAGE_GUIDE,
 			array( $guide_page, 'render' )
 		);
-		$assets->register( $hook_suffix );
+
+		if ( $hook_suffix ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+			$assets->register( $hook_suffix );
+		}
 	}
 }
