@@ -48,3 +48,100 @@ document.addEventListener('submit', (event) => {
     }
   }
 });
+/* UFSC Competitions - admin club snapshot (no-conflict) */
+(() => {
+  "use strict";
+
+  function qs(sel, root = document) {
+    return root.querySelector(sel);
+  }
+
+  function setFieldValue(input, value) {
+    if (!input) return;
+    input.value = value == null ? "" : String(value);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  async function postAjax(url, data) {
+    const body = new URLSearchParams();
+    Object.keys(data).forEach((k) => body.append(k, data[k]));
+
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      },
+      body: body.toString(),
+    });
+
+    const json = await res.json();
+    return { ok: res.ok, status: res.status, json };
+  }
+
+  function init() {
+    // WordPress admin provides ajaxurl
+    if (typeof window.ajaxurl === "undefined") return;
+
+    const selectClub = qs('select[name="organizer_club_id"]');
+    const nonceEl = qs("#ufsc_get_club_nonce");
+    const regionInput = qs("#ufsc_organizer_region");
+
+    // If form not present, do nothing (no-conflict)
+    if (!selectClub || !nonceEl || !regionInput) return;
+
+    let lastRequestId = 0;
+
+    async function handleClubChange() {
+      const clubId = parseInt(selectClub.value, 10) || 0;
+
+      if (!clubId) {
+        setFieldValue(regionInput, "");
+        return;
+      }
+
+      const requestId = ++lastRequestId;
+      regionInput.setAttribute("aria-busy", "true");
+
+      try {
+        const { ok, json } = await postAjax(window.ajaxurl, {
+          action: "ufsc_get_club",
+          nonce: nonceEl.value,
+          club_id: String(clubId),
+        });
+
+        if (requestId !== lastRequestId) return;
+
+        if (!ok || !json || json.success !== true) {
+          setFieldValue(regionInput, "");
+          return;
+        }
+
+        const data = json.data || {};
+        setFieldValue(regionInput, data.region || "");
+      } catch (e) {
+        if (requestId !== lastRequestId) return;
+        setFieldValue(regionInput, "");
+      } finally {
+        if (requestId === lastRequestId) {
+          regionInput.removeAttribute("aria-busy");
+        }
+      }
+    }
+
+    selectClub.addEventListener("change", handleClubChange);
+
+    // Auto-sync on load (edit screen) if needed
+    const currentRegion = (regionInput.value || "").trim();
+    const currentClubId = parseInt(selectClub.value, 10) || 0;
+    if (currentClubId && !currentRegion) {
+      handleClubChange();
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
