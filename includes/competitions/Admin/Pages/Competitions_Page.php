@@ -46,7 +46,34 @@ class Competitions_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_competition', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_archive_competition', array( $this, 'handle_archive' ) );
 	}
+	
+    public function handle_archive() {
+	if ( ! Capabilities::user_can_manage() ) {
+		wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+	}
+
+	$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+	if ( ! $id ) {
+		wp_safe_redirect( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'invalid' ), admin_url( 'admin.php' ) ) );
+		exit;
+	}
+
+	check_admin_referer( 'ufsc_competitions_archive_competition_' . $id );
+
+	if ( $this->repository && method_exists( $this->repository, 'save' ) ) {
+		$this->repository->save(
+			array(
+				'id'     => $id,
+				'status' => 'archived',
+			)
+		);
+	}
+
+	wp_safe_redirect( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'saved' ), admin_url( 'admin.php' ) ) );
+	exit;
+}
 
 	public function render() {
 		if ( ! Capabilities::user_can_manage() ) {
