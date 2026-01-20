@@ -7,49 +7,67 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class ClubRepository {
-	/**
-	 * Retourne une liste id => label pour select
-	 *
-	 * @return array
-	 */
-	public function list_for_select() {
-		global $wpdb;
-		$table = $wpdb->prefix . 'ufsc_clubs';
 
-		$sql = "SELECT id, nom, ville, region FROM {$table} ORDER BY nom ASC LIMIT 1000";
-		$rows = $wpdb->get_results( $sql );
-
-		$result = array();
-		if ( $rows ) {
-			foreach ( $rows as $r ) {
-				$label = trim( $r->nom );
-				if ( $r->ville ) {
-					$label .= ' — ' . trim( $r->ville );
-				}
-				if ( $r->region ) {
-					$label .= ' (' . trim( $r->region ) . ')';
-				}
-				$result[ (int) $r->id ] = $label;
-			}
-		}
-
-		return $result;
+	public function __construct() {
+		// noop
 	}
 
-	/**
-	 * Retourne la ligne complète du club
-	 *
-	 * @param int $id
-	 * @return object|null
-	 */
+	private function table_name() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_clubs';
+	}
+
 	public function get( $id ) {
 		global $wpdb;
 		$id = absint( $id );
 		if ( ! $id ) {
 			return null;
 		}
-		$table = $wpdb->prefix . 'ufsc_clubs';
-		$sql = $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id );
-		return $wpdb->get_row( $sql );
+
+		$table = $this->table_name();
+
+		// Defensive: table may not exist on some envs
+		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+		if ( $exists !== $table ) {
+			return null;
+		}
+
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id ) );
+		return $row ?: null;
+	}
+
+	/**
+	 * Return [id => "Nom (Région)"] for select.
+	 */
+	public function list_for_select( $limit = 2000 ) {
+		global $wpdb;
+
+		$table = $this->table_name();
+		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+		if ( $exists !== $table ) {
+			return array();
+		}
+
+		$limit = max( 1, (int) $limit );
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id, nom, region FROM {$table} ORDER BY nom ASC LIMIT %d", $limit ) );
+
+		$out = array();
+		if ( is_array( $rows ) ) {
+			foreach ( $rows as $r ) {
+				$id = (int) ( $r->id ?? 0 );
+				if ( ! $id ) {
+					continue;
+				}
+				$nom    = (string) ( $r->nom ?? '' );
+				$region = (string) ( $r->region ?? '' );
+				$label  = $nom;
+				if ( $region ) {
+					$label .= ' (' . $region . ')';
+				}
+				$out[ $id ] = $label;
+			}
+		}
+
+		return $out;
 	}
 }
