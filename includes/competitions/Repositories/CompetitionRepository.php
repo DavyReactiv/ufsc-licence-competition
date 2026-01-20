@@ -29,15 +29,19 @@ class CompetitionRepository {
 	 */
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
+
 		$id = absint( $id );
 		if ( ! $id ) {
 			return null;
 		}
+
 		$table = Db::competitions_table();
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id ) );
+		$row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id ) );
+
 		if ( $row && ! $include_deleted && ! empty( $row->deleted_at ) ) {
 			return null;
 		}
+
 		return $row;
 	}
 
@@ -51,24 +55,31 @@ class CompetitionRepository {
 	 */
 	public function list( array $filters = array(), $limit = 20, $offset = 0 ) {
 		global $wpdb;
+
 		$table = Db::competitions_table();
-		$where = $this->build_where( $filters );
+		$args  = array();
+		$where = $this->build_where( $filters, $args );
 
 		$order_by = 'event_start_datetime DESC';
 		if ( ! empty( $filters['order_by'] ) ) {
 			$allowed_cols = array( 'event_start_datetime', 'name', 'season', 'status' );
 			if ( in_array( $filters['order_by'], $allowed_cols, true ) ) {
-				$order_by = esc_sql( $filters['order_by'] );
+				$col = $filters['order_by'];
 				$dir = ( ! empty( $filters['order_dir'] ) && strtoupper( $filters['order_dir'] ) === 'ASC' ) ? 'ASC' : 'DESC';
-				$order_by .= ' ' . $dir;
+				$order_by = esc_sql( $col . ' ' . $dir );
 			}
 		}
 
-		$limit = max( 1, (int) $limit );
+		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
-		$sql = $wpdb->prepare( "SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d", $limit, $offset );
-		$rows = $wpdb->get_results( $sql );
+		$sql = "SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d";
+		$args[] = $limit;
+		$args[] = $offset;
+
+		$prepared = $wpdb->prepare( $sql, $args );
+		$rows     = $wpdb->get_results( $prepared );
+
 		return $rows ? $rows : array();
 	}
 
@@ -80,11 +91,15 @@ class CompetitionRepository {
 	 */
 	public function count( array $filters = array() ) {
 		global $wpdb;
+
 		$table = Db::competitions_table();
-		$where = $this->build_where( $filters );
-		$sql = "SELECT COUNT(1) FROM {$table} {$where}";
-		$r = $wpdb->get_var( $sql );
-		return (int) $r;
+		$args  = array();
+		$where = $this->build_where( $filters, $args );
+
+		$sql      = "SELECT COUNT(1) FROM {$table} {$where}";
+		$prepared = ! empty( $args ) ? $wpdb->prepare( $sql, $args ) : $sql;
+
+		return (int) $wpdb->get_var( $prepared );
 	}
 
 	/**
@@ -123,14 +138,64 @@ class CompetitionRepository {
 	 */
 	public function trash( $id ) {
 		global $wpdb;
+
 		$id = absint( $id );
 		if ( ! $id ) {
 			return false;
 		}
+
 		$table = Db::competitions_table();
-		$data = array( 'deleted_at' => current_time( 'mysql' ), 'deleted_by' => get_current_user_id() ? get_current_user_id() : 0 );
+		$data  = array(
+			'deleted_at' => current_time( 'mysql' ),
+			'deleted_by' => get_current_user_id() ? get_current_user_id() : 0,
+		);
+
 		$updated = $wpdb->update( $table, $data, array( 'id' => $id ), array( '%s', '%d' ), array( '%d' ) );
 		return $updated !== false;
+	}
+
+	/**
+	 * Optional: restore a trashed record (if admin uses restore action).
+	 *
+	 * @param int $id
+	 * @return bool
+	 */
+	public function restore( $id ) {
+		global $wpdb;
+
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+
+		$table = Db::competitions_table();
+		$data  = array(
+			'deleted_at' => null,
+			'deleted_by' => 0,
+		);
+
+		$updated = $wpdb->update( $table, $data, array( 'id' => $id ), array( '%s', '%d' ), array( '%d' ) );
+		return $updated !== false;
+	}
+
+	/**
+	 * Optional: hard delete (if admin uses delete action).
+	 *
+	 * @param int $id
+	 * @return bool
+	 */
+	public function delete( $id ) {
+		global $wpdb;
+
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+
+		$table   = Db::competitions_table();
+		$deleted = $wpdb->delete( $table, array( 'id' => $id ), array( '%d' ) );
+
+		return $deleted !== false;
 	}
 
 	/**
@@ -146,7 +211,7 @@ class CompetitionRepository {
 
 		$id = isset( $san['id'] ) ? absint( $san['id'] ) : 0;
 
-		$now = current_time( 'mysql' );
+		$now     = current_time( 'mysql' );
 		$user_id = get_current_user_id() ? get_current_user_id() : null;
 
 		if ( $id ) {
@@ -158,14 +223,18 @@ class CompetitionRepository {
 
 			$formats = array_map( array( $this, 'value_to_format' ), array_values( $san ) );
 			list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $san, $formats );
+
 			if ( empty( $filtered_prepared ) ) {
 				return $id;
 			}
-			$table = Db::competitions_table();
+
+			$table   = Db::competitions_table();
 			$updated = $wpdb->update( $table, $filtered_prepared, array( 'id' => $id ), $filtered_formats, array( '%d' ) );
+
 			if ( $updated === false ) {
 				error_log( 'UFSC CompetitionRepository update error: ' . $wpdb->last_error );
 			}
+
 			return $id;
 		}
 
@@ -177,27 +246,38 @@ class CompetitionRepository {
 		}
 
 		unset( $san['id'] );
+
 		$formats = array_map( array( $this, 'value_to_format' ), array_values( $san ) );
 		list( $filtered_prepared, $filtered_formats ) = $this->filter_prepared_and_formats_for_db( $san, $formats );
+
 		if ( empty( $filtered_prepared ) ) {
 			return 0;
 		}
-		$table = Db::competitions_table();
+
+		$table    = Db::competitions_table();
 		$inserted = $wpdb->insert( $table, $filtered_prepared, $filtered_formats );
+
 		if ( false === $inserted ) {
 			error_log( 'UFSC CompetitionRepository insert error: ' . $wpdb->last_error );
 			return 0;
 		}
+
 		return (int) $wpdb->insert_id;
 	}
 
 	/**
-	 * Build WHERE clause from filters
+	 * Build WHERE clause from filters (prepared).
+	 *
+	 * @param array $filters
+	 * @param array $args Filled by reference with prepare args
+	 * @return string
 	 */
-	private function build_where( array $filters ) {
+	private function build_where( array $filters, array &$args ) {
 		global $wpdb;
+
 		$where = array( '1=1' );
 
+		// view=active means not deleted
 		if ( ! empty( $filters['view'] ) && 'all' !== $filters['view'] ) {
 			if ( 'active' === $filters['view'] ) {
 				$where[] = 'deleted_at IS NULL';
@@ -205,40 +285,55 @@ class CompetitionRepository {
 		}
 
 		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
-			$ids = array_map( 'absint', $filters['competition_ids'] );
-			if ( count( $ids ) ) {
-				$where[] = 'id IN (' . implode( ',', $ids ) . ')';
+			$ids = array_values( array_filter( array_map( 'absint', $filters['competition_ids'] ) ) );
+			if ( ! empty( $ids ) ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$where[] = "id IN ({$placeholders})";
+				foreach ( $ids as $id ) {
+					$args[] = $id;
+				}
 			}
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$search = esc_sql( like_escape( $filters['search'] ) );
-			$where[] = "name LIKE '%{$search}%'";
+			$like = '%' . $wpdb->esc_like( (string) $filters['search'] ) . '%';
+			$where[] = 'name LIKE %s';
+			$args[]  = $like;
 		}
 
 		if ( ! empty( $filters['discipline'] ) ) {
-			$discipline = esc_sql( $filters['discipline'] );
-			$where[] = "discipline = '{$discipline}'";
+			$where[] = 'discipline = %s';
+			$args[]  = (string) $filters['discipline'];
 		}
 
 		if ( ! empty( $filters['season'] ) ) {
-			$season = esc_sql( $filters['season'] );
-			$where[] = "season = '{$season}'";
+			$where[] = 'season = %s';
+			$args[]  = (string) $filters['season'];
 		}
 
 		if ( ! empty( $filters['status'] ) ) {
-			$status = esc_sql( $filters['status'] );
-			$where[] = "status = '{$status}'";
+			$where[] = 'status = %s';
+			$args[]  = (string) $filters['status'];
 		}
 
-		return 'WHERE ' . implode( ' AND ', $where );
+		$clause = 'WHERE ' . implode( ' AND ', $where );
+
+		// Only prepare if args exist; caller will prepare full SQL.
+		if ( ! empty( $args ) ) {
+			$clause = $wpdb->prepare( $clause, $args );
+			// After prepare, args should not be re-used by caller for WHERE.
+			$args = array();
+		}
+
+		return $clause;
 	}
 
 	private function value_to_format( $v ) {
-		if ( is_int( $v ) ) {
+		// Treat numeric strings as numbers to get cleaner formats.
+		if ( is_int( $v ) || ( is_string( $v ) && ctype_digit( $v ) ) ) {
 			return '%d';
 		}
-		if ( is_float( $v ) || is_double( $v ) ) {
+		if ( is_float( $v ) || is_double( $v ) || ( is_string( $v ) && is_numeric( $v ) ) ) {
 			return '%f';
 		}
 		return '%s';
@@ -272,14 +367,16 @@ class CompetitionRepository {
 			'registration_open_datetime','registration_close_datetime',
 			'weighin_start_datetime','weighin_end_datetime',
 			'contact_email','contact_phone',
-			'created_at','updated_at','deleted_at','deleted_by'
+			'created_at','updated_at','deleted_at','deleted_by',
 		);
 
 		$sanitized = array();
+
 		foreach ( $data as $k => $v ) {
 			if ( ! in_array( $k, $allowed, true ) ) {
 				continue;
 			}
+
 			switch ( $k ) {
 				case 'id':
 				case 'organizer_club_id':
@@ -288,12 +385,15 @@ class CompetitionRepository {
 				case 'deleted_by':
 					$sanitized[ $k ] = absint( $v );
 					break;
+
 				case 'contact_email':
 					$sanitized[ $k ] = sanitize_email( $v );
 					break;
+
 				case 'contact_phone':
 					$sanitized[ $k ] = sanitize_text_field( $v );
 					break;
+
 				case 'event_start_datetime':
 				case 'event_end_datetime':
 				case 'registration_open_datetime':
@@ -302,6 +402,7 @@ class CompetitionRepository {
 				case 'weighin_end_datetime':
 					$sanitized[ $k ] = $this->sanitize_datetime( $v );
 					break;
+
 				default:
 					if ( is_string( $v ) ) {
 						$sanitized[ $k ] = sanitize_text_field( $v );
@@ -311,19 +412,25 @@ class CompetitionRepository {
 					break;
 			}
 		}
+
 		return $sanitized;
 	}
 
 	private function filter_prepared_and_formats_for_db( array $prepared, array $formats ) {
 		global $wpdb;
+
 		$table = Db::competitions_table();
+
 		if ( ! isset( self::$table_columns_cache[ $table ] ) ) {
 			$cols = $wpdb->get_col( "DESCRIBE {$table}", 0 );
 			self::$table_columns_cache[ $table ] = is_array( $cols ) ? $cols : array();
 		}
+
 		$columns = array_flip( self::$table_columns_cache[ $table ] );
+
 		$filtered_prepared = array();
-		$filtered_formats = array();
+		$filtered_formats  = array();
+
 		$keys = array_keys( $prepared );
 		foreach ( $keys as $i => $k ) {
 			if ( isset( $columns[ $k ] ) ) {
@@ -331,6 +438,7 @@ class CompetitionRepository {
 				$filtered_formats[] = isset( $formats[ $i ] ) ? $formats[ $i ] : '%s';
 			}
 		}
+
 		return array( $filtered_prepared, $filtered_formats );
 	}
 }
