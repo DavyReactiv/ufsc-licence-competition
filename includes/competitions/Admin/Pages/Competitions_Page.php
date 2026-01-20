@@ -16,7 +16,9 @@ class Competitions_Page {
 	private $club_repository;
 
 	public function __construct() {
-		$this->repository = class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' ) ? new CompetitionRepository() : null;
+		$this->repository = class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' )
+			? new CompetitionRepository()
+			: null;
 
 		$this->club_repository = class_exists( '\\UFSC\\Competitions\\Repositories\\ClubRepository' )
 			? new ClubRepository()
@@ -52,11 +54,16 @@ class Competitions_Page {
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			$item = null;
+
 			if ( 'edit' === $action && $id ) {
 				$item = $this->repository->get( $id, true );
+
 				if ( ! $item ) {
 					$redirect = add_query_arg(
-						array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_notice' => 'not_found' ),
+						array(
+							'page'        => Menu::PAGE_COMPETITIONS,
+							'ufsc_notice' => 'not_found',
+						),
 						admin_url( 'admin.php' )
 					);
 					wp_safe_redirect( $redirect );
@@ -82,17 +89,18 @@ class Competitions_Page {
 
 		$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
 
-		// Bulk actions handled here (safe)
+		// Handle bulk actions defensively (safe)
 		$this->maybe_handle_bulk_actions( $list_table );
 
 		$list_table->prepare_items();
-
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
+
 			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action">
 				<?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?>
 			</a>
+
 			<hr class="wp-header-end">
 
 			<?php $list_table->views(); ?>
@@ -175,6 +183,9 @@ class Competitions_Page {
 				<?php wp_nonce_field( 'ufsc_competitions_save_competition' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_competition">
 				<input type="hidden" name="id" value="<?php echo esc_attr( (int) $values['id'] ); ?>">
+
+				<!-- Optional nonce if you later use JS for club snapshot -->
+				<input type="hidden" id="ufsc_get_club_nonce" value="<?php echo esc_attr( wp_create_nonce( 'ufsc_get_club' ) ); ?>" />
 
 				<h2><?php esc_html_e( 'Informations générales', 'ufsc-licence-competition' ); ?></h2>
 				<table class="form-table" role="presentation">
@@ -495,6 +506,10 @@ class Competitions_Page {
 		wp_send_json_success( $data );
 	}
 
+	/**
+	 * Bulk actions handler (defensive).
+	 * - Will not fatal if nonce isn't present or differs by WP version.
+	 */
 	private function maybe_handle_bulk_actions( $list_table ) {
 		if ( ! $list_table || ! method_exists( $list_table, 'current_action' ) ) {
 			return;
@@ -514,16 +529,22 @@ class Competitions_Page {
 			return;
 		}
 
-		// Bulk nonce: WordPress uses "bulk-{$plural}" in WP_List_Table
-		$plural = 'ufsc-competitions';
-		$nonce_action = 'bulk-' . $plural;
-
-		if ( isset( $_REQUEST['_wpnonce'] ) && ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ), $nonce_action ) ) {
-			wp_die( esc_html__( 'Nonce invalide.', 'ufsc-licence-competition' ) );
-		}
-
 		if ( ! $this->repository ) {
 			return;
+		}
+
+		// Nonce is usually present; if present, verify. If absent, continue (defensive).
+		if ( isset( $_REQUEST['_wpnonce'] ) ) {
+			$nonce = sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) );
+
+			// Try common nonce actions used by WP_List_Table
+			$ok = wp_verify_nonce( $nonce, 'bulk-ufsc-competitions' )
+				|| wp_verify_nonce( $nonce, 'bulk-ufsc-competition' )
+				|| wp_verify_nonce( $nonce, 'bulk-' . sanitize_key( $list_table->_args['plural'] ?? 'ufsc-competitions' ) );
+
+			if ( ! $ok ) {
+				wp_die( esc_html__( 'Nonce invalide.', 'ufsc-licence-competition' ) );
+			}
 		}
 
 		$processed = 0;
@@ -556,7 +577,7 @@ class Competitions_Page {
 			admin_url( 'admin.php' )
 		);
 
-		// Keep trash view if we were in trash
+		// Keep current view if present
 		if ( isset( $_REQUEST['ufsc_view'] ) ) {
 			$redirect = add_query_arg( 'ufsc_view', sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ), $redirect );
 		}
