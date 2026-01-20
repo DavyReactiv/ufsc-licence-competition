@@ -3,7 +3,6 @@
 namespace UFSC\Competitions\Admin;
 
 use UFSC_LC_Logger;
-use UFSC\Competitions\Admin\Assets;
 use UFSC\Competitions\Admin\Pages\Competitions_Page;
 use UFSC\Competitions\Admin\Pages\Categories_Page;
 use UFSC\Competitions\Admin\Pages\Entries_Page;
@@ -31,8 +30,6 @@ class Menu {
 	public function register() {
 		$capability = \UFSC_LC_Capabilities::get_manage_capability();
 
-		$assets = new Assets();
-
 		// Instantiate pages defensively: if class missing, log and continue.
 		$competitions_page = $this->safe_instance( Competitions_Page::class );
 		$categories_page   = $this->safe_instance( Categories_Page::class );
@@ -43,8 +40,33 @@ class Menu {
 		$quality_page      = $this->safe_instance( Quality_Page::class );
 		$print_page        = $this->safe_instance( Print_Page::class );
 
+		// If page objects expose register_actions(), call it now so admin_post / ajax hooks are set.
+		foreach ( array(
+			$competitions_page,
+			$categories_page,
+			$entries_page,
+			$bouts_page,
+			$settings_page,
+			$guide_page,
+			$quality_page,
+			$print_page,
+		) as $page ) {
+			if ( $page && method_exists( $page, 'register_actions' ) ) {
+				try {
+					$page->register_actions();
+				} catch ( \Throwable $e ) {
+					$message = sprintf( 'UFSC Competitions: register_actions failed for %s: %s', get_class( $page ), $e->getMessage() );
+					if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+						\UFSC_LC_Logger::log( $message );
+					} else {
+						error_log( $message );
+					}
+				}
+			}
+		}
+
 		// Helper to register a submenu only if page object exists.
-		$register_submenu = function( $page_obj, $page_title, $menu_title, $page_slug ) use ( $capability, $assets ) {
+		$register_submenu = function( $page_obj, $page_title, $menu_title, $page_slug ) use ( $capability ) {
 			if ( ! $page_obj ) {
 				return;
 			}
@@ -58,8 +80,8 @@ class Menu {
 			);
 
 			if ( $hook_suffix ) {
+				// Use central loader only to avoid duplicate enqueue
 				\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
-				$assets->register( $hook_suffix );
 			}
 		};
 
@@ -81,10 +103,11 @@ class Menu {
 	 */
 	private function safe_instance( $fqcn ) {
 		if ( ! class_exists( $fqcn ) ) {
-			if ( function_exists( '\\UFSC_LC_Logger::log' ) || class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( sprintf( 'UFSC Competitions: Admin\\Menu registration failed: Class %s not found.', $fqcn ) );
+			$message = sprintf( 'UFSC Competitions: Admin\\Menu registration failed: Class %s not found.', $fqcn );
+			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+				\UFSC_LC_Logger::log( $message );
 			} else {
-				error_log( sprintf( '[UFSC LC] Admin\\Menu registration failed: Class %s not found.', $fqcn ) );
+				error_log( $message );
 			}
 			return null;
 		}
