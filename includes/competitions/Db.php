@@ -5,7 +5,7 @@
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.4';
+	const DB_VERSION = '1.5';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -60,39 +60,29 @@ class Db {
 			discipline varchar(190) NOT NULL,
 			type varchar(100) NOT NULL,
 			season varchar(50) NOT NULL,
-			-- organizer (club snapshot)
+			-- organizer snapshot
 			organizer_club_id bigint(20) unsigned NULL,
-			organizer_region varchar(64) NULL,
-			organizer_email varchar(190) NULL,
-			organizer_phone varchar(50) NULL,
-			-- venue (manifestation location separate from club)
-			venue_name varchar(191) NULL,
-			venue_address1 varchar(191) NULL,
-			venue_address2 varchar(191) NULL,
-			venue_postcode varchar(16) NULL,
-			venue_city varchar(64) NULL,
-			venue_region varchar(64) NULL,
-			venue_country varchar(2) NOT NULL DEFAULT 'FR',
-			venue_maps_url varchar(255) NULL,
-			venue_access_info text NULL,
-			-- basic (legacy)
+			organizer_club_name varchar(190) NULL,
+			organizer_region varchar(190) NULL,
+			-- venue separate from club
+			venue_name varchar(190) NULL,
+			venue_address1 varchar(190) NULL,
+			venue_address2 varchar(190) NULL,
+			venue_postcode varchar(20) NULL,
+			venue_city varchar(190) NULL,
+			venue_region varchar(190) NULL,
+			-- datetimes
+			event_start_datetime datetime NULL,
+			event_end_datetime datetime NULL,
+			registration_open_datetime datetime NULL,
+			registration_close_datetime datetime NULL,
+			weighin_start_datetime datetime NULL,
+			weighin_end_datetime datetime NULL,
+			-- contact
+			contact_email varchar(190) NULL,
+			contact_phone varchar(50) NULL,
+			-- existing / legacy
 			location varchar(190) NULL,
-			-- event dates & times
-			event_start_date date NULL,
-			event_end_date date NULL,
-			event_start_time time NULL,
-			event_end_time time NULL,
-			-- registration windows
-			reg_open_date date NULL,
-			reg_open_time time NULL,
-			reg_close_date date NULL,
-			reg_close_time time NULL,
-			-- weighin
-			weighin_date date NULL,
-			weighin_start_time time NULL,
-			weighin_end_time time NULL,
-			weighin_location_text text NULL,
-			-- existing fields
 			registration_deadline date NULL,
 			status varchar(50) NOT NULL,
 			age_reference varchar(10) NOT NULL DEFAULT '12-31',
@@ -108,13 +98,10 @@ class Db {
 			KEY idx_status (status),
 			KEY idx_discipline (discipline),
 			KEY idx_season (season),
-			KEY idx_start_date (event_start_date),
+			KEY idx_event_start_datetime (event_start_datetime),
 			KEY idx_registration_deadline (registration_deadline),
 			KEY idx_deleted_at (deleted_at),
 			KEY idx_organizer_club_id (organizer_club_id),
-			KEY idx_event_start_date (event_start_date),
-			KEY idx_reg_close_date (reg_close_date),
-			KEY idx_weighin_date (weighin_date),
 			KEY idx_venue_region (venue_region)
 		) {$charset_collate};";
 
@@ -139,7 +126,6 @@ class Db {
 		) {$charset_collate};";
 
 		dbDelta( $categories_sql );
-
-		// Other tables unchanged: logs, entries, fights (existing definitions)
+		// other tables unchanged
 	}
 }
