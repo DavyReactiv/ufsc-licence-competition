@@ -81,45 +81,83 @@ class UFSC_LC_Admin_Assets {
 		$base_dir = $this->get_base_dir();
 		$base_url = $this->get_base_url();
 
-		// Admin CSS
-		$css_path = $base_dir . 'assets/admin/css/ufsc-lc-admin.css';
-		$css_url  = $base_url . 'assets/admin/css/ufsc-lc-admin.css';
-		$ver = '1.0.0';
-		if ( file_exists( $css_path ) ) {
-			$ver = filemtime( $css_path );
+		// Candidate lists (relative to plugin root / base url)
+		$css_candidates = array(
+			'assets/admin/css/ufsc-lc-admin.css',            // historical location (prefer)
+			'assets/admin/ufsc-lc-admin.css',
+			'includes/competitions/assets/admin.css',        // repo location fallback
+			'includes/competitions/assets/css/admin.css',
+			'includes/competitions/assets/css/ufsc-lc-admin.css',
+		);
+
+		$js_candidates = array(
+			'assets/admin/js/ufsc-lc-admin.js',              // historical location (prefer)
+			'assets/admin/ufsc-lc-admin.js',
+			'includes/competitions/assets/admin.js',         // repo location fallback
+			'includes/competitions/assets/js/admin.js',
+			'includes/competitions/assets/js/ufsc-lc-admin.js',
+		);
+
+		// Resolve CSS: find first existing file
+		$css_found = false;
+		foreach ( $css_candidates as $rel ) {
+			$path = $base_dir . $rel;
+			if ( file_exists( $path ) ) {
+				$css_path = $path;
+				$css_url  = $base_url . $rel;
+				$css_found = true;
+				break;
+			}
+		}
+		// If none found, still build URL to the preferred location (non-fatal) but do not enqueue
+		if ( $css_found ) {
+			$ver = filemtime( $css_path ) ?: '1.0.0';
+			wp_enqueue_style(
+				'ufsc-lc-admin-style',
+				$css_url,
+				array(),
+				$ver
+			);
 		}
 
-		wp_enqueue_style(
-			'ufsc-lc-admin-style',
-			$css_url,
-			array(),
-			$ver
-		);
-
-		// Admin JS
-		$js_path = $base_dir . 'assets/admin/js/ufsc-lc-admin.js';
-		$js_url  = $base_url . 'assets/admin/js/ufsc-lc-admin.js';
-		$ver_js  = '1.0.0';
-		if ( file_exists( $js_path ) ) {
-			$ver_js = filemtime( $js_path );
+		// Resolve JS: find first existing file
+		$js_found = false;
+		$js_requires_jquery = false;
+		foreach ( $js_candidates as $rel ) {
+			$path = $base_dir . $rel;
+			if ( file_exists( $path ) ) {
+				$js_path = $path;
+				$js_url  = $base_url . $rel;
+				$js_found = true;
+				// keep backwards compatibility: if the chosen file matches historical assets/admin/js/ufsc-lc-admin.js, preserve jQuery dependency
+				if ( strpos( $rel, 'assets/admin/js/ufsc-lc-admin.js' ) !== false || strpos( $rel, 'assets/admin/ufsc-lc-admin.js' ) !== false ) {
+					$js_requires_jquery = true;
+				}
+				break;
+			}
 		}
 
-		wp_enqueue_script(
-			'ufsc-lc-admin-script',
-			$js_url,
-			array( 'jquery' ),
-			$ver_js,
-			true
-		);
+		if ( $js_found ) {
+			$ver_js = filemtime( $js_path ) ?: '1.0.0';
+			$deps = $js_requires_jquery ? array( 'jquery' ) : array();
+			wp_enqueue_script(
+				'ufsc-lc-admin-script',
+				$js_url,
+				$deps,
+				$ver_js,
+				true
+			);
 
-		wp_localize_script(
-			'ufsc-lc-admin-script',
-			'UFSC_LC_Admin',
-			array(
-				'ajaxurl' => admin_url( 'admin-ajax.php' ),
-				'ufsc_lc_nonce' => wp_create_nonce( 'ufsc_lc_nonce' ),
-			)
-		);
+			// Localize only when we enqueued a script
+			wp_localize_script(
+				'ufsc-lc-admin-script',
+				'UFSC_LC_Admin',
+				array(
+					'ajaxurl'      => admin_url( 'admin-ajax.php' ),
+					'ufsc_lc_nonce' => wp_create_nonce( 'ufsc_lc_nonce' ),
+				)
+			);
+		}
 
 		// Defensive: if old handle 'user-club-admin' registered and points to missing file, deregister to avoid 404
 		if ( wp_style_is( 'user-club-admin', 'registered' ) && ! wp_style_is( 'user-club-admin', 'enqueued' ) ) {
