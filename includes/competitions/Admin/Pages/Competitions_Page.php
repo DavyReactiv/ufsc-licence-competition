@@ -251,11 +251,19 @@ class Competitions_Page {
 							<?php endif; ?>
 						</td>
 					</tr>
-
-					<tr>
-						<th><?php esc_html_e( 'Région (snapshot)', 'ufsc-licence-competition' ); ?></th>
-						<td><input readonly class="regular-text" value="<?php echo esc_attr( $values['organizer_region'] ); ?>"></td>
-					</tr>
+<tr>
+  <th><?php esc_html_e( 'Région (snapshot)', 'ufsc-licence-competition' ); ?></th>
+  <td>
+    <input
+      type="text"
+      readonly
+      id="ufsc_organizer_region"
+      name="organizer_region"
+      class="regular-text"
+      value="<?php echo esc_attr( $values['organizer_region'] ); ?>"
+    />
+  </td>
+</tr>
 				</table>
 
 				<h2><?php esc_html_e( 'Lieu de la compétition', 'ufsc-licence-competition' ); ?></h2>
