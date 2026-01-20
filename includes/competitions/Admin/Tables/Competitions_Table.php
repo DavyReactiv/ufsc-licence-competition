@@ -36,20 +36,20 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	public function prepare_items() {
-		$per_page = $this->get_items_per_page( 'ufsc_competitions_per_page', 20 );
+		$per_page     = $this->get_items_per_page( 'ufsc_competitions_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
+
 		$filters = array(
-			'view'   => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
-			'status' => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
+			'view'       => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
+			'status'     => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline' => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
-			'search' => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
+			'search'     => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
 		$this->filters = $filters;
 
-		$total_items = $this->repository->count( $filters );
-
-		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$total_items   = $this->repository->count( $filters );
+		$this->items   = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
 		$this->set_pagination_args(
 			array(
@@ -67,19 +67,20 @@ class Competitions_Table extends \WP_List_Table {
 			'type'       => __( 'Type', 'ufsc-licence-competition' ),
 			'season'     => __( 'Saison', 'ufsc-licence-competition' ),
 			'dates'      => __( 'Dates', 'ufsc-licence-competition' ),
-			'deadline'   => __( 'Forclusion', 'ufsc-licence-competition' ),
+			'deadline'   => __( 'Clôture inscriptions', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Mise à jour', 'ufsc-licence-competition' ),
 		);
 	}
 
 	public function get_sortable_columns() {
+		// Tu peux activer du tri plus tard (repo ok).
 		return array();
 	}
 
 	public function get_bulk_actions() {
 		$actions = array();
-		$view = $this->filters['view'] ?? 'all';
+		$view    = $this->filters['view'] ?? 'all';
 
 		if ( 'trash' === $view ) {
 			$actions['restore'] = __( 'Restaurer', 'ufsc-licence-competition' );
@@ -88,6 +89,7 @@ class Competitions_Table extends \WP_List_Table {
 			}
 		} else {
 			$actions['trash'] = __( 'Mettre à la corbeille', 'ufsc-licence-competition' );
+			// (Optionnel) archive : ne l'affiche QUE si tu as un handler admin-post correspondant.
 			$actions['archive'] = __( 'Archiver', 'ufsc-licence-competition' );
 		}
 
@@ -95,12 +97,22 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	public function get_views() {
-		$current = $this->filters['view'] ?? 'all';
+		$current  = $this->filters['view'] ?? 'all';
 		$base_url = $this->get_page_url();
 
 		$views = array(
-			'all'   => sprintf( '<a href="%s" class="%s">%s</a>', esc_url( $base_url ), 'all' === $current ? 'current' : '', esc_html__( 'Tous', 'ufsc-licence-competition' ) ),
-			'trash' => sprintf( '<a href="%s" class="%s">%s</a>', esc_url( add_query_arg( 'ufsc_view', 'trash', $base_url ) ), 'trash' === $current ? 'current' : '', esc_html__( 'Corbeille', 'ufsc-licence-competition' ) ),
+			'all'   => sprintf(
+				'<a href="%s" class="%s">%s</a>',
+				esc_url( remove_query_arg( array( 'ufsc_view' ), $base_url ) ),
+				'all' === $current ? 'current' : '',
+				esc_html__( 'Tous', 'ufsc-licence-competition' )
+			),
+			'trash' => sprintf(
+				'<a href="%s" class="%s">%s</a>',
+				esc_url( add_query_arg( 'ufsc_view', 'trash', $base_url ) ),
+				'trash' === $current ? 'current' : '',
+				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
+			),
 		);
 
 		return $views;
@@ -111,44 +123,96 @@ class Competitions_Table extends \WP_List_Table {
 			array(
 				'page'        => Menu::PAGE_COMPETITIONS,
 				'ufsc_action' => 'edit',
-				'id'          => $item->id,
+				'id'          => (int) $item->id,
 			),
 			admin_url( 'admin.php' )
 		);
 
-		$title = sprintf( '<strong><a href="%s">%s</a></strong>', esc_url( $edit_url ), esc_html( $item->name ) );
+		$title = sprintf(
+			'<strong><a href="%s">%s</a></strong>',
+			esc_url( $edit_url ),
+			esc_html( $item->name ?? '' )
+		);
 
 		$actions = array();
+
 		if ( empty( $item->deleted_at ) ) {
-			$actions['view'] = sprintf(
+			$actions['edit'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( add_query_arg( array( 'page' => Menu::PAGE_COMPETITIONS, 'ufsc_action' => 'view', 'id' => $item->id ), admin_url( 'admin.php' ) ) ),
-				esc_html__( 'Voir', 'ufsc-licence-competition' )
+				esc_url( $edit_url ),
+				esc_html__( 'Modifier', 'ufsc-licence-competition' )
 			);
-			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
-			if ( 'archived' !== $item->status ) {
+
+			// Archive (optionnel - nécessite handler)
+			if ( isset( $item->status ) && 'archived' !== $item->status ) {
 				$actions['archive'] = sprintf(
 					'<a href="%s">%s</a>',
-					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_archive_competition', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_archive_competition_' . $item->id ) ),
+					esc_url(
+						wp_nonce_url(
+							add_query_arg(
+								array(
+									'action' => 'ufsc_competitions_archive_competition',
+									'id'     => (int) $item->id,
+								),
+								admin_url( 'admin-post.php' )
+							),
+							'ufsc_competitions_archive_competition_' . (int) $item->id
+						)
+					),
 					esc_html__( 'Archiver', 'ufsc-licence-competition' )
 				);
 			}
+
 			$actions['trash'] = sprintf(
 				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_competition', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_competition_' . $item->id ) ),
+				esc_url(
+					wp_nonce_url(
+						add_query_arg(
+							array(
+								'action' => 'ufsc_competitions_trash_competition',
+								'id'     => (int) $item->id,
+							),
+							admin_url( 'admin-post.php' )
+						),
+						'ufsc_competitions_trash_competition_' . (int) $item->id
+					)
+				),
 				esc_attr__( 'Mettre cette compétition à la corbeille ?', 'ufsc-licence-competition' ),
 				esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
 			);
 		} else {
 			$actions['restore'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_restore_competition', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_restore_competition_' . $item->id ) ),
+				esc_url(
+					wp_nonce_url(
+						add_query_arg(
+							array(
+								'action' => 'ufsc_competitions_restore_competition',
+								'id'     => (int) $item->id,
+							),
+							admin_url( 'admin-post.php' )
+						),
+						'ufsc_competitions_restore_competition_' . (int) $item->id
+					)
+				),
 				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
 			);
+
 			if ( Capabilities::user_can_delete() ) {
 				$actions['delete'] = sprintf(
 					'<a href="%s" class="submitdelete ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_delete_competition', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_delete_competition_' . $item->id ) ),
+					esc_url(
+						wp_nonce_url(
+							add_query_arg(
+								array(
+									'action' => 'ufsc_competitions_delete_competition',
+									'id'     => (int) $item->id,
+								),
+								admin_url( 'admin-post.php' )
+							),
+							'ufsc_competitions_delete_competition_' . (int) $item->id
+						)
+					),
 					esc_attr__( 'Supprimer définitivement cette compétition ?', 'ufsc-licence-competition' ),
 					esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
 				);
@@ -165,18 +229,27 @@ class Competitions_Table extends \WP_List_Table {
 	protected function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'discipline':
-				return esc_html( DisciplineRegistry::get_label( $item->discipline ) );
+				return esc_html( DisciplineRegistry::get_label( $item->discipline ?? '' ) );
+
 			case 'type':
+				return esc_html( $item->type ?? '' );
+
 			case 'season':
-				return esc_html( $item->{$column_name} );
+				return esc_html( $item->season ?? '' );
+
 			case 'dates':
-				return esc_html( $this->format_dates( $item->start_date, $item->end_date ) );
+				return esc_html( $this->format_dates( $item->event_start_datetime ?? '', $item->event_end_datetime ?? '' ) );
+
 			case 'deadline':
-				return esc_html( $this->format_date( $item->registration_deadline ) );
+				// Cohérent avec ton formulaire: registration_close_datetime
+				return esc_html( $this->format_datetime( $item->registration_close_datetime ?? '' ) );
+
 			case 'status':
-				return esc_html( $this->format_status( $item->status ) );
+				return esc_html( $this->format_status( $item->status ?? '' ) );
+
 			case 'updated':
-				return esc_html( $this->format_datetime( $item->updated_at ) );
+				return esc_html( $this->format_datetime( $item->updated_at ?? '' ) );
+
 			default:
 				return '';
 		}
@@ -191,8 +264,8 @@ class Competitions_Table extends \WP_List_Table {
 			return;
 		}
 
-		$status = $this->filters['status'] ?? '';
-		$discipline = $this->filters['discipline'] ?? '';
+		$status      = $this->filters['status'] ?? '';
+		$discipline  = $this->filters['discipline'] ?? '';
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
@@ -206,6 +279,7 @@ class Competitions_Table extends \WP_List_Table {
 				<option value="closed" <?php selected( $status, 'closed' ); ?>><?php esc_html_e( 'Clos', 'ufsc-licence-competition' ); ?></option>
 				<option value="archived" <?php selected( $status, 'archived' ); ?>><?php esc_html_e( 'Archivé', 'ufsc-licence-competition' ); ?></option>
 			</select>
+
 			<label class="screen-reader-text" for="ufsc_discipline_filter"><?php esc_html_e( 'Filtrer par discipline', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_discipline" id="ufsc_discipline_filter">
 				<option value=""><?php esc_html_e( 'Toutes les disciplines', 'ufsc-licence-competition' ); ?></option>
@@ -213,6 +287,7 @@ class Competitions_Table extends \WP_List_Table {
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline, $value ); ?>><?php echo esc_html( $label ); ?></option>
 				<?php endforeach; ?>
 			</select>
+
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 		</div>
 		<?php
@@ -224,23 +299,17 @@ class Competitions_Table extends \WP_List_Table {
 
 	private function get_current_page_slug() {
 		$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : '';
-		if ( '' === $page ) {
-			return Menu::PAGE_COMPETITIONS;
-		}
-
-		return $page;
+		return $page ? $page : Menu::PAGE_COMPETITIONS;
 	}
 
 	private function format_date( $date ) {
 		if ( empty( $date ) ) {
 			return '';
 		}
-
-		$timestamp = strtotime( $date );
+		$timestamp = strtotime( (string) $date );
 		if ( ! $timestamp ) {
 			return '';
 		}
-
 		return date_i18n( get_option( 'date_format' ), $timestamp );
 	}
 
@@ -248,31 +317,34 @@ class Competitions_Table extends \WP_List_Table {
 		if ( empty( $date ) ) {
 			return '';
 		}
-
-		$timestamp = strtotime( $date );
+		$timestamp = strtotime( (string) $date );
 		if ( ! $timestamp ) {
 			return '';
 		}
-
 		return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );
 	}
 
 	private function format_dates( $start, $end ) {
-		if ( $start && $end && $start !== $end ) {
-			return $this->format_date( $start ) . ' → ' . $this->format_date( $end );
-		}
+		$start = (string) $start;
+		$end   = (string) $end;
 
-		return $this->format_date( $start ?: $end );
+		if ( $start && $end ) {
+			if ( $start !== $end ) {
+				return $this->format_datetime( $start ) . ' → ' . $this->format_datetime( $end );
+			}
+			return $this->format_datetime( $start );
+		}
+		return $start ? $this->format_datetime( $start ) : ( $end ? $this->format_datetime( $end ) : '' );
 	}
 
 	private function format_status( $status ) {
 		$labels = array(
-			'draft'  => __( 'Brouillon', 'ufsc-licence-competition' ),
+			'draft'     => __( 'Brouillon', 'ufsc-licence-competition' ),
 			'preparing' => __( 'Préparation', 'ufsc-licence-competition' ),
-			'open'   => __( 'Ouvert', 'ufsc-licence-competition' ),
-			'running' => __( 'En cours', 'ufsc-licence-competition' ),
-			'closed' => __( 'Clos', 'ufsc-licence-competition' ),
-			'archived' => __( 'Archivé', 'ufsc-licence-competition' ),
+			'open'      => __( 'Ouvert', 'ufsc-licence-competition' ),
+			'running'   => __( 'En cours', 'ufsc-licence-competition' ),
+			'closed'    => __( 'Clos', 'ufsc-licence-competition' ),
+			'archived'  => __( 'Archivé', 'ufsc-licence-competition' ),
 		);
 
 		return $labels[ $status ] ?? $status;
