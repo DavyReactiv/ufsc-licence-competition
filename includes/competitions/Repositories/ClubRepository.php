@@ -8,6 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class ClubRepository {
 
+	/** @var bool|null */
+	private $table_exists_cache = null;
+
 	public function __construct() {
 		// noop
 	}
@@ -17,57 +20,127 @@ class ClubRepository {
 		return $wpdb->prefix . 'ufsc_clubs';
 	}
 
+	/**
+	 * Check if clubs table exists (cached per request).
+	 *
+	 * @return bool
+	 */
+	private function table_exists() {
+		if ( null !== $this->table_exists_cache ) {
+			return (bool) $this->table_exists_cache;
+		}
+
+		global $wpdb;
+		$table = $this->table_name();
+
+		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
+		$this->table_exists_cache = ( $exists === $table );
+
+		return (bool) $this->table_exists_cache;
+	}
+
+	/**
+	 * Get a club row by id.
+	 *
+	 * Expected columns (best case): id, nom, region
+	 * But we remain defensive if the schema differs.
+	 *
+	 * @param int $id
+	 * @return object|null
+	 */
 	public function get( $id ) {
 		global $wpdb;
+
 		$id = absint( $id );
 		if ( ! $id ) {
 			return null;
 		}
 
-		$table = $this->table_name();
-
-		// Defensive: table may not exist on some envs
-		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
-		if ( $exists !== $table ) {
+		if ( ! $this->table_exists() ) {
 			return null;
 		}
 
-		$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id ) );
+		$table = $this->table_name();
+		$row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $id ) );
+
 		return $row ?: null;
 	}
 
 	/**
 	 * Return [id => "Nom (Région)"] for select.
+	 *
+	 * @param int $limit
+	 * @return array<int,string>
 	 */
 	public function list_for_select( $limit = 2000 ) {
 		global $wpdb;
 
-		$table = $this->table_name();
-		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table ) );
-		if ( $exists !== $table ) {
+		if ( ! $this->table_exists() ) {
 			return array();
 		}
 
+		$table = $this->table_name();
 		$limit = max( 1, (int) $limit );
-		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id, nom, region FROM {$table} ORDER BY nom ASC LIMIT %d", $limit ) );
+
+		/**
+		 * NOTE: We try to fetch (id, nom, region).
+		 * If the table differs, this query could fail — but on UFSC env it should exist.
+		 */
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, nom, region FROM {$table} ORDER BY nom ASC LIMIT %d",
+				$limit
+			)
+		);
+
+		if ( empty( $rows ) || ! is_array( $rows ) ) {
+			return array();
+		}
 
 		$out = array();
-		if ( is_array( $rows ) ) {
-			foreach ( $rows as $r ) {
-				$id = (int) ( $r->id ?? 0 );
-				if ( ! $id ) {
-					continue;
-				}
-				$nom    = (string) ( $r->nom ?? '' );
-				$region = (string) ( $r->region ?? '' );
-				$label  = $nom;
-				if ( $region ) {
-					$label .= ' (' . $region . ')';
-				}
-				$out[ $id ] = $label;
+		foreach ( $rows as $r ) {
+			$id = (int) ( $r->id ?? 0 );
+			if ( $id <= 0 ) {
+				continue;
 			}
+
+			$nom_raw    = isset( $r->nom ) ? (string) $r->nom : '';
+			$region_raw = isset( $r->region ) ? (string) $r->region : '';
+
+			$nom    = trim( wp_strip_all_tags( $nom_raw ) );
+			$region = trim( wp_strip_all_tags( $region_raw ) );
+
+			if ( '' === $nom ) {
+				continue;
+			}
+
+			$label = $nom;
+			if ( '' !== $region ) {
+				$label .= ' (' . $region . ')';
+			}
+
+			$out[ $id ] = $label;
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Optional helper: builds a "Nom (Région)" label from a club row.
+	 *
+	 * @param object $club
+	 * @return string
+	 */
+	public function get_region_label( $club ) {
+		if ( ! is_object( $club ) ) {
+			return '';
+		}
+		$nom    = trim( wp_strip_all_tags( (string) ( $club->nom ?? '' ) ) );
+		$region = trim( wp_strip_all_tags( (string) ( $club->region ?? '' ) ) );
+
+		if ( '' === $nom ) {
+			return '';
+		}
+		return ( '' !== $region ) ? $nom . ' (' . $region . ')' : $nom;
 	}
 }
