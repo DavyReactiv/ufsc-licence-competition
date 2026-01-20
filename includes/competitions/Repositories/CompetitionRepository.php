@@ -442,3 +442,10 @@ class CompetitionRepository {
 		return array( $filtered_prepared, $filtered_formats );
 	}
 }
+if ( ! empty( $filters['view'] ) ) {
+	if ( 'active' === $filters['view'] ) {
+		$where[] = 'deleted_at IS NULL';
+	} elseif ( 'trash' === $filters['view'] ) {
+		$where[] = 'deleted_at IS NOT NULL';
+	}
+}
