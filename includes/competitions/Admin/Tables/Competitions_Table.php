@@ -35,7 +35,7 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	public function prepare_items() {
-		$per_page     = $this->get_items_per_page( 'ufsc_competitions_per_page', 20 );
+		$per_page     = (int) $this->get_items_per_page( 'ufsc_competitions_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
 
 		$filters = array(
@@ -46,9 +46,14 @@ class Competitions_Table extends \WP_List_Table {
 			'search'     => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
+		// Normalise view
+		if ( ! in_array( $filters['view'], array( 'all', 'trash' ), true ) ) {
+			$filters['view'] = 'all';
+		}
+
 		$this->filters = $filters;
 
-		$total_items = $this->repository->count( $filters );
+		$total_items = (int) $this->repository->count( $filters );
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
 		$this->set_pagination_args(
@@ -74,12 +79,14 @@ class Competitions_Table extends \WP_List_Table {
 	}
 
 	protected function get_sortable_columns() {
+		// Sorting requires repository support (order_by/order_dir).
+		// If repository ignores these, WP will still send args but it won't break.
 		return array(
-			'name'   => array( 'name', false ),
-			'season' => array( 'season', false ),
-			'status' => array( 'status', false ),
-			'event'  => array( 'event_start_datetime', true ),
-			'updated'=> array( 'updated_at', true ),
+			'name'    => array( 'name', false ),
+			'season'  => array( 'season', false ),
+			'status'  => array( 'status', false ),
+			'event'   => array( 'event_start_datetime', true ),
+			'updated' => array( 'updated_at', true ),
 		);
 	}
 
@@ -105,16 +112,19 @@ class Competitions_Table extends \WP_List_Table {
 		$current  = $this->filters['view'] ?? 'all';
 		$base_url = $this->get_page_url();
 
+		// Remove pagination when switching views
+		$base_url_no_paged = remove_query_arg( array( 'paged' ), $base_url );
+
 		$views = array(
 			'all'   => sprintf(
 				'<a href="%s" class="%s">%s</a>',
-				esc_url( $base_url ),
+				esc_url( remove_query_arg( array( 'ufsc_view' ), $base_url_no_paged ) ),
 				( 'all' === $current ) ? 'current' : '',
 				esc_html__( 'Actives', 'ufsc-licence-competition' )
 			),
 			'trash' => sprintf(
 				'<a href="%s" class="%s">%s</a>',
-				esc_url( add_query_arg( 'ufsc_view', 'trash', $base_url ) ),
+				esc_url( add_query_arg( 'ufsc_view', 'trash', $base_url_no_paged ) ),
 				( 'trash' === $current ) ? 'current' : '',
 				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
 			),
@@ -143,7 +153,7 @@ class Competitions_Table extends \WP_List_Table {
 			esc_html( (string) ( $item->name ?? '' ) )
 		);
 
-		$actions = array();
+		$actions    = array();
 		$is_deleted = ! empty( $item->deleted_at );
 
 		if ( ! $is_deleted ) {
@@ -246,7 +256,6 @@ class Competitions_Table extends \WP_List_Table {
 		$status     = $this->filters['status'] ?? '';
 		$discipline = $this->filters['discipline'] ?? '';
 		$season     = $this->filters['season'] ?? '';
-
 		?>
 		<div class="alignleft actions">
 			<select name="ufsc_status">
@@ -266,13 +275,32 @@ class Competitions_Table extends \WP_List_Table {
 		<?php
 	}
 
+	/**
+	 * IMPORTANT:
+	 * - We keep the page slug, current view, and filters.
+	 * - But we avoid keeping 'paged' when switching views (handled in get_views()).
+	 */
 	private function get_page_url() {
 		$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : Menu::PAGE_COMPETITIONS;
 		$url  = admin_url( 'admin.php?page=' . $page );
 
-		// keep view
+		// Keep view if present
 		if ( isset( $_REQUEST['ufsc_view'] ) ) {
 			$url = add_query_arg( 'ufsc_view', sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ), $url );
+		}
+
+		// Preserve filters (so pagination keeps them)
+		if ( isset( $_REQUEST['ufsc_status'] ) && '' !== (string) wp_unslash( $_REQUEST['ufsc_status'] ) ) {
+			$url = add_query_arg( 'ufsc_status', sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ), $url );
+		}
+		if ( isset( $_REQUEST['ufsc_discipline'] ) && '' !== (string) wp_unslash( $_REQUEST['ufsc_discipline'] ) ) {
+			$url = add_query_arg( 'ufsc_discipline', sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ), $url );
+		}
+		if ( isset( $_REQUEST['ufsc_season'] ) && '' !== (string) wp_unslash( $_REQUEST['ufsc_season'] ) ) {
+			$url = add_query_arg( 'ufsc_season', sanitize_text_field( wp_unslash( $_REQUEST['ufsc_season'] ) ), $url );
+		}
+		if ( isset( $_REQUEST['s'] ) && '' !== (string) wp_unslash( $_REQUEST['s'] ) ) {
+			$url = add_query_arg( 's', sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ), $url );
 		}
 
 		return $url;
@@ -282,7 +310,7 @@ class Competitions_Table extends \WP_List_Table {
 		if ( empty( $mysql_datetime ) ) {
 			return '';
 		}
-		$ts = strtotime( $mysql_datetime );
+		$ts = strtotime( (string) $mysql_datetime );
 		if ( false === $ts ) {
 			return '';
 		}
