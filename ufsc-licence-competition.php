@@ -16,9 +16,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'UFSC_LC_FILE', __FILE__ );
-define( 'UFSC_LC_DIR', plugin_dir_path( __FILE__ ) );
-define( 'UFSC_LC_URL', plugin_dir_url( __FILE__ ) );
+/**
+ * Define core plugin constants early to avoid undefined constant errors.
+ * These are used throughout the plugin. Keep them minimal and deterministic.
+ */
+if ( ! defined( 'UFSC_LC_FILE' ) ) {
+	define( 'UFSC_LC_FILE', __FILE__ );
+}
+if ( ! defined( 'UFSC_LC_DIR' ) ) {
+	define( 'UFSC_LC_DIR', plugin_dir_path( UFSC_LC_FILE ) );
+}
+if ( ! defined( 'UFSC_LC_URL' ) ) {
+	define( 'UFSC_LC_URL', plugin_dir_url( UFSC_LC_FILE ) );
+}
+// Backwards-compatible alias: some files historically used UFSC_LC_PLUGIN_DIR
+if ( ! defined( 'UFSC_LC_PLUGIN_DIR' ) ) {
+	define( 'UFSC_LC_PLUGIN_DIR', UFSC_LC_DIR );
+}
 
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 
