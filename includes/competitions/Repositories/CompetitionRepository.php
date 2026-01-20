@@ -12,10 +12,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * CompetitionRepository
  *
- * Minimal, defensive repository for competitions.
- * - Uses RepositoryHelpers::maybe_log_db_error for conditional DB error logging.
- * - build_order_by uses an allowlist to avoid ORDER BY injection.
- * - set_deleted_at writes explicit NULL when restoring.
+ * Defensive repository for competitions.
+ * - Default: show non-deleted rows (deleted_at IS NULL).
+ * - Filters applied only when provided.
+ * - Safe ORDER BY using allowlist.
+ * - Optional debug logging of final SQL + returned count when WP_DEBUG is true.
  */
 class CompetitionRepository {
 
@@ -84,6 +85,7 @@ class CompetitionRepository {
 	 * List competitions with filters, pagination.
 	 *
 	 * @param array $filters
+	 *   Supported keys (all optional): view ('all'|'trash'), status, discipline, season, search, order_by, order_dir
 	 * @param int   $limit
 	 * @param int   $offset
 	 * @return array
@@ -92,12 +94,13 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$table  = Db::competitions_table();
-		$where  = $this->build_where( $filters );
+		$where  = $this->build_where( $filters ); // returns prepared WHERE fragment or empty string
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
 		$order_by = $this->build_order_by( $filters );
 
+		// Use prepare only for LIMIT/OFFSET values; $where is already prepared.
 		$sql = $wpdb->prepare(
 			"SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d",
 			$limit,
@@ -107,6 +110,16 @@ class CompetitionRepository {
 		$rows = $wpdb->get_results( $sql );
 
 		$this->maybe_log_db_error( __METHOD__ . ':list' );
+
+		// Optional debug logging: final SQL + returned count
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$debug_msg = sprintf( 'CompetitionRepository::list SQL=%s ; rows=%d', $sql, is_array( $rows ) ? count( $rows ) : 0 );
+			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+				\UFSC_LC_Logger::log( $debug_msg );
+			} else {
+				error_log( $debug_msg );
+			}
+		}
 
 		return is_array( $rows ) ? $rows : array();
 	}
@@ -121,6 +134,16 @@ class CompetitionRepository {
 		$val = $wpdb->get_var( $sql );
 
 		$this->maybe_log_db_error( __METHOD__ . ':count' );
+
+		// Optional debug logging
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$debug_msg = sprintf( 'CompetitionRepository::count SQL=%s ; count=%d', $sql, (int) $val );
+			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+				\UFSC_LC_Logger::log( $debug_msg );
+			} else {
+				error_log( $debug_msg );
+			}
+		}
 
 		return (int) $val;
 	}
@@ -351,7 +374,9 @@ class CompetitionRepository {
 	/**
 	 * Build a safe WHERE clause based on filters.
 	 *
-	 * Supported filters (defensive): view (trash/all), discipline, type, season, status, s (search).
+	 * Supported filters (defensive): view (trash/all), status, discipline, season, search.
+	 * Filters are applied ONLY when present (non-empty).
+	 * By default (no view=trash) we exclude deleted rows (deleted_at IS NULL).
 	 *
 	 * @param array $filters
 	 * @return string SQL fragment starting with WHERE or empty string.
@@ -359,46 +384,48 @@ class CompetitionRepository {
 	private function build_where( array $filters ) {
 		global $wpdb;
 
-		$table_alias = ''; // not using alias
 		$clauses = array();
 		$params = array();
 
-		// default: exclude deleted rows unless explicit view=trash or view=all
-		$view = isset( $filters['view'] ) ? sanitize_key( $filters['view'] ) : '';
+		// default: exclude deleted rows unless explicit view=trash
+		$view = isset( $filters['view'] ) ? sanitize_key( wp_unslash( $filters['view'] ) ) : '';
 		if ( 'trash' === $view ) {
 			$clauses[] = 'deleted_at IS NOT NULL';
-		} elseif ( 'all' === $view ) {
-			// no clause
 		} else {
 			$clauses[] = 'deleted_at IS NULL';
 		}
 
-		// equality filters (whitelist)
-		$eq_map = array(
-			'discipline' => 'discipline',
-			'type'       => 'type',
-			'season'     => 'season',
-			'status'     => 'status',
-			'id'         => 'id',
-		);
-		foreach ( $eq_map as $key => $col ) {
-			if ( isset( $filters[ $key ] ) && '' !== $filters[ $key ] ) {
-				if ( 'id' === $key ) {
-					$clauses[] = "{$col} = %d";
-					$params[] = absint( $filters[ $key ] );
-				} else {
-					$clauses[] = "{$col} = %s";
-					$params[] = sanitize_text_field( wp_unslash( $filters[ $key ] ) );
-				}
-			}
+		// status filter: apply only if provided and non-empty
+		if ( isset( $filters['status'] ) && '' !== $filters['status'] ) {
+			$clauses[] = 'status = %s';
+			$params[] = sanitize_text_field( wp_unslash( $filters['status'] ) );
 		}
 
-		// search
-		if ( isset( $filters['s'] ) && '' !== $filters['s'] ) {
-			$search_raw = sanitize_text_field( wp_unslash( $filters['s'] ) );
+		// discipline filter: apply only if provided and non-empty
+		if ( isset( $filters['discipline'] ) && '' !== $filters['discipline'] ) {
+			$clauses[] = 'discipline = %s';
+			$params[] = sanitize_text_field( wp_unslash( $filters['discipline'] ) );
+		}
+
+		// season filter: apply only if provided and non-empty
+		if ( isset( $filters['season'] ) && '' !== $filters['season'] ) {
+			$clauses[] = 'season = %s';
+			$params[] = sanitize_text_field( wp_unslash( $filters['season'] ) );
+		}
+
+		// search term: support both 'search' and legacy 's'
+		$search_key = '';
+		if ( isset( $filters['search'] ) && '' !== $filters['search'] ) {
+			$search_key = $filters['search'];
+		} elseif ( isset( $filters['s'] ) && '' !== $filters['s'] ) {
+			$search_key = $filters['s'];
+		}
+
+		if ( '' !== $search_key ) {
+			$search_raw = sanitize_text_field( wp_unslash( $search_key ) );
 			$like = '%' . $wpdb->esc_like( $search_raw ) . '%';
-			// search commonly on name or description
-			$clauses[] = '(name LIKE %s OR description LIKE %s)';
+			$clauses[] = '(name LIKE %s OR description LIKE %s OR organizer_club_name LIKE %s)';
+			$params[] = $like;
 			$params[] = $like;
 			$params[] = $like;
 		}
@@ -427,8 +454,8 @@ class CompetitionRepository {
 	 * @return string
 	 */
 	private function build_order_by( array $filters ) {
-		$orderby = isset( $filters['orderby'] ) ? sanitize_key( $filters['orderby'] ) : '';
-		$order   = isset( $filters['order'] ) ? strtoupper( sanitize_key( $filters['order'] ) ) : '';
+		$orderby = isset( $filters['order_by'] ) ? sanitize_key( $filters['order_by'] ) : '';
+		$order   = isset( $filters['order_dir'] ) ? strtoupper( sanitize_key( $filters['order_dir'] ) ) : '';
 
 		if ( ! in_array( $orderby, $this->allowed_order_cols, true ) ) {
 			// default ordering
