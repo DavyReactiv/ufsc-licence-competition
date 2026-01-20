@@ -53,11 +53,11 @@ class CompetitionRepository {
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
-		$order_by = 'event_start_datetime DESC';
+		$order_by           = 'event_start_datetime DESC';
 		$allowed_order_cols = array( 'event_start_datetime', 'name', 'season', 'status', 'updated_at', 'created_at' );
 
 		if ( ! empty( $filters['order_by'] ) && in_array( $filters['order_by'], $allowed_order_cols, true ) ) {
-			$dir = ( ! empty( $filters['order_dir'] ) && 'ASC' === strtoupper( (string) $filters['order_dir'] ) ) ? 'ASC' : 'DESC';
+			$dir      = ( ! empty( $filters['order_dir'] ) && 'ASC' === strtoupper( (string) $filters['order_dir'] ) ) ? 'ASC' : 'DESC';
 			$order_by = esc_sql( $filters['order_by'] ) . ' ' . $dir;
 		}
 
@@ -93,7 +93,7 @@ class CompetitionRepository {
 			return false;
 		}
 		$data['id'] = $id;
-		$saved_id = $this->save( $data );
+		$saved_id   = $this->save( $data );
 		return $saved_id ? $id : false;
 	}
 
@@ -120,6 +120,10 @@ class CompetitionRepository {
 		return true;
 	}
 
+	/**
+	 * Restore a soft-deleted record (deleted_at => NULL).
+	 * NOTE: Using explicit SQL to reliably set NULL.
+	 */
 	public function restore( $id ) {
 		global $wpdb;
 
@@ -128,15 +132,23 @@ class CompetitionRepository {
 			return false;
 		}
 
-		$table = Db::competitions_table();
-		$data  = array(
-			'deleted_at' => null,
-			'deleted_by' => 0,
-			'updated_at' => current_time( 'mysql' ),
-			'updated_by' => (int) get_current_user_id(),
+		$table   = Db::competitions_table();
+		$now     = current_time( 'mysql' );
+		$user_id = (int) get_current_user_id();
+
+		$sql = $wpdb->prepare(
+			"UPDATE {$table}
+			 SET deleted_at = NULL,
+			     deleted_by = 0,
+			     updated_at = %s,
+			     updated_by = %d
+			 WHERE id = %d",
+			$now,
+			$user_id,
+			$id
 		);
 
-		$updated = $wpdb->update( $table, $data, array( 'id' => $id ), array( '%s', '%d', '%s', '%d' ), array( '%d' ) );
+		$updated = $wpdb->query( $sql );
 		if ( false === $updated ) {
 			error_log( 'UFSC CompetitionRepository restore error: ' . $wpdb->last_error );
 			return false;
@@ -231,7 +243,7 @@ class CompetitionRepository {
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$search = $wpdb->esc_like( (string) $filters['search'] );
+			$search  = $wpdb->esc_like( (string) $filters['search'] );
 			$where[] = $wpdb->prepare( "name LIKE %s", '%' . $search . '%' );
 		}
 
@@ -257,13 +269,18 @@ class CompetitionRepository {
 		if ( is_float( $v ) || is_double( $v ) ) {
 			return '%f';
 		}
-		// allow NULL for nullable datetime columns
-		if ( null === $v ) {
-			return '%s';
-		}
+		// allow NULL for nullable columns (wpdb will handle)
 		return '%s';
 	}
 
+	/**
+	 * Normalize datetime inputs to 'Y-m-d H:i:s' (WP local time) or null.
+	 *
+	 * Accepts:
+	 * - 'YYYY-MM-DDTHH:MM' (datetime-local)
+	 * - 'YYYY-MM-DD HH:MM'
+	 * - 'YYYY-MM-DD HH:MM:SS'
+	 */
 	private function sanitize_datetime( $value ) {
 		if ( null === $value || '' === $value ) {
 			return null;
@@ -279,7 +296,8 @@ class CompetitionRepository {
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value ) ) {
 			$ts = strtotime( $value );
 			if ( false !== $ts ) {
-				return gmdate( 'Y-m-d H:i:s', $ts ); // store normalized
+				// Store as MySQL datetime string (local)
+				return date( 'Y-m-d H:i:s', $ts );
 			}
 		}
 
@@ -364,7 +382,7 @@ class CompetitionRepository {
 		foreach ( $keys as $i => $k ) {
 			if ( isset( $columns[ $k ] ) ) {
 				$filtered_prepared[ $k ] = $prepared[ $k ];
-				$filtered_formats[] = isset( $formats[ $i ] ) ? $formats[ $i ] : '%s';
+				$filtered_formats[]      = isset( $formats[ $i ] ) ? $formats[ $i ] : '%s';
 			}
 		}
 
