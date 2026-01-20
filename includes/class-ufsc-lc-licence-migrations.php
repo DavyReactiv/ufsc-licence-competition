@@ -18,7 +18,6 @@ class UFSC_LC_Licence_Migrations {
 			return;
 		}
 
-		// Columns to add (name => definition)
 		$columns = array(
 			'season_end_year' => 'season_end_year int(4) NULL',
 			'category'        => 'category varchar(50) NULL',
@@ -35,12 +34,8 @@ class UFSC_LC_Licence_Migrations {
 
 			if ( false === $res ) {
 				$msg = "UFSC Licence Migrations: failed to add column {$col} to {$table}: {$wpdb->last_error}";
-				if ( class_exists( 'UFSC_LC_Logger' ) ) {
-					UFSC_LC_Logger::log( $msg );
-				} else {
-					error_log( $msg );
-				}
-				// continue (no fatal)
+				error_log( $msg );
+				// continue: do not abort activation
 			}
 		}
 
@@ -48,7 +43,7 @@ class UFSC_LC_Licence_Migrations {
 		$clubs_table = $this->get_clubs_table();
 
 		if ( $this->table_exists( $table ) && $this->table_exists( $clubs_table ) && $this->column_exists( $table, 'club_id' ) && $this->column_exists( $clubs_table, 'id' ) ) {
-			$lic_table_name = str_replace( $wpdb->prefix, '', $table );
+			$lic_table_name   = str_replace( $wpdb->prefix, '', $table );
 			$clubs_table_name = str_replace( $wpdb->prefix, '', $clubs_table );
 
 			$lic_engine = $wpdb->get_var( $wpdb->prepare(
@@ -61,7 +56,6 @@ class UFSC_LC_Licence_Migrations {
 			) );
 
 			if ( 'InnoDB' === $lic_engine && 'InnoDB' === $club_engine ) {
-				// check existing constraint
 				$exists = $wpdb->get_var( $wpdb->prepare(
 					"SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s AND REFERENCED_TABLE_NAME = %s",
 					$lic_table_name,
@@ -70,7 +64,6 @@ class UFSC_LC_Licence_Migrations {
 				) );
 
 				if ( empty( $exists ) ) {
-					// ensure index
 					$has_index = $wpdb->get_var( $wpdb->prepare(
 						"SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
 						$lic_table_name,
@@ -81,12 +74,7 @@ class UFSC_LC_Licence_Migrations {
 						$idx_sql = "ALTER TABLE {$table} ADD INDEX idx_club_id (club_id)";
 						$idx_res = $wpdb->query( $idx_sql );
 						if ( false === $idx_res ) {
-							$msg = "UFSC Licence Migrations: failed to add index idx_club_id on {$table}: {$wpdb->last_error}";
-							if ( class_exists( 'UFSC_LC_Logger' ) ) {
-								UFSC_LC_Logger::log( $msg );
-							} else {
-								error_log( $msg );
-							}
+							error_log( "UFSC Licence Migrations: failed to add index idx_club_id on {$table}: {$wpdb->last_error}" );
 						}
 					}
 
@@ -95,21 +83,11 @@ class UFSC_LC_Licence_Migrations {
 					$fk_sql = "ALTER TABLE {$table} ADD CONSTRAINT {$constraint_name} FOREIGN KEY (club_id) REFERENCES {$clubs_table}(id) ON DELETE SET NULL ON UPDATE CASCADE";
 					$fk_res = $wpdb->query( $fk_sql );
 					if ( false === $fk_res ) {
-						$msg = "UFSC Licence Migrations: failed to add FK {$constraint_name} on {$table}: {$wpdb->last_error}";
-						if ( class_exists( 'UFSC_LC_Logger' ) ) {
-							UFSC_LC_Logger::log( $msg );
-						} else {
-							error_log( $msg );
-						}
+						error_log( "UFSC Licence Migrations: failed to add FK {$constraint_name} on {$table}: {$wpdb->last_error}" );
 					}
 				}
 			} else {
-				$msg = "UFSC Licence Migrations: skipping FK add for {$table} -> {$clubs_table} because engine is not InnoDB (lic: {$lic_engine}, clubs: {$club_engine}).";
-				if ( class_exists( 'UFSC_LC_Logger' ) ) {
-					UFSC_LC_Logger::log( $msg );
-				} else {
-					error_log( $msg );
-				}
+				error_log( "UFSC Licence Migrations: skipping FK add for {$table} -> {$clubs_table} because engine is not InnoDB (lic: {$lic_engine}, clubs: {$club_engine})." );
 			}
 		}
 	}
@@ -166,10 +144,8 @@ class UFSC_LC_Licence_Migrations {
 
 	private function has_column( $table, $column ) {
 		global $wpdb;
-
 		$column = sanitize_key( $column );
 		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
-
 		return ! empty( $exists );
 	}
 
