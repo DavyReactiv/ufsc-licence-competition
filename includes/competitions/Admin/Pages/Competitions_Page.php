@@ -4,41 +4,49 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\ClubRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
 class Competitions_Page {
-
 	/** @var CompetitionRepository|null */
 	private $repository;
+
+	/** @var ClubRepository|null */
+	private $club_repository;
 
 	public function __construct() {
 		$this->repository = class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' )
 			? new CompetitionRepository()
 			: null;
+
+		$this->club_repository = class_exists( '\\UFSC\\Competitions\\Repositories\\ClubRepository' )
+			? new ClubRepository()
+			: null;
+
+		add_action( 'wp_ajax_ufsc_get_club', array( $this, 'ajax_get_club' ) );
 	}
 
 	/**
 	 * Hook admin_post handlers.
-	 * IMPORTANT: must be called (either from Menu->register() or bootstrap/init).
+	 * Ideally called once by Menu registration.
 	 */
 	public function register_actions() {
 		add_action( 'admin_post_ufsc_competitions_save_competition', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_competition', array( $this, 'handle_delete' ) );
-
 		add_action( 'admin_post_ufsc_competitions_archive_competition', array( $this, 'handle_archive' ) );
 		add_action( 'admin_post_ufsc_competitions_unarchive_competition', array( $this, 'handle_unarchive' ) );
 	}
 
+	/**
+	 * Standard public render() expected by admin menu callbacks.
+	 */
 	public function render() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -77,6 +85,9 @@ class Competitions_Page {
 		$this->render_list();
 	}
 
+	/**
+	 * LIST VIEW
+	 */
 	private function render_list() {
 		if ( ! class_exists( '\\UFSC\\Competitions\\Admin\\Tables\\Competitions_Table' ) ) {
 			echo '<div class="wrap"><h1>' . esc_html__( 'Compétitions', 'ufsc-licence-competition' ) . '</h1>';
@@ -88,10 +99,14 @@ class Competitions_Page {
 
 		$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
 
-		// Bulk actions (nonce + cap)
+		// Bulk actions must be handled BEFORE prepare_items().
 		$this->maybe_handle_bulk_actions( $list_table );
 
 		$list_table->prepare_items();
+
+		$current_view = isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all';
+		$search       = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
@@ -104,20 +119,34 @@ class Competitions_Page {
 
 			<?php $list_table->views(); ?>
 
-			<form method="get">
+			<!-- Search (GET) -->
+			<form method="get" style="margin: 8px 0 12px;">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::MENU_SLUG ); ?>" />
-				<?php
-				if ( isset( $_GET['ufsc_view'] ) ) {
-					echo '<input type="hidden" name="ufsc_view" value="' . esc_attr( sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) ) . '" />';
-				}
-				?>
+				<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-search' ); ?>
-				<?php $list_table->display(); ?>
+			</form>
+
+			<!-- Table + bulk actions (POST) -->
+			<form method="post">
+				<?php
+				echo '<input type="hidden" name="page" value="' . esc_attr( Menu::MENU_SLUG ) . '" />';
+				echo '<input type="hidden" name="ufsc_view" value="' . esc_attr( $current_view ) . '" />';
+				if ( $search !== '' ) {
+					echo '<input type="hidden" name="s" value="' . esc_attr( $search ) . '" />';
+				}
+
+				$list_table->display();
+				?>
 			</form>
 		</div>
 		<?php
 	}
 
+	/**
+	 * FORM VIEW (add/edit)
+	 *
+	 * @param object|null $item
+	 */
 	private function render_form( $item ) {
 		$is_edit = ( is_object( $item ) && ! empty( $item->id ) );
 
@@ -129,6 +158,10 @@ class Competitions_Page {
 		$type       = $is_edit ? (string) ( $item->type ?? '' ) : '';
 		$season     = $is_edit ? (string) ( $item->season ?? '' ) : '';
 		$status     = $is_edit ? (string) ( $item->status ?? '' ) : 'open';
+
+		// Optional datetime fields if present in schema.
+		$event_start = $is_edit ? (string) ( $item->event_start_datetime ?? '' ) : '';
+		$event_end   = $is_edit ? (string) ( $item->event_end_datetime ?? '' ) : '';
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -189,6 +222,24 @@ class Competitions_Page {
 								</select>
 							</td>
 						</tr>
+
+						<tr>
+							<th scope="row"><label for="event_start_datetime"><?php esc_html_e( 'Début (datetime)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="event_start_datetime" id="event_start_datetime" type="text" class="regular-text"
+									value="<?php echo esc_attr( $event_start ); ?>"
+									placeholder="YYYY-MM-DD HH:MM:SS" />
+							</td>
+						</tr>
+
+						<tr>
+							<th scope="row"><label for="event_end_datetime"><?php esc_html_e( 'Fin (datetime)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="event_end_datetime" id="event_end_datetime" type="text" class="regular-text"
+									value="<?php echo esc_attr( $event_end ); ?>"
+									placeholder="YYYY-MM-DD HH:MM:SS" />
+							</td>
+						</tr>
 					</tbody>
 				</table>
 
@@ -198,11 +249,11 @@ class Competitions_Page {
 		<?php
 	}
 
+	/**
+	 * Bulk actions: require nonce + capability.
+	 */
 	private function maybe_handle_bulk_actions( $list_table ) {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			return;
 		}
@@ -234,6 +285,8 @@ class Competitions_Page {
 		$ids = array();
 		if ( ! empty( $_REQUEST['ids'] ) && is_array( $_REQUEST['ids'] ) ) {
 			$ids = array_map( 'absint', wp_unslash( $_REQUEST['ids'] ) );
+		} elseif ( ! empty( $_REQUEST['id'] ) ) {
+			$ids = array( absint( wp_unslash( $_REQUEST['id'] ) ) );
 		}
 		$ids = array_filter( $ids );
 
@@ -244,33 +297,68 @@ class Competitions_Page {
 		foreach ( $ids as $id ) {
 			if ( 'trash' === $action && method_exists( $this->repository, 'trash' ) ) {
 				$this->repository->trash( $id );
-			}
-			if ( 'restore' === $action && method_exists( $this->repository, 'restore' ) ) {
+			} elseif ( 'restore' === $action && method_exists( $this->repository, 'restore' ) ) {
 				$this->repository->restore( $id );
-			}
-			if ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
+			} elseif ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
 				$this->repository->delete( $id );
-			}
-			if ( 'archive' === $action && method_exists( $this->repository, 'archive' ) ) {
+			} elseif ( 'archive' === $action && method_exists( $this->repository, 'archive' ) ) {
 				$this->repository->archive( $id );
-			}
-			if ( 'unarchive' === $action && method_exists( $this->repository, 'unarchive' ) ) {
+			} elseif ( 'unarchive' === $action && method_exists( $this->repository, 'unarchive' ) ) {
 				$this->repository->unarchive( $id );
 			}
 		}
 
-		wp_safe_redirect( add_query_arg(
-			array( 'page' => Menu::MENU_SLUG, 'ufsc_notice' => 'saved' ),
-			admin_url( 'admin.php' )
-		) );
+		$redirect_args = array( 'page' => Menu::MENU_SLUG, 'ufsc_notice' => 'saved' );
+		if ( isset( $_REQUEST['ufsc_view'] ) ) {
+			$redirect_args['ufsc_view'] = sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) );
+		}
+		if ( isset( $_REQUEST['s'] ) ) {
+			$redirect_args['s'] = sanitize_text_field( wp_unslash( $_REQUEST['s'] ) );
+		}
+
+		wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php' ) ) );
 		exit;
 	}
 
-	public function handle_save() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
+	/**
+	 * AJAX: get club snapshot.
+	 */
+	public function ajax_get_club() {
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		if ( ! current_user_can( $cap ) ) {
+			wp_send_json_error( 'forbidden', 403 );
+		}
 
+		check_ajax_referer( 'ufsc_get_club', 'nonce' );
+
+		$club_id = isset( $_POST['club_id'] ) ? absint( wp_unslash( $_POST['club_id'] ) ) : 0;
+		if ( ! $club_id ) {
+			wp_send_json_error( 'missing', 400 );
+		}
+
+		if ( ! $this->club_repository || ! method_exists( $this->club_repository, 'get' ) ) {
+			wp_send_json_error( 'club_repo_missing', 500 );
+		}
+
+		$club = $this->club_repository->get( $club_id );
+		if ( ! $club ) {
+			wp_send_json_error( 'not_found', 404 );
+		}
+
+		wp_send_json_success(
+			array(
+				'id'     => (int) ( $club->id ?? 0 ),
+				'nom'    => sanitize_text_field( $club->nom ?? '' ),
+				'region' => sanitize_text_field( $club->region ?? '' ),
+			)
+		);
+	}
+
+	/**
+	 * Handlers (admin-post)
+	 */
+	public function handle_save() {
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -282,31 +370,32 @@ class Competitions_Page {
 		}
 
 		$data = array(
-			'id'         => isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0,
-			'name'       => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
-			'discipline' => isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '',
-			'type'       => isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '',
-			'season'     => isset( $_POST['season'] ) ? sanitize_text_field( wp_unslash( $_POST['season'] ) ) : '',
-			'status'     => isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : 'open',
+			'id'                  => isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0,
+			'name'                => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
+			'discipline'           => isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '',
+			'type'                => isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '',
+			'season'              => isset( $_POST['season'] ) ? sanitize_text_field( wp_unslash( $_POST['season'] ) ) : '',
+			'status'              => isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : '',
+			'event_start_datetime' => isset( $_POST['event_start_datetime'] ) ? sanitize_text_field( wp_unslash( $_POST['event_start_datetime'] ) ) : '',
+			'event_end_datetime'   => isset( $_POST['event_end_datetime'] ) ? sanitize_text_field( wp_unslash( $_POST['event_end_datetime'] ) ) : '',
 		);
 
 		$saved_id = $this->repository->save( $data );
 
-		wp_safe_redirect( add_query_arg(
-			array(
-				'page'        => Menu::MENU_SLUG,
-				'ufsc_notice' => $saved_id ? 'saved' : 'invalid',
-			),
-			admin_url( 'admin.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_notice' => $saved_id ? 'saved' : 'invalid',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
 	public function handle_trash() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -322,10 +411,7 @@ class Competitions_Page {
 	}
 
 	public function handle_restore() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -337,22 +423,21 @@ class Competitions_Page {
 			$this->repository->restore( $id );
 		}
 
-		wp_safe_redirect( add_query_arg(
-			array(
-				'page'        => Menu::MENU_SLUG,
-				'ufsc_view'   => 'trash',
-				'ufsc_notice' => 'saved',
-			),
-			admin_url( 'admin.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_view'   => 'trash',
+					'ufsc_notice' => 'saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
 	public function handle_delete() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -364,22 +449,21 @@ class Competitions_Page {
 			$this->repository->delete( $id );
 		}
 
-		wp_safe_redirect( add_query_arg(
-			array(
-				'page'        => Menu::MENU_SLUG,
-				'ufsc_view'   => 'trash',
-				'ufsc_notice' => 'saved',
-			),
-			admin_url( 'admin.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_view'   => 'trash',
+					'ufsc_notice' => 'saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
 	public function handle_archive() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -391,14 +475,21 @@ class Competitions_Page {
 			$this->repository->archive( $id );
 		}
 
-		$this->redirect_notice( 'saved' );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_view'   => 'archived',
+					'ufsc_notice' => 'saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 
 	public function handle_unarchive() {
-		$cap = ( class_exists( '\\UFSC_LC_Capabilities' ) && method_exists( '\\UFSC_LC_Capabilities', 'get_manage_capability' ) )
-			? \UFSC_LC_Capabilities::get_manage_capability()
-			: 'manage_options';
-
+		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -410,14 +501,16 @@ class Competitions_Page {
 			$this->repository->unarchive( $id );
 		}
 
-		wp_safe_redirect( add_query_arg(
-			array(
-				'page'        => Menu::MENU_SLUG,
-				'ufsc_view'   => 'archived',
-				'ufsc_notice' => 'saved',
-			),
-			admin_url( 'admin.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_view'   => 'all',
+					'ufsc_notice' => 'saved',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 
@@ -443,13 +536,15 @@ class Competitions_Page {
 	}
 
 	private function redirect_notice( $notice ) {
-		wp_safe_redirect( add_query_arg(
-			array(
-				'page'        => Menu::MENU_SLUG,
-				'ufsc_notice' => sanitize_key( $notice ),
-			),
-			admin_url( 'admin.php' )
-		) );
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => Menu::MENU_SLUG,
+					'ufsc_notice' => sanitize_key( $notice ),
+				),
+				admin_url( 'admin.php' )
+			)
+		);
 		exit;
 	}
 }
