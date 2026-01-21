@@ -60,6 +60,10 @@ class Competitions_Table extends \WP_List_Table {
 		);
 	}
 
+	protected function get_hidden_columns() {
+		return array();
+	}
+
 	public function column_cb( $item ) {
 		$id = isset( $item->id ) ? (int) $item->id : 0;
 		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', $id );
@@ -199,6 +203,34 @@ class Competitions_Table extends \WP_List_Table {
 		);
 	}
 
+	protected function bulk_actions( $which = '' ) {
+		if ( is_null( $this->_actions ) ) {
+			$this->_actions = $this->get_bulk_actions();
+			$this->_actions = apply_filters( "bulk_actions-{$this->screen->id}", $this->_actions );
+			$two = '';
+		} else {
+			$two = '2';
+		}
+
+		if ( empty( $this->_actions ) ) {
+			return;
+		}
+
+		echo '<label for="ufsc_bulk_action' . esc_attr( $two ) . '" class="screen-reader-text">' . esc_html__( 'Actions groupées', 'ufsc-licence-competition' ) . '</label>';
+		echo '<select name="ufsc_bulk_action' . esc_attr( $two ) . '" id="ufsc_bulk_action' . esc_attr( $two ) . '">';
+		echo '<option value="-1">' . esc_html__( 'Actions groupées', 'ufsc-licence-competition' ) . "</option>\n";
+
+		foreach ( $this->_actions as $action => $title ) {
+			$css_class = 'edit' === $action ? ' class="hide-if-no-js"' : '';
+			echo "\t" . '<option value="' . esc_attr( $action ) . '"' . $css_class . '>' . esc_html( $title ) . "</option>\n";
+		}
+
+		echo "</select>\n";
+
+		submit_button( __( 'Appliquer', 'ufsc-licence-competition' ), 'action', "doaction{$two}", false );
+		echo "\n";
+	}
+
 	public function get_views() {
 		$current = isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all';
 
@@ -247,6 +279,10 @@ class Competitions_Table extends \WP_List_Table {
 		return $views;
 	}
 
+	public function no_items() {
+		esc_html_e( 'Aucune compétition trouvée.', 'ufsc-licence-competition' );
+	}
+
 	public function prepare_items() {
 		$per_page     = (int) $this->get_items_per_page( 'ufsc_competitions_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
@@ -283,6 +319,12 @@ class Competitions_Table extends \WP_List_Table {
 
 		$total_items = (int) $this->repository->count( $filters );
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+
+		$columns  = $this->get_columns();
+		$hidden   = $this->get_hidden_columns();
+		$sortable = $this->get_sortable_columns();
+
+		$this->_column_headers = array( $columns, $hidden, $sortable );
 
 		$this->set_pagination_args(
 			array(

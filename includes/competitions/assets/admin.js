@@ -23,7 +23,7 @@ document.addEventListener('submit', (event) => {
     return;
   }
 
-  const actionFields = ['action', 'action2'];
+  const actionFields = ['ufsc_bulk_action', 'ufsc_bulk_action2'];
   let action = '';
   actionFields.forEach((name) => {
     const field = form.querySelector(`select[name="${name}"]`);

@@ -28,6 +28,7 @@ class Menu {
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
+		add_action( 'admin_init', array( $this, 'register_page_actions' ) );
 	}
 
 	public function add_menu(): void {
@@ -142,6 +143,18 @@ class Menu {
 		if ( $hook_suffix && class_exists( '\UFSC\Competitions\Admin\Assets' ) ) {
 			$assets = new Assets();
 			$assets->register( $hook_suffix, self::PAGE_COMPETITIONS === $slug );
+		}
+	}
+
+	public function register_page_actions(): void {
+		$page_class = 'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page';
+		if ( ! class_exists( $page_class ) ) {
+			return;
+		}
+
+		$page = new $page_class();
+		if ( method_exists( $page, 'register_actions' ) ) {
+			$page->register_actions();
 		}
 	}
 

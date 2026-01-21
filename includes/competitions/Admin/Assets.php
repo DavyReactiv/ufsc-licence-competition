@@ -54,6 +54,9 @@ class Assets {
 			}
 
 			// Defensive: deregister legacy handle to avoid 404 in console.
+			if ( wp_style_is( 'user-club-admin', 'enqueued' ) ) {
+				wp_dequeue_style( 'user-club-admin' );
+			}
 			if ( wp_style_is( 'user-club-admin', 'registered' ) ) {
 				wp_deregister_style( 'user-club-admin' );
 			}
