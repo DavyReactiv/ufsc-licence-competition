@@ -1,11 +1,4 @@
 <?php
-/**
- * CompetitionRepository (UFSC Competitions)
- * - Compatible nouveau schéma (event_start_datetime, etc.)
- * - Compatible ancien schéma (start_date, end_date, registration_deadline)
- * - WHERE préparé correctement (pas de placeholders “orphelins”)
- * - ORDER BY sûr (fallback si colonnes absentes)
- */
 
 namespace UFSC\Competitions\Repositories;
 
@@ -23,17 +16,8 @@ class CompetitionRepository {
 	/** @var LogService */
 	private $logger;
 
-	/**
-	 * Cache colonnes par table (clé = nom table).
-	 * @var array<string, string[]>
-	 */
 	private static $table_columns_cache = array();
 
-	/**
-	 * Colonnes autorisées (logiques) pour tri.
-	 * Certaines sont mappées vers les colonnes réelles via col().
-	 * @var string[]
-	 */
 	private $allowed_order_cols = array(
 		'event_start_datetime',
 		'event_end_datetime',
@@ -54,13 +38,6 @@ class CompetitionRepository {
 		$this->logger = new LogService();
 	}
 
-	/**
-	 * Get single competition by id.
-	 *
-	 * @param int  $id
-	 * @param bool $include_deleted
-	 * @return object|null
-	 */
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
 
@@ -74,33 +51,23 @@ class CompetitionRepository {
 
 		$this->maybe_log_db_error( __METHOD__ . ':get' );
 
-		// Si la colonne deleted_at n’existe pas, on ne filtre pas.
-		if ( $row && ! $include_deleted && $this->has_col( 'deleted_at' ) && ! empty( $row->deleted_at ) ) {
+		if ( $row && ! $include_deleted && ! empty( $row->deleted_at ) ) {
 			return null;
 		}
 
 		return $row ?: null;
 	}
 
-	/**
-	 * List competitions with filters.
-	 *
-	 * @param array $filters
-	 * @param int   $limit
-	 * @param int   $offset
-	 * @return array
-	 */
 	public function list( array $filters = array(), $limit = 20, $offset = 0 ) {
 		global $wpdb;
 
 		$table  = Db::competitions_table();
-		$where  = $this->build_where( $filters ); // string "WHERE ..." or ""
+		$where  = $this->build_where( $filters ); // prepared fragment or empty
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
 		$order_by = $this->build_order_by( $filters );
 
-		// IMPORTANT: $where est déjà préparé (pas de placeholders dedans).
 		$sql = $wpdb->prepare(
 			"SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d",
 			$limit,
@@ -111,374 +78,78 @@ class CompetitionRepository {
 
 		$this->maybe_log_db_error( __METHOD__ . ':list' );
 
-		// Debug (optionnel)
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$last_query = isset( $wpdb->last_query ) ? $wpdb->last_query : $sql;
-			$last_error = isset( $wpdb->last_error ) ? $wpdb->last_error : '';
-			$debug_msg  = sprintf(
-				'CompetitionRepository::list executed. filters=%s ; query=%s ; last_error=%s ; rows=%d',
-				wp_json_encode( $filters ),
-				$last_query,
-				$last_error,
-				is_array( $rows ) ? count( $rows ) : 0
-			);
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $debug_msg );
-			} else {
-				error_log( $debug_msg );
-			}
-		}
-
 		return is_array( $rows ) ? $rows : array();
 	}
 
-	/**
-	 * Count competitions with filters.
-	 *
-	 * @param array $filters
-	 * @return int
-	 */
 	public function count( array $filters = array() ) {
 		global $wpdb;
 
 		$table = Db::competitions_table();
-		$where = $this->build_where( $filters ); // string "WHERE ..." or ""
+		$where = $this->build_where( $filters );
 
 		$sql = "SELECT COUNT(1) FROM {$table} {$where}";
 		$val = $wpdb->get_var( $sql );
 
 		$this->maybe_log_db_error( __METHOD__ . ':count' );
 
-		// Debug (optionnel)
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$last_query = isset( $wpdb->last_query ) ? $wpdb->last_query : $sql;
-			$last_error = isset( $wpdb->last_error ) ? $wpdb->last_error : '';
-			$debug_msg  = sprintf(
-				'CompetitionRepository::count executed. filters=%s ; query=%s ; last_error=%s ; count=%d',
-				wp_json_encode( $filters ),
-				$last_query,
-				$last_error,
-				(int) $val
-			);
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $debug_msg );
-			} else {
-				error_log( $debug_msg );
-			}
-		}
-
 		return (int) $val;
 	}
 
-	/* =========================================================
-	 * WHERE / ORDER BY (compat schéma legacy + nouveau)
-	 * ======================================================= */
-
 	/**
-	 * Build WHERE clause (prepared and safe).
-	 *
-	 * Supported filters:
-	 * - view: all|trash
-	 * - status
-	 * - discipline
-	 * - season
-	 * - s (search)
-	 *
-	 * @param array $filters
-	 * @return string "WHERE ..." or ""
-	 */
-	private function build_where( array $filters ): string {
-		global $wpdb;
-
-		// Normalisation
-		$view       = isset( $filters['view'] ) ? (string) $filters['view'] : 'all';
-		$status     = isset( $filters['status'] ) ? (string) $filters['status'] : '';
-		$discipline = isset( $filters['discipline'] ) ? (string) $filters['discipline'] : '';
-		$season     = isset( $filters['season'] ) ? (string) $filters['season'] : '';
-		$search     = isset( $filters['s'] ) ? (string) $filters['s'] : '';
-
-		if ( ! in_array( $view, array( 'all', 'trash' ), true ) ) {
-			$view = 'all';
-		}
-
-		/**
-		 * DEFAULT STATUS:
-		 * Si aucun filtre statut et vue "all", on montre les compétitions actives.
-		 * (Compatible avec tes données: status=open)
-		 */
-		if ( '' === $status && 'all' === $view && $this->has_col( 'status' ) ) {
-			$status = 'open';
-		}
-
-		$clauses = array();
-		$params  = array();
-
-		// Deleted / trash logic (uniquement si colonne existe)
-		if ( $this->has_col( 'deleted_at' ) ) {
-			if ( 'trash' === $view ) {
-				$clauses[] = 'deleted_at IS NOT NULL';
-			} else {
-				$clauses[] = 'deleted_at IS NULL';
-			}
-		}
-
-		// Status
-		if ( '' !== $status && $this->has_col( 'status' ) ) {
-			$clauses[] = 'status = %s';
-			$params[]  = $status;
-		}
-
-		// Discipline
-		if ( '' !== $discipline && $this->has_col( 'discipline' ) ) {
-			$clauses[] = 'discipline = %s';
-			$params[]  = $discipline;
-		}
-
-		// Season
-		if ( '' !== $season && $this->has_col( 'season' ) ) {
-			$clauses[] = 'season = %s';
-			$params[]  = $season;
-		}
-
-		// Search (name + éventuellement location si existe)
-		$search = trim( $search );
-		if ( '' !== $search ) {
-			$like = '%' . $wpdb->esc_like( $search ) . '%';
-
-			$search_sub = array();
-			if ( $this->has_col( 'name' ) ) {
-				$search_sub[] = 'name LIKE %s';
-				$params[]     = $like;
-			}
-			if ( $this->has_col( 'location' ) ) {
-				$search_sub[] = 'location LIKE %s';
-				$params[]     = $like;
-			}
-			if ( $this->has_col( 'organizer_club_name' ) ) {
-				$search_sub[] = 'organizer_club_name LIKE %s';
-				$params[]     = $like;
-			}
-
-			if ( ! empty( $search_sub ) ) {
-				$clauses[] = '(' . implode( ' OR ', $search_sub ) . ')';
-			}
-		}
-
-		if ( empty( $clauses ) ) {
-			return '';
-		}
-
-		$where_sql = 'WHERE ' . implode( ' AND ', $clauses );
-
-		// Prepare only if we have params/placeholders
-		if ( ! empty( $params ) ) {
-			$where_sql = $wpdb->prepare( $where_sql, $params );
-		}
-
-		return $where_sql;
-	}
-
-	/**
-	 * Build ORDER BY clause safely.
-	 *
-	 * Accepts:
-	 * - filters['order_by'] logical or real column
-	 * - filters['order_dir'] ASC|DESC
-	 *
-	 * @param array $filters
-	 * @return string (no placeholders)
-	 */
-	private function build_order_by( array $filters ): string {
-		$dir = isset( $filters['order_dir'] ) && strtoupper( (string) $filters['order_dir'] ) === 'ASC' ? 'ASC' : 'DESC';
-
-		// Default order
-		$default_col = $this->col( 'updated_at' );
-		if ( ! $this->has_col( $default_col ) ) {
-			$default_col = $this->has_col( 'created_at' ) ? 'created_at' : 'id';
-		}
-		$default = $default_col . ' DESC';
-
-		$requested = isset( $filters['order_by'] ) ? (string) $filters['order_by'] : '';
-		if ( '' === $requested ) {
-			return $default;
-		}
-
-		// If requested is a logical column, map it
-		if ( in_array( $requested, $this->allowed_order_cols, true ) ) {
-			$mapped = $this->col( $requested );
-			if ( $mapped && $this->has_col( $mapped ) ) {
-				return $mapped . ' ' . $dir;
-			}
-		}
-
-		// If requested is a raw column, verify it exists
-		if ( $this->has_col( $requested ) ) {
-			return $requested . ' ' . $dir;
-		}
-
-		return $default;
-	}
-
-	/* =========================================================
-	 * Schema compatibility helpers
-	 * ======================================================= */
-
-	/**
-	 * Return table columns (cached).
-	 *
-	 * @return string[]
-	 */
-	private function get_table_columns(): array {
-		global $wpdb;
-
-		$table = Db::competitions_table();
-
-		if ( isset( self::$table_columns_cache[ $table ] ) && is_array( self::$table_columns_cache[ $table ] ) ) {
-			return self::$table_columns_cache[ $table ];
-		}
-
-		$cols    = array();
-		$results = $wpdb->get_results( "SHOW COLUMNS FROM {$table}" );
-
-		if ( is_array( $results ) ) {
-			foreach ( $results as $r ) {
-				if ( isset( $r->Field ) ) {
-					$cols[] = (string) $r->Field;
-				}
-			}
-		}
-
-		self::$table_columns_cache[ $table ] = $cols;
-
-		return $cols;
-	}
-
-	private function has_col( string $col ): bool {
-		$cols = $this->get_table_columns();
-		return in_array( $col, $cols, true );
-	}
-
-	/**
-	 * Map logical columns to real columns depending on schema.
-	 *
-	 * @param string $logical
-	 * @return string
-	 */
-	private function col( string $logical ): string {
-		// New schema first, then legacy fallback
-		$map = array(
-			'event_start_datetime'        => $this->has_col( 'event_start_datetime' ) ? 'event_start_datetime' : ( $this->has_col( 'start_date' ) ? 'start_date' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ) ),
-			'event_end_datetime'          => $this->has_col( 'event_end_datetime' ) ? 'event_end_datetime' : ( $this->has_col( 'end_date' ) ? 'end_date' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ) ),
-
-			'registration_open_datetime'  => $this->has_col( 'registration_open_datetime' ) ? 'registration_open_datetime' : ( $this->has_col( 'registration_deadline' ) ? 'registration_deadline' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ) ),
-			'registration_close_datetime' => $this->has_col( 'registration_close_datetime' ) ? 'registration_close_datetime' : ( $this->has_col( 'registration_deadline' ) ? 'registration_deadline' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ) ),
-
-			'weighin_start_datetime'      => $this->has_col( 'weighin_start_datetime' ) ? 'weighin_start_datetime' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ),
-			'weighin_end_datetime'        => $this->has_col( 'weighin_end_datetime' ) ? 'weighin_end_datetime' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ),
-
-			'updated_at'                  => $this->has_col( 'updated_at' ) ? 'updated_at' : ( $this->has_col( 'created_at' ) ? 'created_at' : 'id' ),
-			'created_at'                  => $this->has_col( 'created_at' ) ? 'created_at' : 'id',
-		);
-
-		return $map[ $logical ] ?? $logical;
-	}
-
-	/* =========================================================
-	 * Logging helper
-	 * ======================================================= */
-
-	private function maybe_log_db_error( string $context ): void {
-		global $wpdb;
-
-		if ( ! isset( $wpdb->last_error ) || '' === (string) $wpdb->last_error ) {
-			return;
-		}
-
-		$msg = sprintf(
-			'UFSC Competitions DB error (%s): %s | query=%s',
-			$context,
-			(string) $wpdb->last_error,
-			isset( $wpdb->last_query ) ? (string) $wpdb->last_query : ''
-		);
-
-		// Si ton LogService a des méthodes dédiées, tu peux adapter ici.
-		if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-			\UFSC_LC_Logger::log( $msg );
-		} else {
-			error_log( $msg );
-		}
-	}
-
-	/* =========================================================
-	 * CRUD avancé (stubs défensifs)
-	 * Si tu as déjà save/trash/restore/delete ailleurs, garde les tiens.
-	 * ======================================================= */
-
-	/**
-	 * Save a competition (create/update).
-	 * NOTE: Cette implémentation est volontairement simple et défensive.
-	 * Si tu as déjà une version complète, remplace ce bloc par la tienne.
+	 * Create or update a competition.
+	 * Expects keys: id, name, discipline, type, season, status (optional), event_start_datetime (optional)
 	 *
 	 * @param array $data
-	 * @return int Saved ID or 0
+	 * @return int Saved ID or 0 on failure
 	 */
-	public function save( array $data ): int {
+	public function save( array $data ) {
 		global $wpdb;
 
 		$table = Db::competitions_table();
+		$now   = current_time( 'mysql' );
+		$uid   = get_current_user_id();
 
-		$id         = isset( $data['id'] ) ? absint( $data['id'] ) : 0;
-		$name       = isset( $data['name'] ) ? sanitize_text_field( (string) $data['name'] ) : '';
-		$discipline = isset( $data['discipline'] ) ? sanitize_text_field( (string) $data['discipline'] ) : '';
-		$type       = isset( $data['type'] ) ? sanitize_text_field( (string) $data['type'] ) : '';
-		$season     = isset( $data['season'] ) ? sanitize_text_field( (string) $data['season'] ) : '';
-		$status     = isset( $data['status'] ) ? sanitize_text_field( (string) $data['status'] ) : 'open';
+		$clean = $this->sanitize_competition_data( $data );
 
-		if ( '' === $name ) {
-			return 0;
-		}
-
-		$now = current_time( 'mysql' );
-
-		$payload = array();
-		$formats = array();
-
-		if ( $this->has_col( 'name' ) ) {
-			$payload['name'] = $name; $formats[] = '%s';
-		}
-		if ( $this->has_col( 'discipline' ) ) {
-			$payload['discipline'] = $discipline; $formats[] = '%s';
-		}
-		if ( $this->has_col( 'type' ) ) {
-			$payload['type'] = $type; $formats[] = '%s';
-		}
-		if ( $this->has_col( 'season' ) ) {
-			$payload['season'] = $season; $formats[] = '%s';
-		}
-		if ( $this->has_col( 'status' ) ) {
-			$payload['status'] = $status; $formats[] = '%s';
-		}
-
-		// timestamps
-		if ( $this->has_col( 'updated_at' ) ) {
-			$payload['updated_at'] = $now; $formats[] = '%s';
-		}
-		if ( ! $id && $this->has_col( 'created_at' ) ) {
-			$payload['created_at'] = $now; $formats[] = '%s';
-		}
+		$id = isset( $clean['id'] ) ? absint( $clean['id'] ) : 0;
+		unset( $clean['id'] );
 
 		if ( $id ) {
-			$ok = $wpdb->update( $table, $payload, array( 'id' => $id ), $formats, array( '%d' ) );
+			$clean['updated_at'] = $now;
+			$clean['updated_by'] = $uid;
+
+			$formats = $this->formats_for( $clean );
+
+			$updated = $wpdb->update(
+				$table,
+				$clean,
+				array( 'id' => $id ),
+				$formats,
+				array( '%d' )
+			);
+
 			$this->maybe_log_db_error( __METHOD__ . ':update' );
-			return ( false === $ok ) ? 0 : $id;
+
+			return ( false === $updated ) ? 0 : $id;
 		}
 
-		$ok = $wpdb->insert( $table, $payload, $formats );
+		$clean['created_at'] = $now;
+		$clean['updated_at'] = $now;
+		$clean['created_by'] = $uid;
+		$clean['updated_by'] = $uid;
+
+		$formats = $this->formats_for( $clean );
+
+		$inserted = $wpdb->insert( $table, $clean, $formats );
+
 		$this->maybe_log_db_error( __METHOD__ . ':insert' );
 
-		return $ok ? (int) $wpdb->insert_id : 0;
+		return $inserted ? (int) $wpdb->insert_id : 0;
 	}
 
+	/**
+	 * Soft delete -> trash.
+	 */
 	public function trash( int $id ): bool {
 		global $wpdb;
 
@@ -489,25 +160,22 @@ class CompetitionRepository {
 
 		$table = Db::competitions_table();
 
-		// Si pas de deleted_at, on ne peut pas "trash".
-		if ( ! $this->has_col( 'deleted_at' ) ) {
-			return false;
-		}
-
-		$payload = array(
-			'deleted_at' => current_time( 'mysql' ),
+		$updated = $wpdb->update(
+			$table,
+			array(
+				'deleted_at' => current_time( 'mysql' ),
+				'deleted_by' => get_current_user_id(),
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%d', '%s', '%d' ),
+			array( '%d' )
 		);
-		$formats = array( '%s' );
 
-		if ( $this->has_col( 'updated_at' ) ) {
-			$payload['updated_at'] = current_time( 'mysql' );
-			$formats[]             = '%s';
-		}
-
-		$ok = $wpdb->update( $table, $payload, array( 'id' => $id ), $formats, array( '%d' ) );
 		$this->maybe_log_db_error( __METHOD__ . ':trash' );
 
-		return false !== $ok;
+		return ( false !== $updated );
 	}
 
 	public function restore( int $id ): bool {
@@ -520,22 +188,22 @@ class CompetitionRepository {
 
 		$table = Db::competitions_table();
 
-		if ( ! $this->has_col( 'deleted_at' ) ) {
-			return false;
-		}
-
-		$payload = array(
-			'deleted_at' => null,
+		$updated = $wpdb->update(
+			$table,
+			array(
+				'deleted_at' => null,
+				'deleted_by' => null,
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%s', '%d' ),
+			array( '%d' )
 		);
-		$formats = array( '%s' );
 
-		// WPDB update avec NULL: il faut passer null sans format strict => on passe '%s' et laisser WP gérer,
-		// sinon tu peux faire une requête custom. Ici on fait safe via query.
-		$sql = $wpdb->prepare( "UPDATE {$table} SET deleted_at = NULL WHERE id = %d", $id );
-		$ok  = $wpdb->query( $sql );
 		$this->maybe_log_db_error( __METHOD__ . ':restore' );
 
-		return false !== $ok;
+		return ( false !== $updated );
 	}
 
 	public function delete( int $id ): bool {
@@ -547,10 +215,200 @@ class CompetitionRepository {
 		}
 
 		$table = Db::competitions_table();
-		$ok    = $wpdb->delete( $table, array( 'id' => $id ), array( '%d' ) );
+
+		$deleted = $wpdb->delete( $table, array( 'id' => $id ), array( '%d' ) );
 
 		$this->maybe_log_db_error( __METHOD__ . ':delete' );
 
-		return false !== $ok;
+		return (bool) $deleted;
+	}
+
+	/**
+	 * Archive: non-destructive (status=archived).
+	 */
+	public function archive( int $id ): bool {
+		global $wpdb;
+
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+
+		$table = Db::competitions_table();
+
+		$updated = $wpdb->update(
+			$table,
+			array(
+				'status'     => 'archived',
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%d' ),
+			array( '%d' )
+		);
+
+		$this->maybe_log_db_error( __METHOD__ . ':archive' );
+
+		return ( false !== $updated );
+	}
+
+	/**
+	 * Unarchive: returns to open (safe default).
+	 */
+	public function unarchive( int $id ): bool {
+		global $wpdb;
+
+		$id = absint( $id );
+		if ( ! $id ) {
+			return false;
+		}
+
+		$table = Db::competitions_table();
+
+		$updated = $wpdb->update(
+			$table,
+			array(
+				'status'     => 'open',
+				'updated_at' => current_time( 'mysql' ),
+				'updated_by' => get_current_user_id(),
+			),
+			array( 'id' => $id ),
+			array( '%s', '%s', '%d' ),
+			array( '%d' )
+		);
+
+		$this->maybe_log_db_error( __METHOD__ . ':unarchive' );
+
+		return ( false !== $updated );
+	}
+
+	/**
+	 * Sanitize input data without breaking existing fields.
+	 */
+	private function sanitize_competition_data( array $data ): array {
+		$out = array();
+
+		$out['id'] = isset( $data['id'] ) ? absint( $data['id'] ) : 0;
+
+		$out['name']       = isset( $data['name'] ) ? sanitize_text_field( (string) $data['name'] ) : '';
+		$out['discipline'] = isset( $data['discipline'] ) ? sanitize_text_field( (string) $data['discipline'] ) : '';
+		$out['type']       = isset( $data['type'] ) ? sanitize_text_field( (string) $data['type'] ) : '';
+		$out['season']     = isset( $data['season'] ) ? sanitize_text_field( (string) $data['season'] ) : '';
+
+		$status = isset( $data['status'] ) ? sanitize_key( (string) $data['status'] ) : 'open';
+		if ( ! in_array( $status, array( 'open', 'draft', 'closed', 'archived' ), true ) ) {
+			$status = 'open';
+		}
+		$out['status'] = $status;
+
+		// Optional datetime
+		if ( isset( $data['event_start_datetime'] ) ) {
+			$v = sanitize_text_field( (string) $data['event_start_datetime'] );
+			$out['event_start_datetime'] = $v ?: null;
+		}
+
+		// Keep required NOT NULL fields safe
+		if ( '' === $out['name'] ) {
+			$out['name'] = '(sans nom)';
+		}
+		if ( '' === $out['discipline'] ) {
+			$out['discipline'] = '';
+		}
+		if ( '' === $out['type'] ) {
+			$out['type'] = '';
+		}
+		if ( '' === $out['season'] ) {
+			$out['season'] = '';
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Build WHERE clause (prepared) based on filters.
+	 * Supported filters:
+	 * - view: all | archived | trash
+	 * - status, discipline, season
+	 * - s (search)
+	 */
+	private function build_where( array $filters ): string {
+		global $wpdb;
+
+		$where  = array();
+		$view   = isset( $filters['view'] ) ? (string) $filters['view'] : 'all';
+
+		// Trash filter
+		if ( 'trash' === $view ) {
+			$where[] = "deleted_at IS NOT NULL";
+		} else {
+			$where[] = "deleted_at IS NULL";
+
+			// Archived filter
+			if ( 'archived' === $view ) {
+				$where[] = $wpdb->prepare( "status = %s", 'archived' );
+			} else {
+				// Default: exclude archived to keep "active list" clean
+				$where[] = $wpdb->prepare( "status <> %s", 'archived' );
+			}
+		}
+
+		// Optional status filter (applies only when not trash)
+		if ( isset( $filters['status'] ) && '' !== (string) $filters['status'] && 'trash' !== $view ) {
+			$st = sanitize_key( (string) $filters['status'] );
+			$where[] = $wpdb->prepare( "status = %s", $st );
+		}
+
+		if ( isset( $filters['discipline'] ) && '' !== (string) $filters['discipline'] ) {
+			$disc = sanitize_text_field( (string) $filters['discipline'] );
+			$where[] = $wpdb->prepare( "discipline = %s", $disc );
+		}
+
+		if ( isset( $filters['season'] ) && '' !== (string) $filters['season'] ) {
+			$season = sanitize_text_field( (string) $filters['season'] );
+			$where[] = $wpdb->prepare( "season = %s", $season );
+		}
+
+		// Search
+		if ( isset( $filters['s'] ) && '' !== (string) $filters['s'] ) {
+			$term = sanitize_text_field( (string) $filters['s'] );
+			$like = '%' . $wpdb->esc_like( $term ) . '%';
+			$where[] = $wpdb->prepare( "(name LIKE %s OR discipline LIKE %s OR type LIKE %s OR season LIKE %s)", $like, $like, $like, $like );
+		}
+
+		if ( empty( $where ) ) {
+			return '';
+		}
+
+		return 'WHERE ' . implode( ' AND ', $where );
+	}
+
+	private function build_order_by( array $filters ): string {
+		$order_by = isset( $filters['order_by'] ) ? sanitize_key( (string) $filters['order_by'] ) : '';
+		$order_dir = isset( $filters['order_dir'] ) ? strtoupper( sanitize_key( (string) $filters['order_dir'] ) ) : 'DESC';
+
+		if ( ! in_array( $order_dir, array( 'ASC', 'DESC' ), true ) ) {
+			$order_dir = 'DESC';
+		}
+
+		if ( ! $order_by || ! in_array( $order_by, $this->allowed_order_cols, true ) ) {
+			return "updated_at DESC";
+		}
+
+		return "{$order_by} {$order_dir}";
+	}
+
+	private function formats_for( array $data ): array {
+		$formats = array();
+		foreach ( $data as $k => $v ) {
+			if ( in_array( $k, array( 'id', 'created_by', 'updated_by', 'deleted_by', 'organizer_club_id' ), true ) ) {
+				$formats[] = '%d';
+			} elseif ( in_array( $k, array( 'weight_tolerance' ), true ) ) {
+				$formats[] = '%f';
+			} else {
+				$formats[] = '%s';
+			}
+		}
+		return $formats;
 	}
 }
