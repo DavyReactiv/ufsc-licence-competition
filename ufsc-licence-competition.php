@@ -37,3 +37,24 @@ if ( ! defined( 'UFSC_LC_PLUGIN_DIR' ) ) {
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 
 UFSC_LC_Plugin::init( UFSC_LC_FILE );
+
+register_activation_hook(
+	UFSC_LC_FILE,
+	function() {
+		$bootstrap = UFSC_LC_DIR . 'includes/competitions/bootstrap.php';
+		if ( file_exists( $bootstrap ) ) {
+			require_once $bootstrap;
+		}
+
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Front' ) ) {
+			\UFSC\Competitions\Front\Front::flush_rewrite_rules();
+		}
+	}
+);
+
+register_deactivation_hook(
+	UFSC_LC_FILE,
+	function() {
+		flush_rewrite_rules();
+	}
+);
