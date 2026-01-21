@@ -50,6 +50,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/FightRepository.php',
 		$base . '/Repositories/LogRepository.php',
 		$base . '/Repositories/ClubRepository.php',
+		$base . '/Front/Front.php',
 	);
 
 	foreach ( $core_files as $file ) {
@@ -148,6 +149,10 @@ add_action(
 			} catch ( \Throwable $e ) {
 				error_log( 'UFSC Competitions: Admin\\Menu registration failed: ' . $e->getMessage() );
 			}
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Front\Front' ) ) {
+			\UFSC\Competitions\Front\Front::init();
 		}
 	}
 );
