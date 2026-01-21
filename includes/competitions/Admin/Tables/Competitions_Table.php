@@ -54,7 +54,8 @@ class Competitions_Table extends \WP_List_Table {
 			'status'     => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline' => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 			'season'     => isset( $_REQUEST['ufsc_season'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_season'] ) ) : '',
-			'search'     => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
+			// IMPORTANT: WP_List_Table uses "s" for search. Repository expects "s".
+			's'          => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
 		if ( ! in_array( $filters['view'], array( 'all', 'trash' ), true ) ) {
@@ -79,21 +80,23 @@ class Competitions_Table extends \WP_List_Table {
 
 		$this->filters = $filters;
 
-		// Count & list
 		$total_items = (int) $this->repository->count( $filters );
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
-		// Debug info when WP_DEBUG
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$this->debug_info = array(
-				'filters'      => $filters,
-				'total_items'  => $total_items,
-				'returned'     => is_array( $this->items ) ? count( $this->items ) : 0,
+				'filters'     => $filters,
+				'total_items' => $total_items,
+				'returned'    => is_array( $this->items ) ? count( $this->items ) : 0,
 			);
 
-			// also log via UFSC_LC_Logger/error_log
-			$log_msg = sprintf( 'Competitions_Table prepare_items: filters=%s ; total=%d ; returned=%d',
-				wp_json_encode( $filters ), $total_items, $this->debug_info['returned'] );
+			$log_msg = sprintf(
+				'Competitions_Table prepare_items: filters=%s ; total=%d ; returned=%d',
+				wp_json_encode( $filters ),
+				$total_items,
+				$this->debug_info['returned']
+			);
+
 			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
 				\UFSC_LC_Logger::log( $log_msg );
 			} else {
