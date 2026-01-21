@@ -11,11 +11,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Competitions_Page {
+
 	/** @var CompetitionRepository|null */
 	private $repository;
 
 	/** @var ClubRepository|null */
 	private $club_repository;
+
+	/** @var bool */
+	private static $actions_registered = false;
 
 	public function __construct() {
 		$this->repository = class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' )
@@ -26,14 +30,26 @@ class Competitions_Page {
 			? new ClubRepository()
 			: null;
 
+		// AJAX
 		add_action( 'wp_ajax_ufsc_get_club', array( $this, 'ajax_get_club' ) );
+
+		/**
+		 * IMPORTANT:
+		 * On enregistre les handlers admin-post ici (admin_init) pour ne pas dépendre
+		 * d’un appel externe Menu::register_actions().
+		 */
+		add_action( 'admin_init', array( $this, 'register_actions' ), 1 );
 	}
 
 	/**
 	 * Hook admin_post handlers.
-	 * Called by Menu::register() early.
 	 */
 	public function register_actions() {
+		if ( self::$actions_registered ) {
+			return;
+		}
+		self::$actions_registered = true;
+
 		add_action( 'admin_post_ufsc_competitions_save_competition', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
@@ -44,7 +60,10 @@ class Competitions_Page {
 	 * Standard public render() expected by admin menu callbacks.
 	 */
 	public function render() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -70,7 +89,6 @@ class Competitions_Page {
 				if ( ! $id ) {
 					$this->redirect_notice( 'invalid' );
 				}
-				// true => include trashed if your repo supports it
 				$item = $this->repository->get( $id, true );
 				if ( ! $item ) {
 					$this->redirect_notice( 'not_found' );
@@ -98,12 +116,18 @@ class Competitions_Page {
 
 		$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
 
-		// Bulk actions: safer to enforce nonce+capability
+		// Bulk actions (nonce + cap)
 		$this->maybe_handle_bulk_actions( $list_table );
 
 		$list_table->prepare_items();
 
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && method_exists( $list_table, 'get_debug_info' ) ) {
+		// Debug UNIQUEMENT si ufsc_debug=1
+		$show_debug = ( defined( 'WP_DEBUG' ) && WP_DEBUG )
+			&& current_user_can( 'manage_options' )
+			&& isset( $_GET['ufsc_debug'] )
+			&& '1' === (string) wp_unslash( $_GET['ufsc_debug'] );
+
+		if ( $show_debug && method_exists( $list_table, 'get_debug_info' ) ) {
 			$debug = $list_table->get_debug_info();
 			if ( is_array( $debug ) ) {
 				echo '<div class="notice notice-info"><pre style="white-space:pre-wrap;">' . esc_html(
@@ -127,7 +151,7 @@ class Competitions_Page {
 
 			<hr class="wp-header-end">
 
-			<?php $list_table->views(); ?>
+			<?php if ( method_exists( $list_table, 'views' ) ) { $list_table->views(); } ?>
 
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_COMPETITIONS ); ?>" />
@@ -145,7 +169,6 @@ class Competitions_Page {
 
 	/**
 	 * FORM VIEW (add/edit)
-	 * If you already had a richer form previously, you can paste it inside this method.
 	 *
 	 * @param object|null $item
 	 */
@@ -229,10 +252,13 @@ class Competitions_Page {
 	}
 
 	/**
-	 * Bulk actions: require nonce + capability (safer).
+	 * Bulk actions: require nonce + capability.
 	 */
 	private function maybe_handle_bulk_actions( $list_table ) {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			return;
 		}
@@ -250,9 +276,7 @@ class Competitions_Page {
 		}
 
 		$plural = null;
-		if ( is_object( $list_table ) && property_exists( $list_table, 'plural' ) ) {
-			$plural = $list_table->plural;
-		} elseif ( is_object( $list_table ) && isset( $list_table->_args['plural'] ) ) {
+		if ( is_object( $list_table ) && isset( $list_table->_args['plural'] ) ) {
 			$plural = $list_table->_args['plural'];
 		}
 		$nonce_action = $plural ? 'bulk-' . $plural : 'bulk-ufsc-competitions';
@@ -279,7 +303,6 @@ class Competitions_Page {
 				$this->repository->restore( $id );
 			}
 			if ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
-				// optional: add a stronger cap for hard delete if you have one
 				$this->repository->delete( $id );
 			}
 		}
@@ -295,7 +318,10 @@ class Competitions_Page {
 	 * AJAX: get club snapshot.
 	 */
 	public function ajax_get_club() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_send_json_error( 'forbidden', 403 );
 		}
@@ -327,7 +353,10 @@ class Competitions_Page {
 	 * Handlers (admin-post)
 	 */
 	public function handle_save() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -360,7 +389,10 @@ class Competitions_Page {
 	}
 
 	public function handle_trash() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -376,7 +408,10 @@ class Competitions_Page {
 	}
 
 	public function handle_restore() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -400,7 +435,10 @@ class Competitions_Page {
 	}
 
 	public function handle_delete() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
+		$cap = class_exists( '\\UFSC_LC_Capabilities' )
+			? \UFSC_LC_Capabilities::get_manage_capability()
+			: 'manage_options';
+
 		if ( ! current_user_can( $cap ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
