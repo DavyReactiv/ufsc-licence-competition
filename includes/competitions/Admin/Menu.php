@@ -2,7 +2,6 @@
 
 namespace UFSC\Competitions\Admin;
 
-use UFSC_LC_Logger;
 use UFSC\Competitions\Admin\Pages\Competitions_Page;
 use UFSC\Competitions\Admin\Pages\Categories_Page;
 use UFSC\Competitions\Admin\Pages\Entries_Page;
@@ -21,6 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Menu {
 	const PARENT_SLUG        = 'ufsc-licence-documents';
+
 	const PAGE_COMPETITIONS  = 'ufsc-competitions';
 	const PAGE_CATEGORIES    = 'ufsc-competitions-categories';
 	const PAGE_ENTRIES       = 'ufsc-competitions-entries';
@@ -30,6 +30,7 @@ class Menu {
 	const PAGE_GUIDE         = 'ufsc-competitions-guide';
 	const PAGE_QUALITY       = 'ufsc-competitions-quality';
 
+	/** @var string[] */
 	private $admin_menu_failures = array();
 
 	public function register() {
@@ -45,7 +46,7 @@ class Menu {
 		$quality_page      = $this->safe_instance( Quality_Page::class );
 		$print_page        = $this->safe_instance( Print_Page::class );
 
-		// Call register_actions() early so admin_post / ajax handlers are registered
+		// Register actions early (admin_post / ajax etc.)
 		foreach ( array(
 			$competitions_page,
 			$categories_page,
@@ -60,12 +61,11 @@ class Menu {
 				try {
 					$page->register_actions();
 				} catch ( \Throwable $e ) {
-					$message = sprintf( 'UFSC Competitions: register_actions failed for %s: %s', is_object( $page ) ? get_class( $page ) : '(null)', $e->getMessage() );
-					if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-						\UFSC_LC_Logger::log( $message );
-					} else {
-						error_log( $message );
-					}
+					$this->log( sprintf(
+						'UFSC Competitions: register_actions failed for %s: %s',
+						is_object( $page ) ? get_class( $page ) : '(null)',
+						$e->getMessage()
+					) );
 				}
 			}
 		}
@@ -73,8 +73,28 @@ class Menu {
 		// Defer submenu creation to admin_menu hook (correct WP timing)
 		add_action(
 			'admin_menu',
-			function() use ( $capability, $competitions_page, $categories_page, $entries_page, $bouts_page, $settings_page, $guide_page, $quality_page, $print_page ) {
-				$this->build_submenus( $capability, $competitions_page, $categories_page, $entries_page, $bouts_page, $settings_page, $guide_page, $quality_page, $print_page );
+			function() use (
+				$capability,
+				$competitions_page,
+				$categories_page,
+				$entries_page,
+				$bouts_page,
+				$settings_page,
+				$guide_page,
+				$quality_page,
+				$print_page
+			) {
+				$this->build_submenus(
+					$capability,
+					$competitions_page,
+					$categories_page,
+					$entries_page,
+					$bouts_page,
+					$settings_page,
+					$guide_page,
+					$quality_page,
+					$print_page
+				);
 			},
 			30
 		);
@@ -84,20 +104,56 @@ class Menu {
 		}
 	}
 
-	private function build_submenus( $capability ) {
-		$args = func_get_args();
-		array_shift( $args );
-		$pages = $args;
-
+	private function build_submenus( $capability, $competitions_page, $categories_page, $entries_page, $bouts_page, $settings_page, $guide_page, $quality_page, $print_page ) {
 		$configs = array(
-			array( 'page' => $pages[0] ?? null, 'title' => __( 'Compétitions', 'ufsc-licence-competition' ), 'menu' => __( 'Compétitions', 'ufsc-licence-competition' ), 'slug' => self::PAGE_COMPETITIONS ),
-			array( 'page' => $pages[1] ?? null, 'title' => __( 'Catégories & formats', 'ufsc-licence-competition' ), 'menu' => __( 'Catégories & formats', 'ufsc-licence-competition' ), 'slug' => self::PAGE_CATEGORIES ),
-			array( 'page' => $pages[2] ?? null, 'title' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'menu' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'slug' => self::PAGE_ENTRIES ),
-			array( 'page' => $pages[6] ?? null, 'title' => __( 'Contrôles qualité', 'ufsc-licence-competition' ), 'menu' => __( 'Contrôles qualité', 'ufsc-licence-competition' ), 'slug' => self::PAGE_QUALITY ),
-			array( 'page' => $pages[3] ?? null, 'title' => __( 'Combats', 'ufsc-licence-competition' ), 'menu' => __( 'Combats', 'ufsc-licence-competition' ), 'slug' => self::PAGE_BOUTS ),
-			array( 'page' => $pages[7] ?? null, 'title' => __( 'Impression', 'ufsc-licence-competition' ), 'menu' => __( 'Impression', 'ufsc-licence-competition' ), 'slug' => self::PAGE_PRINT ),
-			array( 'page' => $pages[4] ?? null, 'title' => __( 'Paramètres', 'ufsc-licence-competition' ), 'menu' => __( 'Paramètres', 'ufsc-licence-competition' ), 'slug' => self::PAGE_SETTINGS ),
-			array( 'page' => $pages[5] ?? null, 'title' => __( 'Guide', 'ufsc-licence-competition' ), 'menu' => __( 'Guide', 'ufsc-licence-competition' ), 'slug' => self::PAGE_GUIDE ),
+			array(
+				'page'  => $competitions_page,
+				'title' => __( 'Compétitions', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Compétitions', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_COMPETITIONS,
+			),
+			array(
+				'page'  => $categories_page,
+				'title' => __( 'Catégories & formats', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Catégories & formats', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_CATEGORIES,
+			),
+			array(
+				'page'  => $entries_page,
+				'title' => __( 'Inscriptions', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Inscriptions', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_ENTRIES,
+			),
+			array(
+				'page'  => $quality_page,
+				'title' => __( 'Contrôles qualité', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Contrôles qualité', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_QUALITY,
+			),
+			array(
+				'page'  => $bouts_page,
+				'title' => __( 'Combats', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Combats', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_BOUTS,
+			),
+			array(
+				'page'  => $print_page,
+				'title' => __( 'Impression', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Impression', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_PRINT,
+			),
+			array(
+				'page'  => $settings_page,
+				'title' => __( 'Paramètres', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Paramètres', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_SETTINGS,
+			),
+			array(
+				'page'  => $guide_page,
+				'title' => __( 'Guide', 'ufsc-licence-competition' ),
+				'menu'  => __( 'Guide', 'ufsc-licence-competition' ),
+				'slug'  => self::PAGE_GUIDE,
+			),
 		);
 
 		foreach ( $configs as $cfg ) {
@@ -108,40 +164,34 @@ class Menu {
 	private function maybe_register_submenu( $page_obj, $page_title, $menu_title, $page_slug, $capability ) {
 		if ( ! $page_obj ) {
 			$this->admin_menu_failures[] = sprintf( 'Page class for slug "%s" not instantiated.', $page_slug );
-			$message = sprintf( 'UFSC Competitions: Page class for slug "%s" not instantiated.', $page_slug );
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $message );
-			} else {
-				error_log( $message );
-			}
+			$this->log( sprintf( 'UFSC Competitions: Page class for slug "%s" not instantiated.', $page_slug ) );
 			return;
 		}
 
-		// Prepare a robust callback that will call the method available on the page object.
+		/**
+		 * Robust callback:
+		 * - use is_callable() (method_exists() is not enough: private/protected methods exist but are not callable)
+		 * - supports multiple method names
+		 */
 		$callback = function() use ( $page_obj, $page_slug ) {
-			// Prefer render()
-			if ( is_object( $page_obj ) && method_exists( $page_obj, 'render' ) ) {
-				return call_user_func_array( array( $page_obj, 'render' ), array() );
-			}
-			// fallback names
-			$fallbacks = array( 'render_page', 'display', 'render_list', 'render_admin_page' );
-			foreach ( $fallbacks as $m ) {
-				if ( is_object( $page_obj ) && method_exists( $page_obj, $m ) ) {
-					return call_user_func_array( array( $page_obj, $m ), array() );
+			$candidates = array( 'render', 'render_page', 'display', 'render_list', 'render_admin_page' );
+
+			foreach ( $candidates as $method ) {
+				if ( is_object( $page_obj ) && is_callable( array( $page_obj, $method ) ) ) {
+					return call_user_func( array( $page_obj, $method ) );
 				}
 			}
 
-			// Nothing callable found -> log + graceful message
-			$msg = sprintf( 'UFSC Competitions: Page object for slug "%s" missing callable render method.', $page_slug );
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $msg );
-			} else {
-				error_log( $msg );
-			}
+			$msg = sprintf(
+				'UFSC Competitions: Page object for slug "%s" missing callable render method (tried: %s).',
+				$page_slug,
+				implode( ',', $candidates )
+			);
+			$this->log( $msg );
 
-			// Show an admin-friendly message so the admin sees why the page is not available
 			echo '<div class="wrap"><h1>' . esc_html__( 'Compétitions', 'ufsc-licence-competition' ) . '</h1>';
-			echo '<div class="notice notice-error"><p>' . esc_html__( 'La page Compétitions est indisponible : méthode de rendu introuvable. Vérifiez la classe de la page.', 'ufsc-licence-competition' ) . '</p></div></div>';
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'La page est indisponible : méthode de rendu introuvable ou non publique. Vérifiez la classe de la page.', 'ufsc-licence-competition' ) . '</p></div></div>';
+			return null;
 		};
 
 		$hook_suffix = add_submenu_page(
@@ -155,24 +205,20 @@ class Menu {
 
 		if ( ! $hook_suffix ) {
 			$this->admin_menu_failures[] = sprintf( 'Failed to register submenu for slug "%s".', $page_slug );
-			$message = sprintf( 'UFSC Competitions: Failed to register submenu for slug "%s".', $page_slug );
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $message );
-			} else {
-				error_log( $message );
-			}
+			$this->log( sprintf( 'UFSC Competitions: Failed to register submenu for slug "%s".', $page_slug ) );
 			return;
 		}
 
 		// Register assets loader ONLY via UFSC_LC_Admin_Assets to avoid double enqueue
-		\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+		if ( class_exists( '\\UFSC_LC_Admin_Assets' ) ) {
+			\UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+		}
 	}
 
 	public function render_admin_menu_failures_notice() {
 		if ( ! current_user_can( \UFSC_LC_Capabilities::get_manage_capability() ) ) {
 			return;
 		}
-
 		if ( empty( $this->admin_menu_failures ) ) {
 			return;
 		}
@@ -189,12 +235,7 @@ class Menu {
 
 	private function safe_instance( $fqcn ) {
 		if ( ! class_exists( $fqcn ) ) {
-			$message = sprintf( 'UFSC Competitions: Admin\\Menu registration failed: Class %s not found.', $fqcn );
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $message );
-			} else {
-				error_log( $message );
-			}
+			$this->log( sprintf( 'UFSC Competitions: Admin\\Menu registration failed: Class %s not found.', $fqcn ) );
 			return null;
 		}
 
@@ -202,13 +243,17 @@ class Menu {
 			return new $fqcn();
 		} catch ( \Throwable $e ) {
 			$message = sprintf( 'UFSC Competitions: Admin\\Menu instantiation failed for %s: %s', $fqcn, $e->getMessage() );
-			if ( class_exists( '\\UFSC_LC_Logger' ) ) {
-				\UFSC_LC_Logger::log( $message, array( 'exception' => $e->getTraceAsString() ) );
-			} else {
-				error_log( $message );
-			}
 			$this->admin_menu_failures[] = $message;
+			$this->log( $message . ' | ' . $e->getTraceAsString() );
 			return null;
 		}
+	}
+
+	private function log( $message ) {
+		if ( class_exists( '\\UFSC_LC_Logger' ) ) {
+			\UFSC_LC_Logger::log( $message );
+			return;
+		}
+		error_log( $message );
 	}
 }
