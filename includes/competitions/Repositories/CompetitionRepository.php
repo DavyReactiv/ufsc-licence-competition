@@ -347,6 +347,8 @@ class CompetitionRepository {
 			// Archived filter (non-destructive)
 			if ( 'archived' === $view ) {
 				$where[] = $wpdb->prepare( "status = %s", 'archived' );
+			} else {
+				$where[] = $wpdb->prepare( "status != %s", 'archived' );
 			}
 		}
 

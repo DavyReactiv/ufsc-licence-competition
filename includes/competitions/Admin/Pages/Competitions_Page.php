@@ -11,6 +11,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Competitions_Page {
+	/** @var bool */
+	private static $actions_registered = false;
+
 	/** @var CompetitionRepository|null */
 	private $repository;
 
@@ -35,12 +38,18 @@ class Competitions_Page {
 	 * Ideally called once by Menu registration.
 	 */
 	public function register_actions() {
+		if ( self::$actions_registered ) {
+			return;
+		}
+		self::$actions_registered = true;
+
 		add_action( 'admin_post_ufsc_competitions_save_competition', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_trash_competition', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_competition', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_competition', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_archive_competition', array( $this, 'handle_archive' ) );
 		add_action( 'admin_post_ufsc_competitions_unarchive_competition', array( $this, 'handle_unarchive' ) );
+		add_action( 'admin_post_ufsc_competitions_bulk', array( $this, 'handle_bulk_actions' ) );
 	}
 
 	/**
@@ -100,9 +109,6 @@ class Competitions_Page {
 
 		$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
 
-		// Bulk actions must be handled BEFORE prepare_items().
-		$this->maybe_handle_bulk_actions( $list_table );
-
 		$list_table->prepare_items();
 
 		$current_view = isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all';
@@ -128,7 +134,7 @@ class Competitions_Page {
 			</form>
 
 			<!-- Table + bulk actions (POST) -->
-			<form method="post">
+			<form method="post" action="<?php echo esc_url( add_query_arg( array( 'action' => 'ufsc_competitions_bulk' ), admin_url( 'admin-post.php' ) ) ); ?>">
 				<?php
 				echo '<input type="hidden" name="page" value="' . esc_attr( Menu::MENU_SLUG ) . '" />';
 				echo '<input type="hidden" name="ufsc_view" value="' . esc_attr( $current_view ) . '" />';
@@ -251,36 +257,32 @@ class Competitions_Page {
 	}
 
 	/**
-	 * Bulk actions: require nonce + capability.
+	 * Bulk actions: admin-post handler with nonce + capability.
 	 */
-	private function maybe_handle_bulk_actions( $list_table ) {
+	public function handle_bulk_actions() {
 		$cap = \UFSC_LC_Capabilities::get_manage_capability();
 		if ( ! current_user_can( $cap ) ) {
-			return;
-		}
-		if ( ! $list_table || ! method_exists( $list_table, 'current_action' ) ) {
-			return;
-		}
-
-		$action = $list_table->current_action();
-		if ( empty( $action ) ) {
-			return;
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		if ( empty( $_REQUEST['_wpnonce'] ) ) {
-			return;
+			$this->redirect_notice( 'invalid' );
 		}
 
-		$plural = null;
-		if ( is_object( $list_table ) && property_exists( $list_table, 'plural' ) ) {
-			$plural = $list_table->plural;
-		} elseif ( is_object( $list_table ) && isset( $list_table->_args['plural'] ) ) {
-			$plural = $list_table->_args['plural'];
-		}
-		$nonce_action = $plural ? 'bulk-' . $plural : 'bulk-ufsc-competitions';
-
+		$nonce_action = 'bulk-ufsc-competitions';
 		if ( ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ), $nonce_action ) ) {
-			return;
+			$this->redirect_notice( 'invalid' );
+		}
+
+		$action = '';
+		if ( isset( $_REQUEST['ufsc_bulk_action'] ) && '-1' !== $_REQUEST['ufsc_bulk_action'] ) {
+			$action = sanitize_key( wp_unslash( $_REQUEST['ufsc_bulk_action'] ) );
+		}
+		if ( isset( $_REQUEST['ufsc_bulk_action2'] ) && '-1' !== $_REQUEST['ufsc_bulk_action2'] ) {
+			$action = sanitize_key( wp_unslash( $_REQUEST['ufsc_bulk_action2'] ) );
+		}
+		if ( empty( $action ) ) {
+			$this->redirect_notice( 'invalid' );
 		}
 
 		$ids = array();
@@ -292,7 +294,7 @@ class Competitions_Page {
 		$ids = array_filter( $ids );
 
 		if ( empty( $ids ) || ! $this->repository ) {
-			return;
+			$this->redirect_notice( 'invalid' );
 		}
 
 		foreach ( $ids as $id ) {
