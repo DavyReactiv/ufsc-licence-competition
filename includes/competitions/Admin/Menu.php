@@ -131,7 +131,7 @@ class Menu {
 			echo '</div>';
 		};
 
-		add_submenu_page(
+		$hook_suffix = add_submenu_page(
 			self::MENU_SLUG,
 			$page_title,
 			$menu_title,
@@ -139,6 +139,10 @@ class Menu {
 			$slug,
 			$callback
 		);
+		if ( $hook_suffix && class_exists( '\UFSC\Competitions\Admin\Assets' ) ) {
+			$assets = new Assets();
+			$assets->register( $hook_suffix, self::PAGE_COMPETITIONS === $slug );
+		}
 	}
 
 	public function render_root(): void {

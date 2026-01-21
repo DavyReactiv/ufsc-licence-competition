@@ -27,6 +27,7 @@ class Competitions_Page {
 			: null;
 
 		add_action( 'wp_ajax_ufsc_get_club', array( $this, 'ajax_get_club' ) );
+		$this->register_actions();
 	}
 
 	/**

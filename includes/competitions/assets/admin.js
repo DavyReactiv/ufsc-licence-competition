@@ -145,3 +145,41 @@ document.addEventListener('submit', (event) => {
     init();
   }
 })();
+
+/* UFSC Competitions - admin pointers (guarded) */
+(() => {
+  "use strict";
+
+  function initPointers() {
+    if (!window.jQuery || !window.jQuery.fn || typeof window.jQuery.fn.pointer !== "function") {
+      return;
+    }
+
+    const $ = window.jQuery;
+    const nodes = document.querySelectorAll("[data-ufsc-pointer-content]");
+    if (!nodes.length) {
+      return;
+    }
+
+    nodes.forEach((node) => {
+      const content = node.getAttribute("data-ufsc-pointer-content");
+      if (!content) {
+        return;
+      }
+      // Guarded pointer init: only when WP pointer is available.
+      $(node).pointer({
+        content,
+        position: "top",
+        close() {
+          $(node).pointer("close");
+        },
+      }).pointer("open");
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initPointers);
+  } else {
+    initPointers();
+  }
+})();
