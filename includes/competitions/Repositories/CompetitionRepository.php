@@ -344,12 +344,9 @@ class CompetitionRepository {
 		} else {
 			$where[] = "deleted_at IS NULL";
 
-			// Archived filter
+			// Archived filter (non-destructive)
 			if ( 'archived' === $view ) {
 				$where[] = $wpdb->prepare( "status = %s", 'archived' );
-			} else {
-				// Default: exclude archived to keep "active list" clean
-				$where[] = $wpdb->prepare( "status <> %s", 'archived' );
 			}
 		}
 
