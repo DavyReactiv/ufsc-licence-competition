@@ -41,6 +41,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/BracketGenerator.php',
 		$base . '/Services/StandingsCalculator.php',
 		$base . '/Services/PrintRenderer.php',
+		$base . '/Services/Plateau_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
 		// Repository helpers must be available to all repos
 		$base . '/Repositories/RepositoryHelpers.php',
@@ -75,6 +76,7 @@ function load_competitions_admin_dependencies(): void {
 
 	$admin_files = array(
 		$base . '/Admin/Assets.php',
+		$base . '/Admin/Exports/Entries_Export_Controller.php',
 		$base . '/Admin/Entries_Validation_Menu.php',
 		$base . '/Admin/Menu.php',
 		$base . '/Admin/Tables/Competitions_Table.php',
@@ -116,6 +118,11 @@ add_action(
 		// Load admin dependencies only on admin
 		if ( is_admin() && function_exists( '\UFSC\Competitions\load_competitions_admin_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_admin_dependencies();
+		}
+
+		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Exports\Entries_Export_Controller' ) ) {
+			$controller = new \UFSC\Competitions\Admin\Exports\Entries_Export_Controller();
+			$controller->register();
 		}
 
 		// Call maybe_upgrade if available, defensively
@@ -164,7 +171,7 @@ add_action(
 			}
 		}
 
-		if ( class_exists( '\UFSC\Competitions\Front\Front' ) ) {
+		if ( ! is_admin() && class_exists( '\UFSC\Competitions\Front\Front' ) ) {
 			\UFSC\Competitions\Front\Front::init();
 		}
 	}

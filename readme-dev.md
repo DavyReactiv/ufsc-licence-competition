@@ -376,6 +376,52 @@ add_filter( 'ufsc_entries_payment_required', function( $required, $competition, 
 9) Compétition fermée :
    - submit/withdraw/cancel refusés.
 
+---
+
+## Phase 2.3 — Exports plateau (CSV) & PDF
+
+Objectif :
+- Ajouter des exports “plateau” en **CSV** (UTF-8 BOM) et en **PDF**.
+- Aucun impact sur l’admin existant en dehors des nouveaux boutons d’export.
+
+### CSV plateau (admin)
+
+Export admin via `admin-post.php` :
+- action : `ufsc_competitions_export_plateau_csv`
+- nonce : `ufsc_competitions_export_plateau_csv`
+
+Colonnes par défaut :
+- competition_id, competition_name, club_id, club_name, entry_id
+- fighter_lastname, fighter_firstname, birthdate
+- category, weight, discipline, type
+- status, submitted_at, validated_at, rejected_reason
+
+### PDF plateau (admin)
+
+Téléchargement via `admin-post.php` :
+- action : `ufsc_competitions_download_plateau_pdf`
+- nonce : `ufsc_competitions_download_plateau_pdf`
+- mode : `plateau` (contrôle) ou `fiche` (fiche compétition + plateau)
+
+### Hooks & filtres Phase 2.3
+
+```
+apply_filters( 'ufsc_competitions_plateau_csv_columns', array $columns );
+apply_filters( 'ufsc_competitions_plateau_entries_filters', array $filters, int $competition_id, string $status );
+apply_filters( 'ufsc_competitions_plateau_csv_row', array $row, object $entry, object $competition );
+do_action( 'ufsc_competitions_plateau_export_before', object $competition, string $status );
+do_action( 'ufsc_competitions_plateau_pdf_before', object $competition, string $mode );
+```
+
+### Plan de test manuel (Phase 2.3)
+
+1) Admin → Compétitions : utiliser “Exporter CSV plateau” sur une compétition.
+2) Vérifier l’encodage (BOM + séparation `;`) dans Excel.
+3) Tester le filtre `status` via URL (ex: `&status=validated`) pour limiter l’export.
+4) Admin → Compétitions : “Télécharger PDF plateau” (mode plateau).
+5) Admin → Compétitions : “Télécharger PDF fiche” (mode fiche).
+6) Vérifier qu’un utilisateur sans capacité validation n’accède pas aux exports.
+
 Plan de test manuel (Phase 1)
 Sans rewrite
 Créer une page avec :

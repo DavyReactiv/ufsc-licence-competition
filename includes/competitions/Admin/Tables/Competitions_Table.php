@@ -154,6 +154,58 @@ class Competitions_Table extends \WP_List_Table {
 			$actions['trash'] = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $trash_url ), esc_html__( 'Corbeille', 'ufsc-licence-competition' ) );
 		}
 
+		if ( \UFSC\Competitions\Capabilities::user_can_validate_entries() ) {
+			$csv_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action' => 'ufsc_competitions_export_plateau_csv',
+						'competition_id' => $id,
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_export_plateau_csv'
+			);
+			$actions['export_plateau'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $csv_url ),
+				esc_html__( 'Exporter CSV plateau', 'ufsc-licence-competition' )
+			);
+
+			$pdf_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'competition_id' => $id,
+						'mode' => 'plateau',
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_download_plateau_pdf'
+			);
+			$actions['download_plateau'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_url ),
+				esc_html__( 'Télécharger PDF plateau', 'ufsc-licence-competition' )
+			);
+
+			$pdf_fiche_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'competition_id' => $id,
+						'mode' => 'fiche',
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_download_plateau_pdf'
+			);
+			$actions['download_plateau_fiche'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_fiche_url ),
+				esc_html__( 'Télécharger PDF fiche', 'ufsc-licence-competition' )
+			);
+		}
+
 		$title = sprintf( '<a href="%s"><strong>%s</strong></a>', esc_url( $edit_url ), esc_html( $name ) );
 
 		return $title . $this->row_actions( $actions );
