@@ -23,6 +23,10 @@ class Front {
 
 		self::register_shortcodes();
 		self::register_rewrite_rules();
+
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Entries\\EntriesModule' ) ) {
+			\UFSC\Competitions\Front\Entries\EntriesModule::register();
+		}
 	}
 
 	public static function register_shortcodes(): void {
@@ -135,6 +139,10 @@ class Front {
 
 		$files = array(
 			$base . '/Access/ClubAccess.php',
+			$base . '/Entries/EntryActions.php',
+			$base . '/Entries/EntryFormRenderer.php',
+			$base . '/Entries/EntriesModule.php',
+			$base . '/Repositories/EntryFrontRepository.php',
 			$base . '/Repositories/CompetitionReadRepository.php',
 			$base . '/Shortcodes/CompetitionsListShortcode.php',
 			$base . '/Shortcodes/CompetitionDetailsShortcode.php',
