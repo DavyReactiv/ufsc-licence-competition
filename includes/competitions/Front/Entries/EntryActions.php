@@ -40,10 +40,6 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, 'not_found' );
 		}
 
-		if ( empty( $competition->status ) || 'open' !== (string) $competition->status ) {
-			self::redirect_with_notice( $competition_id, 'not_open' );
-		}
-
 		$club_access = new ClubAccess();
 		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
 		if ( ! $club_id ) {
@@ -78,14 +74,34 @@ class EntryActions {
 			}
 		}
 
+		if ( ! EntriesModule::is_registration_open( $competition, (int) $club_id ) ) {
+			self::redirect_with_notice( $competition_id, 'closed' );
+		}
+
 		if ( 'delete' === $action ) {
 			$result = $repo->delete( $entry_id );
 			self::redirect_with_notice( $competition_id, $result ? 'deleted' : 'error' );
 		}
 
-		$payload = self::build_payload_from_request( $competition );
+		$license_id = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
+		$license = null;
+		if ( $license_id ) {
+			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
+			if ( is_array( $license_data ) ) {
+				$license = $repo->normalize_license_result( $license_data );
+			}
+		}
+
+		$prefill = $license ? array(
+			'first_name' => $license['first_name'] ?? '',
+			'last_name' => $license['last_name'] ?? '',
+			'birth_date' => $license['birthdate'] ?? '',
+			'sex' => $license['sex'] ?? '',
+		) : array();
+
+		$payload = self::build_payload_from_request( $competition, $prefill );
 		if ( $payload['errors'] ) {
-			self::redirect_with_notice( $competition_id, 'missing_fields' );
+			self::redirect_with_notice( $competition_id, 'invalid_fields' );
 		}
 
 		$data = array_merge(
@@ -96,6 +112,28 @@ class EntryActions {
 			)
 		);
 
+		if ( $license ) {
+			$data = $repo->merge_license_payload( $data, $license );
+		}
+
+		if ( empty( $data['category'] ) && ! empty( $data['birth_date'] ) ) {
+			$category = EntriesModule::get_category_from_birthdate( $data['birth_date'], $data, $competition );
+			if ( '' !== $category ) {
+				$data['category'] = $category;
+			}
+		}
+
+		$new_status = '';
+		if ( 'create' === $action ) {
+			$status_field = $repo->get_status_storage_field();
+			$new_status = 'draft';
+			if ( 'status' === $status_field ) {
+				$data['status'] = $new_status;
+			} elseif ( '' !== $status_field ) {
+				$data[ $status_field ] = $repo->append_status_note( (string) ( $data[ $status_field ] ?? '' ), $new_status );
+			}
+		}
+
 		$data = apply_filters( 'ufsc_competitions_entry_payload', $data, $competition, $club_id );
 
 		if ( 'create' === $action ) {
@@ -105,6 +143,7 @@ class EntryActions {
 				self::redirect_with_notice( $competition_id, 'error' );
 			}
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
+			do_action( 'ufsc_competitions_entry_status_changed', $entry_id, '', $new_status ?: 'draft', $competition, $club_id );
 			self::redirect_with_notice( $competition_id, 'created' );
 		}
 
@@ -112,7 +151,7 @@ class EntryActions {
 		self::redirect_with_notice( $competition_id, $result ? 'updated' : 'error' );
 	}
 
-	private static function build_payload_from_request( $competition ): array {
+	private static function build_payload_from_request( $competition, array $prefill = array() ): array {
 		$data = array();
 		$errors = array();
 
@@ -127,6 +166,9 @@ class EntryActions {
 
 			if ( 'birth_date' === $name ) {
 				$value = sanitize_text_field( $value );
+				if ( '' === $value && ! empty( $prefill['birth_date'] ) ) {
+					$value = sanitize_text_field( $prefill['birth_date'] );
+				}
 				if ( $value && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
 					$value = '';
 				}
@@ -135,6 +177,10 @@ class EntryActions {
 				$value = '' !== $value ? (string) (float) str_replace( ',', '.', $value ) : '';
 			} else {
 				$value = sanitize_text_field( $value );
+			}
+
+			if ( '' === $value && isset( $prefill[ $name ] ) ) {
+				$value = sanitize_text_field( (string) $prefill[ $name ] );
 			}
 
 			if ( ! empty( $field['required'] ) && '' === $value ) {
@@ -159,8 +205,8 @@ class EntryActions {
 			$url = home_url( '/' );
 		}
 
-		$url = add_query_arg( 'ufsc_entry_notice', $notice, $url );
-		$url .= '#ufsc-competition-entries';
+		$url = add_query_arg( 'ufsc_notice', $notice, $url );
+		$url .= '#ufsc-inscriptions';
 
 		wp_safe_redirect( $url );
 		exit;
