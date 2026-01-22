@@ -1,4 +1,4 @@
-# UFSC Licence Competition — Front Phase 1
+# UFSC Licence Competition — Front Phase 1 & 2
 
 Objectif de la Phase 1 :
 - Exposer une **liste** et une **fiche détail** des compétitions côté front via **shortcodes**
@@ -127,6 +127,64 @@ afficher les formulaires d’inscription
 gérer quotas / validations
 
 connecter paiements & licences
+
+---
+
+## Phase 2 — Module inscriptions front
+
+Objectif :
+- Ajouter un bloc d’inscriptions côté front **via les hooks** sans impacter l’admin.
+- Utiliser `admin-post.php` pour les actions create/update/delete.
+
+### Rendu front
+
+Le module s’insère automatiquement dans :
+
+```
+do_action( 'ufsc_competitions_front_registration_box', $competition );
+```
+
+Comportement :
+- Utilisateur non connecté : message “Vous devez être connecté pour vous inscrire.”
+- Utilisateur connecté sans club : message “Accès réservé aux clubs affiliés.”
+- Club connecté : liste + formulaire.
+
+### Champs gérés (mapping défensif)
+
+Le module essaye d’écrire dans les colonnes disponibles :
+- prénom : `first_name`, `firstname`, `prenom`
+- nom : `last_name`, `lastname`, `nom`
+- nom complet : `athlete_name`, `full_name`, `name`, `licensee_name`
+- date naissance : `birth_date`, `birthdate`, `date_of_birth`, `dob`
+- sexe : `sex`, `gender`
+- poids : `weight`, `weight_kg`, `poids`
+- catégorie : `category`, `category_name`
+- niveau/classe : `level`, `class`, `classe`
+
+### Hooks d’extension
+
+- `do_action( 'ufsc_competitions_entry_before_create', $payload, $competition, $club_id );`
+- `do_action( 'ufsc_competitions_entry_after_create', $entry_id, $payload, $competition, $club_id );`
+- `apply_filters( 'ufsc_competitions_entry_payload', $payload, $competition, $club_id );`
+- `apply_filters( 'ufsc_competitions_entry_fields_schema', $schema, $competition );`
+
+### Actions admin-post (front)
+
+Les formulaires utilisent :
+- `admin-post.php?action=ufsc_competitions_entry_create`
+- `admin-post.php?action=ufsc_competitions_entry_update`
+- `admin-post.php?action=ufsc_competitions_entry_delete`
+
+### Plan de test manuel (Phase 2)
+
+1) Créer 1 compétition **open**.
+2) Se connecter avec un user club (`ufsc_club_id=XX`).
+3) Ajouter 2 inscriptions.
+4) Vérifier la liste.
+5) Modifier 1 inscription.
+6) Supprimer 1 inscription.
+7) Vérifier qu’un autre club ne voit rien.
+8) Vérifier qu’une compétition **archived** refuse la création.
 
 Plan de test manuel (Phase 1)
 Sans rewrite
