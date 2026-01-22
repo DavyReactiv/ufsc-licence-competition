@@ -102,6 +102,15 @@ class EntryFrontRepository {
 			return 0;
 		}
 
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return 0;
+		}
+
+		if ( 'draft' !== $this->get_entry_status( $entry ) ) {
+			return 0;
+		}
+
 		$data = $this->prepare_payload( $payload, false );
 		if ( empty( $data ) ) {
 			return 0;
@@ -310,6 +319,10 @@ class EntryFrontRepository {
 		}
 
 		$current = $this->get_entry_status( $entry );
+		$can_reopen = (bool) apply_filters( 'ufsc_entries_allow_reopen_by_club', false, $entry, $club_id );
+		if ( 'rejected' === $current && ! $can_reopen ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
 		if ( ! in_array( $current, array( 'submitted', 'rejected' ), true ) ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
