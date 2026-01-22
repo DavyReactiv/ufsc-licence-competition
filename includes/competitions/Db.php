@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.5';
+	const DB_VERSION = '1.6';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -51,6 +51,7 @@ class Db {
 
 		try {
 			self::create_tables();
+			self::maybe_upgrade_entries_table();
 			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 		} catch ( \Throwable $e ) {
 			// Never fatal: log and continue
@@ -144,5 +145,47 @@ class Db {
 		dbDelta( $categories_sql );
 
 		// leave other tables as-is if present; they are created elsewhere if needed
+	}
+
+	private static function maybe_upgrade_entries_table(): void {
+		global $wpdb;
+
+		$table = self::entries_table();
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $exists !== $table ) {
+			return;
+		}
+
+		$columns = $wpdb->get_col( "DESC {$table}", 0 );
+		if ( ! is_array( $columns ) ) {
+			$columns = array();
+		}
+
+		$desired = array(
+			'status' => "ALTER TABLE {$table} ADD COLUMN status varchar(50) NOT NULL DEFAULT 'draft'",
+			'admin_note' => "ALTER TABLE {$table} ADD COLUMN admin_note text NULL",
+			'rejected_reason' => "ALTER TABLE {$table} ADD COLUMN rejected_reason text NULL",
+			'submitted_at' => "ALTER TABLE {$table} ADD COLUMN submitted_at datetime NULL",
+			'validated_at' => "ALTER TABLE {$table} ADD COLUMN validated_at datetime NULL",
+			'updated_at' => "ALTER TABLE {$table} ADD COLUMN updated_at datetime NULL",
+			'updated_by' => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
+		);
+
+		foreach ( $desired as $column => $sql ) {
+			if ( in_array( $column, $columns, true ) ) {
+				continue;
+			}
+
+			$result = $wpdb->query( $sql );
+			if ( false === $result ) {
+				error_log(
+					sprintf(
+						'UFSC Competitions DB upgrade failed to add column %s: %s',
+						$column,
+						$wpdb->last_error
+					)
+				);
+			}
+		}
 	}
 }

@@ -246,6 +246,158 @@ class EntryFrontRepository {
 		return '';
 	}
 
+	public function get_allowed_statuses(): array {
+		$statuses = array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		$statuses = apply_filters( 'ufsc_entries_allowed_statuses', $statuses );
+		if ( ! is_array( $statuses ) ) {
+			return array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		}
+
+		return array_values( array_unique( array_map( 'sanitize_key', $statuses ) ) );
+	}
+
+	public function get_entry_status( $entry ): string {
+		if ( ! $entry ) {
+			return 'draft';
+		}
+
+		$status_field = $this->get_status_storage_field();
+		if ( 'status' === $status_field && isset( $entry->status ) ) {
+			$status = sanitize_key( (string) $entry->status );
+			return $this->normalize_status( $status );
+		}
+
+		if ( $status_field && isset( $entry->{$status_field} ) ) {
+			$status = $this->extract_status_from_note( (string) $entry->{$status_field} );
+			if ( $status ) {
+				return $this->normalize_status( $status );
+			}
+		}
+
+		return 'draft';
+	}
+
+	public function submit( int $entry_id, int $club_id ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( absint( $entry->club_id ?? 0 ) !== absint( $club_id ) ) {
+			return $this->build_result( false, __( 'Action non autorisée.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( 'draft' !== $this->get_entry_status( $entry ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		$data = array();
+		if ( $this->has_column( 'submitted_at' ) ) {
+			$data['submitted_at'] = current_time( 'mysql' );
+		}
+
+		return $this->update_status( $entry, 'submitted', $data );
+	}
+
+	public function withdraw( int $entry_id, int $club_id ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( absint( $entry->club_id ?? 0 ) !== absint( $club_id ) ) {
+			return $this->build_result( false, __( 'Action non autorisée.', 'ufsc-licence-competition' ) );
+		}
+
+		$current = $this->get_entry_status( $entry );
+		if ( ! in_array( $current, array( 'submitted', 'rejected' ), true ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		return $this->update_status( $entry, 'draft', array() );
+	}
+
+	public function cancel( int $entry_id, int $club_id ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( absint( $entry->club_id ?? 0 ) !== absint( $club_id ) ) {
+			return $this->build_result( false, __( 'Action non autorisée.', 'ufsc-licence-competition' ) );
+		}
+
+		$current = $this->get_entry_status( $entry );
+		if ( ! in_array( $current, array( 'draft', 'submitted' ), true ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		return $this->update_status( $entry, 'cancelled', array() );
+	}
+
+	public function validate( int $entry_id, int $admin_user_id ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( 'submitted' !== $this->get_entry_status( $entry ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		$data = array();
+		if ( $this->has_column( 'validated_at' ) ) {
+			$data['validated_at'] = current_time( 'mysql' );
+		}
+		if ( $this->has_column( 'admin_note' ) ) {
+			$data['admin_note'] = sprintf(
+				/* translators: %d is the user id. */
+				__( 'Validation UFSC par l’utilisateur #%d.', 'ufsc-licence-competition' ),
+				$admin_user_id
+			);
+		}
+
+		return $this->update_status( $entry, 'validated', $data, $admin_user_id );
+	}
+
+	public function reject( int $entry_id, int $admin_user_id, string $reason ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( 'submitted' !== $this->get_entry_status( $entry ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		$data = array();
+		if ( $this->has_column( 'rejected_reason' ) ) {
+			$data['rejected_reason'] = $this->sanitize_text_value( $reason );
+		}
+		if ( $this->has_column( 'admin_note' ) ) {
+			$data['admin_note'] = sprintf(
+				/* translators: %d is the user id. */
+				__( 'Rejet UFSC par l’utilisateur #%d.', 'ufsc-licence-competition' ),
+				$admin_user_id
+			);
+		}
+
+		return $this->update_status( $entry, 'rejected', $data, $admin_user_id );
+	}
+
+	public function reopen( int $entry_id, int $admin_user_id ): array {
+		$entry = $this->get( $entry_id );
+		if ( ! $entry ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( 'rejected' !== $this->get_entry_status( $entry ) ) {
+			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		return $this->update_status( $entry, 'draft', array(), $admin_user_id );
+	}
+
 	public function append_status_note( string $existing, string $status ): string {
 		$existing = trim( $this->sanitize_text_value( $existing ) );
 		$status = sanitize_key( $status );
@@ -262,6 +414,10 @@ class EntryFrontRepository {
 		}
 
 		return $existing . ' | status:' . $status;
+	}
+
+	public function has_entry_column( string $name ): bool {
+		return $this->has_column( $name );
 	}
 
 	private function prepare_payload( array $payload, bool $is_insert ): array {
@@ -289,7 +445,7 @@ class EntryFrontRepository {
 			if ( $is_insert || array_key_exists( 'status', $payload ) ) {
 				$default_status = $is_insert ? 'draft' : '';
 				$status = sanitize_key( $payload['status'] ?? $default_status );
-				$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn' );
+				$allowed_status = $this->get_allowed_statuses();
 				if ( '' === $status || ! in_array( $status, $allowed_status, true ) ) {
 					$status = $default_status;
 				}
@@ -456,5 +612,88 @@ class EntryFrontRepository {
 
 	private function has_column( string $name ): bool {
 		return in_array( $name, $this->columns, true );
+	}
+
+	private function extract_status_from_note( string $note ): string {
+		if ( '' === $note ) {
+			return '';
+		}
+
+		if ( preg_match_all( '/status:([a-z0-9_-]+)/', $note, $matches ) && ! empty( $matches[1] ) ) {
+			$last = end( $matches[1] );
+			return sanitize_key( (string) $last );
+		}
+
+		return '';
+	}
+
+	private function normalize_status( string $status ): string {
+		$status = sanitize_key( $status );
+		if ( 'withdrawn' === $status ) {
+			$status = 'cancelled';
+		}
+
+		$allowed = $this->get_allowed_statuses();
+		if ( ! in_array( $status, $allowed, true ) ) {
+			return 'draft';
+		}
+
+		return $status;
+	}
+
+	private function update_status( $entry, string $status, array $data, int $user_id = 0 ): array {
+		global $wpdb;
+
+		$entry_id = absint( $entry->id ?? 0 );
+		if ( ! $entry_id ) {
+			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		$status = $this->normalize_status( $status );
+		$status_field = $this->get_status_storage_field();
+		if ( '' === $status_field ) {
+			return $this->build_result( false, __( 'Statut indisponible.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( 'status' === $status_field ) {
+			$data['status'] = $status;
+		} else {
+			$current_value = isset( $entry->{$status_field} ) ? (string) $entry->{$status_field} : '';
+			$data[ $status_field ] = $this->append_status_note( $current_value, $status );
+		}
+
+		if ( $this->has_column( 'updated_at' ) ) {
+			$data['updated_at'] = current_time( 'mysql' );
+		}
+		if ( $this->has_column( 'updated_by' ) ) {
+			$data['updated_by'] = $user_id ? $user_id : ( get_current_user_id() ?: null );
+		}
+
+		$table = Db::entries_table();
+		$updated = $wpdb->update(
+			$table,
+			$data,
+			array( 'id' => $entry_id ),
+			$this->build_formats( $data ),
+			array( '%d' )
+		);
+
+		$this->maybe_log_db_error( __METHOD__ . ':update_status' );
+
+		if ( false === $updated ) {
+			return $this->build_result( false, __( 'Une erreur est survenue.', 'ufsc-licence-competition' ) );
+		}
+
+		$refreshed = $this->get( $entry_id );
+
+		return $this->build_result( true, __( 'Statut mis à jour.', 'ufsc-licence-competition' ), $refreshed );
+	}
+
+	private function build_result( bool $ok, string $message, $entry = null ): array {
+		return array(
+			'ok' => $ok,
+			'message' => $message,
+			'entry' => $entry,
+		);
 	}
 }

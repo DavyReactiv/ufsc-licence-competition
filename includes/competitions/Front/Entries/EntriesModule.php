@@ -19,10 +19,19 @@ class EntriesModule {
 		add_action( 'admin_post_ufsc_competitions_entry_create', array( EntryActions::class, 'handle_create' ) );
 		add_action( 'admin_post_ufsc_competitions_entry_update', array( EntryActions::class, 'handle_update' ) );
 		add_action( 'admin_post_ufsc_competitions_entry_delete', array( EntryActions::class, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_entry_submit', array( EntryActions::class, 'handle_submit' ) );
+		add_action( 'admin_post_ufsc_entry_withdraw', array( EntryActions::class, 'handle_withdraw' ) );
+		add_action( 'admin_post_ufsc_entry_cancel', array( EntryActions::class, 'handle_cancel' ) );
+		add_action( 'admin_post_ufsc_entry_admin_validate', array( EntryActions::class, 'handle_admin_validate' ) );
+		add_action( 'admin_post_ufsc_entry_admin_reject', array( EntryActions::class, 'handle_admin_reject' ) );
+		add_action( 'admin_post_ufsc_entry_admin_reopen', array( EntryActions::class, 'handle_admin_reopen' ) );
 
 		add_action( 'admin_post_nopriv_ufsc_competitions_entry_create', array( EntryActions::class, 'handle_not_logged_in' ) );
 		add_action( 'admin_post_nopriv_ufsc_competitions_entry_update', array( EntryActions::class, 'handle_not_logged_in' ) );
 		add_action( 'admin_post_nopriv_ufsc_competitions_entry_delete', array( EntryActions::class, 'handle_not_logged_in' ) );
+		add_action( 'admin_post_nopriv_ufsc_entry_submit', array( EntryActions::class, 'handle_not_logged_in' ) );
+		add_action( 'admin_post_nopriv_ufsc_entry_withdraw', array( EntryActions::class, 'handle_not_logged_in' ) );
+		add_action( 'admin_post_nopriv_ufsc_entry_cancel', array( EntryActions::class, 'handle_not_logged_in' ) );
 	}
 
 	public static function render( $competition ): void {
@@ -90,6 +99,7 @@ class EntriesModule {
 				'license_term' => $license_term,
 				'license_id' => $license_id,
 				'prefill' => $prefill,
+				'entry_repo' => $repo,
 			)
 		);
 	}

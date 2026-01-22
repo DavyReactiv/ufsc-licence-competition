@@ -176,6 +176,23 @@
 	flex-wrap: wrap;
 }
 
+.ufsc-competitions-admin .ufsc-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	line-height: 1.4;
+	background: #f0f0f1;
+	color: #1d2327;
+	white-space: nowrap;
+}
+
+.ufsc-competitions-admin .ufsc-badge--success { background: #d1e7dd; color: #0f5132; }
+.ufsc-competitions-admin .ufsc-badge--warning { background: #fff3cd; color: #664d03; }
+.ufsc-competitions-admin .ufsc-badge--danger { background: #f8d7da; color: #842029; }
+.ufsc-competitions-admin .ufsc-badge--info { background: #cff4fc; color: #055160; }
+.ufsc-competitions-admin .ufsc-badge--muted { background: #f6f7f7; color: #50575e; }
+
 @media print {
 	#adminmenuwrap,
 	#adminmenuback,
