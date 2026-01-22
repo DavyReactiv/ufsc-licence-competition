@@ -36,35 +36,78 @@ class Front {
 	}
 
 	public static function register_query_vars( array $vars ): array {
+		// Modern
 		$vars[] = 'competition_id';
+
+		// Legacy / backward compatibility
 		$vars[] = 'ufsc_competition_id';
 
 		return $vars;
 	}
 
+	/**
+	 * Optional pretty URL rewrite.
+	 * Disabled by default and only active if a valid details page id is provided.
+	 *
+	 * URL: /competitions/competition/{id}/
+	 * Routes to: page_id={details_page_id}&competition_id={id}
+	 */
 	public static function register_rewrite_rules(): void {
-		$enabled = (bool) apply_filters( 'ufsc_competitions_front_enable_rewrite', false );
-		if ( ! $enabled ) {
+		$enabled         = (bool) apply_filters( 'ufsc_competitions_front_enable_rewrite', false );
+		$details_page_id = self::get_details_page_id();
+
+		// Anti-conflict: never add rewrite rules unless explicitly enabled AND a valid details page exists.
+		if ( ! $enabled || ! $details_page_id ) {
 			return;
 		}
 
 		add_rewrite_rule(
 			'^competitions/competition/([0-9]+)/?$',
-			'index.php?ufsc_competition_id=$matches[1]',
+			'index.php?page_id=' . (int) $details_page_id . '&competition_id=$matches[1]',
 			'top'
 		);
 	}
 
+	/**
+	 * Flush rewrites safely.
+	 * Must only be called on activation/deactivation or permalinks save.
+	 */
 	public static function flush_rewrite_rules(): void {
+		$enabled         = (bool) apply_filters( 'ufsc_competitions_front_enable_rewrite', false );
+		$details_page_id = self::get_details_page_id();
+
+		// Anti-conflict: do not flush if rewrite is not configured.
+		if ( ! $enabled || ! $details_page_id ) {
+			return;
+		}
+
 		self::register_rewrite_rules();
 		flush_rewrite_rules();
 	}
 
+	/**
+	 * Details page id used by rewrite routing.
+	 * Keep it filter-based so it never impacts admin and stays configurable.
+	 */
+	public static function get_details_page_id(): int {
+		$page_id = (int) apply_filters( 'ufsc_competitions_front_details_page_id', 0 );
+		return $page_id > 0 ? $page_id : 0;
+	}
+
+	/**
+	 * Resolve competition id from request.
+	 * Priority:
+	 * 1) ?competition_id=123 (GET)
+	 * 2) query_var competition_id (rewrite to page_id)
+	 * 3) legacy query_var ufsc_competition_id (older rewrite variant)
+	 */
 	public static function get_competition_id_from_request(): ?int {
 		$raw = null;
 
 		if ( isset( $_GET['competition_id'] ) ) {
 			$raw = wp_unslash( $_GET['competition_id'] );
+		} elseif ( get_query_var( 'competition_id' ) ) {
+			$raw = get_query_var( 'competition_id' );
 		} elseif ( get_query_var( 'ufsc_competition_id' ) ) {
 			$raw = get_query_var( 'ufsc_competition_id' );
 		}
