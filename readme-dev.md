@@ -95,3 +95,60 @@ Réglages → Permaliens → Enregistrer
 Aucun flush de rewrite ne doit être exécuté en runtime
 
 Le flush doit uniquement se faire à l’activation du plugin ou manuellement
+
+Accès Club (Phase 1)
+La résolution du club utilisateur se fait par priorité :
+
+Filtre (recommandé) :
+
+apply_filters( 'ufsc_competitions_get_club_id_for_user', null, $user_id );
+Fallback :
+
+user_meta: ufsc_club_id
+➡️ Cela permet une intégration propre avec :
+
+Ultimate Member
+
+WooCommerce
+
+Table clubs UFSC
+
+Autre système externe
+
+Hooks Phase 2 (Inscriptions)
+Ces hooks sont déjà actifs mais n’affichent rien par défaut :
+
+do_action( 'ufsc_competitions_front_after_details', $competition );
+do_action( 'ufsc_competitions_front_registration_box', $competition );
+Ils serviront à :
+
+afficher les formulaires d’inscription
+
+gérer quotas / validations
+
+connecter paiements & licences
+
+Plan de test manuel (Phase 1)
+Sans rewrite
+Créer une page avec :
+
+[ufsc_competitions]
+Vérifier :
+
+affichage de la liste
+
+filtres actifs
+
+pagination fonctionnelle
+
+bouton “Voir” → ?competition_id=ID
+
+Détail simple
+[ufsc_competition]
+Puis :
+
+?page-detail/?competition_id=ID
+Compatibilité legacy
+?page-detail/?ufsc_competition_id=ID
+Avec rewrite
+/competitions/competition/ID/
