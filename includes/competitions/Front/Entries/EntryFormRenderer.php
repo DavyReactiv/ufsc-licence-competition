@@ -2,7 +2,9 @@
 
 namespace UFSC\Competitions\Front\Entries;
 
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Front\Front;
+use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -22,6 +24,7 @@ class EntryFormRenderer {
 		$license_id = absint( $context['license_id'] ?? 0 );
 		$prefill = is_array( $context['prefill'] ?? null ) ? $context['prefill'] : array();
 		$license_block_available = ! empty( $license_results ) || ! empty( $selected_license ) || has_filter( 'ufsc_competitions_front_license_search_results' ) || has_filter( 'ufsc_competitions_front_license_by_id' );
+		$repo = $context['entry_repo'] instanceof EntryFrontRepository ? $context['entry_repo'] : new EntryFrontRepository();
 
 		if ( ! $competition ) {
 			return '';
@@ -65,6 +68,8 @@ class EntryFormRenderer {
 									<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php echo esc_html__( 'Dernière maj.', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Actions', 'ufsc-licence-competition' ); ?></th>
 								</tr>
 							</thead>
@@ -72,6 +77,7 @@ class EntryFormRenderer {
 								<?php foreach ( $entries as $entry ) : ?>
 									<?php
 										$entry_id = absint( $entry->id ?? 0 );
+										$status = $repo->get_entry_status( $entry );
 										$name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
 										if ( '' === $name ) {
 											$first = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom' ) );
@@ -85,6 +91,13 @@ class EntryFormRenderer {
 										$edit_url = $edit_url ? $edit_url . '#ufsc-entry-form' : '';
 										$delete_action = admin_url( 'admin-post.php' );
 										$delete_nonce = wp_create_nonce( 'ufsc_competitions_entry_delete' );
+										$submit_nonce = wp_create_nonce( 'ufsc_entry_submit' );
+										$withdraw_nonce = wp_create_nonce( 'ufsc_entry_withdraw' );
+										$status_label = EntriesWorkflow::get_status_label( $status );
+										$status_class = EntriesWorkflow::get_status_badge_class( $status );
+										$updated_at = isset( $entry->updated_at ) ? (string) $entry->updated_at : '';
+										$rejected_reason = isset( $entry->rejected_reason ) ? (string) $entry->rejected_reason : '';
+										$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
 									?>
 									<tr>
 										<td><?php echo esc_html( $name ); ?></td>
@@ -92,17 +105,54 @@ class EntryFormRenderer {
 										<td><?php echo esc_html( $category ); ?></td>
 										<td><?php echo esc_html( $weight ); ?></td>
 										<td>
+											<span class="ufsc-badge <?php echo esc_attr( $status_class ); ?>"><?php echo esc_html( $status_label ); ?></span>
+											<?php if ( 'submitted' === $status ) : ?>
+												<br /><small><?php echo esc_html__( 'En attente validation', 'ufsc-licence-competition' ); ?></small>
+											<?php endif; ?>
+											<?php if ( 'rejected' === $status && $rejected_reason ) : ?>
+												<br /><small><?php echo esc_html( $rejected_reason ); ?></small>
+											<?php endif; ?>
+										</td>
+										<td><?php echo esc_html( $updated_at ); ?></td>
+										<td>
 											<?php if ( $registration_open ) : ?>
-												<a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html__( 'Modifier', 'ufsc-licence-competition' ); ?></a>
-												<form method="post" action="<?php echo esc_url( $delete_action ); ?>" class="ufsc-inline-form" style="display:inline;">
-													<input type="hidden" name="action" value="ufsc_competitions_entry_delete" />
-													<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) $competition->id ); ?>" />
-													<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
-													<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $delete_nonce ); ?>" />
-													<button type="submit" class="button-link" onclick="return confirm('<?php echo esc_js( __( 'Supprimer cette inscription ?', 'ufsc-licence-competition' ) ); ?>');">
-														<?php echo esc_html__( 'Supprimer', 'ufsc-licence-competition' ); ?>
-													</button>
-												</form>
+												<?php if ( 'draft' === $status ) : ?>
+													<a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html__( 'Modifier', 'ufsc-licence-competition' ); ?></a>
+													<form method="post" action="<?php echo esc_url( $delete_action ); ?>" class="ufsc-inline-form" style="display:inline;">
+														<input type="hidden" name="action" value="ufsc_competitions_entry_delete" />
+														<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) $competition->id ); ?>" />
+														<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
+														<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $delete_nonce ); ?>" />
+														<button type="submit" class="button-link" onclick="return confirm('<?php echo esc_js( __( 'Supprimer cette inscription ?', 'ufsc-licence-competition' ) ); ?>');">
+															<?php echo esc_html__( 'Supprimer', 'ufsc-licence-competition' ); ?>
+														</button>
+													</form>
+													<form method="post" action="<?php echo esc_url( $delete_action ); ?>" class="ufsc-inline-form" style="display:inline;">
+														<input type="hidden" name="action" value="ufsc_entry_submit" />
+														<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) $competition->id ); ?>" />
+														<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
+														<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $submit_nonce ); ?>" />
+														<button type="submit" class="button-link" onclick="return confirm('<?php echo esc_js( __( 'Soumettre cette inscription ?', 'ufsc-licence-competition' ) ); ?>');">
+															<?php echo esc_html__( 'Soumettre', 'ufsc-licence-competition' ); ?>
+														</button>
+													</form>
+												<?php elseif ( in_array( $status, array( 'submitted', 'rejected' ), true ) ) : ?>
+													<?php if ( $can_withdraw ) : ?>
+														<form method="post" action="<?php echo esc_url( $delete_action ); ?>" class="ufsc-inline-form" style="display:inline;">
+															<input type="hidden" name="action" value="ufsc_entry_withdraw" />
+															<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) $competition->id ); ?>" />
+															<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
+															<input type="hidden" name="_wpnonce" value="<?php echo esc_attr( $withdraw_nonce ); ?>" />
+															<button type="submit" class="button-link" onclick="return confirm('<?php echo esc_js( __( 'Retirer cette inscription ?', 'ufsc-licence-competition' ) ); ?>');">
+																<?php echo 'rejected' === $status ? esc_html__( 'Ré-éditer', 'ufsc-licence-competition' ) : esc_html__( 'Retirer', 'ufsc-licence-competition' ); ?>
+															</button>
+														</form>
+													<?php else : ?>
+														<span class="ufsc-entry-action-disabled">—</span>
+													<?php endif; ?>
+												<?php else : ?>
+													<span class="ufsc-entry-action-disabled">—</span>
+												<?php endif; ?>
 											<?php else : ?>
 												<span class="ufsc-entry-action-disabled">—</span>
 											<?php endif; ?>
@@ -117,6 +167,15 @@ class EntryFormRenderer {
 
 			<div class="ufsc-competition-entry-form" id="ufsc-entry-form">
 				<h4><?php echo $editing_entry ? esc_html__( 'Modifier une inscription', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter une inscription', 'ufsc-licence-competition' ); ?></h4>
+				<?php
+					$editing_status = $editing_entry ? $repo->get_entry_status( $editing_entry ) : 'draft';
+					$editing_locked = $editing_entry && 'draft' !== $editing_status;
+					$timeline_label = EntriesWorkflow::get_timeline_label( $editing_status );
+				?>
+				<p class="ufsc-competition-entry-timeline">
+					<strong><?php echo esc_html__( 'Workflow', 'ufsc-licence-competition' ); ?>:</strong>
+					<?php echo esc_html( $timeline_label ); ?>
+				</p>
 				<?php if ( $license_block_available && $club_id ) : ?>
 					<div class="ufsc-competition-license-prefill">
 						<label><?php echo esc_html__( 'Licencié UFSC (pré-remplir)', 'ufsc-licence-competition' ); ?></label>
@@ -149,6 +208,11 @@ class EntryFormRenderer {
 				<?php if ( ! $registration_open ) : ?>
 					<p class="ufsc-competition-entries-closed"><?php echo esc_html__( 'Les inscriptions sont fermées pour cette compétition.', 'ufsc-licence-competition' ); ?></p>
 				<?php endif; ?>
+				<?php if ( $editing_locked ) : ?>
+					<p class="ufsc-competition-entries-locked">
+						<?php echo esc_html__( 'Cette inscription est verrouillée. Retirez ou ré-éditez-la pour la modifier.', 'ufsc-licence-competition' ); ?>
+					</p>
+				<?php endif; ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<input type="hidden" name="action" value="<?php echo esc_attr( $editing_entry ? 'ufsc_competitions_entry_update' : 'ufsc_competitions_entry_create' ); ?>" />
 					<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) $competition->id ); ?>" />
@@ -169,7 +233,18 @@ class EntryFormRenderer {
 							$placeholder = $field['placeholder'] ?? '';
 							$value = $editing_entry ? self::get_entry_value( $editing_entry, (array) ( $field['columns'] ?? array( $name ) ) ) : (string) ( $prefill[ $name ] ?? '' );
 							$select_options = $field['options'] ?? array();
-							$disabled = $registration_open ? '' : 'disabled';
+							$locked_fields = array();
+							if ( $editing_entry && 'submitted' === $editing_status ) {
+								$locked_fields = array_map( static function( $entry_field ) {
+									return $entry_field['name'] ?? '';
+								}, EntriesModule::get_fields_schema( $competition ) );
+								$locked_fields = apply_filters( 'ufsc_entries_lock_fields_on_submitted', $locked_fields, $editing_entry, $competition );
+							}
+
+							$locked_fields = array_filter( array_map( 'sanitize_key', (array) $locked_fields ) );
+							$is_locked_field = $editing_entry && in_array( $name, $locked_fields, true );
+							$is_field_disabled = ! $registration_open || $editing_locked || $is_locked_field;
+							$disabled = $is_field_disabled ? 'disabled' : '';
 						?>
 						<div class="ufsc-field">
 							<label for="ufsc-entry-<?php echo esc_attr( $name ); ?>">
@@ -196,7 +271,7 @@ class EntryFormRenderer {
 						</div>
 					<?php endforeach; ?>
 
-					<button type="submit" class="button" <?php echo $registration_open ? '' : 'disabled'; ?>>
+					<button type="submit" class="button" <?php echo ( $registration_open && ! $editing_locked ) ? '' : 'disabled'; ?>>
 						<?php echo $editing_entry ? esc_html__( 'Mettre à jour', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter', 'ufsc-licence-competition' ); ?>
 					</button>
 				</form>
@@ -211,11 +286,23 @@ class EntryFormRenderer {
 			'created' => array( 'success', __( 'Inscription ajoutée.', 'ufsc-licence-competition' ) ),
 			'updated' => array( 'success', __( 'Inscription modifiée.', 'ufsc-licence-competition' ) ),
 			'deleted' => array( 'success', __( 'Inscription supprimée.', 'ufsc-licence-competition' ) ),
+			'entry_created' => array( 'success', __( 'Inscription ajoutée.', 'ufsc-licence-competition' ) ),
+			'entry_updated' => array( 'success', __( 'Inscription modifiée.', 'ufsc-licence-competition' ) ),
+			'entry_deleted' => array( 'success', __( 'Inscription supprimée.', 'ufsc-licence-competition' ) ),
+			'entry_submitted' => array( 'success', __( 'Inscription soumise.', 'ufsc-licence-competition' ) ),
+			'entry_validated' => array( 'success', __( 'Inscription validée.', 'ufsc-licence-competition' ) ),
+			'entry_rejected' => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
+			'entry_withdrawn' => array( 'success', __( 'Inscription retirée.', 'ufsc-licence-competition' ) ),
+			'entry_cancelled' => array( 'success', __( 'Inscription annulée.', 'ufsc-licence-competition' ) ),
 			'error' => array( 'error', __( 'Une erreur est survenue. Merci de réessayer.', 'ufsc-licence-competition' ) ),
-			'forbidden' => array( 'error', __( 'Action non autorisée.', 'ufsc-licence-competition' ) ),
-			'invalid_fields' => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
-			'closed' => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
-			'not_found' => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
+			'error_forbidden' => array( 'error', __( 'Action non autorisée.', 'ufsc-licence-competition' ) ),
+			'error_invalid_fields' => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
+			'error_closed' => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
+			'error_not_found' => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
+			'error_invalid_status' => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
+			'error_locked' => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
+			'error_quota' => array( 'error', __( 'Quota atteint.', 'ufsc-licence-competition' ) ),
+			'error_payment_required' => array( 'error', __( 'Paiement requis.', 'ufsc-licence-competition' ) ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {

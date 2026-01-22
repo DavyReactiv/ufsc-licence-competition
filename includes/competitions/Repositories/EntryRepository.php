@@ -136,7 +136,7 @@ class EntryRepository {
 	}
 
 	private function sanitize( array $data ) {
-		$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn' );
+		$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
 		$status = sanitize_key( $data['status'] ?? 'draft' );
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'draft';

@@ -10,6 +10,7 @@ class UFSC_LC_Capabilities {
 	const EXPORT_CAPABILITY = 'ufsc_lc_export';
 	const LEGACY_CAPABILITY = 'ufsc_manage_licences';
 	const COMPETITIONS_CAPABILITY = 'ufsc_competitions_manage';
+	const COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY = 'ufsc_competitions_validate_entries';
 
 	public static function add_caps() {
 		$role = get_role( 'administrator' );
@@ -18,6 +19,7 @@ class UFSC_LC_Capabilities {
 			$role->add_cap( self::IMPORT_CAPABILITY );
 			$role->add_cap( self::EXPORT_CAPABILITY );
 			$role->add_cap( self::COMPETITIONS_CAPABILITY );
+			$role->add_cap( self::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY );
 		}
 	}
 
@@ -29,6 +31,7 @@ class UFSC_LC_Capabilities {
 			$role->remove_cap( self::EXPORT_CAPABILITY );
 			$role->remove_cap( self::LEGACY_CAPABILITY );
 			$role->remove_cap( self::COMPETITIONS_CAPABILITY );
+			$role->remove_cap( self::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY );
 		}
 	}
 

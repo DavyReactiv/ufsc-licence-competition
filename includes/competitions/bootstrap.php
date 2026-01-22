@@ -33,6 +33,7 @@ function load_competitions_core_dependencies(): void {
 	$core_files = array(
 		$base . '/Db.php',
 		$base . '/Capabilities.php',
+		$base . '/Entries/EntriesWorkflow.php',
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',
 		$base . '/Services/CategoryAssigner.php',
@@ -74,15 +75,18 @@ function load_competitions_admin_dependencies(): void {
 
 	$admin_files = array(
 		$base . '/Admin/Assets.php',
+		$base . '/Admin/Entries_Validation_Menu.php',
 		$base . '/Admin/Menu.php',
 		$base . '/Admin/Tables/Competitions_Table.php',
 		$base . '/Admin/Tables/Categories_Table.php',
 		$base . '/Admin/Tables/Entries_Table.php',
+		$base . '/Admin/Tables/Entries_Validation_Table.php',
 		$base . '/Admin/Tables/Fights_Table.php',
 		$base . '/Admin/Tables/Quality_Table.php',
 		$base . '/Admin/Pages/Competitions_Page.php',
 		$base . '/Admin/Pages/Categories_Page.php',
 		$base . '/Admin/Pages/Entries_Page.php',
+		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
 		$base . '/Admin/Pages/Settings_Page.php',
 		$base . '/Admin/Pages/Guide_Page.php',
@@ -148,6 +152,15 @@ add_action(
 				$menu->register();
 			} catch ( \Throwable $e ) {
 				error_log( 'UFSC Competitions: Admin\\Menu registration failed: ' . $e->getMessage() );
+			}
+		}
+
+		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Entries_Validation_Menu' ) ) {
+			try {
+				$menu = new \UFSC\Competitions\Admin\Entries_Validation_Menu();
+				$menu->register();
+			} catch ( \Throwable $e ) {
+				error_log( 'UFSC Competitions: Entries validation menu registration failed: ' . $e->getMessage() );
 			}
 		}
 

@@ -244,12 +244,15 @@ apply_filters( 'ufsc_competitions_front_registration_is_open', bool $is_open, ob
 ### Notices front (PRG)
 
 Le front utilise `ufsc_notice` :
-- `created` → “Inscription ajoutée.”
-- `updated` → “Inscription modifiée.”
-- `deleted` → “Inscription supprimée.”
-- `invalid_fields` → “Champs invalides.”
-- `closed` → “Compétition fermée.”
-- `forbidden` → “Action non autorisée.”
+- `entry_created` → “Inscription ajoutée.”
+- `entry_updated` → “Inscription modifiée.”
+- `entry_deleted` → “Inscription supprimée.”
+- `entry_submitted` → “Inscription soumise.”
+- `entry_withdrawn` → “Inscription retirée.”
+- `entry_cancelled` → “Inscription annulée.”
+- `error_invalid_fields` → “Champs invalides.”
+- `error_closed` → “Compétition fermée.”
+- `error_forbidden` → “Action non autorisée.”
 
 ### Mode brouillon (préparation validation)
 
@@ -267,6 +270,111 @@ do_action( 'ufsc_competitions_entry_status_changed', $entry_id, $old, $new, $com
 3) Catégorie auto (si helper dispo) : catégorie remplie.
 4) Compétition fermée : formulaire désactivé + handlers refusent.
 5) Ownership : un club B ne peut ni voir ni modifier les entries du club A.
+
+---
+
+## Phase 2.2 — Workflow inscriptions (validation UFSC)
+
+Objectif :
+- Ajouter un **workflow complet** côté front (statuts + actions).
+- Isoler une **page admin dédiée** aux validations UFSC (sans toucher à l’admin existant).
+- Préparer l’extension paiement/quota via filtres stables.
+
+### Statuts & transitions
+
+Statuts :
+- `draft` : saisie en cours (modifiable par le club).
+- `submitted` : soumis à validation UFSC (verrouillé côté club).
+- `validated` : validé (verrouillé).
+- `rejected` : refusé (motif requis).
+- `cancelled` : annulé par le club avant validation (optionnel).
+
+Transitions :
+- draft → submitted (submit club).
+- submitted → validated (validation UFSC).
+- submitted → rejected (rejet UFSC + reason).
+- submitted → draft (withdraw club, si autorisé).
+- rejected → draft (ré-édition autorisée).
+- draft/submitted → cancelled (cancel club, optionnel).
+
+### Sécurité & règles d’accès
+
+- Chaque action vérifie ownership (club_id) + nonce.
+- Les actions club sont refusées si `registration_open` est faux.
+- Les actions admin sont réservées à la capacité `ufsc_competitions_validate_entries` (fallback manage_options).
+- PRG : redirect vers la fiche compétition + `#ufsc-inscriptions` pour les actions club.
+
+### Admin minimal (validation dédiée)
+
+- Nouvelle page “Inscriptions (Validation)” sous le menu Compétitions si dispo, sinon sous Outils.
+- Liste filtrable : compétition, club_id, statut, recherche.
+- Actions en ligne :
+  - Valider
+  - Rejeter (motif requis)
+  - Ré-ouvrir (rejected → draft)
+
+### Hooks & filtres Phase 2.2
+
+```
+apply_filters( 'ufsc_entries_allowed_statuses', array $statuses );
+apply_filters( 'ufsc_entries_can_submit', bool $can, object $competition, int $club_id );
+apply_filters( 'ufsc_entries_can_withdraw', bool $can, object $entry, object $competition, int $club_id );
+do_action( 'ufsc_entries_after_submit', int $entry_id, object $entry, object $competition, int $club_id );
+do_action( 'ufsc_entries_after_validate', int $entry_id, object $entry, object $competition, int $club_id );
+do_action( 'ufsc_entries_after_reject', int $entry_id, object $entry, object $competition, int $club_id, string $reason );
+apply_filters( 'ufsc_entries_lock_fields_on_submitted', array $locked_fields, object $entry, object $competition );
+apply_filters( 'ufsc_entries_payment_required', bool $required, object $competition, int $club_id );
+apply_filters( 'ufsc_entries_quota_check', array $result, object $competition, int $club_id );
+```
+
+### Exemples de filtres (paiement / quota / retrait)
+
+Autoriser le retrait (par défaut true) :
+```
+add_filter( 'ufsc_entries_can_withdraw', function( $can, $entry, $competition, $club_id ) {
+	return $can;
+}, 10, 4 );
+```
+
+Bloquer la soumission si quota atteint :
+```
+add_filter( 'ufsc_entries_quota_check', function( $result, $competition, $club_id ) {
+	return array(
+		'ok' => false,
+		'message' => 'Quota atteint pour ce club.',
+	);
+}, 10, 3 );
+```
+
+Forcer un paiement avant soumission :
+```
+add_filter( 'ufsc_entries_payment_required', function( $required, $competition, $club_id ) {
+	return true;
+}, 10, 3 );
+```
+
+### Plan de test manuel (Phase 2.2)
+
+1) Club connecté :
+   - créer 1 entry (draft).
+   - soumettre → status submitted + badge.
+2) Verrouillage :
+   - soumise : formulaire et actions de modification bloquées.
+3) Retrait (withdraw autorisé) :
+   - submitted → draft.
+4) Validation UFSC :
+   - admin → valider → status validated (plus d’actions club).
+5) Rejet UFSC :
+   - admin → rejeter (motif requis) → status rejected + reason visible côté front.
+6) Ré-édition (rejected → draft) :
+   - bouton “Ré-éditer” côté club (si autorisé).
+7) Sécurité IDOR :
+   - club B ne peut pas soumettre/retirer les entries du club A.
+8) Actions invalides :
+   - soumettre une entry déjà submitted → erreur.
+   - valider une entry draft → erreur.
+9) Compétition fermée :
+   - submit/withdraw/cancel refusés.
 
 Plan de test manuel (Phase 1)
 Sans rewrite
