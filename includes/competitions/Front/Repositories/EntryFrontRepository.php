@@ -165,6 +165,105 @@ class EntryFrontRepository {
 		return (int) $deleted;
 	}
 
+	public function normalize_license_result( array $license ): array {
+		$normalized = array(
+			'id' => absint( $license['id'] ?? 0 ),
+			'label' => sanitize_text_field( $license['label'] ?? '' ),
+			'first_name' => sanitize_text_field( $license['first_name'] ?? $license['firstname'] ?? '' ),
+			'last_name' => sanitize_text_field( $license['last_name'] ?? $license['lastname'] ?? '' ),
+			'birthdate' => sanitize_text_field( $license['birthdate'] ?? $license['birth_date'] ?? '' ),
+			'sex' => sanitize_text_field( $license['sex'] ?? $license['gender'] ?? '' ),
+			'weight' => isset( $license['weight'] ) ? $this->sanitize_float_value( $license['weight'] ) : null,
+			'level' => sanitize_text_field( $license['level'] ?? '' ),
+		);
+
+		if ( '' !== $normalized['birthdate'] && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized['birthdate'] ) ) {
+			$normalized['birthdate'] = '';
+		}
+
+		return $normalized;
+	}
+
+	public function normalize_license_results( array $results, int $limit = 20 ): array {
+		$normalized = array();
+
+		foreach ( $results as $result ) {
+			if ( ! is_array( $result ) ) {
+				continue;
+			}
+			$item = $this->normalize_license_result( $result );
+			if ( empty( $item['id'] ) || '' === $item['label'] ) {
+				continue;
+			}
+			$normalized[] = $item;
+			if ( count( $normalized ) >= $limit ) {
+				break;
+			}
+		}
+
+		return $normalized;
+	}
+
+	public function merge_license_payload( array $data, array $license ): array {
+		if ( empty( $license['id'] ) ) {
+			return $data;
+		}
+
+		$defaults = array(
+			'first_name' => $license['first_name'] ?? '',
+			'last_name' => $license['last_name'] ?? '',
+			'birth_date' => $license['birthdate'] ?? '',
+			'sex' => $license['sex'] ?? '',
+		);
+
+		foreach ( $defaults as $key => $value ) {
+			if ( '' === (string) ( $data[ $key ] ?? '' ) && '' !== (string) $value ) {
+				$data[ $key ] = $value;
+			}
+		}
+
+		if ( empty( $data['licensee_id'] ) ) {
+			$data['licensee_id'] = (int) $license['id'];
+		}
+
+		return $data;
+	}
+
+	public function get_status_storage_field(): string {
+		if ( $this->has_column( 'status' ) ) {
+			return 'status';
+		}
+		if ( $this->has_column( 'notes' ) ) {
+			return 'notes';
+		}
+		if ( $this->has_column( 'meta' ) ) {
+			return 'meta';
+		}
+		if ( $this->has_column( 'metadata' ) ) {
+			return 'metadata';
+		}
+
+		return '';
+	}
+
+	public function append_status_note( string $existing, string $status ): string {
+		$existing = trim( $this->sanitize_text_value( $existing ) );
+		$status = sanitize_key( $status );
+		if ( '' === $status ) {
+			return $existing;
+		}
+
+		if ( '' === $existing ) {
+			return 'status:' . $status;
+		}
+
+		if ( false !== strpos( $existing, 'status:' . $status ) ) {
+			return $existing;
+		}
+
+		return $existing . ' | status:' . $status;
+	}
+
 	private function prepare_payload( array $payload, bool $is_insert ): array {
 		$data = array();
 
@@ -187,12 +286,17 @@ class EntryFrontRepository {
 		}
 
 		if ( $this->has_column( 'status' ) ) {
-			$status = sanitize_key( $payload['status'] ?? 'submitted' );
-			$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn' );
-			if ( ! in_array( $status, $allowed_status, true ) ) {
-				$status = 'submitted';
+			if ( $is_insert || array_key_exists( 'status', $payload ) ) {
+				$default_status = $is_insert ? 'draft' : '';
+				$status = sanitize_key( $payload['status'] ?? $default_status );
+				$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn' );
+				if ( '' === $status || ! in_array( $status, $allowed_status, true ) ) {
+					$status = $default_status;
+				}
+				if ( '' !== $status ) {
+					$data['status'] = $status;
+				}
 			}
-			$data['status'] = $status;
 		}
 
 		if ( isset( $payload['assigned_at'] ) && $this->has_column( 'assigned_at' ) ) {
@@ -224,6 +328,18 @@ class EntryFrontRepository {
 
 		$level = $this->sanitize_text_value( $payload['level'] ?? '' );
 		$this->map_string_value( $data, $level, array( 'level', 'class', 'classe' ) );
+
+		if ( isset( $payload['notes'] ) && $this->has_column( 'notes' ) ) {
+			$data['notes'] = $this->sanitize_text_value( $payload['notes'] );
+		}
+
+		if ( isset( $payload['meta'] ) && $this->has_column( 'meta' ) ) {
+			$data['meta'] = $this->sanitize_text_value( $payload['meta'] );
+		}
+
+		if ( isset( $payload['metadata'] ) && $this->has_column( 'metadata' ) ) {
+			$data['metadata'] = $this->sanitize_text_value( $payload['metadata'] );
+		}
 
 		// Dates & authors.
 		if ( $this->has_column( 'updated_at' ) ) {

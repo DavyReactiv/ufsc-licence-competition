@@ -186,6 +186,88 @@ Les formulaires utilisent :
 7) Vérifier qu’un autre club ne voit rien.
 8) Vérifier qu’une compétition **archived** refuse la création.
 
+---
+
+## Phase 2.1 — UX clubs, licences & verrouillage inscriptions
+
+Objectif :
+- Améliorer l’expérience club (pré-remplissage depuis licenciés).
+- Préparer la future connexion “licences/paiement” via filtres.
+- Ajouter un verrouillage clair côté UI et serveur.
+
+### Filtres “licences”
+
+Recherche (liste) :
+```
+apply_filters( 'ufsc_competitions_front_license_search_results', array $results, string $term, int $club_id );
+```
+
+Format attendu :
+```
+[
+  [
+    'id' => 123,
+    'label' => 'NOM Prénom — 2008-02-10',
+    'first_name' => 'Prénom',
+    'last_name' => 'Nom',
+    'birthdate' => '2008-02-10',
+    'sex' => 'm'
+  ],
+  ...
+]
+```
+
+Sélection par ID :
+```
+apply_filters( 'ufsc_competitions_front_license_by_id', ?array $license, int $license_id, int $club_id );
+```
+
+### Catégorie automatique (optionnel)
+
+- Si `Services/CategoryAssigner.php` est dispo, le front tente d’assigner une catégorie.
+- Filtre d’override :
+```
+apply_filters( 'ufsc_competitions_front_category_from_birthdate', string $category, string $birthdate, object $competition );
+```
+
+### Verrouillage inscriptions
+
+Logique :
+- `status != open` → fermé
+- `registration_deadline` (si présent) → fermé après la date
+
+Filtre :
+```
+apply_filters( 'ufsc_competitions_front_registration_is_open', bool $is_open, object $competition, int $club_id );
+```
+
+### Notices front (PRG)
+
+Le front utilise `ufsc_notice` :
+- `created` → “Inscription ajoutée.”
+- `updated` → “Inscription modifiée.”
+- `deleted` → “Inscription supprimée.”
+- `invalid_fields` → “Champs invalides.”
+- `closed` → “Compétition fermée.”
+- `forbidden` → “Action non autorisée.”
+
+### Mode brouillon (préparation validation)
+
+- Si la colonne `status` existe : création en `draft`.
+- Sinon si colonnes `notes/meta` : ajout d’un marqueur `status:draft`.
+- Hook :
+```
+do_action( 'ufsc_competitions_entry_status_changed', $entry_id, $old, $new, $competition, $club_id );
+```
+
+### Plan de test manuel (Phase 2.1)
+
+1) Club connecté : badge ouvert, ajout inscription OK, redirect vers `#ufsc-inscriptions`.
+2) Sélection licence via filtre : pré-remplissage OK.
+3) Catégorie auto (si helper dispo) : catégorie remplie.
+4) Compétition fermée : formulaire désactivé + handlers refusent.
+5) Ownership : un club B ne peut ni voir ni modifier les entries du club A.
+
 Plan de test manuel (Phase 1)
 Sans rewrite
 Créer une page avec :
