@@ -1,70 +1,97 @@
 # UFSC Licence Competition — Front Phase 1
 
+Objectif de la Phase 1 :
+- Exposer une **liste** et une **fiche détail** des compétitions côté front via **shortcodes**
+- Gérer les **droits d’accès** (connecté / club)
+- Ne provoquer **aucune régression** sur l’admin existant
+- Préparer proprement la **Phase 2 – Inscriptions** (hooks uniquement)
+
+---
+
 ## Shortcodes
 
 ### Liste des compétitions
-```
+
 [ufsc_competitions]
-```
-Attributs:
-- `view="open|all"` (défaut: `open`)
+
+
+Attributs :
+- `view="open|all"` (défaut : `open`)
 - `season="2025-2026"` (optionnel)
 - `discipline="k1"` (optionnel)
 - `type="gala|selection"` (optionnel)
-- `per_page="10"` (défaut: `10`)
-- `show_filters="1|0"` (défaut: `1`)
-- `require_login="1|0"` (défaut: `1`)
-- `require_club="1|0"` (défaut: `0`)
+- `per_page="10"` (défaut : `10`)
+- `show_filters="1|0"` (défaut : `1`)
+- `require_login="1|0"` (défaut : `1`)
+- `require_club="1|0"` (défaut : `0`)
 
-Filtres GET (si `show_filters=1`):
-- `ufsc_season`, `ufsc_discipline`, `ufsc_type`, `s`
-- Pagination via `ufsc_page`
+Filtres GET (si `show_filters=1`) :
+- `ufsc_season`
+- `ufsc_discipline`
+- `ufsc_type`
+- `s` (recherche texte)
+
+Pagination :
+- `ufsc_page` (ex: `?ufsc_page=2`)
+
+Comportement :
+- Si `require_login=1`, l’utilisateur doit être connecté
+- Si `require_club=1`, l’utilisateur doit être rattaché à un club
+- Par défaut, seules les compétitions **open** sont visibles
+
+---
 
 ### Détail d’une compétition
-```
+
 [ufsc_competition id="123"]
-```
-Ou via query param:
-```
+
+
+Ou via query param moderne :
 ?competition_id=123
-```
-Compatibilité legacy:
-```
+
+
+Compatibilité legacy (anciens liens conservés) :
 ?ufsc_competition_id=123
-```
 
-Attributs:
-- `require_login="1|0"` (défaut: `1`)
-- `require_club="1|0"` (défaut: `0`)
 
-## URL “pretty” optionnelle
+Attributs :
+- `require_login="1|0"` (défaut : `1`)
+- `require_club="1|0"` (défaut : `0`)
 
-Un endpoint peut être activé via filtre:
-```php
-add_filter( 'ufsc_competitions_front_enable_rewrite', '__return_true' );
-```
+Comportement :
+- Si aucun `id` n’est passé, le shortcode tente de résoudre l’ID via l’URL
+- Les compétitions archivées ou supprimées ne sont jamais visibles
+- La zone d’inscription est volontairement **inactive en Phase 1**
 
-### Comment créer la page détail
-1) Créer une page “Détail compétition”.
-2) Ajouter le shortcode `[ufsc_competition]` dans la page.
-3) Ajouter un filtre qui retourne l’ID de cette page:
-```php
-add_filter( 'ufsc_competitions_front_details_page_id', function() {
-	return 123; // Remplacer par l'ID de la page
-} );
-```
-4) Activer le rewrite:
-```php
-add_filter( 'ufsc_competitions_front_enable_rewrite', '__return_true' );
-```
-5) Réactiver le plugin (ou réenregistrer les permaliens) pour flusher les règles.
+---
 
-L’URL cible est:
-```
+## URL “pretty” optionnelle (rewrite)
+
+URL cible :
 /competitions/competition/{id}/
-```
 
-## Hooks Phase 2
 
-- `do_action( 'ufsc_competitions_front_after_details', $competition );`
-- `do_action( 'ufsc_competitions_front_registration_box', $competition );`
+### Activer le rewrite
+
+```php
+add_filter( 'ufsc_competitions_front_enable_rewrite', '__return_true' );
+Créer la page de détail (obligatoire pour le rewrite)
+Créer une page WordPress
+Exemple : Détail compétition
+
+Ajouter dans la page :
+
+[ufsc_competition]
+Déclarer l’ID de cette page :
+
+add_filter( 'ufsc_competitions_front_details_page_id', function() {
+	return 123; // Remplacer par l’ID réel de la page
+} );
+Réactiver le plugin ou aller dans
+Réglages → Permaliens → Enregistrer
+
+⚠️ Important :
+
+Aucun flush de rewrite ne doit être exécuté en runtime
+
+Le flush doit uniquement se faire à l’activation du plugin ou manuellement
