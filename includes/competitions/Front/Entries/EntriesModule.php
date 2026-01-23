@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class EntriesModule {
 	public static function register(): void {
+		add_action( 'ufsc_competitions_front_registration_box', array( __CLASS__, 'render_notice' ), 5, 1 );
 		add_action( 'ufsc_competitions_front_registration_box', array( __CLASS__, 'render' ), 10, 1 );
 
 		add_action( 'admin_post_ufsc_competitions_entry_create', array( EntryActions::class, 'handle_create' ) );
@@ -69,7 +70,6 @@ class EntriesModule {
 			}
 		}
 
-		$notice = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
 		$registration_open = self::is_registration_open( $competition, (int) $club_id );
 
 		$prefill = array();
@@ -92,7 +92,6 @@ class EntriesModule {
 				'club_id' => $club_id,
 				'entries' => $entries,
 				'editing_entry' => $editing_entry,
-				'notice' => $notice,
 				'registration_open' => $registration_open,
 				'license_results' => $license_results,
 				'selected_license' => $selected_license,
@@ -102,6 +101,24 @@ class EntriesModule {
 				'entry_repo' => $repo,
 			)
 		);
+	}
+
+	public static function render_notice( $competition ): void {
+		if ( ! $competition ) {
+			return;
+		}
+
+		$notice = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
+		if ( '' === $notice ) {
+			return;
+		}
+
+		$notice_html = EntryFormRenderer::render_notice( $notice );
+		if ( '' === $notice_html ) {
+			return;
+		}
+
+		echo wp_kses_post( $notice_html );
 	}
 
 	public static function get_fields_schema( $competition ): array {
