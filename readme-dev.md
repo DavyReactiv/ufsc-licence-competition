@@ -218,6 +218,20 @@ Garder une architecture extensible par hooks (logo, header/footer PDF, colonnes 
 
 Sécurité stricte : nonces + capacités + vérification club (anti-IDOR).
 
+---
+
+## Release checklist (RC)
+- Scans : conflits Git (`rg -n "<{7}|={7}|>{7}" .`) + `flush_rewrite_rules` hors activation.
+- Lint : `php -l` sur fichiers modifiés + Front.php + Shortcodes.
+- Smoke tests :
+  - Admin → Compétitions : liste + actions ok.
+  - Export CSV plateau : Excel ok (BOM + `;`).
+  - Export PDF plateau/controle/fiche/fiche_complete : nonce ok, Dompdf absent => message clair.
+  - Front : `[ufsc_competitions]` affiche, “Voir” => ?competition_id.
+  - Legacy `?ufsc_competition_id` ok.
+  - Export club : non connecté => redirect notice; club => CSV validées seulement; non-club => refus.
+- Rewrite optionnel (si activé) : /competitions/competition/{id}/ route vers la page détail.
+
 Exports admin (CSV avancé)
 Endpoint admin-post.php :
 

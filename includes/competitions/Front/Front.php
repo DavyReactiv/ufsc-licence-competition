@@ -77,23 +77,6 @@ class Front {
 	}
 
 	/**
-	 * Flush rewrites safely.
-	 * Must only be called on activation/deactivation or permalinks save.
-	 */
-	public static function flush_rewrite_rules(): void {
-		$enabled         = (bool) apply_filters( 'ufsc_competitions_front_enable_rewrite', false );
-		$details_page_id = self::get_details_page_id();
-
-		// Anti-conflict: do not flush if rewrite is not configured.
-		if ( ! $enabled || ! $details_page_id ) {
-			return;
-		}
-
-		self::register_rewrite_rules();
-		flush_rewrite_rules();
-	}
-
-	/**
 	 * Details page id used by rewrite routing.
 	 * Keep it filter-based so it never impacts admin and stays configurable.
 	 */
