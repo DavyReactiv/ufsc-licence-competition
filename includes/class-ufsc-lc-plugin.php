@@ -78,10 +78,17 @@ class UFSC_LC_Plugin {
 		}
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
+
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Front' ) ) {
+			\UFSC\Competitions\Front\Front::register_rewrite_rules();
+		}
+
+		flush_rewrite_rules();
 	}
 
 	public function deactivate() {
 		UFSC_LC_Capabilities::remove_caps();
+		flush_rewrite_rules();
 	}
 
 	public function boot() {
