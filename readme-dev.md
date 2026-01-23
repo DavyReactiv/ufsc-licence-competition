@@ -206,17 +206,17 @@ Admin → Compétitions : “Télécharger PDF fiche” (mode fiche).
 
 Vérifier qu’un utilisateur sans capacité validation n’accède pas aux exports.
 
----
+Phase 2.4 — Exports avancés & contrôle opérationnel
+Objectif
+Ajouter des exports avancés côté admin (CSV filtré + PDF enrichis).
 
-## Phase 2.4 — Exports avancés & contrôle opérationnel
+Permettre un export club CSV limité aux inscriptions validées.
 
-### Objectif
-- Ajouter des exports **avancés** côté admin (CSV filtré + PDF enrichis).
-- Permettre un export **club** CSV limité aux inscriptions **validées**.
-- Garder une architecture extensible par **hooks** (logo, header/footer PDF, colonnes CSV).
-- Sécurité stricte : nonces + capacités + vérification club (anti-IDOR).
+Garder une architecture extensible par hooks (logo, header/footer PDF, colonnes CSV).
 
-### Exports admin (CSV avancé)
+Sécurité stricte : nonces + capacités + vérification club (anti-IDOR).
+
+Exports admin (CSV avancé)
 Endpoint admin-post.php :
 
 action : ufsc_competitions_export_plateau_csv
@@ -231,21 +231,32 @@ club_id = ID club (numérique)
 
 category = libellé catégorie (string exact)
 
-> Les filtres sont optionnels et n’affectent pas l’export par défaut.
+Les filtres sont optionnels et n’affectent pas l’export par défaut.
 
-### Exports admin PDF
+Exports admin PDF
+Endpoint admin-post.php :
+
 action : ufsc_competitions_download_plateau_pdf
 
-nonce : ufsc_competitions_download_plateau_pdf
+nonces :
 
-mode : plateau | controle | fiche | fiche_complete
+ufsc_competitions_download_plateau_pdf (modes : plateau / controle)
+
+ufsc_competitions_download_fiche_pdf (modes : fiche / fiche_complete)
+
+Modes :
+
+plateau | controle | fiche | fiche_complete
 
 Notes :
-- **controle** : version compacte (sans colonne statut).
-- **fiche_complete** : métadonnées complètes (dates, lieu, contact… si disponibles).
-- Les modes legacy plateau / fiche restent compatibles.
 
-### Export CSV club (validées uniquement)
+controle : version compacte (sans colonne statut).
+
+fiche_complete : métadonnées complètes (dates, lieu, contact… si disponibles).
+
+Les modes legacy plateau / fiche restent compatibles.
+
+Export CSV club (validées uniquement)
 Endpoint admin-post.php :
 
 action : ufsc_competitions_export_club_csv
@@ -253,24 +264,25 @@ action : ufsc_competitions_export_club_csv
 nonce : ufsc_competitions_export_club_csv_{competition_id}
 
 Contraintes :
-- Utilisateur connecté.
-- Appartenance club obligatoire (ClubAccess).
-- Export uniquement des inscriptions **validées** du club courant.
 
-### Hooks & filtres Phase 2.4
+Utilisateur connecté.
+
+Appartenance club obligatoire (ClubAccess).
+
+Export uniquement des inscriptions validées du club courant.
+
+Hooks & filtres Phase 2.4
 CSV (admin) :
 
 apply_filters( 'ufsc_competitions_plateau_csv_columns', array $columns );
 apply_filters( 'ufsc_competitions_plateau_entries_filters', array $filters, int $competition_id, string $status, int $club_id, string $category );
 apply_filters( 'ufsc_competitions_plateau_csv_row', array $row, object $entry, object $competition );
-
 CSV (club) :
 
 apply_filters( 'ufsc_competitions_club_csv_columns', array $columns );
 apply_filters( 'ufsc_competitions_club_csv_row', array $row, object $entry, object $competition, int $club_id );
 apply_filters( 'ufsc_competitions_club_export_filename', string $filename, object $competition, int $club_id );
 do_action( 'ufsc_competitions_club_export_before', object $competition, int $club_id, array $entries );
-
 PDF (plateau) :
 
 apply_filters( 'ufsc_competitions_plateau_pdf_meta', array $meta, object $competition, string $mode );
@@ -281,37 +293,28 @@ apply_filters( 'ufsc_competitions_plateau_pdf_header_html', string $header_html,
 apply_filters( 'ufsc_competitions_plateau_pdf_footer_html', string $footer_html, object $competition, string $mode );
 apply_filters( 'ufsc_competitions_plateau_pdf_html', string $html, object $competition, array $entries, string $mode );
 apply_filters( 'ufsc_competitions_plateau_pdf_fallback', string $fallback, object $competition, array $entries, string $mode, string $html );
-
 Front UI :
 
 apply_filters( 'ufsc_competitions_show_club_export', bool $show, object $competition, int $club_id );
-
-### Plan de test manuel Phase 2.4
+Plan de test manuel Phase 2.4
 Admin :
-- Compétitions → Export CSV plateau avec filtres (ex: ?status=validated&club_id=12&category=Senior).
-- Compétitions → Télécharger PDF contrôle / fiche complète.
-- Vérifier qu’un compte sans capacité de validation reçoit un refus (403).
+
+Compétitions → Export CSV plateau avec filtres (ex: ?status=validated&club_id=12&category=Senior).
+
+Compétitions → Télécharger PDF contrôle / fiche complète.
+
+Vérifier qu’un compte sans capacité de validation reçoit un refus (403).
 
 Club :
-- Ouvrir une compétition côté front, section “Vos inscriptions”.
-- Cliquer “Exporter CSV validées” et vérifier que seules les inscriptions validées du club sont exportées.
-- Tester avec un utilisateur non-club : export refusé.
 
+Ouvrir une compétition côté front, section “Vos inscriptions”.
 
----
+Cliquer “Exporter CSV validées” et vérifier que seules les inscriptions validées du club sont exportées.
 
-## Comment régler ton conflit GitHub (rapide)
+Tester avec un utilisateur non-club : export refusé.
 
-Dans l’éditeur GitHub :
-- Clique **“Resolve conflicts”**
-- Remplace tout le contenu par le fichier ci-dessus
-- Clique **“Mark as resolved”**
-- Commit & merge
+Mini plan de test production :
 
----
+Tester l’export CSV admin avec un volume proche du plafond (≈2000) et vérifier le temps de génération.
 
-Si tu veux, colle-moi ensuite **le contenu final du `Front.php`** (celui qui conflicte aussi) et je te donne **la version exacte “merge-safe”** à coller, en conservant :
-- `competition_id` moderne
-- fallback `ufsc_competition_id`
-- rewrite page_id + competition_id
-- **zéro flush runtime**
+Tester l’export PDF avec Dompdf absent pour valider le fallback / message d’indisponibilité.
