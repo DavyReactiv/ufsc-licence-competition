@@ -87,9 +87,8 @@ class Entries_Export_Controller {
 			$mode = 'plateau';
 		}
 
-		$nonce_action = in_array( $mode, array( 'fiche', 'fiche_complete' ), true )
-			? 'ufsc_competitions_download_fiche_pdf'
-			: 'ufsc_competitions_download_plateau_pdf';
+		$is_fiche     = in_array( $mode, array( 'fiche', 'fiche_complete' ), true );
+		$nonce_action = $is_fiche ? 'ufsc_competitions_download_fiche_pdf' : 'ufsc_competitions_download_plateau_pdf';
 		check_admin_referer( $nonce_action );
 
 		do_action( 'ufsc_competitions_plateau_pdf_before', $competition, $mode );
