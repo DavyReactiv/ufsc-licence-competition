@@ -41,6 +41,9 @@ class Entries_Export_Controller {
 		$headers = $this->get_csv_columns();
 
 		$filename = sprintf( 'plateau-competition-%d.csv', $competition_id );
+		$filename = sanitize_file_name( $filename );
+
+		$this->prepare_export_headers();
 		nocache_headers();
 		header( 'Content-Type: text/csv; charset=utf-8' );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
@@ -55,7 +58,8 @@ class Entries_Export_Controller {
 		// UTF-8 BOM for Excel compatibility.
 		fwrite( $handle, "\xEF\xBB\xBF" );
 
-		fputcsv( $handle, wp_list_pluck( $headers, 'label' ), ';' );
+		$labels = array_map( array( $this, 'safe_csv_cell' ), wp_list_pluck( $headers, 'label' ) );
+		fputcsv( $handle, $labels, ';' );
 
 		foreach ( $entries as $entry ) {
 			$row = $this->build_csv_row( $headers, $entry, $competition );
@@ -100,6 +104,9 @@ class Entries_Export_Controller {
 		}
 
 		$filename = sprintf( 'plateau-competition-%d.pdf', $competition_id );
+		$filename = sanitize_file_name( $filename );
+
+		$this->prepare_export_headers();
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
@@ -233,7 +240,8 @@ class Entries_Export_Controller {
 		$out = array();
 		foreach ( $headers as $header ) {
 			$key = $header['key'] ?? '';
-			$out[] = isset( $row[ $key ] ) ? $row[ $key ] : '';
+			$value = isset( $row[ $key ] ) ? $row[ $key ] : '';
+			$out[] = $this->safe_csv_cell( $value );
 		}
 
 		return $out;
@@ -287,5 +295,33 @@ class Entries_Export_Controller {
 				}
 			)
 		);
+	}
+
+	private function prepare_export_headers(): void {
+		if ( headers_sent() ) {
+			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+		}
+
+		while ( ob_get_level() > 0 ) {
+			ob_end_clean();
+		}
+	}
+
+	private function safe_csv_cell( $value ): string {
+		if ( is_bool( $value ) ) {
+			$value = $value ? '1' : '0';
+		}
+
+		if ( is_null( $value ) ) {
+			return '';
+		}
+
+		$value = (string) $value;
+
+		if ( $value !== '' && preg_match( '/^[=\\+\\-@\\t]/', $value ) ) {
+			$value = "'" . $value;
+		}
+
+		return $value;
 	}
 }
