@@ -188,6 +188,23 @@ class Competitions_Table extends \WP_List_Table {
 				esc_html__( 'Télécharger PDF plateau', 'ufsc-licence-competition' )
 			);
 
+			$pdf_controle_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'competition_id' => $id,
+						'mode' => 'controle',
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_download_plateau_pdf'
+			);
+			$actions['download_plateau_controle'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_controle_url ),
+				esc_html__( 'Télécharger PDF contrôle', 'ufsc-licence-competition' )
+			);
+
 			$pdf_fiche_url = wp_nonce_url(
 				add_query_arg(
 					array(
@@ -203,6 +220,23 @@ class Competitions_Table extends \WP_List_Table {
 				'<a href="%s">%s</a>',
 				esc_url( $pdf_fiche_url ),
 				esc_html__( 'Télécharger PDF fiche', 'ufsc-licence-competition' )
+			);
+
+			$pdf_fiche_complete_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'competition_id' => $id,
+						'mode' => 'fiche_complete',
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_download_plateau_pdf'
+			);
+			$actions['download_plateau_fiche_complete'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $pdf_fiche_complete_url ),
+				esc_html__( 'Télécharger PDF fiche complète', 'ufsc-licence-competition' )
 			);
 		}
 
