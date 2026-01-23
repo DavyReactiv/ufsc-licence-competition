@@ -396,11 +396,13 @@ class EntryActions {
 	}
 
 	private static function verify_nonce_or_redirect( string $action, int $competition_id ): void {
+	private static function verify_nonce_or_redirect( string $action, int $competition_id ): void {
 		$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
 		if ( ! $nonce || ! wp_verify_nonce( $nonce, $action ) ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 	}
+
 
 	private static function redirect_admin_with_notice( string $notice ): void {
 		$redirect = isset( $_REQUEST['redirect_to'] ) ? esc_url_raw( wp_unslash( $_REQUEST['redirect_to'] ) ) : '';
