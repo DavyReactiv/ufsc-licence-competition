@@ -389,14 +389,7 @@ class EntryFormRenderer {
 
 			'export_empty'             => array( 'warning', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
-
-			// IMPORTANT: pas de notion paiement/quota ici (gérée dans un autre plugin).
-			'error_quota'              => array( 'error', __( 'Quota atteint.', 'ufsc-licence-competition' ) ),
-			'error_payment_required'   => array( 'error', __( 'Paiement requis.', 'ufsc-licence-competition' ) ),
 		);
-
-		// Si tu veux supprimer totalement ces 2 notices (quota/paiement) du plugin :
-		// enlève les clés 'error_quota' et 'error_payment_required' ci-dessus, ET les éventuels redirects qui les utilisent.
 
 		if ( ! isset( $messages[ $notice ] ) ) {
 			return '';

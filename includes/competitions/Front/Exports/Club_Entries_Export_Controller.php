@@ -18,12 +18,13 @@ class Club_Entries_Export_Controller {
 	}
 
 	public function handle_export(): void {
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+
 		// Hard block: no external club_id override allowed (prevents IDOR attempts).
 		if ( isset( $_GET['club_id'] ) ) {
-			$this->redirect_with_notice( 0, 'error_forbidden' );
+			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
-		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		if ( ! $competition_id ) {
 			$this->redirect_with_notice( 0, 'error_not_found' );
 		}
