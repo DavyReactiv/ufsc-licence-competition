@@ -146,8 +146,6 @@ Ajouter des exports “plateau” en CSV (UTF-8 BOM + séparateur ;) et en PDF.
 
 Aucun impact sur l’admin existant en dehors des nouveaux boutons d’export.
 
-Aucune logique de paiement / quota / pricing dans ce plugin.
-
 CSV plateau (admin)
 Export admin via admin-post.php :
 
@@ -170,9 +168,13 @@ Téléchargement via admin-post.php :
 
 action : ufsc_competitions_download_plateau_pdf
 
-nonce : ufsc_competitions_download_plateau_pdf
+nonces :
 
-mode : plateau (contrôle) ou fiche (fiche compétition + plateau)
+ufsc_competitions_download_plateau_pdf (modes : plateau / controle)
+
+ufsc_competitions_download_fiche_pdf (modes : fiche / fiche_complete)
+
+mode : plateau | controle | fiche | fiche_complete
 
 Si Dompdf est indisponible, l’export PDF doit échouer proprement (message admin clair).
 
@@ -315,6 +317,12 @@ Tester avec un utilisateur non-club : export refusé.
 
 Mini plan de test production :
 
-Tester l’export CSV admin avec un volume proche du plafond (≈2000) et vérifier le temps de génération.
+Exporter un CSV admin (avec filtres status/club/category) et vérifier l’encodage en Excel.
 
-Tester l’export PDF avec Dompdf absent pour valider le fallback / message d’indisponibilité.
+Exporter un PDF plateau / contrôle / fiche / fiche complète.
+
+Tester Dompdf absent : fallback + message d’indisponibilité (pas de PDF vide).
+
+Tester un utilisateur sans capacité de validation : export admin refusé.
+
+Tester un utilisateur non-club : export CSV club refusé.
