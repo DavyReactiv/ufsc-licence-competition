@@ -109,11 +109,23 @@ class Competitions_Table extends \WP_List_Table {
 				'ufsc_competitions_delete_competition_' . $id
 			);
 
-			$actions['restore'] = sprintf( '<a href="%s">%s</a>', esc_url( $restore_url ), esc_html__( 'Restaurer', 'ufsc-licence-competition' ) );
-			$actions['delete']  = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $delete_url ), esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' ) );
+			$actions['restore'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $restore_url ),
+				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
+			);
+			$actions['delete']  = sprintf(
+				'<a href="%s" class="submitdelete">%s</a>',
+				esc_url( $delete_url ),
+				esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
+			);
 		} else {
 			// Edit always available in non-trash views
-			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			$actions['edit'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $edit_url ),
+				esc_html__( 'Modifier', 'ufsc-licence-competition' )
+			);
 
 			if ( 'archived' === $view ) {
 				$unarchive_url = wp_nonce_url(
@@ -126,7 +138,11 @@ class Competitions_Table extends \WP_List_Table {
 					),
 					'ufsc_competitions_unarchive_competition_' . $id
 				);
-				$actions['unarchive'] = sprintf( '<a href="%s">%s</a>', esc_url( $unarchive_url ), esc_html__( 'Désarchiver', 'ufsc-licence-competition' ) );
+				$actions['unarchive'] = sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $unarchive_url ),
+					esc_html__( 'Désarchiver', 'ufsc-licence-competition' )
+				);
 			} else {
 				$archive_url = wp_nonce_url(
 					add_query_arg(
@@ -138,7 +154,11 @@ class Competitions_Table extends \WP_List_Table {
 					),
 					'ufsc_competitions_archive_competition_' . $id
 				);
-				$actions['archive'] = sprintf( '<a href="%s">%s</a>', esc_url( $archive_url ), esc_html__( 'Archiver', 'ufsc-licence-competition' ) );
+				$actions['archive'] = sprintf(
+					'<a href="%s">%s</a>',
+					esc_url( $archive_url ),
+					esc_html__( 'Archiver', 'ufsc-licence-competition' )
+				);
 			}
 
 			$trash_url = wp_nonce_url(
@@ -151,14 +171,20 @@ class Competitions_Table extends \WP_List_Table {
 				),
 				'ufsc_competitions_trash_competition_' . $id
 			);
-			$actions['trash'] = sprintf( '<a href="%s" class="submitdelete">%s</a>', esc_url( $trash_url ), esc_html__( 'Corbeille', 'ufsc-licence-competition' ) );
+			$actions['trash'] = sprintf(
+				'<a href="%s" class="submitdelete">%s</a>',
+				esc_url( $trash_url ),
+				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
+			);
 		}
 
+		// Exports (Phase 2.4) — only for users who can validate entries.
 		if ( \UFSC\Competitions\Capabilities::user_can_validate_entries() ) {
+			// CSV plateau
 			$csv_url = wp_nonce_url(
 				add_query_arg(
 					array(
-						'action' => 'ufsc_competitions_export_plateau_csv',
+						'action'         => 'ufsc_competitions_export_plateau_csv',
 						'competition_id' => $id,
 					),
 					admin_url( 'admin-post.php' )
@@ -171,76 +197,48 @@ class Competitions_Table extends \WP_List_Table {
 				esc_html__( 'Exporter CSV plateau', 'ufsc-licence-competition' )
 			);
 
-			$pdf_url = wp_nonce_url(
+			// PDF plateau (mode plateau)
+			$pdf_plateau_url = wp_nonce_url(
 				add_query_arg(
 					array(
-						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'action'         => 'ufsc_competitions_download_plateau_pdf',
 						'competition_id' => $id,
-						'mode' => 'plateau',
+						'mode'           => 'plateau',
 					),
 					admin_url( 'admin-post.php' )
 				),
-				'ufsc_competitions_download_plateau_pdf'
+				'ufsc_competitions_download_plateau_pdf_plateau'
 			);
 			$actions['download_plateau'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( $pdf_url ),
+				esc_url( $pdf_plateau_url ),
 				esc_html__( 'Télécharger PDF plateau', 'ufsc-licence-competition' )
 			);
 
-			$pdf_controle_url = wp_nonce_url(
-				add_query_arg(
-					array(
-						'action' => 'ufsc_competitions_download_plateau_pdf',
-						'competition_id' => $id,
-						'mode' => 'controle',
-					),
-					admin_url( 'admin-post.php' )
-				),
-				'ufsc_competitions_download_plateau_pdf'
-			);
-			$actions['download_plateau_controle'] = sprintf(
-				'<a href="%s">%s</a>',
-				esc_url( $pdf_controle_url ),
-				esc_html__( 'Télécharger PDF contrôle', 'ufsc-licence-competition' )
-			);
-
+			// PDF fiche (mode fiche)
 			$pdf_fiche_url = wp_nonce_url(
 				add_query_arg(
 					array(
-						'action' => 'ufsc_competitions_download_plateau_pdf',
+						'action'         => 'ufsc_competitions_download_plateau_pdf',
 						'competition_id' => $id,
-						'mode' => 'fiche',
+						'mode'           => 'fiche',
 					),
 					admin_url( 'admin-post.php' )
 				),
-				'ufsc_competitions_download_fiche_pdf'
+				'ufsc_competitions_download_plateau_pdf_fiche'
 			);
 			$actions['download_plateau_fiche'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $pdf_fiche_url ),
 				esc_html__( 'Télécharger PDF fiche', 'ufsc-licence-competition' )
 			);
-
-			$pdf_fiche_complete_url = wp_nonce_url(
-				add_query_arg(
-					array(
-						'action' => 'ufsc_competitions_download_plateau_pdf',
-						'competition_id' => $id,
-						'mode' => 'fiche_complete',
-					),
-					admin_url( 'admin-post.php' )
-				),
-				'ufsc_competitions_download_fiche_pdf'
-			);
-			$actions['download_plateau_fiche_complete'] = sprintf(
-				'<a href="%s">%s</a>',
-				esc_url( $pdf_fiche_complete_url ),
-				esc_html__( 'Télécharger PDF fiche complète', 'ufsc-licence-competition' )
-			);
 		}
 
-		$title = sprintf( '<a href="%s"><strong>%s</strong></a>', esc_url( $edit_url ), esc_html( $name ) );
+		$title = sprintf(
+			'<a href="%s"><strong>%s</strong></a>',
+			esc_url( $edit_url ),
+			esc_html( $name )
+		);
 
 		return $title . $this->row_actions( $actions );
 	}
@@ -293,7 +291,7 @@ class Competitions_Table extends \WP_List_Table {
 		if ( is_null( $this->_actions ) ) {
 			$this->_actions = $this->get_bulk_actions();
 			$this->_actions = apply_filters( "bulk_actions-{$this->screen->id}", $this->_actions );
-			$two = '';
+			$two            = '';
 		} else {
 			$two = '2';
 		}
@@ -320,21 +318,20 @@ class Competitions_Table extends \WP_List_Table {
 	public function get_views() {
 		$current = isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all';
 
-		// Build counts
-		$base_filters = $this->filters;
-		$base_filters['s'] = isset( $base_filters['s'] ) ? (string) $base_filters['s'] : '';
+		$base_filters       = $this->filters;
+		$base_filters['s']  = isset( $base_filters['s'] ) ? (string) $base_filters['s'] : '';
 
-		$all_filters = $base_filters;
+		$all_filters        = $base_filters;
 		$all_filters['view'] = 'all';
-		$all_count = $this->repository->count( $all_filters );
+		$all_count          = $this->repository->count( $all_filters );
 
-		$arch_filters = $base_filters;
+		$arch_filters        = $base_filters;
 		$arch_filters['view'] = 'archived';
-		$arch_count = $this->repository->count( $arch_filters );
+		$arch_count          = $this->repository->count( $arch_filters );
 
-		$trash_filters = $base_filters;
+		$trash_filters        = $base_filters;
 		$trash_filters['view'] = 'trash';
-		$trash_count = $this->repository->count( $trash_filters );
+		$trash_count          = $this->repository->count( $trash_filters );
 
 		$views = array();
 

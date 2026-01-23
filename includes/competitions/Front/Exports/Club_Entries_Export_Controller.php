@@ -12,11 +12,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Club_Entries_Export_Controller {
+
 	public function register(): void {
 		add_action( 'admin_post_ufsc_competitions_export_club_csv', array( $this, 'handle_export' ) );
 	}
 
 	public function handle_export(): void {
+		// Hard block: no external club_id override allowed (prevents IDOR attempts).
 		if ( isset( $_GET['club_id'] ) ) {
 			$this->redirect_with_notice( 0, 'error_forbidden' );
 		}
@@ -30,25 +32,31 @@ class Club_Entries_Export_Controller {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
+		// Soft nonce check (redirect + notice instead of wp_die).
 		if ( ! check_admin_referer( 'ufsc_competitions_export_club_csv_' . $competition_id, '_wpnonce', false ) ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
 		$club_access = new ClubAccess();
-		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		$club_id     = (int) $club_access->get_club_id_for_user( get_current_user_id() );
+
 		if ( ! $club_id ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
 		$competition_repo = new CompetitionReadRepository();
-		$competition = $competition_repo->get( $competition_id );
+		$competition      = $competition_repo->get( $competition_id );
+
 		if ( ! $competition ) {
 			$this->redirect_with_notice( $competition_id, 'error_not_found' );
 		}
 
 		$entry_repo = new EntryFrontRepository();
-		$entries = $entry_repo->list_by_competition_and_club( $competition_id, (int) $club_id );
-		$entries = $this->filter_validated_entries( $entries, $entry_repo, (int) $club_id );
+
+		// Repo should already scope to competition + club; we still enforce ownership defensively below.
+		$entries = $entry_repo->list_by_competition_and_club( $competition_id, $club_id );
+		$entries = $this->filter_validated_entries( is_array( $entries ) ? $entries : array(), $entry_repo, $club_id );
+
 		if ( empty( $entries ) ) {
 			$this->redirect_with_notice( $competition_id, 'export_empty' );
 		}
@@ -71,6 +79,7 @@ class Club_Entries_Export_Controller {
 			$this->redirect_with_notice( $competition_id, 'error_export_unavailable' );
 		}
 
+		// UTF-8 BOM for Excel compatibility.
 		fwrite( $handle, "\xEF\xBB\xBF" );
 
 		fputcsv( $handle, wp_list_pluck( $columns, 'label' ), ';' );
@@ -135,23 +144,23 @@ class Club_Entries_Export_Controller {
 
 	private function build_csv_row( array $headers, $entry, $competition, int $club_id ): array {
 		$row = array(
-			'competition_id' => (int) ( $competition->id ?? 0 ),
+			'competition_id'   => (int) ( $competition->id ?? 0 ),
 			'competition_name' => (string) ( $competition->name ?? '' ),
-			'entry_id' => (int) ( $entry->id ?? 0 ),
+			'entry_id'         => (int) ( $entry->id ?? 0 ),
 			'fighter_lastname' => (string) ( $entry->last_name ?? $entry->lastname ?? '' ),
-			'fighter_firstname' => (string) ( $entry->first_name ?? $entry->firstname ?? '' ),
-			'birthdate' => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
-			'category' => (string) ( $entry->category ?? $entry->category_name ?? '' ),
-			'weight' => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
-			'status' => 'validated',
-			'validated_at' => (string) ( $entry->validated_at ?? '' ),
+			'fighter_firstname'=> (string) ( $entry->first_name ?? $entry->firstname ?? '' ),
+			'birthdate'        => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
+			'category'         => (string) ( $entry->category ?? $entry->category_name ?? '' ),
+			'weight'           => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
+			'status'           => 'validated',
+			'validated_at'     => (string) ( $entry->validated_at ?? '' ),
 		);
 
 		$row = apply_filters( 'ufsc_competitions_club_csv_row', $row, $entry, $competition, $club_id );
 
 		$out = array();
 		foreach ( $headers as $header ) {
-			$key = $header['key'] ?? '';
+			$key   = $header['key'] ?? '';
 			$out[] = isset( $row[ $key ] ) ? $row[ $key ] : '';
 		}
 
@@ -162,6 +171,7 @@ class Club_Entries_Export_Controller {
 		$filtered = array();
 
 		foreach ( $entries as $entry ) {
+			// Defensive ownership check even if repo already scopes.
 			if ( absint( $entry->club_id ?? 0 ) !== $club_id ) {
 				$this->redirect_with_notice( 0, 'error_forbidden' );
 			}
@@ -178,9 +188,11 @@ class Club_Entries_Export_Controller {
 
 	private function redirect_with_notice( int $competition_id, string $notice ): void {
 		$url = $competition_id ? Front::get_competition_details_url( $competition_id ) : '';
+
 		if ( ! $url ) {
 			$url = wp_get_referer();
 		}
+
 		if ( ! $url ) {
 			$url = home_url( '/' );
 		}

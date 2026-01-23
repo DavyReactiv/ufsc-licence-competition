@@ -7,13 +7,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Plateau_Pdf_Renderer {
+
 	public function render_pdf( $competition, array $entries, string $mode ): string {
 		$mode = $this->normalize_mode( $mode );
 
 		$meta = array(
 			__( 'Discipline', 'ufsc-licence-competition' ) => (string) ( $competition->discipline ?? '' ),
-			__( 'Saison', 'ufsc-licence-competition' ) => (string) ( $competition->season ?? '' ),
-			__( 'Type', 'ufsc-licence-competition' ) => (string) ( $competition->type ?? '' ),
+			__( 'Saison', 'ufsc-licence-competition' )     => (string) ( $competition->season ?? '' ),
+			__( 'Type', 'ufsc-licence-competition' )       => (string) ( $competition->type ?? '' ),
 		);
 
 		if ( 'fiche_complete' === $mode ) {
@@ -52,15 +53,16 @@ class Plateau_Pdf_Renderer {
 
 	private function build_rows( array $entries ): array {
 		$rows = array();
+
 		foreach ( $entries as $entry ) {
 			$rows[] = array(
-				'last_name' => (string) ( $entry->last_name ?? $entry->lastname ?? '' ),
+				'last_name'  => (string) ( $entry->last_name ?? $entry->lastname ?? '' ),
 				'first_name' => (string) ( $entry->first_name ?? $entry->firstname ?? '' ),
-				'birthdate' => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
-				'category' => (string) ( $entry->category ?? $entry->category_name ?? '' ),
-				'weight' => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
-				'club_id' => (string) ( $entry->club_id ?? '' ),
-				'status' => (string) ( $entry->status ?? '' ),
+				'birthdate'  => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
+				'category'   => (string) ( $entry->category ?? $entry->category_name ?? '' ),
+				'weight'     => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
+				'club_id'    => (string) ( $entry->club_id ?? '' ),
+				'status'     => (string) ( $entry->status ?? '' ),
 			);
 		}
 
@@ -70,7 +72,7 @@ class Plateau_Pdf_Renderer {
 	private function build_html( string $title, $competition, array $meta, array $rows, string $mode ): string {
 		$styles = $this->get_styles();
 		$header = $this->build_header_html( $title, $competition, $meta, $mode );
-		$table = $this->build_table_html( $rows, $competition, $mode );
+		$table  = $this->build_table_html( $rows, $competition, $mode );
 		$footer = $this->build_footer_html( $competition, $mode );
 
 		return <<<HTML
@@ -107,10 +109,11 @@ HTML;
 
 	private function build_header_html( string $title, $competition, array $meta, string $mode ): string {
 		$competition_name = esc_html( (string) ( $competition->name ?? '' ) );
-		$title = esc_html( $title );
+		$title            = esc_html( $title );
 
-		$logo_html = $this->build_logo_html( $competition, $mode );
+		$logo_html  = $this->build_logo_html( $competition, $mode );
 		$meta_items = '';
+
 		foreach ( $meta as $label => $value ) {
 			$meta_items .= '<li><strong>' . esc_html( $label ) . '</strong> ' . esc_html( $value ) . '</li>';
 		}
@@ -130,6 +133,7 @@ HTML;
 
 		$filtered = apply_filters( 'ufsc_competitions_plateau_pdf_header_html', '', $competition, $mode, $title, $meta );
 		if ( is_string( $filtered ) && '' !== $filtered ) {
+			// Safety: sanitize custom HTML.
 			return wp_kses_post( $filtered );
 		}
 
@@ -138,13 +142,13 @@ HTML;
 
 	private function build_table_html( array $rows, $competition, string $mode ): string {
 		$columns = array(
-			'last_name' => esc_html__( 'Nom', 'ufsc-licence-competition' ),
+			'last_name'  => esc_html__( 'Nom', 'ufsc-licence-competition' ),
 			'first_name' => esc_html__( 'Prénom', 'ufsc-licence-competition' ),
-			'birthdate' => esc_html__( 'Date de naissance', 'ufsc-licence-competition' ),
-			'category' => esc_html__( 'Catégorie', 'ufsc-licence-competition' ),
-			'weight' => esc_html__( 'Poids', 'ufsc-licence-competition' ),
-			'club_id' => esc_html__( 'Club', 'ufsc-licence-competition' ),
-			'status' => esc_html__( 'Statut', 'ufsc-licence-competition' ),
+			'birthdate'  => esc_html__( 'Date de naissance', 'ufsc-licence-competition' ),
+			'category'   => esc_html__( 'Catégorie', 'ufsc-licence-competition' ),
+			'weight'     => esc_html__( 'Poids', 'ufsc-licence-competition' ),
+			'club_id'    => esc_html__( 'Club', 'ufsc-licence-competition' ),
+			'status'     => esc_html__( 'Statut', 'ufsc-licence-competition' ),
 		);
 
 		if ( 'controle' === $mode ) {
@@ -159,9 +163,10 @@ HTML;
 		}
 		$thead .= '</tr>';
 
-		$tbody = '';
-		$colspan = max( 1, count( $columns ) );
-		if ( ! $rows ) {
+		$tbody    = '';
+		$colspan  = max( 1, count( $columns ) );
+
+		if ( empty( $rows ) ) {
 			$tbody = '<tr><td colspan="' . (int) $colspan . '">' . esc_html__( 'Aucune inscription.', 'ufsc-licence-competition' ) . '</td></tr>';
 		} else {
 			foreach ( $rows as $row ) {
@@ -178,11 +183,14 @@ HTML;
 
 	private function build_logo_html( $competition, string $mode ): string {
 		$logo = apply_filters( 'ufsc_competitions_plateau_pdf_logo', '', $competition, $mode );
+
 		if ( is_string( $logo ) && '' !== $logo ) {
+			// If filter returns HTML, sanitize it.
 			if ( false !== strpos( $logo, '<' ) ) {
 				return wp_kses_post( $logo );
 			}
 
+			// Otherwise, treat it as an URL.
 			$logo = esc_url_raw( $logo );
 			if ( '' === $logo ) {
 				return '';
@@ -196,7 +204,9 @@ HTML;
 
 	private function build_footer_html( $competition, string $mode ): string {
 		$footer = apply_filters( 'ufsc_competitions_plateau_pdf_footer_html', '', $competition, $mode );
+
 		if ( is_string( $footer ) && '' !== $footer ) {
+			// Safety: sanitize custom HTML.
 			return '<div class="ufsc-pdf-footer">' . wp_kses_post( $footer ) . '</div>';
 		}
 
@@ -207,7 +217,8 @@ HTML;
 		$meta = array();
 
 		$start = (string) ( $competition->event_start_datetime ?? '' );
-		$end = (string) ( $competition->event_end_datetime ?? '' );
+		$end   = (string) ( $competition->event_end_datetime ?? '' );
+
 		if ( $start || $end ) {
 			$meta[ __( 'Dates', 'ufsc-licence-competition' ) ] = trim( $start . ( $end ? ' → ' . $end : '' ) );
 		}
@@ -236,13 +247,15 @@ HTML;
 	}
 
 	private function normalize_mode( string $mode ): string {
-		$mode = sanitize_key( $mode );
+		$mode    = sanitize_key( $mode );
 		$allowed = array( 'plateau', 'fiche', 'controle', 'fiche_complete' );
+
 		if ( ! in_array( $mode, $allowed, true ) ) {
 			$mode = 'plateau';
 		}
 
 		$mode = apply_filters( 'ufsc_competitions_plateau_pdf_mode', $mode );
+
 		if ( ! in_array( $mode, $allowed, true ) ) {
 			return 'plateau';
 		}
