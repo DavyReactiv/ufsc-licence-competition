@@ -57,6 +57,26 @@ class EntryFormRenderer {
 
 			<div class="ufsc-competition-entries-list">
 				<h4><?php echo esc_html__( 'Vos inscriptions', 'ufsc-licence-competition' ); ?></h4>
+				<?php
+					$show_export = $club_id ? (bool) apply_filters( 'ufsc_competitions_show_club_export', true, $competition, $club_id ) : false;
+					if ( $show_export ) :
+						$export_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'action' => 'ufsc_competitions_export_club_csv',
+									'competition_id' => (int) $competition->id,
+								),
+								admin_url( 'admin-post.php' )
+							),
+							'ufsc_competitions_export_club_csv_' . (int) $competition->id
+						);
+						?>
+						<p class="ufsc-competition-entries-export">
+							<a class="button" href="<?php echo esc_url( $export_url ); ?>">
+								<?php echo esc_html__( 'Exporter CSV validées', 'ufsc-licence-competition' ); ?>
+							</a>
+						</p>
+				<?php endif; ?>
 				<?php if ( empty( $entries ) ) : ?>
 					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
 				<?php else : ?>
@@ -301,6 +321,8 @@ class EntryFormRenderer {
 			'error_not_found' => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status' => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
 			'error_locked' => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
+			'export_empty' => array( 'warning', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
+			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 			'error_quota' => array( 'error', __( 'Quota atteint.', 'ufsc-licence-competition' ) ),
 			'error_payment_required' => array( 'error', __( 'Paiement requis.', 'ufsc-licence-competition' ) ),
 		);

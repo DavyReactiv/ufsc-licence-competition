@@ -27,6 +27,10 @@ class Front {
 		if ( class_exists( '\\UFSC\\Competitions\\Front\\Entries\\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register();
 		}
+
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Exports\\Club_Entries_Export_Controller' ) ) {
+			( new \UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller() )->register();
+		}
 	}
 
 	public static function register_shortcodes(): void {
@@ -142,6 +146,7 @@ class Front {
 			$base . '/Entries/EntryActions.php',
 			$base . '/Entries/EntryFormRenderer.php',
 			$base . '/Entries/EntriesModule.php',
+			$base . '/Exports/Club_Entries_Export_Controller.php',
 			$base . '/Repositories/EntryFrontRepository.php',
 			$base . '/Repositories/CompetitionReadRepository.php',
 			$base . '/Shortcodes/CompetitionsListShortcode.php',

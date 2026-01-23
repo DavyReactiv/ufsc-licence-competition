@@ -34,14 +34,10 @@ class Entries_Export_Controller {
 			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
-		if ( '' !== $status && ! in_array( $status, array( 'draft', 'submitted', 'validated', 'rejected' ), true ) ) {
-			$status = '';
-		}
+		$filters = $this->get_requested_filters();
+		do_action( 'ufsc_competitions_plateau_export_before', $competition, $filters['status'], $filters );
 
-		do_action( 'ufsc_competitions_plateau_export_before', $competition, $status );
-
-		$entries = $this->get_plateau_entries( $competition_id, $status );
+		$entries = $this->get_plateau_entries( $competition_id, $filters );
 		$headers = $this->get_csv_columns();
 
 		$filename = sprintf( 'plateau-competition-%d.csv', $competition_id );
@@ -75,8 +71,6 @@ class Entries_Export_Controller {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		check_admin_referer( 'ufsc_competitions_download_plateau_pdf' );
-
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		if ( ! $competition_id ) {
 			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
@@ -89,14 +83,19 @@ class Entries_Export_Controller {
 		}
 
 		$mode = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( $_GET['mode'] ) ) : 'plateau';
-		if ( ! in_array( $mode, array( 'plateau', 'fiche' ), true ) ) {
+		if ( ! in_array( $mode, array( 'plateau', 'fiche', 'controle', 'fiche_complete' ), true ) ) {
 			$mode = 'plateau';
 		}
+
+		$nonce_action = in_array( $mode, array( 'fiche', 'fiche_complete' ), true )
+			? 'ufsc_competitions_download_fiche_pdf'
+			: 'ufsc_competitions_download_plateau_pdf';
+		check_admin_referer( $nonce_action );
 
 		do_action( 'ufsc_competitions_plateau_pdf_before', $competition, $mode );
 
 		$renderer = new \UFSC\Competitions\Services\Plateau_Pdf_Renderer();
-		$pdf = $renderer->render_pdf( $competition, $this->get_plateau_entries( $competition_id, '' ), $mode );
+		$pdf = $renderer->render_pdf( $competition, $this->get_plateau_entries( $competition_id, $this->get_requested_filters() ), $mode );
 		if ( empty( $pdf ) ) {
 			wp_die( esc_html__( 'PDF indisponible.', 'ufsc-licence-competition' ) );
 		}
@@ -183,22 +182,31 @@ class Entries_Export_Controller {
 		return is_array( $columns ) ? $columns : array();
 	}
 
-	private function get_plateau_entries( int $competition_id, string $status ): array {
+	private function get_plateau_entries( int $competition_id, array $requested_filters ): array {
 		$filters = array(
 			'view' => 'all',
 			'competition_id' => $competition_id,
 		);
 
-		if ( '' !== $status ) {
-			$filters['status'] = $status;
+		if ( ! empty( $requested_filters['status'] ) ) {
+			$filters['status'] = $requested_filters['status'];
 		}
 
-		$filters = apply_filters( 'ufsc_competitions_plateau_entries_filters', $filters, $competition_id, $status );
+		$filters = apply_filters(
+			'ufsc_competitions_plateau_entries_filters',
+			$filters,
+			$competition_id,
+			$requested_filters['status'],
+			$requested_filters['club_id'],
+			$requested_filters['category']
+		);
 
 		$repository = new EntryRepository();
 		$entries = $repository->list( $filters, 2000, 0 );
 
-		return is_array( $entries ) ? $entries : array();
+		$entries = is_array( $entries ) ? $entries : array();
+
+		return $this->filter_entries( $entries, $requested_filters );
 	}
 
 	private function build_csv_row( array $headers, $entry, $competition ): array {
@@ -230,5 +238,55 @@ class Entries_Export_Controller {
 		}
 
 		return $out;
+	}
+
+	private function get_requested_filters(): array {
+		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
+		if ( '' !== $status && ! in_array( $status, array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn', 'cancelled' ), true ) ) {
+			$status = '';
+		}
+
+		$club_id = isset( $_GET['club_id'] ) ? absint( $_GET['club_id'] ) : 0;
+		$category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+
+		$filters = array(
+			'status' => $status,
+			'club_id' => $club_id,
+			'category' => $category,
+		);
+
+		return $filters;
+	}
+
+	private function filter_entries( array $entries, array $filters ): array {
+		if ( empty( $filters['club_id'] ) && '' === $filters['category'] ) {
+			return $entries;
+		}
+
+		$club_id = absint( $filters['club_id'] );
+		$category = strtolower( trim( (string) $filters['category'] ) );
+
+		return array_values(
+			array_filter(
+				$entries,
+				static function( $entry ) use ( $club_id, $category ) {
+					if ( $club_id && absint( $entry->club_id ?? 0 ) !== $club_id ) {
+						return false;
+					}
+
+					if ( '' !== $category ) {
+						$entry_category = (string) ( $entry->category ?? $entry->category_name ?? '' );
+						if ( '' === $entry_category ) {
+							return false;
+						}
+						if ( strtolower( $entry_category ) !== $category ) {
+							return false;
+						}
+					}
+
+					return true;
+				}
+			)
+		);
 	}
 }
