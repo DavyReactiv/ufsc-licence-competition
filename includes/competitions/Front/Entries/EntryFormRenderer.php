@@ -337,7 +337,12 @@ class EntryFormRenderer {
 					} else {
 						$license_number_value = (string) ( $prefill['license_number'] ?? '' );
 					}
-					$show_license_field = '' !== $license_number_value;
+
+					if ( '' === $license_number_value && ! $editing_entry ) {
+						$license_number_value = (string) ( $selected_license['license_number'] ?? '' );
+					}
+					$license_number_selected = $club_id && ( $license_id || ! empty( $selected_license ) );
+					$show_license_field = $license_number_selected || '' !== $license_number_value;
 
 					$section_titles = array(
 						'identity' => __( 'Identité compétiteur', 'ufsc-licence-competition' ),
@@ -384,6 +389,9 @@ class EntryFormRenderer {
 						if ( 'weight' === $field_name && empty( $field_placeholder ) ) {
 							$field_placeholder = __( 'ex: 67.5', 'ufsc-licence-competition' );
 						}
+						if ( 'license_number' === $field_name && $license_number_selected && '' === $value ) {
+							$field_placeholder = __( 'Non disponible', 'ufsc-licence-competition' );
+						}
 
 						if ( $field_section && $field_section !== $current_section ) {
 							if ( '' !== $current_section ) {
@@ -412,20 +420,23 @@ class EntryFormRenderer {
 								</select>
 							<?php else : ?>
 								<span class="ufsc-field-input">
-									<input
-										type="<?php echo esc_attr( $field_type ); ?>"
-										id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
-										name="<?php echo esc_attr( $field_name ); ?>"
-										value="<?php echo esc_attr( $value ); ?>"
-										<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
-										<?php if ( $field_required ) : ?>required<?php endif; ?>
-										<?php echo esc_attr( $disabled_attr ); ?>
-										<?php echo 'weight' === $field_name ? 'style="max-width:140px;" step="0.1" min="0" inputmode="decimal" pattern="[0-9]+([\\.,][0-9]+)?"' : ''; ?>
-									/>
-									<?php if ( 'weight' === $field_name ) : ?>
-										<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
-									<?php endif; ?>
-								</span>
+								<input
+									type="<?php echo esc_attr( $field_type ); ?>"
+									id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
+									name="<?php echo esc_attr( $field_name ); ?>"
+									value="<?php echo esc_attr( $value ); ?>"
+									<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
+									<?php if ( $field_required ) : ?>required<?php endif; ?>
+									<?php echo esc_attr( $disabled_attr ); ?>
+									<?php echo 'weight' === $field_name ? 'style="max-width:140px;" step="0.1" min="0" inputmode="decimal" pattern="[0-9]+([\\.,][0-9]+)?"' : ''; ?>
+								/>
+								<?php if ( 'weight' === $field_name ) : ?>
+									<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<?php if ( 'license_number' === $field_name && $license_number_selected && '' === $value ) : ?>
+									<small class="description"><?php echo esc_html__( 'Le numéro n’est pas remonté par la base licences.', 'ufsc-licence-competition' ); ?></small>
+								<?php endif; ?>
+							</span>
 							<?php endif; ?>
 						</div>
 					<?php endforeach; ?>
