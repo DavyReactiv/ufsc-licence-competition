@@ -113,6 +113,13 @@ class Front {
 			return '';
 		}
 
+		if ( ! $base_url ) {
+			$details_page_id = self::get_details_page_id();
+			if ( $details_page_id ) {
+				$base_url = (string) get_permalink( $details_page_id );
+			}
+		}
+
 		$base_url = $base_url ? $base_url : (string) get_permalink();
 		if ( ! $base_url ) {
 			$base_url = home_url( '/' );
