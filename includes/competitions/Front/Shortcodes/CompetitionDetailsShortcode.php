@@ -60,10 +60,45 @@ class CompetitionDetailsShortcode {
 		}
 
 		ob_start();
+		$info_rows = array();
+
+		if ( ! empty( $competition->lieu_name ) ) {
+			$info_rows[ __( 'Lieu', 'ufsc-licence-competition' ) ] = (string) $competition->lieu_name;
+		}
+		if ( ! empty( $competition->lieu_address ) ) {
+			$info_rows[ __( 'Adresse', 'ufsc-licence-competition' ) ] = (string) $competition->lieu_address;
+		}
+
+		$weighin_start = (string) ( $competition->weighin_start ?? '' );
+		$weighin_end   = (string) ( $competition->weighin_end ?? '' );
+		if ( $weighin_start || $weighin_end ) {
+			$label = trim( $weighin_start . ( $weighin_end ? ' → ' . $weighin_end : '' ) );
+			$info_rows[ __( 'Pesée', 'ufsc-licence-competition' ) ] = $label;
+		}
+
+		if ( ! empty( $competition->registration_deadline ) ) {
+			$info_rows[ __( 'Date limite d’inscription', 'ufsc-licence-competition' ) ] = (string) $competition->registration_deadline;
+		}
+
+		$contact_bits = array();
+		if ( ! empty( $competition->organizer_contact_name ) ) {
+			$contact_bits[] = (string) $competition->organizer_contact_name;
+		}
+		if ( ! empty( $competition->organizer_phone ) ) {
+			$contact_bits[] = (string) $competition->organizer_phone;
+		}
+		if ( ! empty( $competition->organizer_email ) ) {
+			$contact_bits[] = (string) $competition->organizer_email;
+		}
+		if ( $contact_bits ) {
+			$info_rows[ __( 'Contact organisateur', 'ufsc-licence-competition' ) ] = implode( ' · ', $contact_bits );
+		}
+
+		$club_notes = (string) ( $competition->club_notes ?? '' );
 		?>
 		<div class="ufsc-competition-details">
 			<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
-			<ul>
+			<ul class="ufsc-competition-main">
 				<li><strong><?php echo esc_html__( 'Discipline', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->discipline ?? '' ) ); ?></li>
 				<li><strong><?php echo esc_html__( 'Type', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->type ?? '' ) ); ?></li>
 				<li><strong><?php echo esc_html__( 'Saison', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></li>
@@ -76,10 +111,28 @@ class CompetitionDetailsShortcode {
 				<?php endif; ?>
 			</ul>
 
+			<?php if ( $info_rows ) : ?>
+				<div class="ufsc-competition-practical">
+					<h3><?php echo esc_html__( 'Infos pratiques', 'ufsc-licence-competition' ); ?></h3>
+					<ul>
+						<?php foreach ( $info_rows as $label => $value ) : ?>
+							<li><strong><?php echo esc_html( $label ); ?>:</strong> <?php echo esc_html( $value ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				</div>
+			<?php endif; ?>
+
+			<?php if ( $club_notes ) : ?>
+				<div class="ufsc-competition-notes">
+					<h3><?php echo esc_html__( 'Notes clubs', 'ufsc-licence-competition' ); ?></h3>
+					<p><?php echo esc_html( $club_notes ); ?></p>
+				</div>
+			<?php endif; ?>
+
 			<?php do_action( 'ufsc_competitions_front_after_details', $competition ); ?>
 
 			<div class="ufsc-competition-registration">
-				<p><?php echo esc_html__( 'Inscriptions à venir.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php echo esc_html__( 'Inscriptions clubs UFSC.', 'ufsc-licence-competition' ); ?></p>
 				<?php do_action( 'ufsc_competitions_front_registration_box', $competition ); ?>
 			</div>
 		</div>

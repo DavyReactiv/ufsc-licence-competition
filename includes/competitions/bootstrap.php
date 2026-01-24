@@ -34,6 +34,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Db.php',
 		$base . '/Capabilities.php',
 		$base . '/Entries/EntriesWorkflow.php',
+		$base . '/Services/CompetitionMeta.php',
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',
 		$base . '/Services/CategoryAssigner.php',
