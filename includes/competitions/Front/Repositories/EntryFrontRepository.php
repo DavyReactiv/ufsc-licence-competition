@@ -175,6 +175,17 @@ class EntryFrontRepository {
 	}
 
 	public function normalize_license_result( array $license ): array {
+		$license_number = sanitize_text_field(
+			(string) ( $license['license_number']
+				?? $license['licence_number']
+				?? $license['licensee_number']
+				?? $license['license']
+				?? $license['licence']
+				?? $license['numero_licence']
+				?? $license['numero_licence_delegataire']
+				?? '' )
+		);
+
 		$normalized = array(
 			'id' => absint( $license['id'] ?? 0 ),
 			'label' => sanitize_text_field( $license['label'] ?? '' ),
@@ -184,6 +195,7 @@ class EntryFrontRepository {
 			'sex' => sanitize_text_field( $license['sex'] ?? $license['gender'] ?? '' ),
 			'weight' => isset( $license['weight'] ) ? $this->sanitize_float_value( $license['weight'] ) : null,
 			'level' => sanitize_text_field( $license['level'] ?? '' ),
+			'license_number' => $license_number,
 		);
 
 		if ( '' !== $normalized['birthdate'] && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized['birthdate'] ) ) {
@@ -223,6 +235,7 @@ class EntryFrontRepository {
 			'last_name' => $license['last_name'] ?? '',
 			'birth_date' => $license['birthdate'] ?? '',
 			'sex' => $license['sex'] ?? '',
+			'license_number' => $license['license_number'] ?? '',
 		);
 
 		foreach ( $defaults as $key => $value ) {
@@ -497,6 +510,9 @@ class EntryFrontRepository {
 
 		$level = $this->sanitize_text_value( $payload['level'] ?? '' );
 		$this->map_string_value( $data, $level, array( 'level', 'class', 'classe' ) );
+
+		$license_number = $this->sanitize_text_value( $payload['license_number'] ?? $payload['licence_number'] ?? '' );
+		$this->map_string_value( $data, $license_number, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) );
 
 		if ( isset( $payload['notes'] ) && $this->has_column( 'notes' ) ) {
 			$data['notes'] = $this->sanitize_text_value( $payload['notes'] );
