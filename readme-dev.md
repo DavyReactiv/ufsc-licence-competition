@@ -195,6 +195,66 @@ Legacy : ?ufsc_competition_id=ID
 
 Avec rewrite : /competitions/competition/{id}/ route vers la page détail (avec competition_id)
 
+### Front Entries (Inscriptions) — Checklist de tests manuels
+
+> Objectif : vérifier les redirects + notices front (ufsc_notice) sur le module Front Entries, sans notion de paiement.
+
+#### Pré-requis communs
+- Une compétition ouverte (dates valides) avec un club associé à l’utilisateur de test.
+- Une page front contenant `[ufsc_competition]` et le bloc inscriptions.
+- Un utilisateur connecté rattaché à un club (via filtre `ufsc_competitions_get_club_id_for_user` ou meta `ufsc_club_id`).
+
+#### 1) Création / update / delete en draft
+1. Ouvrir la page détail compétition (front).
+2. Créer une inscription (bouton “Créer” ou formulaire d’ajout).
+   - **Attendu** : redirection vers la page détail avec `ufsc_notice=entry_created`, formulaire en mode draft visible.
+3. Modifier des champs requis puis sauvegarder.
+   - **Attendu** : redirection avec `ufsc_notice=entry_updated`, données mises à jour.
+4. Supprimer l’inscription en draft.
+   - **Attendu** : redirection avec `ufsc_notice=entry_deleted`, inscription absente de la liste.
+
+#### 2) Submit en conditions OK
+1. Depuis une inscription en draft, cliquer “Soumettre”.
+   - **Attendu** : redirection avec `ufsc_notice=entry_submitted`, statut non draft, UI de soumission désactivée.
+
+#### 3) Submit quand quota_check renvoie ok=false
+1. Activer un mode de test quota (voir “Mode debug quota_check” ci-dessous).
+2. Soumettre une inscription en draft.
+   - **Attendu** : redirection avec `ufsc_notice=error_quota`, inscription reste en draft.
+
+#### 4) Actions quand inscriptions fermées
+1. Fermer les inscriptions (dates dépassées) ou forcer la fermeture via filtre `ufsc_competitions_is_registration_open`.
+2. Tenter création / update / submit / delete.
+   - **Attendu** : redirection avec `ufsc_notice=error_closed`, UI/CTA bloqués côté front.
+
+#### 5) Nonce invalide/absent
+1. Supprimer `_wpnonce` dans la requête (ou ouvrir une ancienne URL de formulaire expirée).
+2. Soumettre l’action (create/update/delete/submit/withdraw/cancel).
+   - **Attendu** : redirection avec `ufsc_notice=error_forbidden`.
+
+#### 6) Réédition d’une inscription rejected via withdraw/re-edit
+1. Forcer une inscription en statut “rejected” (admin).
+2. Côté front, utiliser l’action “Retirer” (withdraw) si disponible.
+   - **Attendu** : redirection avec `ufsc_notice=entry_withdrawn` (ou notice configurée par le workflow).
+3. Repasser en édition (re-edit) et sauvegarder.
+   - **Attendu** : redirection avec `ufsc_notice=entry_updated`, inscription repasse en draft/édition.
+
+#### 7) Admin reopen
+1. Depuis l’admin, cliquer “Reopen” sur une inscription rejetée.
+   - **Attendu** : redirection admin avec `ufsc_notice=entry_reopened`.
+
+#### Mode debug quota_check (optionnel, sans impact prod)
+Ajouter temporairement ce snippet dans un mu-plugin ou `functions.php` **uniquement en debug** :
+
+```php
+add_filter( 'ufsc_entries_quota_check', function( $result ) {
+	if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+		return array( 'ok' => false, 'message' => 'Quota debug' );
+	}
+	return $result;
+} );
+```
+
 Phase 2.3 (Exports admin)
 Admin → Compétitions : utiliser “Exporter CSV plateau” sur une compétition.
 
