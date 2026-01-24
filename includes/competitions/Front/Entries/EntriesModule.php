@@ -53,6 +53,7 @@ class EntriesModule {
 		$license_results = array();
 		$selected_license = null;
 		$license_term = isset( $_GET['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_term'] ) ) : '';
+		$license_number = isset( $_GET['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_number'] ) ) : '';
 		$license_id = isset( $_GET['ufsc_license_id'] ) ? absint( $_GET['ufsc_license_id'] ) : 0;
 		$repo = null;
 
@@ -61,7 +62,7 @@ class EntriesModule {
 			$entries = $repo->list_by_competition_and_club( (int) $competition->id, (int) $club_id );
 			$editing_entry = self::resolve_editing_entry( $entries );
 
-			$license_results = self::get_license_search_results( $license_term, $club_id, $repo );
+			$license_results = self::get_license_search_results( $license_term, $license_number, $club_id, $repo );
 			if ( $license_id ) {
 				$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 				if ( is_array( $license_data ) ) {
@@ -97,6 +98,7 @@ class EntriesModule {
 				'license_results' => $license_results,
 				'selected_license' => $selected_license,
 				'license_term' => $license_term,
+				'license_number' => $license_number,
 				'license_id' => $license_id,
 				'prefill' => $prefill,
 				'entry_repo' => $repo,
@@ -143,6 +145,7 @@ class EntriesModule {
 				'label' => __( 'N° licence', 'ufsc-licence-competition' ),
 				'type' => 'text',
 				'required' => false,
+				'readonly' => true,
 				'columns' => array( 'license_number', 'licence_number', 'licensee_number', 'licence', 'license' ),
 			),
 			array(
@@ -225,8 +228,8 @@ class EntriesModule {
 		return (bool) apply_filters( 'ufsc_competitions_front_registration_is_open', $is_open, $competition, $club_id );
 	}
 
-	private static function get_license_search_results( string $term, int $club_id, EntryFrontRepository $repo ): array {
-		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id );
+	private static function get_license_search_results( string $term, string $license_number, int $club_id, EntryFrontRepository $repo ): array {
+		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number );
 		if ( ! is_array( $results ) ) {
 			$results = array();
 		}

@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Front;
 
 use UFSC\Competitions\Front\Shortcodes\CompetitionDetailsShortcode;
 use UFSC\Competitions\Front\Shortcodes\CompetitionsListShortcode;
+use UFSC\Competitions\Front\Licenses\LicenseBridge;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -26,6 +27,10 @@ class Front {
 
 		if ( class_exists( '\\UFSC\\Competitions\\Front\\Entries\\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register();
+		}
+
+		if ( class_exists( LicenseBridge::class ) ) {
+			LicenseBridge::register();
 		}
 
 		if ( class_exists( '\\UFSC\\Competitions\\Front\\Exports\\Club_Entries_Export_Controller' ) ) {
@@ -136,6 +141,7 @@ class Front {
 			$base . '/Entries/EntryActions.php',
 			$base . '/Entries/EntryFormRenderer.php',
 			$base . '/Entries/EntriesModule.php',
+			$base . '/Licenses/LicenseBridge.php',
 			$base . '/Exports/Club_Entries_Export_Controller.php',
 			$base . '/Repositories/EntryFrontRepository.php',
 			$base . '/Repositories/CompetitionReadRepository.php',
