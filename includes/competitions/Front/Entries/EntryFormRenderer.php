@@ -383,6 +383,7 @@ class EntryFormRenderer {
 			'entry_rejected'           => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
 			'entry_withdrawn'          => array( 'success', __( 'Inscription retirée.', 'ufsc-licence-competition' ) ),
 			'entry_cancelled'          => array( 'success', __( 'Inscription annulée.', 'ufsc-licence-competition' ) ),
+			'entry_reopened'           => array( 'success', __( 'Inscription réouverte.', 'ufsc-licence-competition' ) ),
 
 			'error'                    => array( 'error', __( 'Une erreur est survenue. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 			'error_forbidden'          => array( 'error', __( 'Accès refusé.', 'ufsc-licence-competition' ) ),
