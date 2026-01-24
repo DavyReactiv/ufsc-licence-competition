@@ -114,11 +114,33 @@ class EntryActions {
 		}
 
 		$license_id = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
+		$license_term = isset( $_POST['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_term'] ) ) : '';
+		$license_number = isset( $_POST['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_number'] ) ) : '';
 		$license    = null;
 		if ( $license_id ) {
 			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 			if ( is_array( $license_data ) ) {
 				$license = $repo->normalize_license_result( $license_data );
+			}
+		}
+
+		if ( 'create' === $action && ! $license ) {
+			if ( '' !== $license_term || '' !== $license_number ) {
+				$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $license_term, $club_id, $license_number );
+				if ( is_array( $results ) ) {
+					$normalized = $repo->normalize_license_results( $results, 2 );
+					if ( 1 === count( $normalized ) && ! empty( $normalized[0]['id'] ) ) {
+						$license_id = (int) $normalized[0]['id'];
+						$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
+						if ( is_array( $license_data ) ) {
+							$license = $repo->normalize_license_result( $license_data );
+						}
+					}
+				}
+			}
+
+			if ( ! $license ) {
+				self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
 			}
 		}
 
@@ -341,6 +363,9 @@ class EntryActions {
 		foreach ( EntriesModule::get_fields_schema( $competition ) as $field ) {
 			$name = $field['name'] ?? '';
 			if ( ! $name ) {
+				continue;
+			}
+			if ( ! empty( $field['readonly'] ) ) {
 				continue;
 			}
 
