@@ -162,7 +162,7 @@ class EntriesModule {
 				'label' => __( 'Poids', 'ufsc-licence-competition' ),
 				'type' => 'number',
 				'required' => false,
-				'placeholder' => '0.0',
+				'placeholder' => __( 'ex: 67.5', 'ufsc-licence-competition' ),
 				'columns' => array( 'weight', 'weight_kg', 'poids' ),
 			),
 			array(
@@ -199,7 +199,13 @@ class EntriesModule {
 		if ( $is_open && ! empty( $competition->registration_deadline ) ) {
 			$deadline_raw = sanitize_text_field( (string) $competition->registration_deadline );
 			$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( wp_timezone_string() ?: 'UTC' );
-			$deadline = date_create_from_format( 'Y-m-d H:i:s', $deadline_raw . ' 23:59:59', $timezone );
+			$deadline = null;
+
+			if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $deadline_raw ) ) {
+				$deadline = date_create_from_format( 'Y-m-d H:i:s', $deadline_raw . ' 23:59:59', $timezone );
+			} elseif ( preg_match( '/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/', $deadline_raw ) ) {
+				$deadline = date_create_from_format( 'Y-m-d H:i:s', $deadline_raw, $timezone );
+			}
 			if ( $deadline instanceof \DateTimeInterface ) {
 				$deadline_ts = $deadline->getTimestamp();
 				if ( current_time( 'timestamp' ) > $deadline_ts ) {

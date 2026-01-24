@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\ClubRepository;
+use UFSC\Competitions\Services\CompetitionMeta;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -170,6 +171,19 @@ class Competitions_Page {
 		$event_start = $is_edit ? (string) ( $item->event_start_datetime ?? '' ) : '';
 		$event_end   = $is_edit ? (string) ( $item->event_end_datetime ?? '' ) : '';
 
+		$event_meta = $is_edit ? CompetitionMeta::get( (int) $item->id ) : CompetitionMeta::get( 0 );
+		$event_meta = is_array( $event_meta ) ? $event_meta : array();
+
+		$lieu_name              = (string) ( $event_meta['lieu_name'] ?? '' );
+		$lieu_address           = (string) ( $event_meta['lieu_address'] ?? '' );
+		$weighin_start           = (string) ( $event_meta['weighin_start'] ?? '' );
+		$weighin_end             = (string) ( $event_meta['weighin_end'] ?? '' );
+		$registration_deadline   = (string) ( $event_meta['registration_deadline'] ?? '' );
+		$organizer_contact_name  = (string) ( $event_meta['organizer_contact_name'] ?? '' );
+		$organizer_phone         = (string) ( $event_meta['organizer_phone'] ?? '' );
+		$organizer_email         = (string) ( $event_meta['organizer_email'] ?? '' );
+		$club_notes              = (string) ( $event_meta['club_notes'] ?? '' );
+
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $is_edit ? __( 'Modifier une compétition', 'ufsc-licence-competition' ) : __( 'Ajouter une compétition', 'ufsc-licence-competition' ) ); ?></h1>
@@ -245,6 +259,76 @@ class Competitions_Page {
 								<input name="event_end_datetime" id="event_end_datetime" type="text" class="regular-text"
 									value="<?php echo esc_attr( $event_end ); ?>"
 									placeholder="YYYY-MM-DD HH:MM:SS" />
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<h2><?php esc_html_e( 'Informations événement', 'ufsc-licence-competition' ); ?></h2>
+				<p class="description"><?php esc_html_e( 'Tous ces champs sont optionnels. Ils sont affichés sur la page détail compétition.', 'ufsc-licence-competition' ); ?></p>
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row"><label for="lieu_name"><?php esc_html_e( 'Lieu (nom salle / complexe)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="lieu_name" id="lieu_name" type="text" class="regular-text" value="<?php echo esc_attr( $lieu_name ); ?>" />
+								<p class="description"><?php esc_html_e( 'Optionnel – affiché aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="lieu_address"><?php esc_html_e( 'Adresse complète', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<textarea name="lieu_address" id="lieu_address" class="large-text" rows="3"><?php echo esc_textarea( $lieu_address ); ?></textarea>
+								<p class="description"><?php esc_html_e( 'Optionnel – affichée aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="weighin_start"><?php esc_html_e( 'Pesée – début', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="weighin_start" id="weighin_start" type="text" class="regular-text" value="<?php echo esc_attr( $weighin_start ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="weighin_end"><?php esc_html_e( 'Pesée – fin', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="weighin_end" id="weighin_end" type="text" class="regular-text" value="<?php echo esc_attr( $weighin_end ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="registration_deadline"><?php esc_html_e( 'Date limite d’inscription', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="registration_deadline" id="registration_deadline" type="text" class="regular-text" value="<?php echo esc_attr( $registration_deadline ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="organizer_contact_name"><?php esc_html_e( 'Contact organisateur (nom)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="organizer_contact_name" id="organizer_contact_name" type="text" class="regular-text" value="<?php echo esc_attr( $organizer_contact_name ); ?>" />
+								<p class="description"><?php esc_html_e( 'Optionnel – affiché aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="organizer_phone"><?php esc_html_e( 'Contact organisateur (téléphone)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="organizer_phone" id="organizer_phone" type="text" class="regular-text" value="<?php echo esc_attr( $organizer_phone ); ?>" />
+								<p class="description"><?php esc_html_e( 'Optionnel – affiché aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="organizer_email"><?php esc_html_e( 'Contact organisateur (email)', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="organizer_email" id="organizer_email" type="email" class="regular-text" value="<?php echo esc_attr( $organizer_email ); ?>" />
+								<p class="description"><?php esc_html_e( 'Optionnel – affiché aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="club_notes"><?php esc_html_e( 'Notes clubs', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<textarea name="club_notes" id="club_notes" class="large-text" rows="4"><?php echo esc_textarea( $club_notes ); ?></textarea>
+								<p class="description"><?php esc_html_e( 'Optionnel – message affiché sur la page détail.', 'ufsc-licence-competition' ); ?></p>
 							</td>
 						</tr>
 					</tbody>
@@ -384,6 +468,22 @@ class Competitions_Page {
 		);
 
 		$saved_id = $this->repository->save( $data );
+		if ( $saved_id ) {
+			CompetitionMeta::save(
+				(int) $saved_id,
+				array(
+					'lieu_name'             => isset( $_POST['lieu_name'] ) ? wp_unslash( $_POST['lieu_name'] ) : '',
+					'lieu_address'          => isset( $_POST['lieu_address'] ) ? wp_unslash( $_POST['lieu_address'] ) : '',
+					'weighin_start'         => isset( $_POST['weighin_start'] ) ? wp_unslash( $_POST['weighin_start'] ) : '',
+					'weighin_end'           => isset( $_POST['weighin_end'] ) ? wp_unslash( $_POST['weighin_end'] ) : '',
+					'registration_deadline' => isset( $_POST['registration_deadline'] ) ? wp_unslash( $_POST['registration_deadline'] ) : '',
+					'organizer_contact_name'=> isset( $_POST['organizer_contact_name'] ) ? wp_unslash( $_POST['organizer_contact_name'] ) : '',
+					'organizer_phone'       => isset( $_POST['organizer_phone'] ) ? wp_unslash( $_POST['organizer_phone'] ) : '',
+					'organizer_email'       => isset( $_POST['organizer_email'] ) ? wp_unslash( $_POST['organizer_email'] ) : '',
+					'club_notes'            => isset( $_POST['club_notes'] ) ? wp_unslash( $_POST['club_notes'] ) : '',
+				)
+			);
+		}
 
 		wp_safe_redirect(
 			add_query_arg(

@@ -90,11 +90,25 @@ class EntryFormRenderer {
 				<?php if ( empty( $entries ) ) : ?>
 					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
 				<?php else : ?>
+					<?php
+					$license_keys = array( 'licensee_id', 'licence_id', 'license_id', 'license_number', 'licence_number', 'licence', 'licensee_number' );
+					$show_license_column = false;
+					foreach ( $entries as $entry ) {
+						$license_value = self::get_entry_value( $entry, $license_keys );
+						if ( '' !== $license_value ) {
+							$show_license_column = true;
+							break;
+						}
+					}
+					?>
 					<div class="ufsc-competition-entries-table">
 						<table>
 							<thead>
 								<tr>
 									<th><?php echo esc_html__( 'Nom / Prénom', 'ufsc-licence-competition' ); ?></th>
+									<?php if ( $show_license_column ) : ?>
+										<th><?php echo esc_html__( 'N° licence', 'ufsc-licence-competition' ); ?></th>
+									<?php endif; ?>
 									<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
@@ -119,6 +133,7 @@ class EntryFormRenderer {
 									$birth_date      = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
 									$category        = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
 									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+									$license_number  = $show_license_column ? self::get_entry_value( $entry, $license_keys ) : '';
 
 									$details_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
 									$edit_url    = $details_url ? add_query_arg( 'ufsc_entry_edit', $entry_id, $details_url ) : '';
@@ -138,6 +153,9 @@ class EntryFormRenderer {
 									?>
 									<tr>
 										<td><?php echo esc_html( $name ); ?></td>
+										<?php if ( $show_license_column ) : ?>
+											<td><?php echo esc_html( $license_number ); ?></td>
+										<?php endif; ?>
 										<td><?php echo esc_html( $birth_date ); ?></td>
 										<td><?php echo esc_html( $category ); ?></td>
 										<td><?php echo esc_html( $weight ); ?></td>
@@ -298,6 +316,23 @@ class EntryFormRenderer {
 					}
 					?>
 
+					<?php
+					$section_titles = array(
+						'identity' => __( 'Identité du compétiteur', 'ufsc-licence-competition' ),
+						'category' => __( 'Catégorie sportive', 'ufsc-licence-competition' ),
+					);
+					$section_by_field = array(
+						'first_name' => 'identity',
+						'last_name'  => 'identity',
+						'birth_date' => 'identity',
+						'sex'        => 'identity',
+						'weight'     => 'category',
+						'category'   => 'category',
+						'level'      => 'category',
+					);
+					$current_section = '';
+					?>
+
 					<?php foreach ( $schema as $field ) : ?>
 						<?php
 						$field_name        = (string) ( $field['name'] ?? '' );
@@ -306,6 +341,7 @@ class EntryFormRenderer {
 						$field_required    = ! empty( $field['required'] );
 						$field_placeholder = (string) ( $field['placeholder'] ?? '' );
 						$field_options     = is_array( $field['options'] ?? null ) ? $field['options'] : array();
+						$field_section     = $section_by_field[ $field_name ] ?? '';
 
 						$field_columns = (array) ( $field['columns'] ?? array( $field_name ) );
 
@@ -316,9 +352,22 @@ class EntryFormRenderer {
 						$is_locked_field    = $editing_entry && in_array( $field_name, $locked_fields, true );
 						$is_field_disabled  = ( ! $registration_open ) || $editing_locked || $is_locked_field;
 						$disabled_attr      = $is_field_disabled ? 'disabled' : '';
+
+						if ( 'weight' === $field_name && empty( $field_placeholder ) ) {
+							$field_placeholder = __( 'ex: 67.5', 'ufsc-licence-competition' );
+						}
+
+						if ( $field_section && $field_section !== $current_section ) {
+							if ( '' !== $current_section ) {
+								echo '</div>';
+							}
+							$current_section = $field_section;
+							echo '<div class="ufsc-entries-section">';
+							echo '<h5>' . esc_html( $section_titles[ $field_section ] ?? $field_section ) . '</h5>';
+						}
 						?>
 
-						<div class="ufsc-field">
+						<div class="ufsc-field <?php echo esc_attr( 'weight' === $field_name ? 'ufsc-field-weight' : '' ); ?>">
 							<label for="ufsc-entry-<?php echo esc_attr( $field_name ); ?>">
 								<?php echo esc_html( $field_label ); ?>
 								<?php if ( $field_required ) : ?> <span class="required">*</span><?php endif; ?>
@@ -334,18 +383,28 @@ class EntryFormRenderer {
 									<?php endforeach; ?>
 								</select>
 							<?php else : ?>
-								<input
-									type="<?php echo esc_attr( $field_type ); ?>"
-									id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
-									name="<?php echo esc_attr( $field_name ); ?>"
-									value="<?php echo esc_attr( $value ); ?>"
-									<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
-									<?php if ( $field_required ) : ?>required<?php endif; ?>
-									<?php echo esc_attr( $disabled_attr ); ?>
-								/>
+								<span class="ufsc-field-input">
+									<input
+										type="<?php echo esc_attr( $field_type ); ?>"
+										id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
+										name="<?php echo esc_attr( $field_name ); ?>"
+										value="<?php echo esc_attr( $value ); ?>"
+										<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
+										<?php if ( $field_required ) : ?>required<?php endif; ?>
+										<?php echo esc_attr( $disabled_attr ); ?>
+										<?php echo 'weight' === $field_name ? 'style="max-width:120px;" step="0.1"' : ''; ?>
+									/>
+									<?php if ( 'weight' === $field_name ) : ?>
+										<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
+									<?php endif; ?>
+								</span>
 							<?php endif; ?>
 						</div>
 					<?php endforeach; ?>
+
+					<?php if ( '' !== $current_section ) : ?>
+						</div>
+					<?php endif; ?>
 
 					<button type="submit" class="button" <?php echo ( $registration_open && ! $editing_locked ) ? '' : 'disabled'; ?>>
 						<?php echo $editing_entry ? esc_html__( 'Mettre à jour', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter', 'ufsc-licence-competition' ); ?>

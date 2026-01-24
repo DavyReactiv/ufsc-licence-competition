@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Front\Repositories;
 
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\RepositoryHelpers;
+use UFSC\Competitions\Services\CompetitionMeta;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -32,6 +33,10 @@ class CompetitionReadRepository {
 
 		$this->maybe_log_db_error( __METHOD__ . ':get' );
 
+		if ( $row ) {
+			CompetitionMeta::apply_to_competition( $row );
+		}
+
 		return $row ?: null;
 	}
 
@@ -54,6 +59,12 @@ class CompetitionReadRepository {
 		$rows = $wpdb->get_results( $sql );
 
 		$this->maybe_log_db_error( __METHOD__ . ':list' );
+
+		if ( is_array( $rows ) ) {
+			foreach ( $rows as $row ) {
+				CompetitionMeta::apply_to_competition( $row );
+			}
+		}
 
 		return is_array( $rows ) ? $rows : array();
 	}
