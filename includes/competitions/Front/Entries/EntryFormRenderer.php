@@ -17,7 +17,6 @@ class EntryFormRenderer {
 		$club_id              = absint( $context['club_id'] ?? 0 );
 		$entries              = $context['entries'] ?? array();
 		$editing_entry        = $context['editing_entry'] ?? null;
-		$notice               = $context['notice'] ?? '';
 		$registration_open    = (bool) ( $context['registration_open'] ?? true );
 		$license_results      = $context['license_results'] ?? array();
 		$selected_license     = $context['selected_license'] ?? null;
@@ -51,10 +50,6 @@ class EntryFormRenderer {
 					<span class="ufsc-badge ufsc-badge-closed"><?php echo esc_html__( 'Inscriptions fermées', 'ufsc-licence-competition' ); ?></span>
 				<?php endif; ?>
 			</p>
-
-			<?php if ( $notice ) : ?>
-				<?php echo self::render_notice( (string) $notice ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-			<?php endif; ?>
 
 			<?php if ( ! $club_id ) : ?>
 				<p><?php echo esc_html__( 'Accès réservé aux clubs affiliés.', 'ufsc-licence-competition' ); ?></p>
@@ -363,7 +358,17 @@ class EntryFormRenderer {
 		return (string) ob_get_clean();
 	}
 
-	private static function render_notice( string $notice ): string {
+	public static function render_notice( string $notice ): string {
+		$notice_key = sanitize_key( $notice );
+		if ( '' === $notice_key ) {
+			return '';
+		}
+
+		$show_notice = (bool) apply_filters( 'ufsc_competitions_front_show_notices', true, $notice_key );
+		if ( ! $show_notice ) {
+			return '';
+		}
+
 		$messages = array(
 			'created'                  => array( 'success', __( 'Inscription ajoutée.', 'ufsc-licence-competition' ) ),
 			'updated'                  => array( 'success', __( 'Inscription modifiée.', 'ufsc-licence-competition' ) ),
@@ -378,24 +383,38 @@ class EntryFormRenderer {
 			'entry_rejected'           => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
 			'entry_withdrawn'          => array( 'success', __( 'Inscription retirée.', 'ufsc-licence-competition' ) ),
 			'entry_cancelled'          => array( 'success', __( 'Inscription annulée.', 'ufsc-licence-competition' ) ),
+			'entry_reopened'           => array( 'success', __( 'Inscription réouverte.', 'ufsc-licence-competition' ) ),
 
 			'error'                    => array( 'error', __( 'Une erreur est survenue. Merci de réessayer.', 'ufsc-licence-competition' ) ),
-			'error_forbidden'          => array( 'error', __( 'Action non autorisée.', 'ufsc-licence-competition' ) ),
+			'error_forbidden'          => array( 'error', __( 'Accès refusé.', 'ufsc-licence-competition' ) ),
 			'error_invalid_fields'     => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
 			'error_closed'             => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
-			'error_not_found'          => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
+			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
+			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
+			'error_payment_required'   => array( 'error', __( 'Paiement requis pour soumettre cette inscription.', 'ufsc-licence-competition' ) ),
 
-			'export_empty'             => array( 'warning', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
+			'export_empty'             => array( 'info', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 		);
 
-		if ( ! isset( $messages[ $notice ] ) ) {
+		$messages = apply_filters( 'ufsc_competitions_front_notice_map', $messages );
+		if ( ! is_array( $messages ) ) {
+			$messages = array();
+		}
+
+		if ( ! isset( $messages[ $notice_key ] ) ) {
+			if ( 0 === strpos( $notice_key, 'success_' ) ) {
+				return sprintf(
+					'<div class="notice notice-success"><p>%s</p></div>',
+					esc_html__( 'Opération réalisée avec succès.', 'ufsc-licence-competition' )
+				);
+			}
 			return '';
 		}
 
-		list( $class, $message ) = $messages[ $notice ];
+		list( $class, $message ) = $messages[ $notice_key ];
 
 		return sprintf(
 			'<div class="notice notice-%s"><p>%s</p></div>',

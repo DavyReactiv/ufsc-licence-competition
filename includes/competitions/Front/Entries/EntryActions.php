@@ -72,11 +72,11 @@ class EntryActions {
 		}
 
 		if ( 'create' === $action ) {
-			check_admin_referer( 'ufsc_competitions_entry_create' );
+			self::verify_nonce_or_redirect( 'ufsc_competitions_entry_create', $competition_id );
 		} elseif ( 'update' === $action ) {
-			check_admin_referer( 'ufsc_competitions_entry_update' );
+			self::verify_nonce_or_redirect( 'ufsc_competitions_entry_update', $competition_id );
 		} else {
-			check_admin_referer( 'ufsc_competitions_entry_delete' );
+			self::verify_nonce_or_redirect( 'ufsc_competitions_entry_delete', $competition_id );
 		}
 
 		$repo = new EntryFrontRepository();
@@ -200,11 +200,11 @@ class EntryActions {
 		}
 
 		if ( 'submit' === $action ) {
-			check_admin_referer( 'ufsc_entry_submit' );
+			self::verify_nonce_or_redirect( 'ufsc_entry_submit', $competition_id );
 		} elseif ( 'withdraw' === $action ) {
-			check_admin_referer( 'ufsc_entry_withdraw' );
+			self::verify_nonce_or_redirect( 'ufsc_entry_withdraw', $competition_id );
 		} else {
-			check_admin_referer( 'ufsc_entry_cancel' );
+			self::verify_nonce_or_redirect( 'ufsc_entry_cancel', $competition_id );
 		}
 
 		$entry_id = isset( $_POST['entry_id'] ) ? absint( $_POST['entry_id'] ) : 0;
@@ -393,6 +393,13 @@ class EntryActions {
 
 		wp_safe_redirect( $url );
 		exit;
+	}
+
+	private static function verify_nonce_or_redirect( string $action, int $competition_id ): void {
+		$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
+		if ( ! $nonce || ! wp_verify_nonce( $nonce, $action ) ) {
+			self::redirect_with_notice( $competition_id, 'error_forbidden' );
+		}
 	}
 
 	private static function redirect_admin_with_notice( string $notice ): void {
