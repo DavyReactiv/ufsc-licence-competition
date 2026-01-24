@@ -7,7 +7,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class LicenseBridge {
+
 	public static function register(): void {
+		// Register only if the licenses plugin/table is likely available.
+		// We still guard at query-time with table/columns checks.
 		if ( ! self::is_available() ) {
 			return;
 		}
@@ -16,18 +19,29 @@ class LicenseBridge {
 		add_filter( 'ufsc_competitions_front_license_by_id', array( __CLASS__, 'filter_license_by_id' ), 10, 3 );
 	}
 
+	/**
+	 * @param array  $results Existing results (ignored / replaced).
+	 * @param string $term Search term (name / free text).
+	 * @param int    $club_id Club id.
+	 * @param string $license_number Optional license number term.
+	 */
 	public static function filter_search_results( array $results, string $term, int $club_id, string $license_number = '' ): array {
 		$bridge = new self();
 		return $bridge->search( $term, $club_id, $license_number );
 	}
 
+	/**
+	 * @param mixed $result Existing result (ignored / replaced).
+	 * @param int   $id License row id.
+	 * @param int   $club_id Club id.
+	 */
 	public static function filter_license_by_id( $result, int $id, int $club_id ) {
 		$bridge = new self();
 		return $bridge->get_by_id( $id, $club_id );
 	}
 
 	public function search( string $term, int $club_id, string $license_number = '' ): array {
-		if ( ! self::is_available() || ! $club_id ) {
+		if ( ! $club_id ) {
 			return array();
 		}
 
@@ -38,25 +52,24 @@ class LicenseBridge {
 			return array();
 		}
 
-		$license_column = $this->resolve_first_column(
-			$table,
-			array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' )
-		);
-		$last_name_column = $this->resolve_first_column( $table, array( 'nom_licence', 'nom' ) );
-		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence' ) );
-		$birthdate_column = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
-		$sex_column = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
+		// Resolve schema differences across installs.
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
+		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
+		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
+		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
 
-		$where  = array( 'club_id = %d' );
-		$params = array( $club_id );
-
-		$term = sanitize_text_field( $term );
+		$term           = sanitize_text_field( $term );
 		$license_number = sanitize_text_field( $license_number );
 
 		if ( '' === $term && '' === $license_number ) {
 			return array();
 		}
 
+		$where  = array( 'club_id = %d' );
+		$params = array( $club_id );
+
+		// Free text term: search in last/first name (if present) + license column (if present)
 		if ( '' !== $term ) {
 			$like   = '%' . $wpdb->esc_like( $term ) . '%';
 			$clause = array();
@@ -69,19 +82,20 @@ class LicenseBridge {
 				$clause[] = "{$first_name_column} LIKE %s";
 				$params[] = $like;
 			}
-
-			if ( empty( $clause ) ) {
-				return array();
-			}
-
 			if ( $license_column ) {
 				$clause[] = "{$license_column} LIKE %s";
 				$params[] = $like;
 			}
 
+			// If we cannot search anything, exit safely.
+			if ( empty( $clause ) ) {
+				return array();
+			}
+
 			$where[] = '(' . implode( ' OR ', $clause ) . ')';
 		}
 
+		// Dedicated license number term (only if column exists)
 		if ( '' !== $license_number && $license_column ) {
 			$number_like = '%' . $wpdb->esc_like( $license_number ) . '%';
 			$where[]     = "{$license_column} LIKE %s";
@@ -89,29 +103,40 @@ class LicenseBridge {
 		}
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
-		$select_columns = array( 'id' );
+
+		// Select columns as normalized aliases expected by the competitions module.
+		$select_columns   = array( 'id' );
 		$select_columns[] = $last_name_column ? "{$last_name_column} AS last_name" : "'' AS last_name";
 		$select_columns[] = $first_name_column ? "{$first_name_column} AS first_name" : "'' AS first_name";
 		$select_columns[] = $birthdate_column ? "{$birthdate_column} AS birthdate" : "'' AS birthdate";
 		$select_columns[] = $sex_column ? "{$sex_column} AS sex" : "'' AS sex";
-		if ( $license_column ) {
-			$select_columns[] = "{$license_column} AS license_number";
-		} else {
-			$select_columns[] = "'' AS license_number";
-		}
+		$select_columns[] = $license_column ? "{$license_column} AS license_number" : "'' AS license_number";
+
 		$select = implode( ', ', $select_columns );
 
+		// Dynamic ordering depending on available columns (stable & safe: names are whitelisted + verified existing).
 		$order_last  = $last_name_column ? $last_name_column : 'id';
 		$order_first = $first_name_column ? $first_name_column : $order_last;
-		$sql         = "SELECT {$select} FROM {$table} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
-		$rows  = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+
+		$sql  = "SELECT {$select} FROM {$table} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
 		$items = array();
 
 		foreach ( $rows as $row ) {
 			$first_name = sanitize_text_field( $row['first_name'] ?? '' );
 			$last_name  = sanitize_text_field( $row['last_name'] ?? '' );
 			$birthdate  = sanitize_text_field( $row['birthdate'] ?? '' );
-			$label_bits = array_filter( array( trim( $last_name . ' ' . $first_name ), $birthdate ) );
+
+			$label_bits = array_filter(
+				array(
+					trim( $last_name . ' ' . $first_name ),
+					$birthdate,
+				)
+			);
 
 			$items[] = array(
 				'id'             => absint( $row['id'] ?? 0 ),
@@ -128,7 +153,7 @@ class LicenseBridge {
 	}
 
 	public function get_by_id( int $id, int $club_id ): ?array {
-		if ( ! self::is_available() || ! $club_id || ! $id ) {
+		if ( ! $club_id || ! $id ) {
 			return null;
 		}
 
@@ -139,24 +164,19 @@ class LicenseBridge {
 			return null;
 		}
 
-		$license_column = $this->resolve_first_column(
-			$table,
-			array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' )
-		);
-		$last_name_column = $this->resolve_first_column( $table, array( 'nom_licence', 'nom' ) );
-		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence' ) );
-		$birthdate_column = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
-		$sex_column = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
-		$select_columns = array( 'id' );
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
+		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
+		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
+		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
+
+		$select_columns   = array( 'id' );
 		$select_columns[] = $last_name_column ? "{$last_name_column} AS last_name" : "'' AS last_name";
 		$select_columns[] = $first_name_column ? "{$first_name_column} AS first_name" : "'' AS first_name";
 		$select_columns[] = $birthdate_column ? "{$birthdate_column} AS birthdate" : "'' AS birthdate";
 		$select_columns[] = $sex_column ? "{$sex_column} AS sex" : "'' AS sex";
-		if ( $license_column ) {
-			$select_columns[] = "{$license_column} AS license_number";
-		} else {
-			$select_columns[] = "'' AS license_number";
-		}
+		$select_columns[] = $license_column ? "{$license_column} AS license_number" : "'' AS license_number";
+
 		$select = implode( ', ', $select_columns );
 
 		$row = $wpdb->get_row(
@@ -175,7 +195,13 @@ class LicenseBridge {
 		$first_name = sanitize_text_field( $row['first_name'] ?? '' );
 		$last_name  = sanitize_text_field( $row['last_name'] ?? '' );
 		$birthdate  = sanitize_text_field( $row['birthdate'] ?? '' );
-		$label_bits = array_filter( array( trim( $last_name . ' ' . $first_name ), $birthdate ) );
+
+		$label_bits = array_filter(
+			array(
+				trim( $last_name . ' ' . $first_name ),
+				$birthdate,
+			)
+		);
 
 		return array(
 			'id'             => absint( $row['id'] ?? 0 ),
@@ -189,6 +215,7 @@ class LicenseBridge {
 	}
 
 	private static function is_available(): bool {
+		// Soft availability check: avoids hard dependency.
 		return class_exists( 'UFSC_LC_Plugin' )
 			|| class_exists( 'UFSC_LC_Competition_Licences_List_Table' )
 			|| class_exists( 'UFSC_LC_Club_Licences_Shortcode' );
@@ -197,7 +224,8 @@ class LicenseBridge {
 	private function table_exists( string $table ): bool {
 		global $wpdb;
 
-		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		return $found === $table;
 	}
 
 	private function has_column( string $table, string $column ): bool {
@@ -214,11 +242,10 @@ class LicenseBridge {
 
 	private function resolve_first_column( string $table, array $candidates ): string {
 		foreach ( $candidates as $candidate ) {
-			if ( $this->has_column( $table, $candidate ) ) {
-				return $candidate;
+			if ( $this->has_column( $table, (string) $candidate ) ) {
+				return (string) $candidate;
 			}
 		}
-
 		return '';
 	}
 }
