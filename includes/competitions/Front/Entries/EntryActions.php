@@ -59,14 +59,14 @@ class EntryActions {
 		}
 
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		$competition = EntriesModule::get_competition( $competition_id );
+		$competition    = EntriesModule::get_competition( $competition_id );
 
 		if ( ! $competition || empty( $competition->id ) ) {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
 
 		$club_access = new ClubAccess();
-		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		$club_id     = $club_access->get_club_id_for_user( get_current_user_id() );
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
@@ -79,13 +79,13 @@ class EntryActions {
 			self::verify_nonce_or_redirect( 'ufsc_competitions_entry_delete', $competition_id );
 		}
 
-		$repo = new EntryFrontRepository();
-		$entry = null;
+		$repo     = new EntryFrontRepository();
+		$entry    = null;
 		$entry_id = 0;
 
 		if ( 'update' === $action || 'delete' === $action ) {
 			$entry_id = isset( $_POST['entry_id'] ) ? absint( $_POST['entry_id'] ) : 0;
-			$entry = $entry_id ? $repo->get( $entry_id ) : null;
+			$entry    = $entry_id ? $repo->get( $entry_id ) : null;
 
 			if ( ! $entry ) {
 				self::redirect_with_notice( $competition_id, 'error_not_found' );
@@ -114,7 +114,7 @@ class EntryActions {
 		}
 
 		$license_id = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
-		$license = null;
+		$license    = null;
 		if ( $license_id ) {
 			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 			if ( is_array( $license_data ) ) {
@@ -124,9 +124,9 @@ class EntryActions {
 
 		$prefill = $license ? array(
 			'first_name' => $license['first_name'] ?? '',
-			'last_name' => $license['last_name'] ?? '',
+			'last_name'  => $license['last_name'] ?? '',
 			'birth_date' => $license['birthdate'] ?? '',
-			'sex' => $license['sex'] ?? '',
+			'sex'        => $license['sex'] ?? '',
 		) : array();
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
@@ -138,7 +138,7 @@ class EntryActions {
 			$payload['data'],
 			array(
 				'competition_id' => $competition_id,
-				'club_id' => $club_id,
+				'club_id'        => $club_id,
 			)
 		);
 
@@ -156,7 +156,7 @@ class EntryActions {
 		$new_status = '';
 		if ( 'create' === $action ) {
 			$status_field = $repo->get_status_storage_field();
-			$new_status = 'draft';
+			$new_status   = 'draft';
 			if ( 'status' === $status_field ) {
 				$data['status'] = $new_status;
 			} elseif ( '' !== $status_field ) {
@@ -187,14 +187,14 @@ class EntryActions {
 		}
 
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		$competition = EntriesModule::get_competition( $competition_id );
+		$competition    = EntriesModule::get_competition( $competition_id );
 
 		if ( ! $competition || empty( $competition->id ) ) {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
 
 		$club_access = new ClubAccess();
-		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		$club_id     = $club_access->get_club_id_for_user( get_current_user_id() );
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
@@ -208,8 +208,8 @@ class EntryActions {
 		}
 
 		$entry_id = isset( $_POST['entry_id'] ) ? absint( $_POST['entry_id'] ) : 0;
-		$repo = new EntryFrontRepository();
-		$entry = $entry_id ? $repo->get( $entry_id ) : null;
+		$repo     = new EntryFrontRepository();
+		$entry    = $entry_id ? $repo->get( $entry_id ) : null;
 		if ( ! $entry ) {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
@@ -296,14 +296,14 @@ class EntryActions {
 			check_admin_referer( 'ufsc_entry_admin_reopen_' . $entry_id );
 		}
 
-		$repo = new EntryFrontRepository();
+		$repo  = new EntryFrontRepository();
 		$entry = $repo->get( $entry_id );
 		if ( ! $entry ) {
 			self::redirect_admin_with_notice( 'error_not_found' );
 		}
 
-		$user_id = get_current_user_id();
-		$competition = EntriesModule::get_competition( (int) ( $entry->competition_id ?? 0 ) );
+		$user_id      = get_current_user_id();
+		$competition  = EntriesModule::get_competition( (int) ( $entry->competition_id ?? 0 ) );
 
 		if ( 'validate' === $action ) {
 			$result = $repo->validate( $entry_id, $user_id );
@@ -335,7 +335,7 @@ class EntryActions {
 	}
 
 	private static function build_payload_from_request( $competition, array $prefill = array() ): array {
-		$data = array();
+		$data   = array();
 		$errors = array();
 
 		foreach ( EntriesModule::get_fields_schema( $competition ) as $field ) {
@@ -344,7 +344,7 @@ class EntryActions {
 				continue;
 			}
 
-			$raw = isset( $_POST[ $name ] ) ? wp_unslash( $_POST[ $name ] ) : '';
+			$raw   = isset( $_POST[ $name ] ) ? wp_unslash( $_POST[ $name ] ) : '';
 			$value = is_string( $raw ) ? $raw : '';
 
 			if ( 'birth_date' === $name ) {
@@ -374,7 +374,7 @@ class EntryActions {
 		}
 
 		return array(
-			'data' => $data,
+			'data'   => $data,
 			'errors' => $errors,
 		);
 	}
@@ -388,7 +388,7 @@ class EntryActions {
 			$url = home_url( '/' );
 		}
 
-		$url = add_query_arg( 'ufsc_notice', $notice, $url );
+		$url  = add_query_arg( 'ufsc_notice', $notice, $url );
 		$url .= '#ufsc-inscriptions';
 
 		wp_safe_redirect( $url );

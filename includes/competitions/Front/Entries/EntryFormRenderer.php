@@ -397,6 +397,7 @@ class EntryFormRenderer {
 
 			'export_empty'             => array( 'info', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
+			'entry_reopened'           => array( 'success', __( 'Inscription réouverte.', 'ufsc-licence-competition' ) ),
 		);
 
 		$messages = apply_filters( 'ufsc_competitions_front_notice_map', $messages );
