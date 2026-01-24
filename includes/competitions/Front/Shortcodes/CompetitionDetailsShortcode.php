@@ -76,6 +76,26 @@ class CompetitionDetailsShortcode {
 			$info_rows[ __( 'Pesée', 'ufsc-licence-competition' ) ] = $label;
 		}
 
+		if ( ! empty( $competition->briefing_time ) ) {
+			$info_rows[ __( 'Briefing', 'ufsc-licence-competition' ) ] = (string) $competition->briefing_time;
+		}
+
+		if ( ! empty( $competition->fights_start ) ) {
+			$info_rows[ __( 'Début combats', 'ufsc-licence-competition' ) ] = (string) $competition->fights_start;
+		}
+
+		if ( ! empty( $competition->event_start_datetime ) ) {
+			$info_rows[ __( 'Début événement', 'ufsc-licence-competition' ) ] = (string) $competition->event_start_datetime;
+		}
+
+		if ( ! empty( $competition->event_end_datetime ) ) {
+			$info_rows[ __( 'Fin événement', 'ufsc-licence-competition' ) ] = (string) $competition->event_end_datetime;
+		}
+
+		if ( ! empty( $competition->event_end_estimated ) ) {
+			$info_rows[ __( 'Fin prévisionnelle', 'ufsc-licence-competition' ) ] = (string) $competition->event_end_estimated;
+		}
+
 		if ( ! empty( $competition->registration_deadline ) ) {
 			$info_rows[ __( 'Date limite d’inscription', 'ufsc-licence-competition' ) ] = (string) $competition->registration_deadline;
 		}
@@ -103,12 +123,6 @@ class CompetitionDetailsShortcode {
 				<li><strong><?php echo esc_html__( 'Type', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->type ?? '' ) ); ?></li>
 				<li><strong><?php echo esc_html__( 'Saison', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></li>
 				<li><strong><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->status ?? '' ) ); ?></li>
-				<?php if ( ! empty( $competition->event_start_datetime ) ) : ?>
-					<li><strong><?php echo esc_html__( 'Début', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) $competition->event_start_datetime ); ?></li>
-				<?php endif; ?>
-				<?php if ( ! empty( $competition->event_end_datetime ) ) : ?>
-					<li><strong><?php echo esc_html__( 'Fin', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) $competition->event_end_datetime ); ?></li>
-				<?php endif; ?>
 			</ul>
 
 			<?php if ( $info_rows ) : ?>
@@ -123,7 +137,7 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $club_notes ) : ?>
-				<div class="ufsc-competition-notes">
+				<div class="ufsc-competition-notes notice notice-info">
 					<h3><?php echo esc_html__( 'Notes clubs', 'ufsc-licence-competition' ); ?></h3>
 					<p><?php echo esc_html( $club_notes ); ?></p>
 				</div>

@@ -79,6 +79,7 @@ class EntriesModule {
 				'last_name' => $selected_license['last_name'] ?? '',
 				'birth_date' => $selected_license['birthdate'] ?? '',
 				'sex' => $selected_license['sex'] ?? '',
+				'license_number' => $selected_license['license_number'] ?? '',
 			);
 		}
 
@@ -136,6 +137,13 @@ class EntriesModule {
 				'type' => 'text',
 				'required' => true,
 				'columns' => array( 'last_name', 'lastname', 'nom' ),
+			),
+			array(
+				'name' => 'license_number',
+				'label' => __( 'N° licence', 'ufsc-licence-competition' ),
+				'type' => 'text',
+				'required' => false,
+				'columns' => array( 'license_number', 'licence_number', 'licensee_number', 'licence', 'license' ),
 			),
 			array(
 				'name' => 'birth_date',

@@ -56,6 +56,9 @@ class CompetitionMeta {
 			'lieu_address'            => '',
 			'weighin_start'           => '',
 			'weighin_end'             => '',
+			'briefing_time'           => '',
+			'fights_start'            => '',
+			'event_end_estimated'     => '',
 			'registration_deadline'   => '',
 			'organizer_contact_name'  => '',
 			'organizer_phone'         => '',
@@ -78,6 +81,15 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['weighin_end'] ) ) {
 			$out['weighin_end'] = self::sanitize_datetime( (string) $data['weighin_end'] );
+		}
+		if ( isset( $data['briefing_time'] ) ) {
+			$out['briefing_time'] = self::sanitize_datetime( (string) $data['briefing_time'] );
+		}
+		if ( isset( $data['fights_start'] ) ) {
+			$out['fights_start'] = self::sanitize_datetime( (string) $data['fights_start'] );
+		}
+		if ( isset( $data['event_end_estimated'] ) ) {
+			$out['event_end_estimated'] = self::sanitize_datetime( (string) $data['event_end_estimated'] );
 		}
 		if ( isset( $data['registration_deadline'] ) ) {
 			$out['registration_deadline'] = self::sanitize_datetime( (string) $data['registration_deadline'] );

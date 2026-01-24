@@ -317,18 +317,30 @@ class EntryFormRenderer {
 					?>
 
 					<?php
+					$license_number_value = '';
+					if ( $editing_entry ) {
+						$license_number_value = self::get_entry_value(
+							$editing_entry,
+							array( 'license_number', 'licence_number', 'licensee_number', 'licence', 'license' )
+						);
+					} else {
+						$license_number_value = (string) ( $prefill['license_number'] ?? '' );
+					}
+					$show_license_field = '' !== $license_number_value;
+
 					$section_titles = array(
-						'identity' => __( 'Identité du compétiteur', 'ufsc-licence-competition' ),
-						'category' => __( 'Catégorie sportive', 'ufsc-licence-competition' ),
+						'identity' => __( 'Identité compétiteur', 'ufsc-licence-competition' ),
+						'category' => __( 'Données sportives', 'ufsc-licence-competition' ),
 					);
 					$section_by_field = array(
-						'first_name' => 'identity',
-						'last_name'  => 'identity',
-						'birth_date' => 'identity',
-						'sex'        => 'identity',
-						'weight'     => 'category',
-						'category'   => 'category',
-						'level'      => 'category',
+						'first_name'     => 'identity',
+						'last_name'      => 'identity',
+						'license_number' => 'identity',
+						'birth_date'     => 'identity',
+						'sex'            => 'identity',
+						'weight'         => 'category',
+						'category'       => 'category',
+						'level'          => 'category',
 					);
 					$current_section = '';
 					?>
@@ -352,6 +364,10 @@ class EntryFormRenderer {
 						$is_locked_field    = $editing_entry && in_array( $field_name, $locked_fields, true );
 						$is_field_disabled  = ( ! $registration_open ) || $editing_locked || $is_locked_field;
 						$disabled_attr      = $is_field_disabled ? 'disabled' : '';
+
+						if ( 'license_number' === $field_name && ! $show_license_field ) {
+							continue;
+						}
 
 						if ( 'weight' === $field_name && empty( $field_placeholder ) ) {
 							$field_placeholder = __( 'ex: 67.5', 'ufsc-licence-competition' );
@@ -392,7 +408,7 @@ class EntryFormRenderer {
 										<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
 										<?php if ( $field_required ) : ?>required<?php endif; ?>
 										<?php echo esc_attr( $disabled_attr ); ?>
-										<?php echo 'weight' === $field_name ? 'style="max-width:120px;" step="0.1"' : ''; ?>
+										<?php echo 'weight' === $field_name ? 'style="max-width:140px;" step="0.1" min="0" inputmode="decimal" pattern="[0-9]+([\\.,][0-9]+)?"' : ''; ?>
 									/>
 									<?php if ( 'weight' === $field_name ) : ?>
 										<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
@@ -452,7 +468,7 @@ class EntryFormRenderer {
 			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
 			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
-			'error_payment_required'   => array( 'error', __( 'Paiement requis pour soumettre cette inscription.', 'ufsc-licence-competition' ) ),
+			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),
 
 			'export_empty'             => array( 'info', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),

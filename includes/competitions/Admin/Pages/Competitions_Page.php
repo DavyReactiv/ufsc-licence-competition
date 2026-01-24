@@ -178,6 +178,9 @@ class Competitions_Page {
 		$lieu_address           = (string) ( $event_meta['lieu_address'] ?? '' );
 		$weighin_start           = (string) ( $event_meta['weighin_start'] ?? '' );
 		$weighin_end             = (string) ( $event_meta['weighin_end'] ?? '' );
+		$briefing_time           = (string) ( $event_meta['briefing_time'] ?? '' );
+		$fights_start            = (string) ( $event_meta['fights_start'] ?? '' );
+		$event_end_estimated     = (string) ( $event_meta['event_end_estimated'] ?? '' );
 		$registration_deadline   = (string) ( $event_meta['registration_deadline'] ?? '' );
 		$organizer_contact_name  = (string) ( $event_meta['organizer_contact_name'] ?? '' );
 		$organizer_phone         = (string) ( $event_meta['organizer_phone'] ?? '' );
@@ -286,21 +289,42 @@ class Competitions_Page {
 							<th scope="row"><label for="weighin_start"><?php esc_html_e( 'Pesée – début', 'ufsc-licence-competition' ); ?></label></th>
 							<td>
 								<input name="weighin_start" id="weighin_start" type="text" class="regular-text" value="<?php echo esc_attr( $weighin_start ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
-								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Optionnel – horaire de début de la pesée (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
 							</td>
 						</tr>
 						<tr>
 							<th scope="row"><label for="weighin_end"><?php esc_html_e( 'Pesée – fin', 'ufsc-licence-competition' ); ?></label></th>
 							<td>
 								<input name="weighin_end" id="weighin_end" type="text" class="regular-text" value="<?php echo esc_attr( $weighin_end ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
-								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Optionnel – horaire de fin de la pesée (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="briefing_time"><?php esc_html_e( 'Briefing', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="briefing_time" id="briefing_time" type="text" class="regular-text" value="<?php echo esc_attr( $briefing_time ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – horaire de briefing (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="fights_start"><?php esc_html_e( 'Début combats', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="fights_start" id="fights_start" type="text" class="regular-text" value="<?php echo esc_attr( $fights_start ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – horaire de début des combats (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="event_end_estimated"><?php esc_html_e( 'Fin prévisionnelle', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input name="event_end_estimated" id="event_end_estimated" type="text" class="regular-text" value="<?php echo esc_attr( $event_end_estimated ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
+								<p class="description"><?php esc_html_e( 'Optionnel – fin prévisionnelle de l’événement (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
 							</td>
 						</tr>
 						<tr>
 							<th scope="row"><label for="registration_deadline"><?php esc_html_e( 'Date limite d’inscription', 'ufsc-licence-competition' ); ?></label></th>
 							<td>
 								<input name="registration_deadline" id="registration_deadline" type="text" class="regular-text" value="<?php echo esc_attr( $registration_deadline ); ?>" placeholder="YYYY-MM-DD HH:MM:SS" />
-								<p class="description"><?php esc_html_e( 'Optionnel – format YYYY-MM-DD HH:MM:SS.', 'ufsc-licence-competition' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Optionnel – date/heure limite des inscriptions (format YYYY-MM-DD HH:MM:SS).', 'ufsc-licence-competition' ); ?></p>
 							</td>
 						</tr>
 						<tr>
@@ -476,8 +500,11 @@ class Competitions_Page {
 					'lieu_address'          => isset( $_POST['lieu_address'] ) ? wp_unslash( $_POST['lieu_address'] ) : '',
 					'weighin_start'         => isset( $_POST['weighin_start'] ) ? wp_unslash( $_POST['weighin_start'] ) : '',
 					'weighin_end'           => isset( $_POST['weighin_end'] ) ? wp_unslash( $_POST['weighin_end'] ) : '',
+					'briefing_time'         => isset( $_POST['briefing_time'] ) ? wp_unslash( $_POST['briefing_time'] ) : '',
+					'fights_start'          => isset( $_POST['fights_start'] ) ? wp_unslash( $_POST['fights_start'] ) : '',
+					'event_end_estimated'   => isset( $_POST['event_end_estimated'] ) ? wp_unslash( $_POST['event_end_estimated'] ) : '',
 					'registration_deadline' => isset( $_POST['registration_deadline'] ) ? wp_unslash( $_POST['registration_deadline'] ) : '',
-					'organizer_contact_name'=> isset( $_POST['organizer_contact_name'] ) ? wp_unslash( $_POST['organizer_contact_name'] ) : '',
+					'organizer_contact_name' => isset( $_POST['organizer_contact_name'] ) ? wp_unslash( $_POST['organizer_contact_name'] ) : '',
 					'organizer_phone'       => isset( $_POST['organizer_phone'] ) ? wp_unslash( $_POST['organizer_phone'] ) : '',
 					'organizer_email'       => isset( $_POST['organizer_email'] ) ? wp_unslash( $_POST['organizer_email'] ) : '',
 					'club_notes'            => isset( $_POST['club_notes'] ) ? wp_unslash( $_POST['club_notes'] ) : '',
