@@ -110,6 +110,9 @@ class EntryActions {
 
 		if ( 'delete' === $action ) {
 			$result = $repo->delete( $entry_id );
+			if ( $result ) {
+				do_action( 'ufsc_competitions_entry_after_delete', $entry_id, $entry, $competition, $club_id );
+			}
 			self::redirect_with_notice( $competition_id, $result ? 'entry_deleted' : 'error' );
 		}
 
@@ -200,6 +203,9 @@ class EntryActions {
 		}
 
 		$result = $repo->update( $entry_id, $data );
+		if ( $result ) {
+			do_action( 'ufsc_competitions_entry_after_update', $entry_id, $data, $competition, $club_id, $entry );
+		}
 		self::redirect_with_notice( $competition_id, $result ? 'entry_updated' : 'error' );
 	}
 
@@ -284,6 +290,7 @@ class EntryActions {
 			}
 			$result = $repo->withdraw( $entry_id, (int) $club_id );
 			if ( ! empty( $result['ok'] ) ) {
+				do_action( 'ufsc_entries_after_withdraw', $entry_id, $entry, $competition, $club_id );
 				self::redirect_with_notice( $competition_id, 'entry_withdrawn' );
 			}
 			self::redirect_with_notice( $competition_id, 'error_invalid_status' );
@@ -291,6 +298,7 @@ class EntryActions {
 
 		$result = $repo->cancel( $entry_id, (int) $club_id );
 		if ( ! empty( $result['ok'] ) ) {
+			do_action( 'ufsc_entries_after_cancel', $entry_id, $entry, $competition, $club_id );
 			self::redirect_with_notice( $competition_id, 'entry_cancelled' );
 		}
 		self::redirect_with_notice( $competition_id, 'error_invalid_status' );
@@ -351,6 +359,7 @@ class EntryActions {
 
 		$result = $repo->reopen( $entry_id, $user_id );
 		if ( ! empty( $result['ok'] ) ) {
+			do_action( 'ufsc_entries_after_reopen', $entry_id, $entry, $competition, $entry->club_id ?? 0 );
 			self::redirect_admin_with_notice( 'entry_reopened' );
 		}
 		self::redirect_admin_with_notice( 'error_invalid_status' );

@@ -24,6 +24,7 @@ class Menu {
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
 	public const PAGE_PRINT        = 'ufsc-competitions-print';
 	public const PAGE_SETTINGS     = 'ufsc-competitions-settings';
+	public const PAGE_LOGS         = 'ufsc-competitions-logs';
 	public const PAGE_GUIDE        = 'ufsc-competitions-guide';
 
 	public function register(): void {
@@ -103,6 +104,14 @@ class Menu {
 
 		$this->add_submenu_safe(
 			$cap,
+			self::PAGE_LOGS,
+			__( 'Logs', 'ufsc-licence-competition' ),
+			__( 'Logs', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
 			self::PAGE_GUIDE,
 			__( 'Guide', 'ufsc-licence-competition' ),
 			__( 'Guide', 'ufsc-licence-competition' ),
@@ -147,14 +156,20 @@ class Menu {
 	}
 
 	public function register_page_actions(): void {
-		$page_class = 'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page';
-		if ( ! class_exists( $page_class ) ) {
-			return;
-		}
+		$page_classes = array(
+			'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
+		);
 
-		$page = new $page_class();
-		if ( method_exists( $page, 'register_actions' ) ) {
-			$page->register_actions();
+		foreach ( $page_classes as $page_class ) {
+			if ( ! class_exists( $page_class ) ) {
+				continue;
+			}
+			$page = new $page_class();
+			if ( method_exists( $page, 'register_actions' ) ) {
+				$page->register_actions();
+			}
 		}
 	}
 

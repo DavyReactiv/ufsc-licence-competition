@@ -6,6 +6,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\CategoryPresetRegistry;
+use UFSC\Competitions\Services\AuditLogger;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -15,6 +16,7 @@ class Settings_Page {
 	public function register_actions() {
 		add_action( 'admin_post_ufsc_competitions_save_settings', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_load_presets', array( $this, 'handle_load_presets' ) );
+		add_action( 'admin_post_ufsc_competitions_save_log_settings', array( $this, 'handle_save_log_settings' ) );
 	}
 
 	public function render() {
@@ -29,11 +31,32 @@ class Settings_Page {
 		$preset_package = CategoryPresetRegistry::get_package();
 		$loaded_version = $preset_package['version'] ?? '';
 		$updated_at = $preset_package['updated_at'] ?? '';
+		$audit_enabled = (bool) get_option( AuditLogger::OPTION_ENABLED, false );
+		$audit_retention = absint( get_option( AuditLogger::OPTION_RETENTION_DAYS, AuditLogger::DEFAULT_RETENTION_DAYS ) );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Paramètres', 'ufsc-licence-competition' ); ?></h1>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Configurer les disciplines et charger le référentiel UFSC.', 'ufsc-licence-competition' ); ?></p></div>
+
+			<h2><?php esc_html_e( 'Logs', 'ufsc-licence-competition' ); ?></h2>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
+				<?php wp_nonce_field( 'ufsc_competitions_save_log_settings' ); ?>
+				<input type="hidden" name="action" value="ufsc_competitions_save_log_settings">
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Activer logs', 'ufsc-licence-competition' ); ?></th>
+						<td><label><input type="checkbox" name="audit_enabled" value="1" <?php checked( $audit_enabled ); ?>> <?php esc_html_e( 'Activer la traçabilité des actions.', 'ufsc-licence-competition' ); ?></label></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_audit_retention"><?php esc_html_e( 'Rétention (jours)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input type="number" id="ufsc_audit_retention" name="audit_retention_days" value="<?php echo esc_attr( $audit_retention ); ?>" min="1" class="small-text"></td>
+					</tr>
+				</table>
+				<?php submit_button( __( 'Enregistrer les logs', 'ufsc-licence-competition' ) ); ?>
+			</form>
+
+			<hr />
 
 			<h2><?php esc_html_e( 'Disciplines', 'ufsc-licence-competition' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
@@ -126,6 +149,25 @@ class Settings_Page {
 		$this->redirect_with_notice( 'settings_saved' );
 	}
 
+	public function handle_save_log_settings() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( 'ufsc_competitions_save_log_settings' );
+
+		$enabled = isset( $_POST['audit_enabled'] ) ? 1 : 0;
+		$retention = isset( $_POST['audit_retention_days'] ) ? absint( $_POST['audit_retention_days'] ) : AuditLogger::DEFAULT_RETENTION_DAYS;
+		if ( $retention < 1 ) {
+			$retention = AuditLogger::DEFAULT_RETENTION_DAYS;
+		}
+
+		update_option( AuditLogger::OPTION_ENABLED, (bool) $enabled, false );
+		update_option( AuditLogger::OPTION_RETENTION_DAYS, $retention, false );
+
+		$this->redirect_with_notice( 'logs_settings_saved' );
+	}
+
 	public function handle_load_presets() {
 		if ( ! Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
@@ -142,6 +184,7 @@ class Settings_Page {
 		$messages = array(
 			'settings_saved' => __( 'Disciplines enregistrées.', 'ufsc-licence-competition' ),
 			'presets_loaded' => __( 'Référentiel UFSC mis à jour.', 'ufsc-licence-competition' ),
+			'logs_settings_saved' => __( 'Paramètres des logs enregistrés.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {

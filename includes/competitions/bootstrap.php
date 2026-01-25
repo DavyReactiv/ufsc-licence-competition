@@ -44,6 +44,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/PrintRenderer.php',
 		$base . '/Services/Plateau_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
+		$base . '/Services/AuditLogger.php',
 		// Repository helpers must be available to all repos
 		$base . '/Repositories/RepositoryHelpers.php',
 		// Repositories (ClubRepository must be loaded here)
@@ -92,6 +93,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
 		$base . '/Admin/Pages/Settings_Page.php',
+		$base . '/Admin/Pages/CompetitionLogs_Page.php',
 		$base . '/Admin/Pages/Guide_Page.php',
 		$base . '/Admin/Pages/Quality_Page.php',
 		$base . '/Admin/Pages/Print_Page.php',
@@ -174,6 +176,10 @@ add_action(
 
 		if ( ! is_admin() && class_exists( '\UFSC\Competitions\Front\Front' ) ) {
 			\UFSC\Competitions\Front\Front::init();
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
+			\UFSC\Competitions\Services\AuditLogger::register_hooks();
 		}
 	}
 );
