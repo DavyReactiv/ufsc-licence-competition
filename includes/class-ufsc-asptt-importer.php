@@ -91,7 +91,7 @@ class UFSC_LC_ASPTT_Importer {
 
 		$hashes_sql = "CREATE TABLE {$hashes_table} (
 			licence_number varchar(64) NOT NULL,
-			row_hash char(40) NOT NULL,
+			row_hash char(64) NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (licence_number)
 		) {$charset_collate};";
@@ -1099,40 +1099,11 @@ class UFSC_LC_ASPTT_Importer {
 
 		$mode = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
 
-		if ( 'import' !== $mode ) {
-			$log_id = $this->service->insert_import_log(
-				array(
-					'user_id'      => get_current_user_id(),
-					'file_name'    => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
-					'mode'         => 'dry_run',
-					'total_rows'   => isset( $preview['stats']['total'] ) ? (int) $preview['stats']['total'] : 0,
-					'success_rows' => 0,
-					'error_rows'   => 0,
-					'status'       => 'completed',
-				)
-			);
-			if ( $log_id ) {
-				$this->service->record_import_log_meta(
-					$log_id,
-					array(
-						'incremental' => $incremental ? 'yes' : 'no',
-					)
-				);
-			}
-
-			$preview['notice'] = array(
-				'type'    => 'info',
-				'message' => __( 'Simulation enregistrée.', 'ufsc-licence-competition' ),
-			);
-
-			$this->persist_preview( $preview );
-			wp_safe_redirect( $this->get_admin_url() );
-			exit;
-		}
-
 		$auto_approve  = isset( $_POST['ufsc_asptt_auto_approve'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_approve'] ) : true;
 		$force_club_id = isset( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
 		$mapping       = isset( $preview['mapping'] ) ? $preview['mapping'] : array();
+
+		$is_dry_run = ( 'import' !== $mode );
 
 		$result = $this->service->import_from_file(
 			$preview['file_path'],
@@ -1141,7 +1112,8 @@ class UFSC_LC_ASPTT_Importer {
 			$auto_approve,
 			$season_end_year_override,
 			$auto_save_alias,
-			$incremental
+			$incremental,
+			$is_dry_run
 		);
 
 		if ( is_wp_error( $result ) ) {
@@ -1149,7 +1121,7 @@ class UFSC_LC_ASPTT_Importer {
 				array(
 					'user_id'       => get_current_user_id(),
 					'file_name'     => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
-					'mode'          => 'import',
+					'mode'          => $is_dry_run ? 'dry_run' : 'import',
 					'status'        => 'failed',
 					'error_message' => $result->get_error_message(),
 				)
@@ -1182,7 +1154,7 @@ class UFSC_LC_ASPTT_Importer {
 				array(
 					'user_id'      => get_current_user_id(),
 					'file_name'    => isset( $preview['file_name'] ) ? $preview['file_name'] : '',
-					'mode'         => 'import',
+					'mode'         => $is_dry_run ? 'dry_run' : 'import',
 					'total_rows'   => $total_rows,
 					'success_rows' => $success_rows,
 					'error_rows'   => $error_rows,
@@ -1208,23 +1180,28 @@ class UFSC_LC_ASPTT_Importer {
 				);
 			}
 
-			$licences_created = isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0;
-			$licences_updated = isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0;
-
+			$licences_created  = isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0;
+			$licences_updated  = isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0;
 			$licences_skipped  = isset( $stats['licences_skipped'] ) ? (int) $stats['licences_skipped'] : 0;
 			$licences_rejected = isset( $stats['rejected_rows'] ) ? (int) $stats['rejected_rows'] : 0;
 			$duration_display  = $duration_sec ? number_format_i18n( $duration_sec, 2 ) : '0';
 			$rate_display      = $rows_per_sec ? number_format_i18n( $rows_per_sec, 2 ) : '0';
+			$hash_storage_label = $hash_storage ? $hash_storage : 'option';
+
+			$message_template = $is_dry_run
+				? __( 'Simulation terminée — Créés: %1$d | Mis à jour: %2$d | Inchangés: %3$d | Rejetés: %4$d — Durée: %5$s s — Débit: %6$s lignes/s — Hash: %7$s', 'ufsc-licence-competition' )
+				: __( 'Import terminé — Créés: %1$d | Mis à jour: %2$d | Inchangés: %3$d | Rejetés: %4$d — Durée: %5$s s — Débit: %6$s lignes/s — Hash: %7$s', 'ufsc-licence-competition' );
 
 			$message = sprintf(
-				/* translators: 1: created, 2: updated, 3: skipped, 4: rejected, 5: duration (s), 6: rows/s */
-				__( 'Import terminé. Créées: %1$d, mises à jour: %2$d, ignorées: %3$d, rejetées: %4$d. Temps: %5$s s, débit: %6$s lignes/s.', 'ufsc-licence-competition' ),
+				/* translators: 1: created, 2: updated, 3: skipped, 4: rejected, 5: duration (s), 6: rows/s, 7: hash storage */
+				$message_template,
 				$licences_created,
 				$licences_updated,
 				$licences_skipped,
 				$licences_rejected,
 				$duration_display,
-				$rate_display
+				$rate_display,
+				$hash_storage_label
 			);
 
 			if ( ! empty( $result['hash_notice'] ) ) {
@@ -1236,7 +1213,7 @@ class UFSC_LC_ASPTT_Importer {
 				'message' => $message,
 			);
 
-			if ( $error_rows ) {
+			if ( $licences_rejected > 0 ) {
 				$notice['review_link']  = add_query_arg(
 					array(
 						'page' => 'ufsc-lc-import-asptt',
@@ -1244,14 +1221,18 @@ class UFSC_LC_ASPTT_Importer {
 					),
 					admin_url( 'admin.php' )
 				);
-				$notice['review_label'] = __( 'Aller au review', 'ufsc-licence-competition' );
+				$notice['review_label'] = __( 'Voir détails', 'ufsc-licence-competition' );
 			}
 
 			$preview['notice']      = $notice;
 			$preview['file_hash']   = $file_hash;
 			$preview['file_size']   = $file_size;
 			$preview['total_rows']  = $total_rows;
-			$this->persist_last_import( $preview, $result );
+			$preview['report']      = isset( $result['report'] ) ? $result['report'] : array();
+
+			if ( ! $is_dry_run ) {
+				$this->persist_last_import( $preview, $result );
+			}
 		}
 
 		$this->persist_preview( $preview );
@@ -1547,8 +1528,9 @@ class UFSC_LC_ASPTT_Importer {
 							<?php
 							echo esc_html(
 								sprintf(
-									/* translators: 1: licence number, 2: error */
-									__( '%1$s – %2$s', 'ufsc-licence-competition' ),
+									/* translators: 1: line number, 2: licence number, 3: error */
+									__( 'Ligne %1$d – %2$s – %3$s', 'ufsc-licence-competition' ),
+									isset( $error['line'] ) ? (int) $error['line'] : 0,
 									isset( $error['asptt_number'] ) ? $error['asptt_number'] : '—',
 									isset( $error['error'] ) ? $error['error'] : ''
 								)
