@@ -1174,6 +1174,9 @@ class UFSC_LC_ASPTT_Importer {
 			$error_rows   = isset( $stats['errors'] ) ? (int) $stats['errors'] : 0;
 			$file_hash    = $this->service->compute_file_hash( $preview['file_path'] );
 			$file_size    = isset( $preview['file_size'] ) ? (int) $preview['file_size'] : ( file_exists( $preview['file_path'] ) ? (int) filesize( $preview['file_path'] ) : 0 );
+			$duration_sec = isset( $result['duration_sec'] ) ? (float) $result['duration_sec'] : 0.0;
+			$rows_per_sec = isset( $result['rows_per_sec'] ) ? (float) $result['rows_per_sec'] : 0.0;
+			$hash_storage = isset( $result['hash_storage'] ) ? (string) $result['hash_storage'] : '';
 
 			$log_id = $this->service->insert_import_log(
 				array(
@@ -1198,6 +1201,9 @@ class UFSC_LC_ASPTT_Importer {
 						'file_hash'     => $file_hash,
 						'file_size'     => $file_size,
 						'file_rows'     => $total_rows,
+						'duration_sec'  => $duration_sec,
+						'rows_per_sec'  => $rows_per_sec,
+						'hash_storage'  => $hash_storage,
 					)
 				);
 			}
@@ -1205,17 +1211,25 @@ class UFSC_LC_ASPTT_Importer {
 			$licences_created = isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0;
 			$licences_updated = isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0;
 
-			$licences_skipped = isset( $stats['licences_skipped'] ) ? (int) $stats['licences_skipped'] : 0;
+			$licences_skipped  = isset( $stats['licences_skipped'] ) ? (int) $stats['licences_skipped'] : 0;
+			$licences_rejected = isset( $stats['rejected_rows'] ) ? (int) $stats['rejected_rows'] : 0;
+			$duration_display  = $duration_sec ? number_format_i18n( $duration_sec, 2 ) : '0';
+			$rate_display      = $rows_per_sec ? number_format_i18n( $rows_per_sec, 2 ) : '0';
 
 			$message = sprintf(
-				/* translators: 1: success rows, 2: error rows, 3: created licences, 4: updated licences, 5: skipped licences */
-				__( 'Import terminé. Succès: %1$d, erreurs: %2$d, licences créées: %3$d, licences mises à jour: %4$d, licences ignorées: %5$d.', 'ufsc-licence-competition' ),
-				$success_rows,
-				$error_rows,
+				/* translators: 1: created, 2: updated, 3: skipped, 4: rejected, 5: duration (s), 6: rows/s */
+				__( 'Import terminé. Créées: %1$d, mises à jour: %2$d, ignorées: %3$d, rejetées: %4$d. Temps: %5$s s, débit: %6$s lignes/s.', 'ufsc-licence-competition' ),
 				$licences_created,
 				$licences_updated,
-				$licences_skipped
+				$licences_skipped,
+				$licences_rejected,
+				$duration_display,
+				$rate_display
 			);
+
+			if ( ! empty( $result['hash_notice'] ) ) {
+				$message .= ' ' . $result['hash_notice'];
+			}
 
 			$notice = array(
 				'type'    => $error_rows ? 'warning' : 'success',
@@ -1438,6 +1452,9 @@ class UFSC_LC_ASPTT_Importer {
 							<th><?php esc_html_e( 'Hash fichier', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Taille', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Lignes fichier', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Durée (s)', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Débit (lignes/s)', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Stockage hash', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Utilisateur', 'ufsc-licence-competition' ); ?></th>
 						</tr>
@@ -1461,12 +1478,15 @@ class UFSC_LC_ASPTT_Importer {
 								<td><?php echo esc_html( isset( $meta['file_hash'] ) && $meta['file_hash'] ? $meta['file_hash'] : '—' ); ?></td>
 								<td><?php echo esc_html( isset( $meta['file_size'] ) ? (int) $meta['file_size'] : 0 ); ?></td>
 								<td><?php echo esc_html( isset( $meta['file_rows'] ) ? (int) $meta['file_rows'] : 0 ); ?></td>
+								<td><?php echo esc_html( isset( $meta['duration_sec'] ) ? number_format_i18n( (float) $meta['duration_sec'], 2 ) : '0' ); ?></td>
+								<td><?php echo esc_html( isset( $meta['rows_per_sec'] ) ? number_format_i18n( (float) $meta['rows_per_sec'], 2 ) : '0' ); ?></td>
+								<td><?php echo esc_html( isset( $meta['hash_storage'] ) ? $meta['hash_storage'] : '—' ); ?></td>
 								<td><?php echo esc_html( $log->status ); ?></td>
 								<td><?php echo esc_html( $user ? $user->display_name : (string) $log->user_id ); ?></td>
 							</tr>
 							<?php if ( ! empty( $log->error_message ) ) : ?>
 								<tr>
-									<td colspan="16">
+									<td colspan="19">
 										<div class="ufsc-lc-import-log-error"><?php echo esc_html( $log->error_message ); ?></div>
 									</td>
 								</tr>
@@ -1503,6 +1523,9 @@ class UFSC_LC_ASPTT_Importer {
 				<li><?php echo esc_html( sprintf( __( 'Clubs résolus: %d', 'ufsc-licence-competition' ), isset( $stats['club_resolved'] ) ? (int) $stats['club_resolved'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Clubs non résolus: %d', 'ufsc-licence-competition' ), isset( $stats['club_unresolved'] ) ? (int) $stats['club_unresolved'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Mode incrémental: %s', 'ufsc-licence-competition' ), ! empty( $last_import['incremental'] ) ? __( 'oui', 'ufsc-licence-competition' ) : __( 'non', 'ufsc-licence-competition' ) ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Durée: %s s', 'ufsc-licence-competition' ), isset( $last_import['duration_sec'] ) ? number_format_i18n( (float) $last_import['duration_sec'], 2 ) : '0' ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Débit: %s lignes/s', 'ufsc-licence-competition' ), isset( $last_import['rows_per_sec'] ) ? number_format_i18n( (float) $last_import['rows_per_sec'], 2 ) : '0' ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Stockage hash: %s', 'ufsc-licence-competition' ), isset( $last_import['hash_storage'] ) && $last_import['hash_storage'] ? $last_import['hash_storage'] : '—' ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Hash fichier: %s', 'ufsc-licence-competition' ), isset( $last_import['file_hash'] ) && $last_import['file_hash'] ? $last_import['file_hash'] : '—' ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Taille fichier: %d octets', 'ufsc-licence-competition' ), isset( $last_import['file_size'] ) ? (int) $last_import['file_size'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Lignes fichier: %d', 'ufsc-licence-competition' ), isset( $last_import['total_rows'] ) ? (int) $last_import['total_rows'] : 0 ) ); ?></li>
@@ -1605,6 +1628,9 @@ class UFSC_LC_ASPTT_Importer {
 		$stats             = isset( $result['stats'] ) && is_array( $result['stats'] ) ? $result['stats'] : array();
 		$report            = isset( $result['report'] ) && is_array( $result['report'] ) ? $result['report'] : array();
 		$delta             = isset( $result['delta'] ) && is_array( $result['delta'] ) ? $result['delta'] : array();
+		$duration_sec      = isset( $result['duration_sec'] ) ? (float) $result['duration_sec'] : 0.0;
+		$rows_per_sec      = isset( $result['rows_per_sec'] ) ? (float) $result['rows_per_sec'] : 0.0;
+		$hash_storage      = isset( $result['hash_storage'] ) ? (string) $result['hash_storage'] : '';
 
 		$created_documents = array_values( array_filter( array_unique( $created_documents ) ) );
 		$created_meta      = array_values( array_filter( array_unique( $created_meta ) ) );
@@ -1617,6 +1643,9 @@ class UFSC_LC_ASPTT_Importer {
 				'file_size'         => isset( $preview['file_size'] ) ? (int) $preview['file_size'] : 0,
 				'total_rows'        => isset( $preview['total_rows'] ) ? (int) $preview['total_rows'] : 0,
 				'incremental'       => isset( $preview['incremental'] ) ? (bool) $preview['incremental'] : true,
+				'duration_sec'      => $duration_sec,
+				'rows_per_sec'      => $rows_per_sec,
+				'hash_storage'      => $hash_storage,
 				'created_at'        => current_time( 'mysql' ),
 				'created_documents' => $created_documents,
 				'created_meta'      => $created_meta,
