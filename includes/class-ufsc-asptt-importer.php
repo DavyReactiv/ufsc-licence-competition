@@ -122,6 +122,9 @@ class UFSC_LC_ASPTT_Importer {
 			'total'                => 0,
 			'clubs_linked'         => 0,
 			'licences_linked'      => 0,
+			'licences_created'     => 0,
+			'licences_updated'     => 0,
+			'clubs_from_note'      => 0,
 			'club_not_found'       => 0,
 			'needs_review'         => 0,
 			'licence_not_found'    => 0,
@@ -572,6 +575,9 @@ class UFSC_LC_ASPTT_Importer {
 			<li><?php echo esc_html( sprintf( __( 'Total lignes: %d', 'ufsc-licence-competition' ), $stats['total'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'Clubs associés: %d', 'ufsc-licence-competition' ), $stats['clubs_linked'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'Licences matchées: %d', 'ufsc-licence-competition' ), $stats['licences_linked'] ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'Licences créées: %d', 'ufsc-licence-competition' ), isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0 ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'Licences mises à jour: %d', 'ufsc-licence-competition' ), isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0 ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'Clubs détectés depuis la note: %d', 'ufsc-licence-competition' ), isset( $stats['clubs_from_note'] ) ? (int) $stats['clubs_from_note'] : 0 ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'club_not_found: %d', 'ufsc-licence-competition' ), $stats['club_not_found'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'needs_review: %d', 'ufsc-licence-competition' ), $stats['needs_review'] ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'licence_not_found: %d', 'ufsc-licence-competition' ), $stats['licence_not_found'] ) ); ?></li>
@@ -855,11 +861,18 @@ class UFSC_LC_ASPTT_Importer {
 		return array(
 			'Nom'                    => __( 'Nom', 'ufsc-licence-competition' ),
 			'Prenom'                 => __( 'Prénom', 'ufsc-licence-competition' ),
+			'Email'                  => __( 'Email', 'ufsc-licence-competition' ),
+			'Adresse'                => __( 'Adresse', 'ufsc-licence-competition' ),
+			'Ville'                  => __( 'Ville', 'ufsc-licence-competition' ),
+			'Code postal'            => __( 'Code postal', 'ufsc-licence-competition' ),
+			'Téléphone'              => __( 'Téléphone', 'ufsc-licence-competition' ),
 			'Date de naissance'      => __( 'Date de naissance', 'ufsc-licence-competition' ),
 			'Saison (année de fin)'  => __( 'Saison (année de fin)', 'ufsc-licence-competition' ),
+			'Activité'               => __( 'Activité', 'ufsc-licence-competition' ),
 			'N° Licence'             => __( 'N° Licence', 'ufsc-licence-competition' ),
 			'Date de création de la licence' => __( 'Date de création de la licence', 'ufsc-licence-competition' ),
 			'Note'                   => __( 'Note', 'ufsc-licence-competition' ),
+			'Région'                 => __( 'Région', 'ufsc-licence-competition' ),
 			'genre'                  => __( 'Genre', 'ufsc-licence-competition' ),
 		);
 	}
@@ -1104,11 +1117,16 @@ class UFSC_LC_ASPTT_Importer {
 				)
 			);
 
+			$licences_created = isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0;
+			$licences_updated = isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0;
+
 			$message = sprintf(
-				/* translators: 1: success rows, 2: error rows */
-				__( 'Import terminé. Succès: %1$d, erreurs: %2$d.', 'ufsc-licence-competition' ),
+				/* translators: 1: success rows, 2: error rows, 3: created licences, 4: updated licences */
+				__( 'Import terminé. Succès: %1$d, erreurs: %2$d, licences créées: %3$d, licences mises à jour: %4$d.', 'ufsc-licence-competition' ),
 				$success_rows,
-				$error_rows
+				$error_rows,
+				$licences_created,
+				$licences_updated
 			);
 
 			$notice = array(
