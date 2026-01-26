@@ -155,6 +155,14 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
+	/*
+	 * Tests manuels (prod, sans régression) :
+	 * 1) Simulation + "Voir détails" : lancer un dry-run avec erreurs, vérifier que le lien "Voir détails"
+	 *    ouvre le rapport dry-run sans écritures en base (licences/documents/meta/hash).
+	 * 2) Migration table hash existante : sur une table de hash pré-existante, relancer un import incrémental
+	 *    et vérifier l'utilisation de la clé composite club_id + licence_number (fallback licence_number seul
+	 *    migré vers la clé composite).
+	 */
 	public function import_from_file( $file_path, $force_club_id, $mapping = array(), $auto_approve = true, $season_end_year_override = null, $auto_save_alias = true, $incremental = true, $dry_run = false ) {
 		global $wpdb;
 
