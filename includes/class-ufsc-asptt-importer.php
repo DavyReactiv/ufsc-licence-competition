@@ -22,6 +22,7 @@ class UFSC_LC_ASPTT_Importer {
 
 	const SESSION_KEY = 'ufsc_lc_asptt_preview';
 	const LAST_IMPORT_KEY = 'ufsc_lc_asptt_last_import';
+	const LAST_DRY_RUN_KEY = 'ufsc_asptt_last_dry_run_report';
 
 	private $legacy_enabled = false;
 	private $service;
@@ -90,10 +91,11 @@ class UFSC_LC_ASPTT_Importer {
 		) {$charset_collate};";
 
 		$hashes_sql = "CREATE TABLE {$hashes_table} (
+			club_id int NOT NULL DEFAULT 0,
 			licence_number varchar(64) NOT NULL,
 			row_hash char(64) NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY  (licence_number)
+			PRIMARY KEY  (club_id, licence_number)
 		) {$charset_collate};";
 
 		dbDelta( $aliases_sql );
@@ -287,7 +289,8 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club, $incremental ) {
-		$last_import = $this->get_last_import();
+		$report_mode = $this->get_report_mode( $preview );
+		$last_import = $this->get_last_report_for_mode( $report_mode );
 		$auto_validate_threshold = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_asptt_auto_validate_threshold() : 0;
 		$auto_validate_score = $this->get_auto_validate_score( $stats );
 		$auto_approve_default = 0 === $auto_validate_threshold ? true : ( $auto_validate_score >= $auto_validate_threshold );
@@ -305,7 +308,7 @@ class UFSC_LC_ASPTT_Importer {
 			</div>
 		<?php endif; ?>
 
-		<?php $this->render_last_import_report( $last_import ); ?>
+		<?php $this->render_last_import_report( $last_import, $report_mode ); ?>
 
 		<?php if ( empty( $rows ) ) : ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
@@ -1098,6 +1101,7 @@ class UFSC_LC_ASPTT_Importer {
 		$preview['pinned_apply']             = $pinned_apply;
 
 		$mode = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
+		$preview['mode'] = $mode;
 
 		$auto_approve  = isset( $_POST['ufsc_asptt_auto_approve'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_approve'] ) : true;
 		$force_club_id = isset( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
@@ -1214,13 +1218,22 @@ class UFSC_LC_ASPTT_Importer {
 			);
 
 			if ( $licences_rejected > 0 ) {
-				$notice['review_link']  = add_query_arg(
-					array(
-						'page' => 'ufsc-lc-import-asptt',
-						'tab'  => 'review',
-					),
-					admin_url( 'admin.php' )
-				);
+				$notice['review_link'] = $is_dry_run
+					? add_query_arg(
+						array(
+							'page'   => 'ufsc-lc-import-asptt',
+							'tab'    => 'import',
+							'report' => 'dry_run',
+						),
+						admin_url( 'admin.php' )
+					)
+					: add_query_arg(
+						array(
+							'page' => 'ufsc-lc-import-asptt',
+							'tab'  => 'review',
+						),
+						admin_url( 'admin.php' )
+					);
 				$notice['review_label'] = __( 'Voir détails', 'ufsc-licence-competition' );
 			}
 
@@ -1230,7 +1243,9 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['total_rows']  = $total_rows;
 			$preview['report']      = isset( $result['report'] ) ? $result['report'] : array();
 
-			if ( ! $is_dry_run ) {
+			if ( $is_dry_run ) {
+				$this->persist_last_dry_run_report( $preview, $result );
+			} else {
 				$this->persist_last_import( $preview, $result );
 			}
 		}
@@ -1480,10 +1495,14 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_last_import_report( $last_import ) {
+	private function render_last_import_report( $last_import, $report_mode = 'import' ) {
 		if ( empty( $last_import['stats'] ) || ! is_array( $last_import['stats'] ) ) {
 			return;
 		}
+
+		$title = ( 'dry_run' === $report_mode )
+			? __( 'Dernière simulation', 'ufsc-licence-competition' )
+			: __( 'Dernier import', 'ufsc-licence-competition' );
 
 		$stats  = $last_import['stats'];
 		$report = isset( $last_import['report'] ) ? (array) $last_import['report'] : array();
@@ -1492,7 +1511,7 @@ class UFSC_LC_ASPTT_Importer {
 		$delta  = isset( $last_import['delta'] ) ? (array) $last_import['delta'] : array();
 		?>
 		<div class="ufsc-lc-import-report">
-			<h2><?php esc_html_e( 'Dernier import', 'ufsc-licence-competition' ); ?></h2>
+			<h2><?php echo esc_html( $title ); ?></h2>
 			<ul>
 				<li><?php echo esc_html( sprintf( __( 'Total lignes: %d', 'ufsc-licence-competition' ), isset( $stats['total'] ) ? (int) $stats['total'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Valides: %d', 'ufsc-licence-competition' ), isset( $stats['valid_rows'] ) ? (int) $stats['valid_rows'] : 0 ) ); ?></li>
@@ -1604,6 +1623,32 @@ class UFSC_LC_ASPTT_Importer {
 		return is_array( $last_import ) ? $last_import : array();
 	}
 
+	private function get_last_dry_run_report() {
+		$last_report = get_option( self::LAST_DRY_RUN_KEY, array() );
+		return is_array( $last_report ) ? $last_report : array();
+	}
+
+	private function get_report_mode( $preview ) {
+		$requested = isset( $_GET['report'] ) ? sanitize_key( wp_unslash( $_GET['report'] ) ) : '';
+		if ( 'dry_run' === $requested ) {
+			return 'dry_run';
+		}
+		if ( 'import' === $requested ) {
+			return 'import';
+		}
+
+		$mode = isset( $preview['mode'] ) ? sanitize_key( $preview['mode'] ) : '';
+		if ( 'dry_run' === $mode ) {
+			return 'dry_run';
+		}
+
+		return 'import';
+	}
+
+	private function get_last_report_for_mode( $mode ) {
+		return ( 'dry_run' === $mode ) ? $this->get_last_dry_run_report() : $this->get_last_import();
+	}
+
 	private function persist_last_import( $preview, $result ) {
 		$created_documents = isset( $result['created_documents'] ) ? array_map( 'absint', (array) $result['created_documents'] ) : array();
 		$created_meta      = isset( $result['created_meta'] ) ? array_map( 'absint', (array) $result['created_meta'] ) : array();
@@ -1634,6 +1679,36 @@ class UFSC_LC_ASPTT_Importer {
 				'stats'             => $stats,
 				'report'            => $report,
 				'delta'             => $delta,
+			),
+			false
+		);
+	}
+
+	private function persist_last_dry_run_report( $preview, $result ) {
+		$stats        = isset( $result['stats'] ) && is_array( $result['stats'] ) ? $result['stats'] : array();
+		$report       = isset( $result['report'] ) && is_array( $result['report'] ) ? $result['report'] : array();
+		$duration_sec = isset( $result['duration_sec'] ) ? (float) $result['duration_sec'] : 0.0;
+		$rows_per_sec = isset( $result['rows_per_sec'] ) ? (float) $result['rows_per_sec'] : 0.0;
+		$hash_storage = isset( $result['hash_storage'] ) ? (string) $result['hash_storage'] : '';
+
+		if ( isset( $report['errors'] ) && is_array( $report['errors'] ) ) {
+			$report['errors'] = array_values( array_slice( $report['errors'], 0, 50 ) );
+		}
+
+		update_option(
+			self::LAST_DRY_RUN_KEY,
+			array(
+				'file_name'    => isset( $preview['file_name'] ) ? sanitize_text_field( $preview['file_name'] ) : '',
+				'file_hash'    => isset( $preview['file_hash'] ) ? (string) $preview['file_hash'] : '',
+				'file_size'    => isset( $preview['file_size'] ) ? (int) $preview['file_size'] : 0,
+				'total_rows'   => isset( $preview['total_rows'] ) ? (int) $preview['total_rows'] : 0,
+				'incremental'  => isset( $preview['incremental'] ) ? (bool) $preview['incremental'] : true,
+				'duration_sec' => $duration_sec,
+				'rows_per_sec' => $rows_per_sec,
+				'hash_storage' => $hash_storage,
+				'created_at'   => current_time( 'mysql' ),
+				'stats'        => $stats,
+				'report'       => $report,
 			),
 			false
 		);

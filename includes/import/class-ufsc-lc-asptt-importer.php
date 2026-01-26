@@ -270,12 +270,30 @@ class UFSC_LC_ASPTT_Import_Service {
 					}
 
 					$current_hash = $this->build_row_hash( $data );
-					$existing_id  = $this->find_existing_licence_id( $asptt_no, isset( $data['club_id'] ) ? (int) $data['club_id'] : 0, $existing_licences );
-					$previous_hash = $hash_table_available
-						? ( isset( $existing_hashes[ $asptt_no ] ) ? $existing_hashes[ $asptt_no ] : '' )
-						: $this->get_existing_option_hash( $asptt_no, isset( $data['club_id'] ) ? (int) $data['club_id'] : 0 );
+					$club_id      = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
+					$existing_id  = $this->find_existing_licence_id( $asptt_no, $club_id, $existing_licences );
+					$previous_hash = '';
+					$used_fallback_hash = false;
+
+					if ( $hash_table_available ) {
+						$hash_key = $this->build_hash_option_key( $asptt_no, $club_id );
+						if ( isset( $existing_hashes[ $hash_key ] ) ) {
+							$previous_hash = (string) $existing_hashes[ $hash_key ];
+						} else {
+							$fallback_key = $this->build_hash_option_key( $asptt_no, 0 );
+							if ( isset( $existing_hashes[ $fallback_key ] ) ) {
+								$previous_hash      = (string) $existing_hashes[ $fallback_key ];
+								$used_fallback_hash = true;
+							}
+						}
+					} else {
+						$previous_hash = $this->get_existing_option_hash( $asptt_no, $club_id, $used_fallback_hash );
+					}
 
 					if ( $incremental && $existing_id && $current_hash && $previous_hash && hash_equals( $previous_hash, $current_hash ) ) {
+						if ( $used_fallback_hash && ! $dry_run ) {
+							$this->store_hash( $data['asptt_number'], $club_id, $previous_hash, $hash_table_available );
+						}
 						$existing_document = $this->find_document_by_source_number( $asptt_no );
 						if ( $existing_document ) {
 							$stats['licences_skipped']++;
@@ -455,7 +473,7 @@ class UFSC_LC_ASPTT_Import_Service {
 
 					if ( $current_hash ) {
 						if ( ! $dry_run ) {
-							$this->store_hash( $data['asptt_number'], (int) $data['club_id'], $current_hash, $hash_table_available );
+							$this->store_hash( $data['asptt_number'], $club_id, $current_hash, $hash_table_available );
 						}
 					}
 
@@ -1877,17 +1895,10 @@ class UFSC_LC_ASPTT_Import_Service {
 				return false;
 			}
 
-			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-			$charset_collate = $wpdb->get_charset_collate();
-			$sql             = "CREATE TABLE {$table} (
-				licence_number varchar(64) NOT NULL,
-				row_hash char(64) NOT NULL,
-				updated_at datetime NOT NULL,
-				PRIMARY KEY  (licence_number)
-			) {$charset_collate};";
-
-			dbDelta( $sql );
+			if ( ! $this->upgrade_hashes_table_schema( $table ) ) {
+				$this->hash_table_notice = __( 'Table de hash indisponible : stockage en option utilisé.', 'ufsc-licence-competition' );
+				return false;
+			}
 
 			if ( $this->is_hash_table_available() ) {
 				return true;
@@ -1911,10 +1922,11 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$charset_collate = $wpdb->get_charset_collate();
 		$sql             = "CREATE TABLE {$table} (
+			club_id int NOT NULL DEFAULT 0,
 			licence_number varchar(64) NOT NULL,
 			row_hash char(64) NOT NULL,
 			updated_at datetime NOT NULL,
-			PRIMARY KEY  (licence_number)
+			PRIMARY KEY  (club_id, licence_number)
 		) {$charset_collate};";
 
 		dbDelta( $sql );
@@ -1933,6 +1945,10 @@ class UFSC_LC_ASPTT_Import_Service {
 			return false;
 		}
 
+		if ( ! $this->column_exists( $table, 'club_id' ) ) {
+			return false;
+		}
+
 		global $wpdb;
 		$row = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", 'row_hash' ) );
 		if ( empty( $row->Type ) ) {
@@ -1943,7 +1959,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			return (int) $matches[1] >= 64;
 		}
 
-		return true;
+		return $this->has_hash_table_composite_key( $table );
 	}
 
 	private function get_existing_hashes( $license_numbers, $hash_table_available ) {
@@ -1958,7 +1974,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			$placeholders = implode( ',', array_fill( 0, count( $license_numbers ), '%s' ) );
 			$rows         = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT licence_number, row_hash FROM {$table} WHERE REPLACE(licence_number, ' ', '') IN ({$placeholders})",
+					"SELECT club_id, licence_number, row_hash FROM {$table} WHERE REPLACE(licence_number, ' ', '') IN ({$placeholders})",
 					$license_numbers
 				)
 			);
@@ -1967,7 +1983,8 @@ class UFSC_LC_ASPTT_Import_Service {
 			foreach ( $rows as $row ) {
 				$normalized = $this->normalize_license_number( $row->licence_number );
 				if ( '' !== $normalized ) {
-					$hashes[ $normalized ] = (string) $row->row_hash;
+					$club_id = isset( $row->club_id ) ? (int) $row->club_id : 0;
+					$hashes[ $this->build_hash_option_key( $normalized, $club_id ) ] = (string) $row->row_hash;
 				}
 			}
 			return $hashes;
@@ -1992,11 +2009,12 @@ class UFSC_LC_ASPTT_Import_Service {
 			$wpdb->replace(
 				$table,
 				array(
+					'club_id'        => $club_id,
 					'licence_number' => $license_number,
 					'row_hash'       => $hash,
 					'updated_at'     => current_time( 'mysql' ),
 				),
-				array( '%s', '%s', '%s' )
+				array( '%d', '%s', '%s', '%s' )
 			);
 			return;
 		}
@@ -2639,7 +2657,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		return $license_number;
 	}
 
-	private function get_existing_option_hash( $license_number, $club_id ) {
+	private function get_existing_option_hash( $license_number, $club_id, &$used_fallback = false ) {
 		$stored = get_option( self::HASHES_OPTION_KEY, array() );
 		if ( ! is_array( $stored ) ) {
 			return '';
@@ -2651,7 +2669,64 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$normalized = $this->normalize_license_number( $license_number );
-		return isset( $stored[ $normalized ] ) ? (string) $stored[ $normalized ] : '';
+		if ( isset( $stored[ $normalized ] ) ) {
+			$used_fallback = true;
+			return (string) $stored[ $normalized ];
+		}
+
+		return '';
+	}
+
+	private function upgrade_hashes_table_schema( $table ) {
+		global $wpdb;
+
+		$has_club_id = $this->column_exists( $table, 'club_id' );
+		if ( ! $has_club_id ) {
+			$altered = $wpdb->query( "ALTER TABLE {$table} ADD COLUMN club_id int NOT NULL DEFAULT 0" );
+			if ( false === $altered ) {
+				return false;
+			}
+		}
+
+		$primary_columns = $this->get_primary_key_columns( $table );
+		$expected        = array( 'club_id', 'licence_number' );
+		if ( $primary_columns !== $expected ) {
+			if ( empty( $primary_columns ) ) {
+				$altered = $wpdb->query( "ALTER TABLE {$table} ADD PRIMARY KEY (club_id, licence_number)" );
+			} else {
+				$altered = $wpdb->query( "ALTER TABLE {$table} DROP PRIMARY KEY, ADD PRIMARY KEY (club_id, licence_number)" );
+			}
+			if ( false === $altered ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private function get_primary_key_columns( $table ) {
+		global $wpdb;
+
+		$rows = $wpdb->get_results( "SHOW INDEX FROM {$table} WHERE Key_name = 'PRIMARY'" );
+		if ( empty( $rows ) ) {
+			return array();
+		}
+
+		$columns = array();
+		foreach ( $rows as $row ) {
+			$seq = isset( $row->Seq_in_index ) ? (int) $row->Seq_in_index : 0;
+			if ( $seq > 0 && ! empty( $row->Column_name ) ) {
+				$columns[ $seq ] = $row->Column_name;
+			}
+		}
+
+		ksort( $columns );
+
+		return array_values( $columns );
+	}
+
+	private function has_hash_table_composite_key( $table ) {
+		return $this->get_primary_key_columns( $table ) === array( 'club_id', 'licence_number' );
 	}
 
 	private function find_existing_licence_id( $license_number, $club_id, $licence_map ) {
