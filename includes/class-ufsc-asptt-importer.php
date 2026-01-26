@@ -1190,7 +1190,11 @@ class UFSC_LC_ASPTT_Importer {
 			$licences_rejected = isset( $stats['rejected_rows'] ) ? (int) $stats['rejected_rows'] : 0;
 			$duration_display  = $duration_sec ? number_format_i18n( $duration_sec, 2 ) : '0';
 			$rate_display      = $rows_per_sec ? number_format_i18n( $rows_per_sec, 2 ) : '0';
-			$hash_storage_label = $hash_storage ? $hash_storage : 'option';
+			if ( 'table' === $hash_storage ) {
+				$hash_storage_label = __( 'table (ufsc_asptt_import_hashes)', 'ufsc-licence-competition' );
+			} else {
+				$hash_storage_label = __( 'option (wp_options)', 'ufsc-licence-competition' );
+			}
 
 			$message_template = $is_dry_run
 				? __( 'Simulation terminée — Créés: %1$d | Mis à jour: %2$d | Inchangés: %3$d | Rejetés: %4$d — Durée: %5$s s — Débit: %6$s lignes/s — Hash: %7$s', 'ufsc-licence-competition' )
