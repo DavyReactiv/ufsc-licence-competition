@@ -15,6 +15,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_documents_table = false;
 	private $has_source_created_at = false;
 	private $has_licence_number = false;
+	private $has_asptt_number = false;
 	private $has_internal_note = false;
 	private $has_documents_meta_table = false;
 	private $has_competition = false;
@@ -45,6 +46,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$this->has_created_at            = $this->has_column( $this->get_licences_table(), 'created_at' );
 		$this->has_licence_number        = $this->has_column( $this->get_licences_table(), 'numero_licence_delegataire' );
+		$this->has_asptt_number          = $this->has_column( $this->get_licences_table(), 'numero_licence_asptt' );
 		$this->has_documents_table       = $this->table_exists( $this->get_documents_table() );
 		$this->has_source_created_at     = $this->has_documents_table && $this->has_column( $this->get_documents_table(), 'source_created_at' );
 		$this->has_internal_note         = $this->has_column( $this->get_licences_table(), 'note_interne' );
@@ -62,7 +64,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_category = $this->has_column( $this->get_licences_table(), 'category' );
 
 		$this->date_column           = $this->has_created_at ? 'created_at' : 'date_naissance';
-		$this->licence_number_column = $this->has_licence_number ? 'numero_licence_delegataire' : 'id';
+		$this->licence_number_column = $this->has_asptt_number ? 'numero_licence_asptt' : ( $this->has_licence_number ? 'numero_licence_delegataire' : 'id' );
 	}
 
 	public function get_columns() {
@@ -581,6 +583,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$params[] = $search_like;
 			}
 
+			if ( $this->has_asptt_number ) {
+				$search_clauses[] = 'l.numero_licence_asptt LIKE %s';
+				$params[] = $search_like;
+			}
+
 			if ( $this->has_licence_number ) {
 				$search_clauses[] = 'l.numero_licence_delegataire LIKE %s';
 				$params[] = $search_like;
@@ -651,7 +658,15 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
 		}
 
-		$licence_number_sql = $this->has_licence_number ? 'l.numero_licence_delegataire' : 'l.id';
+		if ( $this->has_asptt_number && $this->has_licence_number ) {
+			$licence_number_sql = "COALESCE(NULLIF(l.numero_licence_asptt, ''), NULLIF(l.numero_licence_delegataire, ''), l.id)";
+		} elseif ( $this->has_asptt_number ) {
+			$licence_number_sql = 'l.numero_licence_asptt';
+		} elseif ( $this->has_licence_number ) {
+			$licence_number_sql = 'l.numero_licence_delegataire';
+		} else {
+			$licence_number_sql = 'l.id';
+		}
 		if ( $this->has_category ) {
 			$category_column = 'l.category';
 		} elseif ( $this->has_legacy_category ) {
@@ -750,6 +765,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 			if ( $this->has_email ) {
 				$search_clauses[] = 'l.email LIKE %s';
+				$params[] = $search_like;
+			}
+
+			if ( $this->has_asptt_number ) {
+				$search_clauses[] = 'l.numero_licence_asptt LIKE %s';
 				$params[] = $search_like;
 			}
 

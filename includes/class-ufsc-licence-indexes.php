@@ -23,6 +23,9 @@ class UFSC_LC_Licence_Indexes {
 		$this->add_index_if_missing( $table, $indexes, 'idx_nom_licence', array( 'nom_licence' ) );
 		$this->add_index_if_missing( $table, $indexes, 'idx_prenom', array( 'prenom' ) );
 		$this->add_index_if_missing( $table, $indexes, 'idx_statut', array( 'statut' ) );
+		if ( $this->column_exists( $table, 'numero_licence_asptt' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_numero_licence_asptt', array( 'numero_licence_asptt' ) );
+		}
 		if ( $this->column_exists( $table, 'categorie' ) ) {
 			$this->add_index_if_missing( $table, $indexes, 'idx_categorie', array( 'categorie' ) );
 		}
@@ -31,6 +34,20 @@ class UFSC_LC_Licence_Indexes {
 		}
 		if ( $this->column_exists( $table, 'season_end_year' ) ) {
 			$this->add_index_if_missing( $table, $indexes, 'idx_season_end_year', array( 'season_end_year' ) );
+		}
+		if (
+			$this->column_exists( $table, 'club_id' )
+			&& $this->column_exists( $table, 'nom_licence' )
+			&& $this->column_exists( $table, 'prenom' )
+			&& $this->column_exists( $table, 'date_naissance' )
+			&& $this->column_exists( $table, 'season_end_year' )
+		) {
+			$this->add_index_if_missing(
+				$table,
+				$indexes,
+				'idx_club_person_season',
+				array( 'club_id', 'nom_licence', 'prenom', 'date_naissance', 'season_end_year' )
+			);
 		}
 	}
 

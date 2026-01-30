@@ -19,9 +19,11 @@ class UFSC_LC_Licence_Migrations {
 		}
 
 		$columns = array(
-			'season_end_year' => 'season_end_year int(4) NULL',
-			'category'        => 'category varchar(50) NULL',
-			'age_ref'         => 'age_ref int(3) NULL',
+			'season_end_year'      => 'season_end_year int(4) NULL',
+			'category'             => 'category varchar(50) NULL',
+			'age_ref'              => 'age_ref int(3) NULL',
+			'numero_licence_asptt' => 'numero_licence_asptt varchar(32) NULL',
+			'import_batch_id'      => 'import_batch_id varchar(64) NULL',
 		);
 
 		foreach ( $columns as $col => $definition ) {
@@ -89,6 +91,39 @@ class UFSC_LC_Licence_Migrations {
 			} else {
 				error_log( "UFSC Licence Migrations: skipping FK add for {$table} -> {$clubs_table} because engine is not InnoDB (lic: {$lic_engine}, clubs: {$club_engine})." );
 			}
+		}
+
+		$this->migrate_asptt_number_column( $table );
+	}
+
+	private function migrate_asptt_number_column( $table ) {
+		global $wpdb;
+
+		if ( ! $this->has_column( $table, 'numero_licence_asptt' ) || ! $this->has_column( $table, 'numero_licence_delegataire' ) ) {
+			return;
+		}
+
+		$updated = $wpdb->query(
+			"UPDATE {$table}
+				SET numero_licence_asptt = numero_licence_delegataire
+				WHERE (numero_licence_asptt IS NULL OR numero_licence_asptt = '')
+				AND numero_licence_delegataire REGEXP '^[0-9]{5,}$'"
+		);
+
+		if ( false === $updated ) {
+			error_log( "UFSC Licence Migrations: failed to migrate numero_licence_delegataire to numero_licence_asptt on {$table}: {$wpdb->last_error}" );
+			return;
+		}
+
+		$cleared = $wpdb->query(
+			"UPDATE {$table}
+				SET numero_licence_delegataire = NULL
+				WHERE (numero_licence_asptt IS NOT NULL AND numero_licence_asptt != '')
+				AND numero_licence_delegataire REGEXP '^[0-9]{5,}$'"
+		);
+
+		if ( false === $cleared ) {
+			error_log( "UFSC Licence Migrations: failed to clear numero_licence_delegataire values on {$table}: {$wpdb->last_error}" );
 		}
 	}
 
