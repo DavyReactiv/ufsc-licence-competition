@@ -154,12 +154,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		$value = is_array( $item ) ? ( $item[ $column_name ] ?? '' ) : ( $item->{$column_name} ?? '' );
 		switch ( $column_name ) {
-			case 'licence_number':
-				$licence_number = is_array( $item ) ? ( $item['licence_number'] ?? '' ) : ( $item->licence_number ?? '' );
-				return ! empty( $licence_number )
-					? esc_html( $licence_number )
-					: esc_html__( '—', 'ufsc-licence-competition' );
-
 			case 'asptt_number':
 				$asptt_number = is_array( $item ) ? ( $item['asptt_number'] ?? '' ) : ( $item->asptt_number ?? '' );
 				return ! empty( $asptt_number )
@@ -208,6 +202,31 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			default:
 				return '';
 		}
+	}
+
+	public function column_licence_number( $item ) {
+		$licence_number = is_array( $item ) ? ( $item['licence_number'] ?? '' ) : ( $item->licence_number ?? '' );
+		$licence_id     = is_array( $item ) ? ( $item['id'] ?? 0 ) : ( $item->id ?? 0 );
+		$licence_label  = ! empty( $licence_number ) ? esc_html( $licence_number ) : esc_html__( '—', 'ufsc-licence-competition' );
+
+		if ( ! $licence_id ) {
+			return $licence_label;
+		}
+
+		$actions = array();
+		if ( current_user_can( UFSC_LC_Capabilities::get_manage_capability() ) || current_user_can( 'manage_options' ) ) {
+			$actions['edit_asptt'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $this->get_edit_asptt_url( (int) $licence_id ) ),
+				esc_html__( 'Modifier N° ASPTT', 'ufsc-licence-competition' )
+			);
+		}
+
+		return sprintf(
+			'%1$s %2$s',
+			$licence_label,
+			$this->row_actions( $actions )
+		);
 	}
 
 	/**
@@ -1571,6 +1590,17 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return "''";
 		}
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_edit_asptt_url( $licence_id ) {
+		return add_query_arg(
+			array(
+				'page'       => 'ufsc-lc-licences',
+				'action'     => 'edit_asptt',
+				'licence_id' => (int) $licence_id,
+			),
+			admin_url( 'admin.php' )
+		);
 	}
 
 	private function get_clubs_table() {

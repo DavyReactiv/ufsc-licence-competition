@@ -2601,15 +2601,20 @@ class UFSC_LC_ASPTT_Import_Service {
 		$columns = $this->get_licence_columns();
 		$has_nom = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
+		$asptt_columns = array_values( array_intersect( array( 'numero_licence_asptt', 'asptt_number' ), $columns ) );
 
 		$existing_names = null;
-		if ( $existing_id && ( $has_nom || $has_nom_licence ) ) {
+		$existing_asptt = array();
+		if ( $existing_id && ( $has_nom || $has_nom_licence || ! empty( $asptt_columns ) ) ) {
 			$select_cols = array();
 			if ( $has_nom ) {
 				$select_cols[] = 'nom';
 			}
 			if ( $has_nom_licence ) {
 				$select_cols[] = 'nom_licence';
+			}
+			foreach ( $asptt_columns as $column ) {
+				$select_cols[] = $column;
 			}
 			if ( ! empty( $select_cols ) ) {
 				$existing_names = $wpdb->get_row(
@@ -2618,14 +2623,25 @@ class UFSC_LC_ASPTT_Import_Service {
 						$existing_id
 					)
 				);
+				if ( $existing_names ) {
+					foreach ( $asptt_columns as $column ) {
+						$existing_asptt[ $column ] = isset( $existing_names->{$column} ) ? trim( (string) $existing_names->{$column} ) : '';
+					}
+				}
 			}
 		}
 
 		$fields  = array();
 		$formats = array();
 
-		$fields[ $license_column ] = $license_number;
-		$formats[]                 = '%s';
+		$should_set_license_number = true;
+		if ( in_array( $license_column, $asptt_columns, true ) && isset( $existing_asptt[ $license_column ] ) && '' !== $existing_asptt[ $license_column ] ) {
+			$should_set_license_number = false;
+		}
+		if ( $should_set_license_number ) {
+			$fields[ $license_column ] = $license_number;
+			$formats[]                 = '%s';
+		}
 
 		if ( in_array( 'club_id', $columns, true ) && ! empty( $data['club_id'] ) ) {
 			$fields['club_id'] = (int) $data['club_id'];
