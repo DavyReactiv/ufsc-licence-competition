@@ -69,7 +69,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		// Category support
 		$this->has_category = $this->has_column( $this->get_licences_table(), 'category' );
 
-		$this->date_column           = $this->has_created_at ? 'created_at' : 'date_naissance';
+		$this->date_column           = 'date_naissance';
 		$this->licence_number_column = $this->has_asptt_number ? 'numero_licence_asptt' : ( $this->has_licence_number ? 'numero_licence_delegataire' : 'id' );
 	}
 
@@ -84,7 +84,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			'statut'          => __( 'Statut', 'ufsc-licence-competition' ),
 			'season_end_year' => __( 'Saison', 'ufsc-licence-competition' ),
 			'category'        => __( 'Catégorie', 'ufsc-licence-competition' ),
-			'date'            => __( 'Date', 'ufsc-licence-competition' ),
+			'date'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -181,9 +181,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'date':
-				$date_value = is_array( $item ) ? ( $item['date_value'] ?? '' ) : ( $item->date_value ?? '' );
-				return ! empty( $date_value )
-					? esc_html( $date_value )
+				$birthdate_raw = is_array( $item ) ? ( $item['date_naissance'] ?? '' ) : ( $item->date_naissance ?? '' );
+				$birthdate     = '';
+				if ( function_exists( 'ufsc_lc_format_birthdate' ) ) {
+					$birthdate = ufsc_lc_format_birthdate( $birthdate_raw );
+				}
+				return '' !== $birthdate
+					? esc_html( $birthdate )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			default:

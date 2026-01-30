@@ -741,8 +741,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return $category;
 		}
 
-		$birthdate = $this->format_birthdate( $item->date_naissance ?? '' );
-		if ( '' === $birthdate ) {
+		$birthdate_raw = trim( (string) ( $item->date_naissance ?? '' ) );
+		if ( '' === $birthdate_raw ) {
 			return '';
 		}
 
@@ -754,7 +754,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return '';
 		}
 
-		return $this->compute_category_from_birthdate( $birthdate, $season_end_year );
+		if ( function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+			return ufsc_lc_compute_category_from_birthdate( $birthdate_raw, $season_end_year );
+		}
+
+		return '';
 	}
 
 	private function format_birthdate( $raw ) {
