@@ -106,10 +106,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function column_cb( $item ) {
+		$item_id = is_array( $item ) ? ( $item['id'] ?? 0 ) : ( $item->id ?? 0 );
 		return sprintf(
 			'<input type="checkbox" name="%s[]" value="%d" />',
 			esc_attr( $this->_args['singular'] ),
-			(int) $item->id
+			(int) $item_id
 		);
 	}
 
@@ -136,33 +137,38 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function column_default( $item, $column_name ) {
+		$value = is_array( $item ) ? ( $item[ $column_name ] ?? '' ) : ( $item->{$column_name} ?? '' );
 		switch ( $column_name ) {
 			case 'licence_number':
-				return ! empty( $item->licence_number )
-					? esc_html( $item->licence_number )
+				$licence_number = is_array( $item ) ? ( $item['licence_number'] ?? '' ) : ( $item->licence_number ?? '' );
+				return ! empty( $licence_number )
+					? esc_html( $licence_number )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'club_name':
 			case 'nom_licence':
 			case 'prenom':
 			case 'statut':
-				return ! empty( $item->{$column_name} )
-					? esc_html( $item->{$column_name} )
+				return ! empty( $value )
+					? esc_html( $value )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'season_end_year':
-				return ! empty( $item->season_end_year )
-					? esc_html( $item->season_end_year )
+				$season_end_year = is_array( $item ) ? ( $item['season_end_year'] ?? '' ) : ( $item->season_end_year ?? '' );
+				return ! empty( $season_end_year )
+					? esc_html( $season_end_year )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'category':
-				return ! empty( $item->category )
-					? esc_html( $item->category )
+				$category = is_array( $item ) ? ( $item['category'] ?? '' ) : ( $item->category ?? '' );
+				return ! empty( $category )
+					? esc_html( $category )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'date':
-				return ! empty( $item->date_value )
-					? esc_html( $item->date_value )
+				$date_value = is_array( $item ) ? ( $item['date_value'] ?? '' ) : ( $item->date_value ?? '' );
+				return ! empty( $date_value )
+					? esc_html( $date_value )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			default:
@@ -565,6 +571,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$season_end_year = $filters['season_end_year'];
 		$pdf_filter    = $filters['pdf_filter'];
 
+		$columns  = $this->get_columns();
+		$hidden   = array();
+		$sortable = $this->get_sortable_columns();
+		$this->_column_headers = array( $columns, $hidden, $sortable );
+
 		$licences_table  = $this->get_licences_table();
 		$clubs_table     = $this->get_clubs_table();
 		$documents_table = $this->get_documents_table();
@@ -708,6 +719,16 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->items = $wpdb->get_results( $items_query );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$example_item = ! empty( $this->items ) ? $this->items[0] : null;
+			$example_keys = array();
+			if ( is_array( $example_item ) ) {
+				$example_keys = array_keys( $example_item );
+			} elseif ( is_object( $example_item ) ) {
+				$example_keys = array_keys( get_object_vars( $example_item ) );
+			}
+			error_log( 'UFSC LC Licences columns: ' . wp_json_encode( array_keys( $columns ) ) );
+			error_log( 'UFSC LC Licences items count: ' . count( $this->items ) );
+			error_log( 'UFSC LC Licences item keys sample: ' . wp_json_encode( $example_keys ) );
 			error_log( 'UFSC LC Licences count SQL: ' . $count_query );
 			error_log( 'UFSC LC Licences items SQL: ' . $items_query );
 			error_log(
