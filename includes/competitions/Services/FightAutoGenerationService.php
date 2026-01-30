@@ -14,7 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class FightAutoGenerationService {
 	private const SETTINGS_PREFIX = 'ufsc_competitions_fight_settings_';
-	private const DRAFT_PREFIX    = 'ufsc_competitions_fight_draft_';
+	private const LOCK_PREFIX     = 'ufsc_autogen_lock_';
+	private const LOCK_TTL        = 60;
 
 	public static function is_enabled(): bool {
 		return (bool) apply_filters( 'ufsc_enable_auto_fight_generation', true );
@@ -42,6 +43,10 @@ class FightAutoGenerationService {
 	}
 
 	public static function save_settings( int $competition_id, array $data ): bool {
+		if ( ! self::is_enabled() ) {
+			return false;
+		}
+
 		if ( ! $competition_id ) {
 			return false;
 		}
@@ -73,28 +78,26 @@ class FightAutoGenerationService {
 	}
 
 	public static function get_draft( int $competition_id ): array {
-		if ( ! $competition_id ) {
-			return array();
-		}
-
-		$draft = get_option( self::DRAFT_PREFIX . $competition_id, array() );
-		return is_array( $draft ) ? $draft : array();
+		$fight_repo = new FightRepository();
+		return $fight_repo->get_draft( $competition_id );
 	}
 
 	public static function save_draft( int $competition_id, array $draft ): bool {
-		if ( ! $competition_id ) {
+		if ( ! self::is_enabled() ) {
 			return false;
 		}
 
-		return (bool) update_option( self::DRAFT_PREFIX . $competition_id, $draft, false );
+		$fight_repo = new FightRepository();
+		return $fight_repo->save_draft( $competition_id, $draft );
 	}
 
 	public static function clear_draft( int $competition_id ): bool {
-		if ( ! $competition_id ) {
+		if ( ! self::is_enabled() ) {
 			return false;
 		}
 
-		return (bool) delete_option( self::DRAFT_PREFIX . $competition_id );
+		$fight_repo = new FightRepository();
+		return $fight_repo->clear_draft( $competition_id );
 	}
 
 	public static function generate_draft( int $competition_id, array $settings ): array {
@@ -102,6 +105,13 @@ class FightAutoGenerationService {
 			return array(
 				'ok' => false,
 				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		if ( ! $competition_id ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
 			);
 		}
 
@@ -119,116 +129,152 @@ class FightAutoGenerationService {
 			);
 		}
 
-		$competition_repo = new CompetitionRepository();
-		$competition = $competition_repo->get( $competition_id, true );
-		if ( ! $competition ) {
+		$lock_key = self::get_lock_key( $competition_id );
+		if ( get_transient( $lock_key ) ) {
 			return array(
 				'ok' => false,
-				'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
+				'message' => __( 'Génération déjà en cours, veuillez patienter.', 'ufsc-licence-competition' ),
 			);
 		}
 
-		$entry_repo = new EntryRepository();
-		$entry_front = new EntryFrontRepository();
-		$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		set_transient( $lock_key, 1, self::LOCK_TTL );
 
-		$valid_entries = array();
-		foreach ( $entries as $entry ) {
-			if ( 'validated' !== $entry_front->get_entry_status( $entry ) ) {
-				continue;
-			}
-			$valid_entries[] = $entry;
-		}
-
-		if ( ! $valid_entries ) {
-			return array(
-				'ok' => false,
-				'message' => __( 'Aucune inscription validée pour générer des combats.', 'ufsc-licence-competition' ),
-			);
-		}
-
-		$category_repo = new CategoryRepository();
-		$categories = $category_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
-		$normalized_categories = self::normalize_categories( $categories );
-
-		$assigner = new CategoryAssigner();
-		$groups = array();
-		$warnings = array();
-
-		foreach ( $valid_entries as $entry ) {
-			$category_id = absint( $entry->category_id ?? 0 );
-			if ( ! $category_id ) {
-				$match = $assigner->match_category(
-					$normalized_categories,
-					self::normalize_entry_fields( $entry ),
-					array(
-						'age_reference' => sanitize_text_field( $competition->age_reference ?? '12-31' ),
-					)
+		try {
+			$competition_repo = new CompetitionRepository();
+			$competition = $competition_repo->get( $competition_id, true );
+			if ( ! $competition ) {
+				return array(
+					'ok' => false,
+					'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 				);
-				if ( $match && ! empty( $match['id'] ) ) {
-					$category_id = absint( $match['id'] );
+			}
+
+			$entry_repo = new EntryRepository();
+			$entry_front = new EntryFrontRepository();
+			$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+
+			$valid_entries = array();
+			foreach ( $entries as $entry ) {
+				if ( 'validated' !== $entry_front->get_entry_status( $entry ) ) {
+					continue;
 				}
+				$valid_entries[] = $entry;
 			}
 
-			if ( ! $category_id ) {
-				$warnings[] = sprintf(
-					__( 'Entrée #%d non affectée à une catégorie.', 'ufsc-licence-competition' ),
-					(int) ( $entry->id ?? 0 )
+			if ( ! $valid_entries ) {
+				return array(
+					'ok' => false,
+					'message' => __( 'Aucune inscription validée pour générer des combats.', 'ufsc-licence-competition' ),
 				);
-				continue;
 			}
 
-			if ( ! isset( $groups[ $category_id ] ) ) {
-				$groups[ $category_id ] = array();
-			}
-			$groups[ $category_id ][] = $entry;
-		}
+			$category_repo = new CategoryRepository();
+			$categories = $category_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
+			$normalized_categories = self::normalize_categories( $categories );
 
-		if ( ! $groups ) {
-			return array(
-				'ok' => false,
-				'message' => __( 'Aucune catégorie exploitable pour générer des combats.', 'ufsc-licence-competition' ),
+			$assigner = new CategoryAssigner();
+			$groups = array();
+			$warnings = array();
+
+			foreach ( $valid_entries as $entry ) {
+				$category_id = absint( $entry->category_id ?? 0 );
+				if ( ! $category_id ) {
+					$match = $assigner->match_category(
+						$normalized_categories,
+						self::normalize_entry_fields( $entry ),
+						array(
+							'age_reference' => sanitize_text_field( $competition->age_reference ?? '12-31' ),
+						)
+					);
+					if ( $match && ! empty( $match['id'] ) ) {
+						$category_id = absint( $match['id'] );
+					}
+				}
+
+				if ( ! $category_id ) {
+					$warnings[] = sprintf(
+						__( 'Entrée #%d non affectée à une catégorie.', 'ufsc-licence-competition' ),
+						(int) ( $entry->id ?? 0 )
+					);
+					continue;
+				}
+
+				if ( ! isset( $groups[ $category_id ] ) ) {
+					$groups[ $category_id ] = array();
+				}
+				$groups[ $category_id ][] = $entry;
+			}
+
+			if ( ! $groups ) {
+				return array(
+					'ok' => false,
+					'message' => __( 'Aucune catégorie exploitable pour générer des combats.', 'ufsc-licence-competition' ),
+				);
+			}
+
+			$fight_repo = new FightRepository();
+			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+
+			$fights = array();
+			foreach ( $groups as $category_id => $group_entries ) {
+				$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no );
+				$fights = array_merge( $fights, $generated['fights'] );
+				$next_fight_no = $generated['next_no'];
+			}
+
+			$fights = self::assign_surfaces_and_schedule( $fights, $settings, (int) $competition_id );
+
+			$stats = array(
+				'entries' => count( $valid_entries ),
+				'groups'  => count( $groups ),
+				'fights'  => count( $fights ),
 			);
+
+			$draft = array(
+				'competition_id' => $competition_id,
+				'generated_at' => current_time( 'mysql' ),
+				'generated_by' => get_current_user_id() ?: null,
+				'settings' => $settings,
+				'stats' => $stats,
+				'warnings' => $warnings,
+				'fights' => $fights,
+			);
+
+			self::save_draft( $competition_id, $draft );
+
+			return array(
+				'ok' => true,
+				'message' => __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' ),
+				'draft' => $draft,
+			);
+		} finally {
+			delete_transient( $lock_key );
 		}
-
-		$fight_repo = new FightRepository();
-		$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
-
-		$fights = array();
-		foreach ( $groups as $category_id => $group_entries ) {
-			$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no );
-			$fights = array_merge( $fights, $generated['fights'] );
-			$next_fight_no = $generated['next_no'];
-		}
-
-		$fights = self::assign_surfaces_and_schedule( $fights, $settings, (int) $competition_id );
-
-		$stats = array(
-			'entries' => count( $valid_entries ),
-			'groups'  => count( $groups ),
-			'fights'  => count( $fights ),
-		);
-
-		$draft = array(
-			'competition_id' => $competition_id,
-			'generated_at' => current_time( 'mysql' ),
-			'generated_by' => get_current_user_id() ?: null,
-			'settings' => $settings,
-			'stats' => $stats,
-			'warnings' => $warnings,
-			'fights' => $fights,
-		);
-
-		self::save_draft( $competition_id, $draft );
-
-		return array(
-			'ok' => true,
-			'message' => __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' ),
-			'draft' => $draft,
-		);
 	}
 
-	public static function validate_and_apply_draft( int $competition_id ): array {
+	public static function validate_and_apply_draft( int $competition_id, string $apply_mode = 'append' ): array {
+		if ( ! self::is_enabled() ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		if ( ! $competition_id ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		$apply_mode = 'replace' === $apply_mode ? 'replace' : 'append';
+		if ( 'replace' === $apply_mode ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Le mode remplacement n’est pas disponible.', 'ufsc-licence-competition' ),
+			);
+		}
+
 		$draft = self::get_draft( $competition_id );
 		if ( empty( $draft['fights'] ) || ! is_array( $draft['fights'] ) ) {
 			return array(
@@ -243,7 +289,16 @@ class FightAutoGenerationService {
 		}
 
 		$fight_repo = new FightRepository();
+		$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+		$prepared_fights = array();
 		foreach ( $draft['fights'] as $fight ) {
+			$fight['competition_id'] = $competition_id;
+			$fight['fight_no'] = $next_fight_no;
+			$prepared_fights[] = $fight;
+			$next_fight_no++;
+		}
+
+		foreach ( $prepared_fights as $fight ) {
 			$fight_repo->insert( $fight );
 		}
 
@@ -256,61 +311,31 @@ class FightAutoGenerationService {
 	}
 
 	public static function recalc_schedule( int $competition_id, array $settings ): array {
+		if ( ! self::is_enabled() ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		if ( ! $competition_id ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
+			);
+		}
+
 		$fight_repo = new FightRepository();
-		$fights = $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$fights = $fight_repo->get_draft_fights( $competition_id );
 		if ( ! $fights ) {
 			return array(
 				'ok' => false,
-				'message' => __( 'Aucun combat à recalculer.', 'ufsc-licence-competition' ),
+				'message' => __( 'Aucun brouillon disponible.', 'ufsc-licence-competition' ),
 			);
 		}
 
-		$updated = 0;
-		$prepared = array();
-		foreach ( $fights as $fight ) {
-			$prepared[] = array(
-				'id' => (int) ( $fight->id ?? 0 ),
-				'competition_id' => (int) ( $fight->competition_id ?? 0 ),
-				'category_id' => (int) ( $fight->category_id ?? 0 ),
-				'fight_no' => (int) ( $fight->fight_no ?? 0 ),
-				'ring' => (string) ( $fight->ring ?? '' ),
-				'round_no' => isset( $fight->round_no ) ? (int) $fight->round_no : null,
-				'red_entry_id' => isset( $fight->red_entry_id ) ? (int) $fight->red_entry_id : null,
-				'blue_entry_id' => isset( $fight->blue_entry_id ) ? (int) $fight->blue_entry_id : null,
-				'winner_entry_id' => isset( $fight->winner_entry_id ) ? (int) $fight->winner_entry_id : null,
-				'status' => (string) ( $fight->status ?? 'scheduled' ),
-				'result_method' => (string) ( $fight->result_method ?? '' ),
-				'score_red' => (string) ( $fight->score_red ?? '' ),
-				'score_blue' => (string) ( $fight->score_blue ?? '' ),
-				'scheduled_at' => isset( $fight->scheduled_at ) ? (string) $fight->scheduled_at : null,
-			);
-		}
-
-		$prepared = self::assign_surfaces_and_schedule( $prepared, $settings, $competition_id );
-		foreach ( $prepared as $fight ) {
-			if ( empty( $fight['id'] ) ) {
-				continue;
-			}
-			$fight_repo->update(
-				$fight['id'],
-				array(
-					'competition_id' => $competition_id,
-					'category_id' => $fight['category_id'],
-					'fight_no' => $fight['fight_no'],
-					'ring' => $fight['ring'],
-					'round_no' => $fight['round_no'],
-					'red_entry_id' => $fight['red_entry_id'],
-					'blue_entry_id' => $fight['blue_entry_id'],
-					'winner_entry_id' => $fight['winner_entry_id'],
-					'status' => $fight['status'],
-					'result_method' => $fight['result_method'],
-					'score_red' => $fight['score_red'],
-					'score_blue' => $fight['score_blue'],
-					'scheduled_at' => $fight['scheduled_at'],
-				)
-			);
-			$updated++;
-		}
+		$fight_repo->recalc_draft_schedule( $competition_id, $settings );
+		$updated = count( $fights );
 
 		return array(
 			'ok' => true,
@@ -318,48 +343,47 @@ class FightAutoGenerationService {
 		);
 	}
 
-	public static function swap_colors( int $fight_id ): array {
-		$fight_repo = new FightRepository();
-		$fight = $fight_repo->get( $fight_id, true );
-		if ( ! $fight ) {
+	public static function swap_colors( int $competition_id, int $fight_id ): array {
+		if ( ! self::is_enabled() ) {
 			return array(
 				'ok' => false,
-				'message' => __( 'Combat introuvable.', 'ufsc-licence-competition' ),
+				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
 			);
 		}
 
-		$fight_repo->update(
-			$fight_id,
-			array(
-				'competition_id' => (int) ( $fight->competition_id ?? 0 ),
-				'category_id' => (int) ( $fight->category_id ?? 0 ),
-				'fight_no' => (int) ( $fight->fight_no ?? 0 ),
-				'ring' => (string) ( $fight->ring ?? '' ),
-				'round_no' => isset( $fight->round_no ) ? (int) $fight->round_no : null,
-				'red_entry_id' => isset( $fight->blue_entry_id ) ? (int) $fight->blue_entry_id : null,
-				'blue_entry_id' => isset( $fight->red_entry_id ) ? (int) $fight->red_entry_id : null,
-				'winner_entry_id' => isset( $fight->winner_entry_id ) ? (int) $fight->winner_entry_id : null,
-				'status' => (string) ( $fight->status ?? 'scheduled' ),
-				'result_method' => (string) ( $fight->result_method ?? '' ),
-				'score_red' => (string) ( $fight->score_red ?? '' ),
-				'score_blue' => (string) ( $fight->score_blue ?? '' ),
-				'scheduled_at' => isset( $fight->scheduled_at ) ? (string) $fight->scheduled_at : null,
-			)
-		);
+		if ( ! $competition_id || ! $fight_id ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Combat invalide.', 'ufsc-licence-competition' ),
+			);
+		}
 
-		return array(
-			'ok' => true,
-			'message' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
-		);
+		return ( new FightRepository() )->swap_draft_corners( $competition_id, $fight_id );
 	}
 
 	public static function reorder_fights( int $competition_id, string $mode ): array {
+		if ( ! self::is_enabled() ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		if ( ! $competition_id ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		$mode = in_array( $mode, array( 'fight_no', 'scheduled', 'category' ), true ) ? $mode : 'fight_no';
+
 		$fight_repo = new FightRepository();
-		$fights = $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$fights = $fight_repo->get_draft_fights( $competition_id );
 		if ( ! $fights ) {
 			return array(
 				'ok' => false,
-				'message' => __( 'Aucun combat à réordonner.', 'ufsc-licence-competition' ),
+				'message' => __( 'Aucun brouillon disponible.', 'ufsc-licence-competition' ),
 			);
 		}
 
@@ -367,10 +391,10 @@ class FightAutoGenerationService {
 			usort(
 				$fights,
 				function( $a, $b ) {
-					$time_a = $a->scheduled_at ? strtotime( $a->scheduled_at ) : 0;
-					$time_b = $b->scheduled_at ? strtotime( $b->scheduled_at ) : 0;
+					$time_a = ! empty( $a['scheduled_at'] ) ? strtotime( $a['scheduled_at'] ) : 0;
+					$time_b = ! empty( $b['scheduled_at'] ) ? strtotime( $b['scheduled_at'] ) : 0;
 					if ( $time_a === $time_b ) {
-						return (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+						return (int) ( $a['fight_no'] ?? 0 ) <=> (int) ( $b['fight_no'] ?? 0 );
 					}
 					return $time_a <=> $time_b;
 				}
@@ -379,38 +403,18 @@ class FightAutoGenerationService {
 			usort(
 				$fights,
 				function( $a, $b ) {
-					$cat_a = (int) ( $a->category_id ?? 0 );
-					$cat_b = (int) ( $b->category_id ?? 0 );
+					$cat_a = (int) ( $a['category_id'] ?? 0 );
+					$cat_b = (int) ( $b['category_id'] ?? 0 );
 					if ( $cat_a === $cat_b ) {
-						return (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+						return (int) ( $a['fight_no'] ?? 0 ) <=> (int) ( $b['fight_no'] ?? 0 );
 					}
 					return $cat_a <=> $cat_b;
 				}
 			);
 		}
 
-		$index = 1;
-		foreach ( $fights as $fight ) {
-			$fight_repo->update(
-				(int) ( $fight->id ?? 0 ),
-				array(
-					'competition_id' => (int) ( $fight->competition_id ?? 0 ),
-					'category_id' => (int) ( $fight->category_id ?? 0 ),
-					'fight_no' => $index,
-					'ring' => (string) ( $fight->ring ?? '' ),
-					'round_no' => isset( $fight->round_no ) ? (int) $fight->round_no : null,
-					'red_entry_id' => isset( $fight->red_entry_id ) ? (int) $fight->red_entry_id : null,
-					'blue_entry_id' => isset( $fight->blue_entry_id ) ? (int) $fight->blue_entry_id : null,
-					'winner_entry_id' => isset( $fight->winner_entry_id ) ? (int) $fight->winner_entry_id : null,
-					'status' => (string) ( $fight->status ?? 'scheduled' ),
-					'result_method' => (string) ( $fight->result_method ?? '' ),
-					'score_red' => (string) ( $fight->score_red ?? '' ),
-					'score_blue' => (string) ( $fight->score_blue ?? '' ),
-					'scheduled_at' => isset( $fight->scheduled_at ) ? (string) $fight->scheduled_at : null,
-				)
-			);
-			$index++;
-		}
+		$start_no = min( array_map( 'intval', wp_list_pluck( $fights, 'fight_no' ) ) );
+		$fight_repo->update_draft_order( $competition_id, $fights, $start_no );
 
 		return array(
 			'ok' => true,
@@ -574,7 +578,7 @@ class FightAutoGenerationService {
 		);
 	}
 
-	private static function assign_surfaces_and_schedule( array $fights, array $settings, int $competition_id ): array {
+	public static function assign_surfaces_and_schedule( array $fights, array $settings, int $competition_id ): array {
 		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
 		$labels_raw = sanitize_text_field( (string) ( $settings['surface_labels'] ?? '' ) );
 		$labels = array_filter( array_map( 'trim', explode( ',', $labels_raw ) ) );
@@ -658,5 +662,9 @@ class FightAutoGenerationService {
 			'ok' => true,
 			'message' => '',
 		);
+	}
+
+	private static function get_lock_key( int $competition_id ): string {
+		return self::LOCK_PREFIX . $competition_id;
 	}
 }

@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class FightRepository {
+	private const DRAFT_PREFIX = 'ufsc_competitions_fight_draft_';
+
 	private $logger;
 
 	public function __construct() {
@@ -132,6 +134,114 @@ class FightRepository {
 		);
 
 		return absint( $max );
+	}
+
+	public function get_draft( int $competition_id ): array {
+		if ( ! $competition_id ) {
+			return array();
+		}
+
+		$draft = get_option( self::DRAFT_PREFIX . $competition_id, array() );
+		return is_array( $draft ) ? $draft : array();
+	}
+
+	public function save_draft( int $competition_id, array $draft ): bool {
+		if ( ! $competition_id ) {
+			return false;
+		}
+
+		return (bool) update_option( self::DRAFT_PREFIX . $competition_id, $draft, false );
+	}
+
+	public function clear_draft( int $competition_id ): bool {
+		if ( ! $competition_id ) {
+			return false;
+		}
+
+		return (bool) delete_option( self::DRAFT_PREFIX . $competition_id );
+	}
+
+	public function get_draft_fights( int $competition_id ): array {
+		$draft = $this->get_draft( $competition_id );
+		$fights = $draft['fights'] ?? array();
+		return is_array( $fights ) ? $fights : array();
+	}
+
+	public function update_draft_order( int $competition_id, array $ordered_fights, int $start_no ): array {
+		$draft = $this->get_draft( $competition_id );
+		if ( empty( $draft['fights'] ) || ! is_array( $draft['fights'] ) ) {
+			return array();
+		}
+
+		$next_no = max( 1, absint( $start_no ) );
+		$updated_fights = array();
+
+		foreach ( $ordered_fights as $fight ) {
+			if ( ! is_array( $fight ) ) {
+				continue;
+			}
+			$fight['fight_no'] = $next_no;
+			$updated_fights[] = $fight;
+			$next_no++;
+		}
+
+		$draft['fights'] = $updated_fights;
+		$this->save_draft( $competition_id, $draft );
+
+		return $updated_fights;
+	}
+
+	public function swap_draft_corners( int $competition_id, int $fight_no ): array {
+		$draft = $this->get_draft( $competition_id );
+		$fights = $draft['fights'] ?? array();
+		if ( ! is_array( $fights ) || ! $fights ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Aucun brouillon disponible.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		$updated = false;
+		foreach ( $fights as $index => $fight ) {
+			if ( (int) ( $fight['fight_no'] ?? 0 ) !== $fight_no ) {
+				continue;
+			}
+			$red = $fight['red_entry_id'] ?? null;
+			$blue = $fight['blue_entry_id'] ?? null;
+			$fights[ $index ]['red_entry_id'] = $blue;
+			$fights[ $index ]['blue_entry_id'] = $red;
+			$updated = true;
+			break;
+		}
+
+		if ( ! $updated ) {
+			return array(
+				'ok' => false,
+				'message' => __( 'Combat introuvable dans le brouillon.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		$draft['fights'] = $fights;
+		$this->save_draft( $competition_id, $draft );
+
+		return array(
+			'ok' => true,
+			'message' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
+		);
+	}
+
+	public function recalc_draft_schedule( int $competition_id, array $settings ): array {
+		$draft = $this->get_draft( $competition_id );
+		$fights = $draft['fights'] ?? array();
+		if ( ! is_array( $fights ) || ! $fights ) {
+			return array();
+		}
+
+		$fights = \UFSC\Competitions\Services\FightAutoGenerationService::assign_surfaces_and_schedule( $fights, $settings, $competition_id );
+		$draft['fights'] = $fights;
+		$this->save_draft( $competition_id, $draft );
+
+		return $fights;
 	}
 
 	private function set_deleted_at( $id, $deleted_at, $action ) {
