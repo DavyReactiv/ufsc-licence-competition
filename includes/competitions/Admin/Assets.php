@@ -10,8 +10,8 @@ class Assets {
 	const HANDLE = 'ufsc-competitions-admin';
 	const SCRIPT_HANDLE = 'ufsc-competitions-admin-js';
 
-	public function register( $hook_suffix, $load_pointer = false ) {
-		add_action( 'admin_enqueue_scripts', function( $hook ) use ( $hook_suffix, $load_pointer ) {
+	public function register( $hook_suffix, $load_pointer = false, $page_slug = '' ) {
+		add_action( 'admin_enqueue_scripts', function( $hook ) use ( $hook_suffix, $load_pointer, $page_slug ) {
 			if ( $hook !== $hook_suffix ) {
 				return;
 			}
@@ -51,6 +51,34 @@ class Assets {
 					$ver_js,
 					true
 				);
+			}
+
+			if ( 'ufsc-competitions-entries' === $page_slug ) {
+				$entry_css_file = plugin_dir_path( __DIR__ ) . 'assets/admin-entries.css';
+				$entry_css_url  = UFSC_LC_URL . 'includes/competitions/assets/admin-entries.css';
+				if ( file_exists( $entry_css_file ) ) {
+					$entry_css_ver = filemtime( $entry_css_file ) ?: '1.0.0';
+					wp_enqueue_style( 'ufsc-competitions-entries-admin', $entry_css_url, array( self::HANDLE ), $entry_css_ver );
+				}
+
+				$entry_js_file = plugin_dir_path( __DIR__ ) . 'assets/admin-entries.js';
+				$entry_js_url  = UFSC_LC_URL . 'includes/competitions/assets/admin-entries.js';
+				if ( file_exists( $entry_js_file ) ) {
+					$entry_js_ver = filemtime( $entry_js_file ) ?: '1.0.0';
+					wp_enqueue_script( 'ufsc-competitions-entries-admin', $entry_js_url, array(), $entry_js_ver, true );
+					wp_localize_script(
+						'ufsc-competitions-entries-admin',
+						'ufscEntriesSearch',
+						array(
+							'ajaxUrl'                  => admin_url( 'admin-ajax.php' ),
+							'nonce'                    => wp_create_nonce( 'ufsc_lc_admin_nonce' ),
+							'searchEmptyMessage'       => __( 'Aucun résultat trouvé.', 'ufsc-licence-competition' ),
+							'searchErrorMessage'       => __( 'Impossible de lancer la recherche. Vérifiez les champs.', 'ufsc-licence-competition' ),
+							'selectionRequiredMessage' => __( 'Veuillez sélectionner un licencié dans la liste.', 'ufsc-licence-competition' ),
+							'autoCategoryLabel'        => __( 'Catégorie auto détectée :', 'ufsc-licence-competition' ),
+						)
+					);
+				}
 			}
 
 			// Defensive: deregister legacy handle to avoid 404 in console.

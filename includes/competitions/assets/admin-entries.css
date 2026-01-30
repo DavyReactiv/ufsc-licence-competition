@@ -1,0 +1,63 @@
+.ufsc-entry-licensee-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ufsc-entry-licensee-search-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.ufsc-entry-licensee-search-fields input[type="text"],
+.ufsc-entry-licensee-search-fields input[type="date"] {
+  min-width: 160px;
+}
+
+.ufsc-entry-licensee-search-message[data-type="warning"] {
+  color: #b45309;
+}
+
+.ufsc-entry-licensee-search-message[data-type="error"] {
+  color: #b91c1c;
+}
+
+.ufsc-entry-licensee-search-results {
+  border: 1px solid #ccd0d4;
+  padding: 8px;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.ufsc-entry-licensee-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ufsc-entry-licensee-result {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.ufsc-entry-licensee-result-info {
+  line-height: 1.4;
+}
+
+.ufsc-entry-licensee-search-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ufsc-entry-licensee-selected {
+  font-weight: 600;
+  color: #1d2327;
+}
+
+.ufsc-entry-auto-category[data-visible="true"] {
+  font-weight: 600;
+}

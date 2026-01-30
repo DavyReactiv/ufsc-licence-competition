@@ -29,6 +29,8 @@ class Entries_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_entry', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_entry', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_entry', array( $this, 'handle_delete' ) );
+		add_action( 'wp_ajax_ufsc_lc_search_licence', array( $this, 'ajax_search_licence' ) );
+		add_action( 'wp_ajax_ufsc_lc_get_licensee', array( $this, 'ajax_get_licensee' ) );
 	}
 
 	public function render() {
@@ -88,6 +90,10 @@ class Entries_Page {
 			'licensee_id'    => isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0,
 			'status'         => isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'draft',
 		);
+		$selected_licensee_id = isset( $_POST['selected_licensee_id'] ) ? absint( $_POST['selected_licensee_id'] ) : 0;
+		if ( ! $data['licensee_id'] && $selected_licensee_id ) {
+			$data['licensee_id'] = $selected_licensee_id;
+		}
 
 		if ( ! $data['competition_id'] || ! $data['licensee_id'] ) {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'error_required', $id );
@@ -116,6 +122,172 @@ class Entries_Page {
 
 	public function handle_delete() {
 		$this->handle_simple_action( 'ufsc_competitions_delete_entry', 'delete', Menu::PAGE_ENTRIES );
+	}
+
+	public function ajax_search_licence() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
+
+		$nom            = isset( $_POST['nom'] ) ? sanitize_text_field( wp_unslash( $_POST['nom'] ) ) : '';
+		$prenom         = isset( $_POST['prenom'] ) ? sanitize_text_field( wp_unslash( $_POST['prenom'] ) ) : '';
+		$date_naissance = isset( $_POST['date_naissance'] ) ? sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) : '';
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+		if ( '' === $nom && '' === $prenom && '' === $date_naissance ) {
+			wp_send_json_error( array( 'message' => __( 'Veuillez saisir au moins un critère de recherche.', 'ufsc-licence-competition' ) ) );
+		}
+
+		$normalized_birthdate = $this->normalize_birthdate( $date_naissance );
+		$season_end_year      = $this->get_competition_season_end_year( $competition_id );
+
+		global $wpdb;
+
+		$licences_table = $wpdb->prefix . 'ufsc_licences';
+		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
+		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
+
+		$where  = array();
+		$params = array();
+
+		if ( '' !== $nom ) {
+			$where[]  = "{$name_expr} LIKE %s";
+			$params[] = '%' . $wpdb->esc_like( $nom ) . '%';
+		}
+
+		if ( '' !== $prenom ) {
+			$where[]  = 'l.prenom LIKE %s';
+			$params[] = '%' . $wpdb->esc_like( $prenom ) . '%';
+		}
+
+		if ( '' !== $normalized_birthdate ) {
+			$where[]  = 'l.date_naissance = %s';
+			$params[] = $normalized_birthdate;
+		}
+
+		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
+
+		$sql = "SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, l.club_id, c.nom AS club_nom
+			FROM {$licences_table} l
+			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
+			{$where_sql}
+			ORDER BY {$name_expr} ASC, l.prenom ASC, l.id ASC
+			LIMIT 20";
+
+		$query = $params ? $wpdb->prepare( $sql, $params ) : $sql;
+		$rows  = $wpdb->get_results( $query, ARRAY_A );
+		if ( ! is_array( $rows ) ) {
+			wp_send_json_success( array() );
+		}
+
+		$results = array();
+		foreach ( $rows as $row ) {
+			$birthdate_raw = sanitize_text_field( $row['date_naissance'] ?? '' );
+			$category      = '';
+			if ( $birthdate_raw && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+				$category = ufsc_lc_compute_category_from_birthdate( $birthdate_raw, $season_end_year );
+			}
+
+			$results[] = array(
+				'licence_id'         => absint( $row['licence_id'] ?? 0 ),
+				'nom'                => sanitize_text_field( $row['nom'] ?? '' ),
+				'prenom'             => sanitize_text_field( $row['prenom'] ?? '' ),
+				'date_naissance'     => $birthdate_raw,
+				'date_naissance_fmt' => function_exists( 'ufsc_lc_format_birthdate' ) ? ufsc_lc_format_birthdate( $birthdate_raw ) : $birthdate_raw,
+				'club_id'            => absint( $row['club_id'] ?? 0 ),
+				'club_nom'           => sanitize_text_field( $row['club_nom'] ?? '' ),
+				'category'           => $category,
+			);
+		}
+
+		wp_send_json_success( $results );
+	}
+
+	public function ajax_get_licensee() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
+
+		$licensee_id   = isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0;
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+
+		if ( ! $licensee_id ) {
+			wp_send_json_error( array( 'message' => __( 'Identifiant licencié invalide.', 'ufsc-licence-competition' ) ) );
+		}
+
+		$season_end_year = $this->get_competition_season_end_year( $competition_id );
+
+		global $wpdb;
+
+		$licences_table = $wpdb->prefix . 'ufsc_licences';
+		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
+		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, l.club_id, c.nom AS club_nom
+				FROM {$licences_table} l
+				LEFT JOIN {$clubs_table} c ON c.id = l.club_id
+				WHERE l.id = %d
+				LIMIT 1",
+				$licensee_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $row ) {
+			wp_send_json_error( array( 'message' => __( 'Licencié introuvable.', 'ufsc-licence-competition' ) ) );
+		}
+
+		$birthdate_raw = sanitize_text_field( $row['date_naissance'] ?? '' );
+		$category      = '';
+		if ( $birthdate_raw && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+			$category = ufsc_lc_compute_category_from_birthdate( $birthdate_raw, $season_end_year );
+		}
+
+		$data = array(
+			'licence_id'         => absint( $row['licence_id'] ?? 0 ),
+			'nom'                => sanitize_text_field( $row['nom'] ?? '' ),
+			'prenom'             => sanitize_text_field( $row['prenom'] ?? '' ),
+			'date_naissance'     => $birthdate_raw,
+			'date_naissance_fmt' => function_exists( 'ufsc_lc_format_birthdate' ) ? ufsc_lc_format_birthdate( $birthdate_raw ) : $birthdate_raw,
+			'club_id'            => absint( $row['club_id'] ?? 0 ),
+			'club_nom'           => sanitize_text_field( $row['club_nom'] ?? '' ),
+			'category'           => $category,
+		);
+
+		wp_send_json_success( $data );
+	}
+
+	private function normalize_birthdate( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+		$formats  = array( 'Y-m-d', 'd/m/Y' );
+		foreach ( $formats as $format ) {
+			$parsed = \DateTimeImmutable::createFromFormat( '!' . $format, $raw, $timezone );
+			if ( $parsed && $parsed->format( $format ) === $raw ) {
+				return $parsed->format( 'Y-m-d' );
+			}
+		}
+
+		return '';
+	}
+
+	private function get_competition_season_end_year( $competition_id ) {
+		if ( ! $competition_id ) {
+			return '';
+		}
+
+		$competition = $this->competition_repository->get( $competition_id, true );
+		return $competition ? (string) ( $competition->season ?? '' ) : '';
 	}
 
 	private function handle_simple_action( $action, $method, $page_slug ) {
@@ -191,6 +363,37 @@ class Entries_Page {
 									<option value="<?php echo esc_attr( $category->id ); ?>" <?php selected( $values['category_id'], $category->id ); ?>><?php echo esc_html( $category->name ); ?></option>
 								<?php endforeach; ?>
 							</select>
+							<p class="description ufsc-entry-auto-category" id="ufsc_entry_auto_category_preview"></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_entry_licensee_search_nom"><?php esc_html_e( 'Rechercher un licencié', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<fieldset class="ufsc-entry-licensee-search">
+								<div class="ufsc-entry-licensee-search-fields">
+									<label>
+										<span class="screen-reader-text"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></span>
+										<input type="text" id="ufsc_entry_licensee_search_nom" placeholder="<?php echo esc_attr__( 'Nom', 'ufsc-licence-competition' ); ?>">
+									</label>
+									<label>
+										<span class="screen-reader-text"><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></span>
+										<input type="text" id="ufsc_entry_licensee_search_prenom" placeholder="<?php echo esc_attr__( 'Prénom', 'ufsc-licence-competition' ); ?>">
+									</label>
+									<label>
+										<span class="screen-reader-text"><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></span>
+										<input type="date" id="ufsc_entry_licensee_search_birthdate" placeholder="<?php echo esc_attr__( 'JJ/MM/AAAA', 'ufsc-licence-competition' ); ?>">
+									</label>
+									<button type="button" class="button" id="ufsc_entry_licensee_search_button"><?php esc_html_e( 'Rechercher', 'ufsc-licence-competition' ); ?></button>
+								</div>
+								<p class="description"><?php esc_html_e( 'Recherche par nom, prénom et/ou date de naissance (formats acceptés : JJ/MM/AAAA ou AAAA-MM-JJ).', 'ufsc-licence-competition' ); ?></p>
+								<div class="ufsc-entry-licensee-search-message" id="ufsc_entry_licensee_search_message" role="status" aria-live="polite"></div>
+								<div class="ufsc-entry-licensee-search-results" id="ufsc_entry_licensee_search_results"></div>
+								<div class="ufsc-entry-licensee-search-actions">
+									<button type="button" class="button button-primary" id="ufsc_entry_use_licensee" disabled><?php esc_html_e( 'Utiliser ce licencié', 'ufsc-licence-competition' ); ?></button>
+									<span class="ufsc-entry-licensee-selected" id="ufsc_entry_licensee_selected"></span>
+								</div>
+								<input type="hidden" name="selected_licensee_id" id="ufsc_entry_selected_licensee" value="<?php echo esc_attr( $values['licensee_id'] ); ?>">
+							</fieldset>
 						</td>
 					</tr>
 					<tr>
