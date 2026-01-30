@@ -1031,6 +1031,7 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		$this->persist_preview( $preview );
+		delete_transient( $lock_key );
 
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
@@ -1041,19 +1042,30 @@ class UFSC_LC_ASPTT_Importer {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
+		$lock_key = 'ufsc_lc_asptt_import_lock';
+		if ( get_transient( $lock_key ) ) {
+			$redirect = $this->add_notice_args( $this->get_admin_url(), 'warning', __( 'Un import est déjà en cours. Merci de réessayer dans quelques instants.', 'ufsc-licence-competition' ) );
+			wp_safe_redirect( $redirect );
+			exit;
+		}
+		set_transient( $lock_key, 1, 10 * MINUTE_IN_SECONDS );
+
 		$nonce = isset( $_POST['ufsc_lc_asptt_import_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_import_nonce'] ) ) : '';
 		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_import' ) ) {
+			delete_transient( $lock_key );
 			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$preview = $this->get_preview();
 		if ( empty( $preview['file_path'] ) ) {
+			delete_transient( $lock_key );
 			wp_safe_redirect( $this->get_admin_url() );
 			exit;
 		}
 		if ( ! $this->is_valid_preview_path( $preview['file_path'] ) ) {
 			$this->clear_preview();
 			$redirect = $this->add_notice_args( $this->get_admin_url(), 'error', __( 'Le fichier d’import est introuvable ou invalide. Merci de recharger le CSV.', 'ufsc-licence-competition' ) );
+			delete_transient( $lock_key );
 			wp_safe_redirect( $redirect );
 			exit;
 		}
@@ -1143,6 +1155,7 @@ class UFSC_LC_ASPTT_Importer {
 				'type'    => 'error',
 				'message' => $result->get_error_message(),
 			);
+			delete_transient( $lock_key );
 		} else {
 			$stats        = isset( $result['stats'] ) ? $result['stats'] : array();
 			$total_rows   = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
@@ -1255,6 +1268,7 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		$this->persist_preview( $preview );
+		delete_transient( $lock_key );
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
 	}
