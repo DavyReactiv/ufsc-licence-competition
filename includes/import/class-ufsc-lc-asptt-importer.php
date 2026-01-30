@@ -2605,6 +2605,7 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$existing_names = null;
 		$existing_asptt = array();
+		$has_existing_asptt = false;
 		if ( $existing_id && ( $has_nom || $has_nom_licence || ! empty( $asptt_columns ) ) ) {
 			$select_cols = array();
 			if ( $has_nom ) {
@@ -2626,6 +2627,9 @@ class UFSC_LC_ASPTT_Import_Service {
 				if ( $existing_names ) {
 					foreach ( $asptt_columns as $column ) {
 						$existing_asptt[ $column ] = isset( $existing_names->{$column} ) ? trim( (string) $existing_names->{$column} ) : '';
+						if ( '' !== $existing_asptt[ $column ] ) {
+							$has_existing_asptt = true;
+						}
 					}
 				}
 			}
@@ -2635,7 +2639,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		$formats = array();
 
 		$should_set_license_number = true;
-		if ( in_array( $license_column, $asptt_columns, true ) && isset( $existing_asptt[ $license_column ] ) && '' !== $existing_asptt[ $license_column ] ) {
+		if ( in_array( $license_column, $asptt_columns, true ) && $has_existing_asptt ) {
 			$should_set_license_number = false;
 		}
 		if ( $should_set_license_number ) {
