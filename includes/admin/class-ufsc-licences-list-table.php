@@ -16,6 +16,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_source_created_at = false;
 	private $has_licence_number = false;
 	private $has_asptt_number = false;
+	private $has_licence_number_alt = false;
+	private $has_asptt_number_alt = false;
 	private $has_internal_note = false;
 	private $has_documents_meta_table = false;
 	private $has_competition = false;
@@ -50,6 +52,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_created_at            = $this->has_column( $this->get_licences_table(), 'created_at' );
 		$this->has_licence_number        = $this->has_column( $this->get_licences_table(), 'numero_licence_delegataire' );
 		$this->has_asptt_number          = $this->has_column( $this->get_licences_table(), 'numero_licence_asptt' );
+		$this->has_licence_number_alt    = $this->has_column( $this->get_licences_table(), 'licence_number' );
+		$this->has_asptt_number_alt      = $this->has_column( $this->get_licences_table(), 'asptt_number' );
 		$this->has_documents_table       = $this->table_exists( $this->get_documents_table() );
 		$this->has_source_created_at     = $this->has_documents_table && $this->has_column( $this->get_documents_table(), 'source_created_at' );
 		$this->has_internal_note         = $this->has_column( $this->get_licences_table(), 'note_interne' );
@@ -70,19 +74,24 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_category = $this->has_column( $this->get_licences_table(), 'category' );
 
 		$this->date_column           = 'date_naissance';
-		$this->licence_number_column = $this->has_asptt_number ? 'numero_licence_asptt' : ( $this->has_licence_number ? 'numero_licence_delegataire' : 'id' );
+		$this->licence_number_column = $this->has_licence_number ? 'numero_licence_delegataire' : ( $this->has_licence_number_alt ? 'licence_number' : 'id' );
 	}
 
 	public function get_columns() {
+		$season_label = __( 'Saison', 'ufsc-licence-competition' );
+		if ( $this->has_season_end_year ) {
+			$season_label = __( 'Saison (année de fin)', 'ufsc-licence-competition' );
+		}
 		// On garde l’affichage Saison/Catégorie même si vide, pour ne pas casser l’UX.
 		return array(
 			'cb'              => '<input type="checkbox" />',
 			'licence_number'  => __( 'N° licence', 'ufsc-licence-competition' ),
+			'asptt_number'    => __( 'N° ASPTT', 'ufsc-licence-competition' ),
 			'nom_licence'     => __( 'Nom', 'ufsc-licence-competition' ),
 			'prenom'          => __( 'Prénom', 'ufsc-licence-competition' ),
 			'club_name'       => __( 'Club', 'ufsc-licence-competition' ),
 			'statut'          => __( 'Statut', 'ufsc-licence-competition' ),
-			'season_end_year' => __( 'Saison', 'ufsc-licence-competition' ),
+			'season_end_year' => $season_label,
 			'category'        => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'date'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
 		);
@@ -149,6 +158,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$licence_number = is_array( $item ) ? ( $item['licence_number'] ?? '' ) : ( $item->licence_number ?? '' );
 				return ! empty( $licence_number )
 					? esc_html( $licence_number )
+					: esc_html__( '—', 'ufsc-licence-competition' );
+
+			case 'asptt_number':
+				$asptt_number = is_array( $item ) ? ( $item['asptt_number'] ?? '' ) : ( $item->asptt_number ?? '' );
+				return ! empty( $asptt_number )
+					? esc_html( $asptt_number )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'club_name':
@@ -296,6 +311,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( ! isset( $_REQUEST['season_end_year'] ) && isset( $persisted['season_end_year'] ) ) {
 			$season_end_year = sanitize_text_field( $persisted['season_end_year'] );
 		}
+		if ( '' === $season_end_year && '' !== $saison ) {
+			$season_end_year = $saison;
+		}
 
 		// Export columns (optional)
 		$export_columns_raw = isset( $_REQUEST['export_columns'] ) ? wp_unslash( $_REQUEST['export_columns'] ) : array();
@@ -323,8 +341,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$saison = '';
 		}
 
-		// season_end_year only if supported
-		if ( $this->has_season_end_year ) {
+		// season_end_year only if supported (coalesced)
+		if ( ! empty( $this->get_season_columns() ) ) {
 			$season_end_year = $this->sanitize_filter_value( 'season_end_year', $season_end_year );
 		} else {
 			$season_end_year = '';
@@ -476,7 +494,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		echo '</select>';
 
 		// ✅ Prefer season_end_year if exists, otherwise use saison/season.
-		if ( $this->has_season_end_year ) {
+		if ( ! empty( $this->get_season_columns() ) ) {
 			echo '<label class="screen-reader-text" for="ufsc-season-end-year-filter">' . esc_html__( 'Filtrer par saison', 'ufsc-licence-competition' ) . '</label>';
 			echo '<select name="season_end_year" id="ufsc-season-end-year-filter">';
 			echo '<option value="">' . esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' ) . '</option>';
@@ -485,19 +503,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 					'<option value="%s" %s>%s</option>',
 					esc_attr( $value ),
 					selected( $season_end_year, $value, false ),
-					esc_html( $value )
-				);
-			}
-			echo '</select>';
-		} elseif ( $this->has_season_column ) {
-			echo '<label class="screen-reader-text" for="ufsc-season-filter">' . esc_html__( 'Filtrer par saison', 'ufsc-licence-competition' ) . '</label>';
-			echo '<select name="saison" id="ufsc-season-filter">';
-			echo '<option value="">' . esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' ) . '</option>';
-			foreach ( $this->get_distinct_values( 'saison' ) as $value ) {
-				printf(
-					'<option value="%s" %s>%s</option>',
-					esc_attr( $value ),
-					selected( $saison, $value, false ),
 					esc_html( $value )
 				);
 			}
@@ -653,10 +658,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
-		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
-			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
-			$where[] = "{$category_column} = %s";
-			$params[] = $categorie;
+		if ( '' !== $categorie ) {
+			$category_filter_sql = $this->get_category_affiche_sql( 'l' );
+			if ( "''" !== $category_filter_sql ) {
+				$where[] = "{$category_filter_sql} = %s";
+				$params[] = $categorie;
+			}
 		}
 
 		if ( '' !== $competition && $this->has_competition ) {
@@ -665,23 +672,24 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		// Season filter (prefer season_end_year if present and used)
-		if ( '' !== $season_end_year && $this->has_season_end_year ) {
-			$where[] = 'l.season_end_year = %d';
-			$params[] = (int) $season_end_year;
-		} elseif ( '' !== $saison && $this->has_season_column ) {
-			$where[] = "l.{$this->season_column} = %s";
-			$params[] = $saison;
+		if ( '' !== $season_end_year || '' !== $saison ) {
+			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
+			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
+			if ( "''" !== $season_filter_sql ) {
+				$where[] = "{$season_filter_sql} = %s";
+				$params[] = $season_filter_value;
+			}
 		}
 
 		$join_documents    = '';
 		$document_params   = array();
-		$select_documents  = 'NULL AS asptt_number, NULL AS date_asptt, NULL AS attachment_id';
+		$select_documents  = 'NULL AS date_asptt, NULL AS attachment_id';
 
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$document_params  = array( 'ASPTT' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
-			$select_documents = "d.source_licence_number AS asptt_number, {$date_asptt_sql} AS date_asptt, d.attachment_id";
+			$select_documents = "{$date_asptt_sql} AS date_asptt, d.attachment_id";
 
 			if ( '' !== $search ) {
 				$where[]  = 'd.source_licence_number LIKE %s';
@@ -700,15 +708,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
 		}
 
-		if ( $this->has_asptt_number && $this->has_licence_number ) {
-			$licence_number_sql = "COALESCE(NULLIF(l.numero_licence_asptt, ''), NULLIF(l.numero_licence_delegataire, ''), l.id)";
-		} elseif ( $this->has_asptt_number ) {
-			$licence_number_sql = 'l.numero_licence_asptt';
-		} elseif ( $this->has_licence_number ) {
-			$licence_number_sql = 'l.numero_licence_delegataire';
-		} else {
-			$licence_number_sql = 'l.id';
-		}
+		$licence_number_sql = $this->get_licence_number_sql( 'l' );
+		$asptt_number_sql   = $this->get_asptt_number_sql( 'l', $this->has_documents_table ? 'd' : '' );
 		if ( $this->has_category ) {
 			$category_column = 'l.category';
 		} elseif ( $this->has_legacy_category ) {
@@ -720,11 +721,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$category_affiche_sql = $this->get_category_affiche_sql( 'l' );
 
 		// We always output season_end_year as alias; if column doesn't exist => NULL.
-		$season_column_sql  = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
+		$season_column_sql  = $this->get_season_end_year_sql( 'l' ) . ' AS season_end_year';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
 		$birthdate_column   = $this->has_column( $licences_table, 'date_naissance' ) ? 'l.date_naissance' : 'NULL AS date_naissance';
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -885,10 +886,12 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
-		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
-			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
-			$where[] = "{$category_column} = %s";
-			$params[] = $categorie;
+		if ( '' !== $categorie ) {
+			$category_filter_sql = $this->get_category_affiche_sql( 'l' );
+			if ( "''" !== $category_filter_sql ) {
+				$where[] = "{$category_filter_sql} = %s";
+				$params[] = $categorie;
+			}
 		}
 
 		if ( '' !== $competition && $this->has_competition ) {
@@ -896,23 +899,24 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$params[] = $competition;
 		}
 
-		if ( '' !== $season_end_year && $this->has_season_end_year ) {
-			$where[] = 'l.season_end_year = %d';
-			$params[] = (int) $season_end_year;
-		} elseif ( '' !== $saison && $this->has_season_column ) {
-			$where[] = "l.{$this->season_column} = %s";
-			$params[] = $saison;
+		if ( '' !== $season_end_year || '' !== $saison ) {
+			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
+			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
+			if ( "''" !== $season_filter_sql ) {
+				$where[] = "{$season_filter_sql} = %s";
+				$params[] = $season_filter_value;
+			}
 		}
 
 		$join_documents   = '';
 		$document_params  = array();
-		$select_documents = 'NULL AS asptt_number, NULL AS date_asptt, 0 AS has_pdf';
+		$select_documents = 'NULL AS date_asptt, 0 AS has_pdf';
 
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$document_params  = array( 'ASPTT' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
-			$select_documents = "d.source_licence_number AS asptt_number, {$date_asptt_sql} AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
+			$select_documents = "{$date_asptt_sql} AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
 
 			if ( '' !== $search ) {
 				$where[]  = 'd.source_licence_number LIKE %s';
@@ -931,6 +935,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
 		}
 
+		$asptt_number_sql = $this->get_asptt_number_sql( 'l', $this->has_documents_table ? 'd' : '' );
 		if ( $this->has_category ) {
 			$category_column = 'l.category';
 		} elseif ( $this->has_legacy_category ) {
@@ -940,11 +945,11 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l' );
 		$category_affiche_sql = $this->get_category_affiche_sql( 'l' );
-		$season_column_sql = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
+		$season_column_sql = $this->get_season_end_year_sql( 'l' ) . ' AS season_end_year';
 		$age_ref_column    = $this->has_column( $licences_table, 'age_ref' ) ? 'l.age_ref' : 'NULL AS age_ref';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
-		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$select_documents}";
+		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -1248,13 +1253,24 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				return array();
 			}
 			$real = $this->season_column;
-			$results = $wpdb->get_col( "SELECT DISTINCT {$real} FROM {$table} WHERE {$real} IS NOT NULL AND {$real} != '' ORDER BY {$real} ASC" );
-			return array_filter( array_map( 'strval', $results ) );
+			$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$real}) FROM {$table} WHERE {$real} IS NOT NULL AND {$real} != '' ORDER BY TRIM({$real}) ASC" );
+			return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
 		}
 
-		// season_end_year only if column exists
-		if ( 'season_end_year' === $column && ! $this->has_column( $table, 'season_end_year' ) ) {
-			return array();
+		// season_end_year from COALESCE(season_end_year, season, saison)
+		if ( 'season_end_year' === $column ) {
+			$season_sql = $this->get_season_end_year_sql( 'l' );
+			if ( "''" === $season_sql ) {
+				return array();
+			}
+			$results = $wpdb->get_col(
+				"SELECT DISTINCT TRIM({$season_sql}) AS season_value
+					FROM {$table} l
+					WHERE {$season_sql} IS NOT NULL
+						AND {$season_sql} <> ''
+					ORDER BY TRIM({$season_sql}) ASC"
+			);
+			return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
 		}
 
 		// Generic
@@ -1262,8 +1278,8 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return array();
 		}
 
-		$results = $wpdb->get_col( "SELECT DISTINCT {$column} FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC" );
-		return array_filter( array_map( 'strval', $results ) );
+		$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$column}) FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY TRIM({$column}) ASC" );
+		return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
 	}
 
 	private function get_category_filter_values() {
@@ -1297,13 +1313,13 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$coalesce_sql = 'COALESCE(' . implode( ', ', $coalesce_parts ) . ')';
 
 			$db_categories = $wpdb->get_col(
-				"SELECT DISTINCT {$coalesce_sql} AS cat
+				"SELECT DISTINCT TRIM({$coalesce_sql}) AS cat
 					FROM {$table}
 					WHERE {$coalesce_sql} IS NOT NULL
 						AND {$coalesce_sql} <> ''
-					ORDER BY {$coalesce_sql} ASC"
+					ORDER BY TRIM({$coalesce_sql}) ASC"
 			);
-			$db_categories = array_filter( array_map( 'strval', $db_categories ) );
+			$db_categories = array_filter( array_map( 'strval', array_map( 'trim', $db_categories ) ) );
 		}
 
 		$normalize = static function( $value ) {
@@ -1423,6 +1439,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	}
 
 	private function sanitize_filter_value( $column, $value ) {
+		$value = trim( (string) $value );
 		if ( '' === $value ) {
 			return '';
 		}
@@ -1499,6 +1516,61 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			}
 		}
 		return '';
+	}
+
+	private function get_season_columns() {
+		$table = $this->get_licences_table();
+		$columns = array();
+		foreach ( array( 'season_end_year', 'season', 'saison' ) as $column ) {
+			if ( $this->has_column( $table, $column ) ) {
+				$columns[] = $column;
+			}
+		}
+		return $columns;
+	}
+
+	private function get_season_end_year_sql( $alias ) {
+		$columns = $this->get_season_columns();
+		if ( empty( $columns ) ) {
+			return "''";
+		}
+
+		$parts = array();
+		foreach ( $columns as $column ) {
+			$parts[] = "NULLIF({$alias}.{$column}, '')";
+		}
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_licence_number_sql( $alias ) {
+		$parts = array();
+		if ( $this->has_licence_number ) {
+			$parts[] = "NULLIF({$alias}.numero_licence_delegataire, '')";
+		}
+		if ( $this->has_licence_number_alt ) {
+			$parts[] = "NULLIF({$alias}.licence_number, '')";
+		}
+		$parts[] = "{$alias}.id";
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_asptt_number_sql( $alias, $documents_alias = '' ) {
+		$parts = array();
+		if ( $this->has_asptt_number ) {
+			$parts[] = "NULLIF({$alias}.numero_licence_asptt, '')";
+		}
+		if ( $this->has_asptt_number_alt ) {
+			$parts[] = "NULLIF({$alias}.asptt_number, '')";
+		}
+		if ( $documents_alias ) {
+			$parts[] = "NULLIF({$documents_alias}.source_licence_number, '')";
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
 	private function get_clubs_table() {
