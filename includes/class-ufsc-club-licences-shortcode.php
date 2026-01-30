@@ -253,7 +253,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 						<?php foreach ( $items as $item ) : ?>
 							<?php
 							$nom_affiche = ufsc_lc_get_nom_affiche( $item );
-							$birthdate   = ufsc_lc_format_birthdate( $item->date_naissance ?? '' );
+							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
 							?>
 							<tr>
@@ -733,7 +733,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return $category;
 		}
 
-		$birthdate = ufsc_lc_format_birthdate( $item->date_naissance ?? '' );
+		$birthdate = $this->format_birthdate( $item->date_naissance ?? '' );
 		if ( '' === $birthdate ) {
 			return '';
 		}
@@ -746,8 +746,28 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return '';
 		}
 
-		$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
-		return isset( $computed['category'] ) ? (string) $computed['category'] : '';
+		return $this->compute_category_from_birthdate( $birthdate, $season_end_year );
+	}
+
+	private function format_birthdate( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		if ( function_exists( 'ufsc_lc_format_birthdate' ) ) {
+			return ufsc_lc_format_birthdate( $raw );
+		}
+
+		return $raw;
+	}
+
+	private function compute_category_from_birthdate( $birthdate, $season_end_year ) {
+		if ( function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+			return ufsc_lc_compute_category_from_birthdate( $birthdate, $season_end_year );
+		}
+
+		return '';
 	}
 
 	private function get_default_season_end_year() {
