@@ -71,11 +71,12 @@ class Assets {
 						'ufscEntriesSearch',
 						array(
 							'ajaxUrl'                  => admin_url( 'admin-ajax.php' ),
-							'nonce'                    => wp_create_nonce( 'ufsc_lc_admin_nonce' ),
+							'nonce'                    => wp_create_nonce( 'ufsc_lc_entries' ),
 							'searchEmptyMessage'       => __( 'Aucun résultat trouvé.', 'ufsc-licence-competition' ),
-							'searchErrorMessage'       => __( 'Impossible de lancer la recherche. Vérifiez les champs.', 'ufsc-licence-competition' ),
+							'searchErrorMessage'       => __( 'Erreur de recherche, réessayez.', 'ufsc-licence-competition' ),
 							'selectionRequiredMessage' => __( 'Veuillez sélectionner un licencié dans la liste.', 'ufsc-licence-competition' ),
 							'autoCategoryLabel'        => __( 'Catégorie auto détectée :', 'ufsc-licence-competition' ),
+							'autoCategoryEmptyLabel'   => __( 'Non déterminée', 'ufsc-licence-competition' ),
 						)
 					);
 				}

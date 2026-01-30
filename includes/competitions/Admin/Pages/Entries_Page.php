@@ -25,6 +25,12 @@ class Entries_Page {
 	}
 
 	public function register_actions() {
+		static $registered = false;
+		if ( $registered ) {
+			return;
+		}
+		$registered = true;
+
 		add_action( 'admin_post_ufsc_competitions_save_entry', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_trash_entry', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_entry', array( $this, 'handle_restore' ) );
@@ -129,11 +135,11 @@ class Entries_Page {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
-		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
+		check_ajax_referer( 'ufsc_lc_entries', 'nonce' );
 
-		$nom            = isset( $_POST['nom'] ) ? sanitize_text_field( wp_unslash( $_POST['nom'] ) ) : '';
-		$prenom         = isset( $_POST['prenom'] ) ? sanitize_text_field( wp_unslash( $_POST['prenom'] ) ) : '';
-		$date_naissance = isset( $_POST['date_naissance'] ) ? sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) : '';
+		$nom            = isset( $_POST['nom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['nom'] ) ) ) : '';
+		$prenom         = isset( $_POST['prenom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['prenom'] ) ) ) : '';
+		$date_naissance = isset( $_POST['date_naissance'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) ) : '';
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
 		if ( '' === $nom && '' === $prenom && '' === $date_naissance ) {
@@ -174,17 +180,26 @@ class Entries_Page {
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 			{$where_sql}
 			ORDER BY {$name_expr} ASC, l.prenom ASC, l.id ASC
-			LIMIT 20";
+			LIMIT %d";
 
-		$query = $params ? $wpdb->prepare( $sql, $params ) : $sql;
-		$rows  = $wpdb->get_results( $query, ARRAY_A );
+		$params[] = 20;
+		$query    = $wpdb->prepare( $sql, $params );
+		$rows     = $wpdb->get_results( $query, ARRAY_A );
+		if ( $wpdb->last_error ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Erreur interne lors de la recherche.', 'ufsc-licence-competition' ),
+				),
+				500
+			);
+		}
 		if ( ! is_array( $rows ) ) {
-			wp_send_json_success( array() );
+			$rows = array();
 		}
 
 		$results = array();
 		foreach ( $rows as $row ) {
-			$birthdate_raw = sanitize_text_field( $row['date_naissance'] ?? '' );
+			$birthdate_raw = trim( sanitize_text_field( $row['date_naissance'] ?? '' ) );
 			$category      = '';
 			if ( $birthdate_raw && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
 				$category = ufsc_lc_compute_category_from_birthdate( $birthdate_raw, $season_end_year );
@@ -192,17 +207,22 @@ class Entries_Page {
 
 			$results[] = array(
 				'licence_id'         => absint( $row['licence_id'] ?? 0 ),
-				'nom'                => sanitize_text_field( $row['nom'] ?? '' ),
-				'prenom'             => sanitize_text_field( $row['prenom'] ?? '' ),
+				'nom'                => trim( sanitize_text_field( $row['nom'] ?? '' ) ),
+				'prenom'             => trim( sanitize_text_field( $row['prenom'] ?? '' ) ),
 				'date_naissance'     => $birthdate_raw,
-				'date_naissance_fmt' => function_exists( 'ufsc_lc_format_birthdate' ) ? ufsc_lc_format_birthdate( $birthdate_raw ) : $birthdate_raw,
+				'date_naissance_fmt' => $this->format_birthdate( $birthdate_raw ),
 				'club_id'            => absint( $row['club_id'] ?? 0 ),
-				'club_nom'           => sanitize_text_field( $row['club_nom'] ?? '' ),
+				'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
 				'category'           => $category,
 			);
 		}
 
-		wp_send_json_success( $results );
+		wp_send_json_success(
+			array(
+				'results' => $results,
+				'message' => $results ? '' : __( 'Aucun résultat trouvé.', 'ufsc-licence-competition' ),
+			)
+		);
 	}
 
 	public function ajax_get_licensee() {
@@ -210,7 +230,7 @@ class Entries_Page {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
-		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
+		check_ajax_referer( 'ufsc_lc_entries', 'nonce' );
 
 		$licensee_id   = isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0;
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
@@ -243,7 +263,7 @@ class Entries_Page {
 			wp_send_json_error( array( 'message' => __( 'Licencié introuvable.', 'ufsc-licence-competition' ) ) );
 		}
 
-		$birthdate_raw = sanitize_text_field( $row['date_naissance'] ?? '' );
+		$birthdate_raw = trim( sanitize_text_field( $row['date_naissance'] ?? '' ) );
 		$category      = '';
 		if ( $birthdate_raw && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
 			$category = ufsc_lc_compute_category_from_birthdate( $birthdate_raw, $season_end_year );
@@ -251,12 +271,12 @@ class Entries_Page {
 
 		$data = array(
 			'licence_id'         => absint( $row['licence_id'] ?? 0 ),
-			'nom'                => sanitize_text_field( $row['nom'] ?? '' ),
-			'prenom'             => sanitize_text_field( $row['prenom'] ?? '' ),
+			'nom'                => trim( sanitize_text_field( $row['nom'] ?? '' ) ),
+			'prenom'             => trim( sanitize_text_field( $row['prenom'] ?? '' ) ),
 			'date_naissance'     => $birthdate_raw,
-			'date_naissance_fmt' => function_exists( 'ufsc_lc_format_birthdate' ) ? ufsc_lc_format_birthdate( $birthdate_raw ) : $birthdate_raw,
+			'date_naissance_fmt' => $this->format_birthdate( $birthdate_raw ),
 			'club_id'            => absint( $row['club_id'] ?? 0 ),
-			'club_nom'           => sanitize_text_field( $row['club_nom'] ?? '' ),
+			'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
 			'category'           => $category,
 		);
 
@@ -279,6 +299,25 @@ class Entries_Page {
 		}
 
 		return '';
+	}
+
+	private function format_birthdate( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		if ( function_exists( 'ufsc_lc_format_birthdate' ) ) {
+			return ufsc_lc_format_birthdate( $raw );
+		}
+
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+		$parsed   = \DateTimeImmutable::createFromFormat( '!Y-m-d', $raw, $timezone );
+		if ( $parsed && $parsed->format( 'Y-m-d' ) === $raw ) {
+			return $parsed->format( 'd/m/Y' );
+		}
+
+		return $raw;
 	}
 
 	private function get_competition_season_end_year( $competition_id ) {

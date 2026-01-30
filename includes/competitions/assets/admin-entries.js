@@ -47,6 +47,7 @@
 
   let lastSelected = null;
   let searchTimeout = null;
+  let searchController = null;
 
   function setMessage(text, type = "") {
     messageContainer.textContent = text || "";
@@ -71,8 +72,10 @@
       return;
     }
 
-    autoCategoryPreview.textContent = "";
-    autoCategoryPreview.dataset.visible = "false";
+    autoCategoryPreview.textContent = config.autoCategoryEmptyLabel || "";
+    autoCategoryPreview.dataset.visible = config.autoCategoryEmptyLabel
+      ? "true"
+      : "false";
   }
 
   function renderResults(items) {
@@ -129,7 +132,7 @@
     useButton.disabled = false;
   }
 
-  async function postAjax(data) {
+  async function postAjax(data, { signal } = {}) {
     const body = new URLSearchParams();
     Object.entries(data).forEach(([key, value]) => {
       body.append(key, value == null ? "" : String(value));
@@ -138,6 +141,7 @@
     const res = await fetch(config.ajaxUrl, {
       method: "POST",
       credentials: "same-origin",
+      signal,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
       },
@@ -169,8 +173,15 @@
 
     setMessage("", "");
 
+    if (searchController) {
+      searchController.abort();
+    }
+    searchController = new AbortController();
+
     try {
-      const { ok, json } = await postAjax(payload);
+      const { ok, json } = await postAjax(payload, {
+        signal: searchController.signal,
+      });
       if (!ok || !json) {
         setMessage(config.searchErrorMessage, "error");
         clearResults();
@@ -187,10 +198,20 @@
         return;
       }
 
-      renderResults(json.data || []);
+      const results = json.data && json.data.results ? json.data.results : json.data;
+      renderResults(results || []);
+
+      if (json.data && json.data.message && (!results || !results.length)) {
+        setMessage(json.data.message, "warning");
+      }
     } catch (error) {
+      if (error && error.name === "AbortError") {
+        return;
+      }
       setMessage(config.searchErrorMessage, "error");
       clearResults();
+    } finally {
+      searchController = null;
     }
   }
 
