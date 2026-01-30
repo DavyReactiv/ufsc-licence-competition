@@ -34,6 +34,7 @@ if ( ! defined( 'UFSC_LC_PLUGIN_DIR' ) ) {
 	define( 'UFSC_LC_PLUGIN_DIR', UFSC_LC_DIR );
 }
 
+require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 
 UFSC_LC_Plugin::init( UFSC_LC_FILE );

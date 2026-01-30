@@ -9,6 +9,20 @@ class UFSC_LC_Categories {
 	const MIN_SEASON_YEAR = 1900;
 	const MAX_SEASON_YEAR = 2100;
 
+	public static function get_default_categories() {
+		return array(
+			'Poussins',
+			'Pupilles',
+			'Benjamins',
+			'Minimes',
+			'Cadets',
+			'Juniors',
+			'Séniors',
+			'Vétérans',
+			self::CATEGORY_OUT_OF_RANGE,
+		);
+	}
+
 	public static function season_ref_date( $season_end_year ) {
 		$year = self::sanitize_season_end_year( $season_end_year );
 		if ( null === $year ) {

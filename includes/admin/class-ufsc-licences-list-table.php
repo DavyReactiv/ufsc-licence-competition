@@ -1233,14 +1233,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		$table = $this->get_licences_table();
 
-		// Map "category" => real column
+		// Map "category" => merged values (config + DB).
 		if ( 'category' === $column ) {
-			$real = $this->has_category ? 'category' : ( $this->has_legacy_category ? 'categorie' : '' );
-			if ( '' === $real ) {
-				return array();
-			}
-			$results = $wpdb->get_col( "SELECT DISTINCT {$real} FROM {$table} WHERE {$real} IS NOT NULL AND {$real} != '' ORDER BY {$real} ASC" );
-			return array_filter( array_map( 'strval', $results ) );
+			return $this->get_category_filter_values();
 		}
 
 		// Map "saison" => dynamic season column (saison|season)
@@ -1265,6 +1260,87 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		$results = $wpdb->get_col( "SELECT DISTINCT {$column} FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC" );
 		return array_filter( array_map( 'strval', $results ) );
+	}
+
+	private function get_category_filter_values() {
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		$config_categories = class_exists( 'UFSC_LC_Categories' ) ? UFSC_LC_Categories::get_default_categories() : array();
+
+		$category_columns = array();
+		if ( $this->has_legacy_category ) {
+			$category_columns[] = 'categorie';
+		}
+		if ( $this->has_category ) {
+			$category_columns[] = 'category';
+		}
+		if ( $this->has_legacy_category_column ) {
+			$category_columns[] = 'legacy_category';
+		}
+
+		$db_categories = array();
+		if ( ! empty( $category_columns ) ) {
+			$coalesce_parts = array();
+			$where_parts    = array();
+			foreach ( $category_columns as $column ) {
+				$coalesce_parts[] = "NULLIF({$column}, '')";
+				$where_parts[] = "{$column} IS NOT NULL AND {$column} != ''";
+			}
+
+			$coalesce_sql = 'COALESCE(' . implode( ', ', $coalesce_parts ) . ')';
+			$where_sql    = implode( ' OR ', $where_parts );
+
+			$db_categories = $wpdb->get_col( "SELECT DISTINCT {$coalesce_sql} FROM {$table} WHERE {$where_sql} ORDER BY {$coalesce_sql} ASC" );
+			$db_categories = array_filter( array_map( 'strval', $db_categories ) );
+		}
+
+		$normalize = static function( $value ) {
+			$normalized = trim( (string) $value );
+			if ( function_exists( 'remove_accents' ) ) {
+				$normalized = remove_accents( $normalized );
+			}
+			return strtolower( $normalized );
+		};
+
+		$ordered = array();
+		$seen    = array();
+
+		foreach ( $config_categories as $category ) {
+			$label = trim( (string) $category );
+			if ( '' === $label ) {
+				continue;
+			}
+			$key = $normalize( $label );
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
+			$seen[ $key ] = true;
+			$ordered[]    = $label;
+		}
+
+		$extras = array();
+		foreach ( $db_categories as $category ) {
+			$label = trim( (string) $category );
+			if ( '' === $label ) {
+				continue;
+			}
+			$key = $normalize( $label );
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
+			$seen[ $key ] = true;
+			$extras[]     = $label;
+		}
+
+		usort(
+			$extras,
+			static function ( $a, $b ) {
+				return strcasecmp( $a, $b );
+			}
+		);
+
+		return array_merge( $ordered, $extras );
 	}
 
 	private function get_nom_affiche_sql( $alias ) {

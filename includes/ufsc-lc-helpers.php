@@ -54,3 +54,22 @@ function ufsc_lc_format_birthdate( $raw ) {
 
 	return '';
 }
+
+function ufsc_lc_compute_category_from_birthdate( $birthdate, $season_end_year ) {
+	if ( ! class_exists( 'UFSC_LC_Categories' ) ) {
+		return '';
+	}
+
+	$birthdate = trim( (string) $birthdate );
+	if ( '' === $birthdate ) {
+		return '';
+	}
+
+	$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year );
+	if ( null === $season_end_year ) {
+		return '';
+	}
+
+	$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
+	return isset( $computed['category'] ) ? (string) $computed['category'] : '';
+}
