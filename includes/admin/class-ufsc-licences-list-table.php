@@ -571,6 +571,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$season_end_year = $filters['season_end_year'];
 		$pdf_filter    = $filters['pdf_filter'];
 
+		$columns  = $this->get_columns();
+		$hidden   = array();
+		$sortable = $this->get_sortable_columns();
+		$this->_column_headers = array( $columns, $hidden, $sortable );
+
 		$licences_table  = $this->get_licences_table();
 		$clubs_table     = $this->get_clubs_table();
 		$documents_table = $this->get_documents_table();
@@ -713,31 +718,36 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$items_query = $wpdb->prepare( $items_sql, $item_params );
 		$this->items = $wpdb->get_results( $items_query );
 
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			$columns = $this->get_columns();
-			$example_item = ! empty( $this->items ) ? $this->items[0] : null;
-			$example_keys = array();
-			if ( is_array( $example_item ) ) {
-				$example_keys = array_keys( $example_item );
-			} elseif ( is_object( $example_item ) ) {
-				$example_keys = array_keys( get_object_vars( $example_item ) );
-			}
-			error_log( 'UFSC LC Licences columns: ' . wp_json_encode( array_keys( $columns ) ) );
-			error_log( 'UFSC LC Licences items count: ' . count( $this->items ) );
-			error_log( 'UFSC LC Licences item keys sample: ' . wp_json_encode( $example_keys ) );
-			error_log( 'UFSC LC Licences count SQL: ' . $count_query );
-			error_log( 'UFSC LC Licences items SQL: ' . $items_query );
-			error_log(
-				sprintf(
-					'UFSC LC Licences pagination: paged=%d per_page=%d offset=%d total_items=%d items=%d',
-					$current_page,
-					$per_page,
-					$offset,
-					$total_items,
-					count( $this->items )
-				)
-			);
-		}
+if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+    // ✅ Ensure columns is available for logs (in case another part moved it)
+    $columns = isset( $columns ) && is_array( $columns ) ? $columns : $this->get_columns();
+
+    $example_item = ! empty( $this->items ) ? $this->items[0] : null;
+    $example_keys = array();
+
+    if ( is_array( $example_item ) ) {
+        $example_keys = array_keys( $example_item );
+    } elseif ( is_object( $example_item ) ) {
+        $example_keys = array_keys( get_object_vars( $example_item ) );
+    }
+
+    error_log( 'UFSC LC Licences columns: ' . wp_json_encode( array_keys( $columns ) ) );
+    error_log( 'UFSC LC Licences items count: ' . count( $this->items ) );
+    error_log( 'UFSC LC Licences item keys sample: ' . wp_json_encode( $example_keys ) );
+    error_log( 'UFSC LC Licences count SQL: ' . $count_query );
+    error_log( 'UFSC LC Licences items SQL: ' . $items_query );
+    error_log(
+        sprintf(
+            'UFSC LC Licences pagination: paged=%d per_page=%d offset=%d total_items=%d items=%d',
+            $current_page,
+            $per_page,
+            $offset,
+            $total_items,
+            count( $this->items )
+        )
+    );
+}
+
 
 		$this->set_pagination_args(
 			array(
