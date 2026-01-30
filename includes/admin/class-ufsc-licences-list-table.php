@@ -610,6 +610,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$where[] = 'l.statut = %s';
 			$params[] = $statut;
 		}
+		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
 			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
@@ -795,6 +796,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$where[] = 'l.statut = %s';
 			$params[] = $statut;
 		}
+		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie && ( $this->has_category || $this->has_legacy_category ) ) {
 			$category_column = $this->has_category ? 'l.category' : 'l.categorie';
@@ -915,6 +917,28 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( ! empty( $result ) ) {
 			$this->redirect_with_notice( $result );
 		}
+	}
+
+	private function add_default_valid_filter( $licences_table, $statut, array &$where, array &$params ) {
+		if ( '' !== $statut ) {
+			return;
+		}
+
+		$has_statut = $this->has_column( $licences_table, 'statut' );
+		$has_status = $this->has_column( $licences_table, 'status' );
+
+		if ( ! $has_statut && ! $has_status ) {
+			return;
+		}
+
+		if ( $has_statut && $has_status ) {
+			$status_expr = 'LOWER(COALESCE(l.statut, l.status))';
+		} else {
+			$status_expr = $has_statut ? 'LOWER(l.statut)' : 'LOWER(l.status)';
+		}
+
+		$where[] = "{$status_expr} = %s";
+		$params[] = 'valide';
 	}
 
 	private function handle_bulk_mark_review( array $licence_ids ) {
