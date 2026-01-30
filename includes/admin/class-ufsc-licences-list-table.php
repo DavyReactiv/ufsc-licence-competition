@@ -21,6 +21,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_competition = false;
 	private $has_email = false;
 	private $has_legacy_category = false;
+	private $has_legacy_category_column = false;
+	private $has_nom = false;
+	private $has_nom_licence = false;
 
 	// ✅ Compatibility: dynamic season column (saison|season) + explicit season_end_year.
 	private $has_season_column = false;
@@ -54,6 +57,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_competition           = $this->has_column( $this->get_licences_table(), 'competition' );
 		$this->has_email                 = $this->has_column( $this->get_licences_table(), 'email' );
 		$this->has_legacy_category       = $this->has_column( $this->get_licences_table(), 'categorie' );
+		$this->has_legacy_category_column = $this->has_column( $this->get_licences_table(), 'legacy_category' );
+		$this->has_nom                   = $this->has_column( $this->get_licences_table(), 'nom' );
+		$this->has_nom_licence           = $this->has_column( $this->get_licences_table(), 'nom_licence' );
 
 		// Season support
 		$this->season_column       = $this->get_season_column(); // 'saison' or 'season' or ''
@@ -149,6 +155,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			case 'nom_licence':
 			case 'prenom':
 			case 'statut':
+				if ( 'nom_licence' === $column_name ) {
+					$nom_affiche = ufsc_lc_get_nom_affiche( $item );
+					return '' !== $nom_affiche
+						? esc_html( $nom_affiche )
+						: esc_html__( '—', 'ufsc-licence-competition' );
+				}
 				return ! empty( $value )
 					? esc_html( $value )
 					: esc_html__( '—', 'ufsc-licence-competition' );
@@ -160,8 +172,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'category':
-				$category = is_array( $item ) ? ( $item['category'] ?? '' ) : ( $item->category ?? '' );
-				return ! empty( $category )
+				$category = is_array( $item ) ? ( $item['categorie_affiche'] ?? '' ) : ( $item->categorie_affiche ?? '' );
+				if ( '' === $category ) {
+					$category = $this->calculate_category_fallback( $item );
+				}
+				return '' !== $category
 					? esc_html( $category )
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
@@ -586,8 +601,19 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$search_like = '';
 		if ( '' !== $search ) {
 			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
-			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'c.nom LIKE %s' );
-			$params = array_merge( $params, array( $search_like, $search_like, $search_like ) );
+			$search_clauses = array();
+			if ( $this->has_nom ) {
+				$search_clauses[] = 'l.nom LIKE %s';
+				$params[] = $search_like;
+			}
+			if ( $this->has_nom_licence ) {
+				$search_clauses[] = 'l.nom_licence LIKE %s';
+				$params[] = $search_like;
+			}
+			$search_clauses[] = 'l.prenom LIKE %s';
+			$params[] = $search_like;
+			$search_clauses[] = 'c.nom LIKE %s';
+			$params[] = $search_like;
 
 			if ( $this->has_email ) {
 				$search_clauses[] = 'l.email LIKE %s';
@@ -686,14 +712,20 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		} else {
 			$category_column = 'NULL';
 		}
+		$nom_affiche_sql     = $this->get_nom_affiche_sql( 'l' );
+		$category_affiche_sql = $this->get_category_affiche_sql( 'l' );
 
 		// We always output season_end_year as alias; if column doesn't exist => NULL.
 		$season_column_sql  = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, l.nom_licence, l.prenom, l.statut, {$category_column} AS category, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
+		$birthdate_column   = $this->has_column( $licences_table, 'date_naissance' ) ? 'l.date_naissance' : 'NULL AS date_naissance';
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
+		if ( 'nom_licence' === $orderby ) {
+			$orderby_sql = $nom_affiche_sql;
+		}
 
 		$count_sql = "SELECT COUNT(*)
 			FROM {$licences_table} l
@@ -801,8 +833,19 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$search_like = '';
 		if ( '' !== $search ) {
 			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
-			$search_clauses = array( 'l.nom_licence LIKE %s', 'l.prenom LIKE %s', 'c.nom LIKE %s' );
-			$params = array_merge( $params, array( $search_like, $search_like, $search_like ) );
+			$search_clauses = array();
+			if ( $this->has_nom ) {
+				$search_clauses[] = 'l.nom LIKE %s';
+				$params[] = $search_like;
+			}
+			if ( $this->has_nom_licence ) {
+				$search_clauses[] = 'l.nom_licence LIKE %s';
+				$params[] = $search_like;
+			}
+			$search_clauses[] = 'l.prenom LIKE %s';
+			$params[] = $search_like;
+			$search_clauses[] = 'c.nom LIKE %s';
+			$params[] = $search_like;
 
 			if ( $this->has_email ) {
 				$search_clauses[] = 'l.email LIKE %s';
@@ -891,13 +934,18 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		} else {
 			$category_column = 'NULL';
 		}
+		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l' );
+		$category_affiche_sql = $this->get_category_affiche_sql( 'l' );
 		$season_column_sql = $this->has_season_end_year ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 		$age_ref_column    = $this->has_column( $licences_table, 'age_ref' ) ? 'l.age_ref' : 'NULL AS age_ref';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
-		$select_columns = "c.nom AS club_name, l.nom_licence, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$select_documents}";
+		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
+		if ( 'nom_licence' === $orderby ) {
+			$orderby_sql = $nom_affiche_sql;
+		}
 
 		$limit_sql = '';
 		if ( $limit > 0 ) {
@@ -1217,6 +1265,66 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		$results = $wpdb->get_col( "SELECT DISTINCT {$column} FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC" );
 		return array_filter( array_map( 'strval', $results ) );
+	}
+
+	private function get_nom_affiche_sql( $alias ) {
+		$parts = array();
+		if ( $this->has_nom ) {
+			$parts[] = "NULLIF({$alias}.nom, '')";
+		}
+		if ( $this->has_nom_licence ) {
+			$parts[] = "NULLIF({$alias}.nom_licence, '')";
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_category_affiche_sql( $alias ) {
+		$parts = array();
+		if ( $this->has_legacy_category ) {
+			$parts[] = "NULLIF({$alias}.categorie, '')";
+		}
+		if ( $this->has_category ) {
+			$parts[] = "NULLIF({$alias}.category, '')";
+		}
+		if ( $this->has_legacy_category_column ) {
+			$parts[] = "NULLIF({$alias}.legacy_category, '')";
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function calculate_category_fallback( $item ) {
+		$birthdate_raw = is_array( $item ) ? ( $item['date_naissance'] ?? '' ) : ( $item->date_naissance ?? '' );
+		$birthdate     = ufsc_lc_format_birthdate( $birthdate_raw );
+		if ( '' === $birthdate ) {
+			return '';
+		}
+
+		$season_end_year = is_array( $item ) ? ( $item['season_end_year'] ?? '' ) : ( $item->season_end_year ?? '' );
+		$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year );
+		if ( null === $season_end_year ) {
+			$season_end_year = $this->get_default_season_end_year();
+		}
+		if ( null === $season_end_year ) {
+			return '';
+		}
+
+		$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
+		return isset( $computed['category'] ) ? (string) $computed['category'] : '';
+	}
+
+	private function get_default_season_end_year() {
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) ) {
+			return UFSC_LC_Settings_Page::get_default_season_end_year();
+		}
+
+		$year = (int) gmdate( 'Y' );
+		return UFSC_LC_Categories::sanitize_season_end_year( $year );
 	}
 
 	private function has_column( $table, $column ) {

@@ -1410,7 +1410,18 @@ class UFSC_LC_ASPTT_Import_Service {
 			);
 		}
 
-		$sql = "SELECT id, sexe, nom_licence, prenom, date_naissance FROM {$table}
+		$has_nom         = $this->column_exists( $table, 'nom' );
+		$has_nom_licence = $this->column_exists( $table, 'nom_licence' );
+		$name_parts      = array();
+		if ( $has_nom ) {
+			$name_parts[] = "NULLIF(nom, '')";
+		}
+		if ( $has_nom_licence ) {
+			$name_parts[] = "NULLIF(nom_licence, '')";
+		}
+		$nom_affiche_sql = empty( $name_parts ) ? "''" : 'COALESCE(' . implode( ', ', $name_parts ) . ')';
+
+		$sql = "SELECT id, sexe, {$nom_affiche_sql} AS nom_affiche, prenom, date_naissance FROM {$table}
 			WHERE club_id = %d AND date_naissance = %s";
 
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $club_id, $dob_value ) );
@@ -1423,7 +1434,7 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$matches = array();
 		foreach ( $results as $row ) {
-			if ( $this->normalize_name( $row->nom_licence ) === $normalized_nom
+			if ( $this->normalize_name( $row->nom_affiche ) === $normalized_nom
 				&& $this->normalize_name( $row->prenom ) === $normalized_prenom ) {
 				$matches[] = $row;
 			}
@@ -1783,9 +1794,12 @@ class UFSC_LC_ASPTT_Import_Service {
 			return $this->composite_cache[ $cache_key ];
 		}
 
+		$has_nom         = $this->column_exists( $table, 'nom' );
+		$has_nom_licence = $this->column_exists( $table, 'nom_licence' );
+
 		if (
 			! $this->column_exists( $table, 'club_id' )
-			|| ! $this->column_exists( $table, 'nom_licence' )
+			|| ( ! $has_nom && ! $has_nom_licence )
 			|| ! $this->column_exists( $table, 'prenom' )
 			|| ! $this->column_exists( $table, 'date_naissance' )
 			|| ! $this->column_exists( $table, 'season_end_year' )
@@ -1794,9 +1808,18 @@ class UFSC_LC_ASPTT_Import_Service {
 			return $this->composite_cache[ $cache_key ];
 		}
 
+		$nom_parts = array();
+		if ( $has_nom ) {
+			$nom_parts[] = "NULLIF(nom, '')";
+		}
+		if ( $has_nom_licence ) {
+			$nom_parts[] = "NULLIF(nom_licence, '')";
+		}
+		$nom_affiche_sql = empty( $nom_parts ) ? "''" : 'COALESCE(' . implode( ', ', $nom_parts ) . ')';
+
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, nom_licence, prenom, date_naissance, season_end_year
+				"SELECT id, {$nom_affiche_sql} AS nom_affiche, prenom, date_naissance, season_end_year
 					FROM {$table}
 					WHERE club_id = %d AND season_end_year = %d",
 				$club_id,
@@ -1809,7 +1832,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		foreach ( $rows as $row ) {
 			$key = $this->build_composite_key(
 				$club_id,
-				$row['nom_licence'],
+				$row['nom_affiche'],
 				$row['prenom'],
 				$row['date_naissance'],
 				$row['season_end_year']
@@ -2576,6 +2599,27 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$columns = $this->get_licence_columns();
+		$has_nom = in_array( 'nom', $columns, true );
+		$has_nom_licence = in_array( 'nom_licence', $columns, true );
+
+		$existing_names = null;
+		if ( $existing_id && ( $has_nom || $has_nom_licence ) ) {
+			$select_cols = array();
+			if ( $has_nom ) {
+				$select_cols[] = 'nom';
+			}
+			if ( $has_nom_licence ) {
+				$select_cols[] = 'nom_licence';
+			}
+			if ( ! empty( $select_cols ) ) {
+				$existing_names = $wpdb->get_row(
+					$wpdb->prepare(
+						'SELECT ' . implode( ', ', $select_cols ) . " FROM {$table} WHERE id = %d",
+						$existing_id
+					)
+				);
+			}
+		}
 
 		$fields  = array();
 		$formats = array();
@@ -2588,9 +2632,32 @@ class UFSC_LC_ASPTT_Import_Service {
 			$formats[]         = '%d';
 		}
 
-		if ( in_array( 'nom_licence', $columns, true ) && '' !== $data['nom'] ) {
-			$fields['nom_licence'] = $data['nom'];
+		$nom_value        = trim( (string) $data['nom'] );
+		$existing_nom     = $existing_names->nom ?? '';
+		$existing_nom     = is_string( $existing_nom ) ? trim( $existing_nom ) : '';
+		$existing_nom_licence = $existing_names->nom_licence ?? '';
+		$existing_nom_licence = is_string( $existing_nom_licence ) ? trim( $existing_nom_licence ) : '';
+
+		if ( $has_nom && '' === $existing_nom && '' !== $existing_nom_licence ) {
+			$fields['nom'] = $existing_nom_licence;
+			$formats[]     = '%s';
+		}
+
+		if ( $has_nom_licence && '' === $existing_nom_licence && '' !== $existing_nom ) {
+			$fields['nom_licence'] = $existing_nom;
 			$formats[]             = '%s';
+		}
+
+		if ( '' !== $nom_value ) {
+			if ( $has_nom && '' === $existing_nom && ! isset( $fields['nom'] ) ) {
+				$fields['nom'] = $nom_value;
+				$formats[]     = '%s';
+			}
+
+			if ( $has_nom_licence && '' === $existing_nom_licence && ! isset( $fields['nom_licence'] ) ) {
+				$fields['nom_licence'] = $nom_value;
+				$formats[]             = '%s';
+			}
 		}
 
 		if ( in_array( 'prenom', $columns, true ) && '' !== $data['prenom'] ) {

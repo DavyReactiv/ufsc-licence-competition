@@ -177,6 +177,41 @@ class UFSC_LC_Licence_Migrations {
 		} while ( ! empty( $rows ) );
 	}
 
+	public function backfill_nom_columns() {
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return;
+		}
+
+		if ( ! $this->has_column( $table, 'nom' ) || ! $this->has_column( $table, 'nom_licence' ) ) {
+			return;
+		}
+
+		$updated_nom_licence = $wpdb->query(
+			"UPDATE {$table}
+				SET nom_licence = nom
+				WHERE (nom_licence IS NULL OR nom_licence = '')
+				AND nom IS NOT NULL AND nom != ''"
+		);
+
+		if ( false === $updated_nom_licence ) {
+			error_log( "UFSC Licence Migrations: failed to backfill nom_licence from nom on {$table}: {$wpdb->last_error}" );
+		}
+
+		$updated_nom = $wpdb->query(
+			"UPDATE {$table}
+				SET nom = nom_licence
+				WHERE (nom IS NULL OR nom = '')
+				AND nom_licence IS NOT NULL AND nom_licence != ''"
+		);
+
+		if ( false === $updated_nom ) {
+			error_log( "UFSC Licence Migrations: failed to backfill nom from nom_licence on {$table}: {$wpdb->last_error}" );
+		}
+	}
+
 	private function has_column( $table, $column ) {
 		global $wpdb;
 		$column = sanitize_key( $column );

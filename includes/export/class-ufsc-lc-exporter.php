@@ -70,11 +70,11 @@ class UFSC_LC_Exporter {
 					$output,
 					array(
 						$row['club_name'],
-						$row['nom_licence'],
+						$row['nom_affiche'],
 						$row['prenom'],
 						$row['date_naissance'],
 						$row['statut'],
-						$row['category'],
+						$row['categorie_affiche'],
 						$row['season_end_year'],
 						$row['age_ref'],
 						$row['competition'],
@@ -103,11 +103,11 @@ class UFSC_LC_Exporter {
 	private function get_export_columns( $filters ) {
 		$available = array(
 			'club'        => array( 'label' => 'club', 'key' => 'club_name' ),
-			'nom'         => array( 'label' => 'nom', 'key' => 'nom_licence' ),
+			'nom'         => array( 'label' => 'nom', 'key' => 'nom_affiche' ),
 			'prenom'      => array( 'label' => 'prenom', 'key' => 'prenom' ),
 			'dob'         => array( 'label' => 'dob', 'key' => 'date_naissance' ),
 			'statut'      => array( 'label' => 'statut', 'key' => 'statut' ),
-			'categorie'   => array( 'label' => 'categorie', 'key' => 'categorie' ),
+			'categorie'   => array( 'label' => 'categorie', 'key' => 'categorie_affiche' ),
 			'competition' => array( 'label' => 'competition', 'key' => 'competition' ),
 			'n_asptt'     => array( 'label' => 'n_asptt', 'key' => 'asptt_number' ),
 			'date_asptt'  => array( 'label' => 'date_asptt', 'key' => 'date_asptt' ),

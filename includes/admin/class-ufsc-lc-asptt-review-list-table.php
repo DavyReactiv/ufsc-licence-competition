@@ -13,6 +13,9 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	private $filters = array();
 	private $has_season_end_year = false;
 	private $category_column = '';
+	private $has_nom = false;
+	private $has_nom_licence = false;
+	private $has_legacy_category_column = false;
 
 	public function __construct( $clubs = array() ) {
 		parent::__construct(
@@ -27,6 +30,9 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		$licences_table = $this->get_licences_table();
 		$this->has_season_end_year = $this->column_exists( $licences_table, 'season_end_year' );
 		$this->category_column = $this->resolve_category_column( $licences_table );
+		$this->has_nom = $this->column_exists( $licences_table, 'nom' );
+		$this->has_nom_licence = $this->column_exists( $licences_table, 'nom_licence' );
+		$this->has_legacy_category_column = $this->column_exists( $licences_table, 'legacy_category' );
 	}
 
 	public function get_columns() {
@@ -261,11 +267,16 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'nom_licence':
+				$nom_affiche = ufsc_lc_get_nom_affiche( $item );
+				return '' !== $nom_affiche ? esc_html( $nom_affiche ) : esc_html__( '—', 'ufsc-licence-competition' );
 			case 'prenom':
 			case 'date_naissance':
 			case 'asptt_number':
 			case 'season_end_year':
 			case 'category':
+				if ( 'category' === $column_name && ! empty( $item->categorie_affiche ) ) {
+					return esc_html( $item->categorie_affiche );
+				}
 				return ! empty( $item->{$column_name} ) ? esc_html( $item->{$column_name} ) : esc_html__( '—', 'ufsc-licence-competition' );
 			case 'actions':
 				return $this->column_actions( $item );
@@ -380,8 +391,17 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 
 		if ( $this->filters['search'] ) {
 			$search_like = '%' . $wpdb->esc_like( $this->filters['search'] ) . '%';
-			$where[] = '(licences.nom_licence LIKE %s OR licences.prenom LIKE %s OR docs.source_licence_number LIKE %s)';
-			$params[] = $search_like;
+			$name_clauses = array();
+			if ( $this->has_nom ) {
+				$name_clauses[] = 'licences.nom LIKE %s';
+				$params[] = $search_like;
+			}
+			if ( $this->has_nom_licence ) {
+				$name_clauses[] = 'licences.nom_licence LIKE %s';
+				$params[] = $search_like;
+			}
+			$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
+			$where[] = "({$name_clause_sql} OR licences.prenom LIKE %s OR docs.source_licence_number LIKE %s)";
 			$params[] = $search_like;
 			$params[] = $search_like;
 		}
@@ -392,6 +412,18 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		$order = 'ASC' === $this->filters['order'] ? 'ASC' : 'DESC';
 		$season_end_year_sql = $this->has_season_end_year ? 'licences.season_end_year' : 'NULL';
 		$category_sql        = $this->category_column ? 'licences.' . $this->category_column : 'NULL';
+		$category_parts      = array();
+		if ( $this->column_exists( $licences_table, 'categorie' ) ) {
+			$category_parts[] = "NULLIF(licences.categorie, '')";
+		}
+		if ( $this->column_exists( $licences_table, 'category' ) ) {
+			$category_parts[] = "NULLIF(licences.category, '')";
+		}
+		if ( $this->has_legacy_category_column ) {
+			$category_parts[] = "NULLIF(licences.legacy_category, '')";
+		}
+		$category_affiche_sql = empty( $category_parts ) ? "''" : 'COALESCE(' . implode( ', ', $category_parts ) . ')';
+		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'licences' );
 
 		$count_sql = "SELECT COUNT(DISTINCT docs.id) {$joins} {$where_sql}";
 		$total_items = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
@@ -401,12 +433,13 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 			docs.licence_id,
 			docs.source_licence_number AS asptt_number,
 			docs.asptt_club_note,
-			licences.nom_licence,
+			{$nom_affiche_sql} AS nom_affiche,
 			licences.prenom,
 			licences.date_naissance,
 			licences.sexe,
 			{$season_end_year_sql} AS season_end_year,
 			{$category_sql} AS category,
+			{$category_affiche_sql} AS categorie_affiche,
 			clubs.id AS club_id,
 			clubs.nom AS club_name,
 			meta_conf.meta_value AS confidence_score,
@@ -470,13 +503,27 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		$orderby = $this->filters['orderby'];
 		switch ( $orderby ) {
 			case 'nom_licence':
-				return 'licences.nom_licence';
+				return $this->get_nom_affiche_sql( 'licences' );
 			case 'club_name':
 				return 'clubs.nom';
 			case 'confidence_score':
 			default:
 				return 'CAST(meta_conf.meta_value AS UNSIGNED)';
 		}
+	}
+
+	private function get_nom_affiche_sql( $alias ) {
+		$parts = array();
+		if ( $this->has_nom ) {
+			$parts[] = "NULLIF({$alias}.nom, '')";
+		}
+		if ( $this->has_nom_licence ) {
+			$parts[] = "NULLIF({$alias}.nom_licence, '')";
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
 	private function get_current_url() {
