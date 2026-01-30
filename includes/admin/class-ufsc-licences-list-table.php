@@ -214,7 +214,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		$actions = array();
-		if ( current_user_can( UFSC_LC_Capabilities::get_manage_capability() ) || current_user_can( 'manage_options' ) ) {
+		if ( UFSC_LC_Capabilities::user_can_manage() ) {
 			$actions['edit_asptt'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $this->get_edit_asptt_url( (int) $licence_id ) ),
