@@ -255,7 +255,7 @@ class UFSC_LC_ASPTT_Importer {
 
 	private function render_cancel_actions( $preview, $last_import ) {
 		$has_preview  = ! empty( $preview['file_path'] );
-		$has_rollback = ! empty( $last_import['created_documents'] ) || ! empty( $last_import['created_meta'] );
+		$has_rollback = ! empty( $last_import['stats'] );
 		$rollback_enabled = ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_asptt_rollback_enabled();
 
 		if ( ! $has_preview && ( ! $has_rollback || ! $rollback_enabled ) ) {
@@ -279,7 +279,7 @@ class UFSC_LC_ASPTT_Importer {
 					<?php wp_nonce_field( 'ufsc_lc_asptt_cancel_import', 'ufsc_lc_asptt_cancel_nonce' ); ?>
 					<input type="hidden" name="action" value="ufsc_lc_asptt_cancel_import">
 					<input type="hidden" name="cancel_action" value="rollback">
-					<button type="submit" class="button button-link-delete" onclick="return confirm('<?php echo esc_js( __( 'Annuler le dernier import ? Seuls les documents ASPTT créés seront supprimés.', 'ufsc-licence-competition' ) ); ?>');">
+					<button type="submit" class="button button-link-delete" onclick="return confirm('<?php echo esc_js( __( 'Annuler le dernier import ? Les données importées resteront en place (mise à jour uniquement).', 'ufsc-licence-competition' ) ); ?>');">
 						<?php esc_html_e( 'Annuler le dernier import', 'ufsc-licence-competition' ); ?>
 					</button>
 				</form>
@@ -1031,6 +1031,7 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		$this->persist_preview( $preview );
+		delete_transient( $lock_key );
 
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
@@ -1041,19 +1042,30 @@ class UFSC_LC_ASPTT_Importer {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
+		$lock_key = 'ufsc_lc_asptt_import_lock';
+		if ( get_transient( $lock_key ) ) {
+			$redirect = $this->add_notice_args( $this->get_admin_url(), 'warning', __( 'Un import est déjà en cours. Merci de réessayer dans quelques instants.', 'ufsc-licence-competition' ) );
+			wp_safe_redirect( $redirect );
+			exit;
+		}
+		set_transient( $lock_key, 1, 10 * MINUTE_IN_SECONDS );
+
 		$nonce = isset( $_POST['ufsc_lc_asptt_import_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_import_nonce'] ) ) : '';
 		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_asptt_import' ) ) {
+			delete_transient( $lock_key );
 			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$preview = $this->get_preview();
 		if ( empty( $preview['file_path'] ) ) {
+			delete_transient( $lock_key );
 			wp_safe_redirect( $this->get_admin_url() );
 			exit;
 		}
 		if ( ! $this->is_valid_preview_path( $preview['file_path'] ) ) {
 			$this->clear_preview();
 			$redirect = $this->add_notice_args( $this->get_admin_url(), 'error', __( 'Le fichier d’import est introuvable ou invalide. Merci de recharger le CSV.', 'ufsc-licence-competition' ) );
+			delete_transient( $lock_key );
 			wp_safe_redirect( $redirect );
 			exit;
 		}
@@ -1143,6 +1155,7 @@ class UFSC_LC_ASPTT_Importer {
 				'type'    => 'error',
 				'message' => $result->get_error_message(),
 			);
+			delete_transient( $lock_key );
 		} else {
 			$stats        = isset( $result['stats'] ) ? $result['stats'] : array();
 			$total_rows   = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
@@ -1255,6 +1268,7 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		$this->persist_preview( $preview );
+		delete_transient( $lock_key );
 		wp_safe_redirect( $this->get_admin_url() );
 		exit;
 	}
@@ -1280,7 +1294,7 @@ class UFSC_LC_ASPTT_Importer {
 			}
 
 			$last_import = $this->get_last_import();
-			if ( empty( $last_import['created_documents'] ) && empty( $last_import['created_meta'] ) ) {
+			if ( empty( $last_import['stats'] ) ) {
 				$redirect_url = $this->add_notice_args( $redirect_url, 'warning', __( 'Aucun import récent à annuler.', 'ufsc-licence-competition' ) );
 				wp_safe_redirect( $redirect_url );
 				exit;
@@ -1294,7 +1308,15 @@ class UFSC_LC_ASPTT_Importer {
 			}
 
 			delete_option( self::LAST_IMPORT_KEY );
-			$redirect_url = $this->add_notice_args( $redirect_url, 'success', __( 'Dernier import annulé.', 'ufsc-licence-competition' ) );
+			$cleared_batches = isset( $result['cleared_batches'] ) ? (int) $result['cleared_batches'] : 0;
+			$skipped_updates = isset( $result['skipped_updates'] ) ? (int) $result['skipped_updates'] : 0;
+			$message = sprintf(
+				/* translators: 1: cleared batches, 2: skipped updates */
+				__( 'Dernier import annulé. Marquage batch retiré: %1$d. Mises à jour conservées: %2$d.', 'ufsc-licence-competition' ),
+				$cleared_batches,
+				$skipped_updates
+			);
+			$redirect_url = $this->add_notice_args( $redirect_url, 'success', $message );
 			wp_safe_redirect( $redirect_url );
 			exit;
 		}
@@ -1523,6 +1545,8 @@ class UFSC_LC_ASPTT_Importer {
 				<li><?php echo esc_html( sprintf( __( 'Créées: %d', 'ufsc-licence-competition' ), isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Mises à jour: %d', 'ufsc-licence-competition' ), isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Ignorées: %d', 'ufsc-licence-competition' ), isset( $stats['licences_skipped'] ) ? (int) $stats['licences_skipped'] : 0 ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Introuvables: %d', 'ufsc-licence-competition' ), isset( $stats['skipped_not_found'] ) ? (int) $stats['skipped_not_found'] : 0 ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Ambiguës: %d', 'ufsc-licence-competition' ), isset( $stats['skipped_ambiguous'] ) ? (int) $stats['skipped_ambiguous'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Rejetées: %d', 'ufsc-licence-competition' ), isset( $stats['rejected_rows'] ) ? (int) $stats['rejected_rows'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Clubs résolus: %d', 'ufsc-licence-competition' ), isset( $stats['club_resolved'] ) ? (int) $stats['club_resolved'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Clubs non résolus: %d', 'ufsc-licence-competition' ), isset( $stats['club_unresolved'] ) ? (int) $stats['club_unresolved'] : 0 ) ); ?></li>
@@ -1656,15 +1680,20 @@ class UFSC_LC_ASPTT_Importer {
 	private function persist_last_import( $preview, $result ) {
 		$created_documents = isset( $result['created_documents'] ) ? array_map( 'absint', (array) $result['created_documents'] ) : array();
 		$created_meta      = isset( $result['created_meta'] ) ? array_map( 'absint', (array) $result['created_meta'] ) : array();
+		$created_licences  = isset( $result['created_licences'] ) ? array_map( 'absint', (array) $result['created_licences'] ) : array();
+		$updated_licences  = isset( $result['updated_licences'] ) ? array_map( 'absint', (array) $result['updated_licences'] ) : array();
 		$stats             = isset( $result['stats'] ) && is_array( $result['stats'] ) ? $result['stats'] : array();
 		$report            = isset( $result['report'] ) && is_array( $result['report'] ) ? $result['report'] : array();
 		$delta             = isset( $result['delta'] ) && is_array( $result['delta'] ) ? $result['delta'] : array();
 		$duration_sec      = isset( $result['duration_sec'] ) ? (float) $result['duration_sec'] : 0.0;
 		$rows_per_sec      = isset( $result['rows_per_sec'] ) ? (float) $result['rows_per_sec'] : 0.0;
 		$hash_storage      = isset( $result['hash_storage'] ) ? (string) $result['hash_storage'] : '';
+		$batch_id          = isset( $result['batch_id'] ) ? (string) $result['batch_id'] : '';
 
 		$created_documents = array_values( array_filter( array_unique( $created_documents ) ) );
 		$created_meta      = array_values( array_filter( array_unique( $created_meta ) ) );
+		$created_licences  = array_values( array_filter( array_unique( $created_licences ) ) );
+		$updated_licences  = array_values( array_filter( array_unique( $updated_licences ) ) );
 
 		update_option(
 			self::LAST_IMPORT_KEY,
@@ -1680,6 +1709,9 @@ class UFSC_LC_ASPTT_Importer {
 				'created_at'        => current_time( 'mysql' ),
 				'created_documents' => $created_documents,
 				'created_meta'      => $created_meta,
+				'created_licences'  => $created_licences,
+				'updated_licences'  => $updated_licences,
+				'batch_id'          => $batch_id,
 				'stats'             => $stats,
 				'report'            => $report,
 				'delta'             => $delta,

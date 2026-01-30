@@ -30,6 +30,8 @@ class UFSC_LC_ASPTT_Import_Service {
 	private $license_number_column = null;
 	private $hash_table_notice = '';
 	private $row_index = 0;
+	private $composite_cache = array();
+	private $has_asptt_column = null;
 
 	public function validate_upload( $file ) {
 		if ( empty( $file ) || empty( $file['tmp_name'] ) ) {
@@ -167,22 +169,27 @@ class UFSC_LC_ASPTT_Import_Service {
 		global $wpdb;
 
 		$started_at = microtime( true );
+		$batch_id   = $dry_run ? '' : $this->generate_import_batch_id();
 
 		$use_transactions = false;
 		if ( ! $dry_run && $wpdb->has_cap( 'transactions' ) ) {
 			$use_transactions = false !== $wpdb->query( 'START TRANSACTION' );
 		}
 
-		$inserted  = array();
+		$inserted          = array();
 		$created_documents = array();
-		$created_meta = array();
-		$has_error = false;
+		$created_meta      = array();
+		$created_licences  = array();
+		$updated_licences  = array();
+		$has_error         = false;
 
 		$stats = array(
 			'total'                => 0,
 			'ok'                   => 0,
 			'errors'               => 0,
 			'duplicates'           => 0,
+			'skipped_not_found'    => 0,
+			'skipped_ambiguous'    => 0,
 			'clubs_linked'         => 0,
 			'licences_linked'      => 0,
 			'licences_created'     => 0,
@@ -210,12 +217,13 @@ class UFSC_LC_ASPTT_Import_Service {
 		$report_clubs     = array();
 		$delta_rows       = array();
 		$this->row_index  = 0;
+		$this->composite_cache = array();
 
 		$process_result = $this->iterate_csv_rows_in_chunks(
 			$file_path,
 			$mapping,
 			self::IMPORT_CHUNK_SIZE,
-			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$created_documents, &$created_meta, &$has_error, &$stats, $wpdb, $season_end_year_override, $auto_save_alias, $hash_table_available, $incremental, $dry_run, &$report_errors, &$report_clubs, &$delta_rows ) {
+			function( $rows ) use ( $force_club_id, $auto_approve, $has_meta_table, &$inserted, &$created_documents, &$created_meta, &$created_licences, &$updated_licences, &$has_error, &$stats, $wpdb, $season_end_year_override, $auto_save_alias, $hash_table_available, $incremental, $dry_run, &$report_errors, &$report_clubs, &$delta_rows, $batch_id ) {
 				$license_numbers = array();
 				foreach ( $rows as $row ) {
 					$license_number = $this->get_license_number_from_row( $row );
@@ -279,7 +287,55 @@ class UFSC_LC_ASPTT_Import_Service {
 
 					$current_hash = $this->build_row_hash( $data );
 					$club_id      = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
-					$existing_id  = $this->find_existing_licence_id( $asptt_no, $club_id, $existing_licences );
+					$existing_id  = 0;
+					$ambiguous_ids = array();
+
+					if ( '' !== $asptt_no ) {
+						$existing_id = $this->find_existing_licence_id_by_asptt_number( $asptt_no, $club_id );
+					}
+					if ( ! $existing_id ) {
+						$composite_map = $this->get_composite_licence_map( $club_id, $data['season_end_year'] );
+						$ambiguous_ids = $this->find_existing_licence_ids_by_composite( $data, $composite_map );
+						if ( count( $ambiguous_ids ) === 1 ) {
+							$existing_id = (int) $ambiguous_ids[0];
+						}
+					}
+
+					if ( ! $existing_id ) {
+						if ( ! empty( $ambiguous_ids ) ) {
+							$stats['skipped_ambiguous']++;
+							$stats['errors']++;
+							$stats['invalid_rows']++;
+							$stats['rejected_rows']++;
+							$this->push_report_error(
+								$report_errors,
+								array(
+									'nom'          => $data['nom'],
+									'prenom'       => $data['prenom'],
+									'asptt_number' => $data['asptt_number'],
+									'error'        => __( 'Licence ambiguë : plusieurs correspondances trouvées.', 'ufsc-licence-competition' ),
+								),
+								$this->row_index
+							);
+						} else {
+							$stats['skipped_not_found']++;
+							$stats['licence_not_found']++;
+							$stats['errors']++;
+							$stats['invalid_rows']++;
+							$stats['rejected_rows']++;
+							$this->push_report_error(
+								$report_errors,
+								array(
+									'nom'          => $data['nom'],
+									'prenom'       => $data['prenom'],
+									'asptt_number' => $data['asptt_number'],
+									'error'        => __( 'Licence introuvable : aucune création effectuée.', 'ufsc-licence-competition' ),
+								),
+								$this->row_index
+							);
+						}
+						continue;
+					}
 					$previous_hash = '';
 					$used_fallback_hash = false;
 
@@ -323,11 +379,12 @@ class UFSC_LC_ASPTT_Import_Service {
 						'telephone'      => $data['telephone'],
 						'activite'       => $data['activite'],
 						'region'         => $data['region'],
+						'import_batch_id' => $batch_id,
 					);
 
 					$licence_result = array(
 						'id'      => $existing_id,
-						'created' => $existing_id ? false : true,
+						'created' => false,
 					);
 
 					if ( ! $dry_run ) {
@@ -359,10 +416,9 @@ class UFSC_LC_ASPTT_Import_Service {
 						}
 					}
 
-					if ( $licence_result['created'] ) {
-						$stats['licences_created']++;
-					} else {
-						$stats['licences_updated']++;
+					$stats['licences_updated']++;
+					if ( ! $dry_run ) {
+						$updated_licences[] = (int) $licence_result['id'];
 					}
 
 					if ( ! empty( $data['club_from_note'] ) ) {
@@ -528,6 +584,9 @@ class UFSC_LC_ASPTT_Import_Service {
 			'inserted'          => $inserted,
 			'created_documents' => array_values( array_unique( $created_documents ) ),
 			'created_meta'      => array_values( array_unique( $created_meta ) ),
+			'created_licences'  => array_values( array_unique( $created_licences ) ),
+			'updated_licences'  => array_values( array_unique( $updated_licences ) ),
+			'batch_id'          => $batch_id,
 			'used_transactions' => $use_transactions,
 			'stats'             => $stats,
 			'duration_sec'      => $duration_sec,
@@ -1654,42 +1713,39 @@ class UFSC_LC_ASPTT_Import_Service {
 	public function rollback_import_batch( $batch ) {
 		$documents = isset( $batch['created_documents'] ) ? array_map( 'absint', (array) $batch['created_documents'] ) : array();
 		$meta      = isset( $batch['created_meta'] ) ? array_map( 'absint', (array) $batch['created_meta'] ) : array();
+		$licences  = isset( $batch['created_licences'] ) ? array_map( 'absint', (array) $batch['created_licences'] ) : array();
+		$updated   = isset( $batch['updated_licences'] ) ? array_map( 'absint', (array) $batch['updated_licences'] ) : array();
 
 		$documents = array_values( array_filter( array_unique( $documents ) ) );
 		$meta      = array_values( array_filter( array_unique( $meta ) ) );
+		$licences  = array_values( array_filter( array_unique( $licences ) ) );
+		$updated   = array_values( array_filter( array_unique( $updated ) ) );
 
-		if ( empty( $documents ) && empty( $meta ) ) {
+		if ( empty( $documents ) && empty( $meta ) && empty( $licences ) && empty( $updated ) ) {
 			return new WP_Error( 'asptt_rollback_empty', __( 'Aucun élément à annuler.', 'ufsc-licence-competition' ) );
 		}
 
 		global $wpdb;
+		$cleared_batches = 0;
 
-		if ( ! empty( $meta ) ) {
-			$meta_table = $this->get_documents_meta_table();
-			if ( $this->table_exists( $meta_table ) ) {
-				$placeholders = implode( ',', array_fill( 0, count( $meta ), '%d' ) );
+		if ( ! empty( $updated ) ) {
+			$table = $this->get_licences_table();
+			if ( $this->table_exists( $table ) && $this->column_exists( $table, 'import_batch_id' ) ) {
+				$placeholders = implode( ',', array_fill( 0, count( $updated ), '%d' ) );
 				$wpdb->query(
 					$wpdb->prepare(
-						"DELETE FROM {$meta_table} WHERE id IN ({$placeholders})",
-						$meta
+						"UPDATE {$table} SET import_batch_id = NULL WHERE id IN ({$placeholders})",
+						$updated
 					)
 				);
+				$cleared_batches = (int) $wpdb->rows_affected;
 			}
 		}
 
-		if ( ! empty( $documents ) ) {
-			$table        = $this->get_documents_table();
-			$placeholders = implode( ',', array_fill( 0, count( $documents ), '%d' ) );
-
-			$wpdb->query(
-				$wpdb->prepare(
-					"DELETE FROM {$table} WHERE id IN ({$placeholders})",
-					$documents
-				)
-			);
-		}
-
-		return true;
+		return array(
+			'cleared_batches' => $cleared_batches,
+			'skipped_updates' => count( $updated ),
+		);
 	}
 
 	private function normalize_name( $value ) {
@@ -1704,6 +1760,105 @@ class UFSC_LC_ASPTT_Import_Service {
 		$value = preg_replace( '/\s+/', ' ', $value );
 
 		return trim( $value );
+	}
+
+	private function get_composite_licence_map( $club_id, $season_end_year ) {
+		$club_id         = (int) $club_id;
+		$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year );
+
+		if ( ! $club_id || ! $season_end_year ) {
+			return array();
+		}
+
+		$cache_key = $club_id . '|' . $season_end_year;
+		if ( isset( $this->composite_cache[ $cache_key ] ) ) {
+			return $this->composite_cache[ $cache_key ];
+		}
+
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			$this->composite_cache[ $cache_key ] = array();
+			return $this->composite_cache[ $cache_key ];
+		}
+
+		if (
+			! $this->column_exists( $table, 'club_id' )
+			|| ! $this->column_exists( $table, 'nom_licence' )
+			|| ! $this->column_exists( $table, 'prenom' )
+			|| ! $this->column_exists( $table, 'date_naissance' )
+			|| ! $this->column_exists( $table, 'season_end_year' )
+		) {
+			$this->composite_cache[ $cache_key ] = array();
+			return $this->composite_cache[ $cache_key ];
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, nom_licence, prenom, date_naissance, season_end_year
+					FROM {$table}
+					WHERE club_id = %d AND season_end_year = %d",
+				$club_id,
+				$season_end_year
+			),
+			ARRAY_A
+		);
+
+		$map = array();
+		foreach ( $rows as $row ) {
+			$key = $this->build_composite_key(
+				$club_id,
+				$row['nom_licence'],
+				$row['prenom'],
+				$row['date_naissance'],
+				$row['season_end_year']
+			);
+			if ( '' !== $key ) {
+				if ( ! isset( $map[ $key ] ) ) {
+					$map[ $key ] = array();
+				}
+				$map[ $key ][] = (int) $row['id'];
+			}
+		}
+
+		$this->composite_cache[ $cache_key ] = $map;
+		return $map;
+	}
+
+	private function find_existing_licence_ids_by_composite( $data, $composite_map ) {
+		if ( empty( $data ) || empty( $composite_map ) ) {
+			return array();
+		}
+
+		$club_id = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
+		$key     = $this->build_composite_key(
+			$club_id,
+			isset( $data['nom'] ) ? $data['nom'] : '',
+			isset( $data['prenom'] ) ? $data['prenom'] : '',
+			isset( $data['date_naissance'] ) ? $data['date_naissance'] : '',
+			isset( $data['season_end_year'] ) ? $data['season_end_year'] : ''
+		);
+
+		if ( '' === $key ) {
+			return array();
+		}
+
+		return isset( $composite_map[ $key ] ) ? array_values( array_unique( $composite_map[ $key ] ) ) : array();
+	}
+
+	private function build_composite_key( $club_id, $nom, $prenom, $date_naissance, $season_end_year ) {
+		$club_id         = (int) $club_id;
+		$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year );
+		$dob             = $this->parse_date( $date_naissance );
+		$nom_key         = $this->normalize_name( $nom );
+		$prenom_key      = $this->normalize_name( $prenom );
+
+		if ( ! $club_id || ! $season_end_year || '' === $dob || '' === $nom_key || '' === $prenom_key ) {
+			return '';
+		}
+
+		return implode( '|', array( $club_id, $nom_key, $prenom_key, $dob, $season_end_year ) );
 	}
 
 	private function sanitize_csv_value( $value ) {
@@ -2320,7 +2475,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$columns = $this->get_licence_columns();
-		$candidates = array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' );
+		$candidates = array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' );
 
 		foreach ( $candidates as $candidate ) {
 			if ( in_array( $candidate, $columns, true ) ) {
@@ -2331,6 +2486,16 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$this->license_number_column = '';
 		return $this->license_number_column;
+	}
+
+	private function has_asptt_number_column() {
+		if ( null !== $this->has_asptt_column ) {
+			return (bool) $this->has_asptt_column;
+		}
+
+		$columns = $this->get_licence_columns();
+		$this->has_asptt_column = in_array( 'numero_licence_asptt', $columns, true );
+		return (bool) $this->has_asptt_column;
 	}
 
 	private function find_licence_by_number( $license_number ) {
@@ -2354,6 +2519,42 @@ class UFSC_LC_ASPTT_Import_Service {
 		return $wpdb->get_row(
 			$wpdb->prepare( "SELECT id FROM {$table} WHERE REPLACE({$license_column}, ' ', '') = %s", $license_number )
 		);
+	}
+
+	private function find_existing_licence_id_by_asptt_number( $license_number, $club_id ) {
+		$license_number = $this->normalize_license_number( $license_number );
+		$club_id        = (int) $club_id;
+
+		if ( '' === $license_number ) {
+			return 0;
+		}
+
+		if ( ! $this->has_asptt_number_column() ) {
+			return $this->find_existing_licence_id( $license_number, $club_id, array() );
+		}
+
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return 0;
+		}
+
+		$where  = 'REPLACE(numero_licence_asptt, \' \', \'\') = %s';
+		$params = array( $license_number );
+		if ( $club_id > 0 && $this->column_exists( $table, 'club_id' ) ) {
+			$where   .= ' AND club_id = %d';
+			$params[] = $club_id;
+		}
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE {$where}",
+				$params
+			)
+		);
+
+		return $row ? (int) $row->id : 0;
 	}
 
 	private function upsert_licence_by_number( $license_number, array $data, $existing_id = 0 ) {
@@ -2443,24 +2644,16 @@ class UFSC_LC_ASPTT_Import_Service {
 			$formats[]        = '%s';
 		}
 
+		if ( in_array( 'import_batch_id', $columns, true ) && ! empty( $data['import_batch_id'] ) ) {
+			$fields['import_batch_id'] = $data['import_batch_id'];
+			$formats[]                 = '%s';
+		}
+
 		$existing = null;
 		if ( $existing_id ) {
 			$existing = (object) array( 'id' => (int) $existing_id );
 		} else {
-			$club_id = ! empty( $data['club_id'] ) ? (int) $data['club_id'] : 0;
-			if ( $club_id && in_array( 'club_id', $columns, true ) ) {
-				$existing = $wpdb->get_row(
-					$wpdb->prepare(
-						"SELECT id FROM {$table} WHERE club_id = %d AND REPLACE({$license_column}, ' ', '') = %s",
-						$club_id,
-						$license_number
-					)
-				);
-			} else {
-				$existing = $wpdb->get_row(
-					$wpdb->prepare( "SELECT id FROM {$table} WHERE REPLACE({$license_column}, ' ', '') = %s", $license_number )
-				);
-			}
+			return new WP_Error( 'licence_not_found', __( 'Licence introuvable : import en mode mise à jour uniquement.', 'ufsc-licence-competition' ) );
 		}
 
 		if ( $existing ) {
@@ -2482,16 +2675,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			);
 		}
 
-		$wpdb->insert( $table, $fields, $formats );
-
-		if ( ! empty( $wpdb->last_error ) ) {
-			return new WP_Error( 'licence_insert_failed', __( 'Erreur lors de la création de la licence.', 'ufsc-licence-competition' ) );
-		}
-
-		return array(
-			'id'      => (int) $wpdb->insert_id,
-			'created' => true,
-		);
+		return new WP_Error( 'licence_not_found', __( 'Licence introuvable : import en mode mise à jour uniquement.', 'ufsc-licence-competition' ) );
 	}
 
 	private function normalize_phone( $value ) {
@@ -2516,6 +2700,14 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		return '';
+	}
+
+	private function generate_import_batch_id() {
+		if ( function_exists( 'wp_generate_uuid4' ) ) {
+			return wp_generate_uuid4();
+		}
+
+		return uniqid( 'ufsc_asptt_', true );
 	}
 
 	private function ensure_upload_protection( $directory ) {

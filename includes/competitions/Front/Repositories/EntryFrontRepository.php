@@ -182,6 +182,7 @@ class EntryFrontRepository {
 				?? $license['license']
 				?? $license['licence']
 				?? $license['numero_licence']
+				?? $license['numero_licence_asptt']
 				?? $license['numero_licence_delegataire']
 				?? '' )
 		);
