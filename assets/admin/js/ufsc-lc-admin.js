@@ -16,22 +16,30 @@
 		});
 	}
 
-	function buildClubOptions(items) {
+	function buildClubOptions(items, emptyLabel) {
 		var selectLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings && UFSC_LC_Admin.strings.selectClub)
 			? UFSC_LC_Admin.strings.selectClub
 			: '';
 		var options = '<option value="">' + selectLabel + '</option>';
+		if (!items.length && emptyLabel) {
+			options += '<option value="">' + emptyLabel + '</option>';
+		}
 		items.forEach(function(item) {
-			options += '<option value="' + item.id + '">' + item.text + '</option>';
+			options += '<option value="' + item.id + '">' + (item.label || item.text) + '</option>';
 		});
 		return options;
 	}
 
-	function fetchClubs(term, select) {
+	function fetchClubs(term, select, options) {
 		if (!select) {
 			return;
 		}
+		var settings = options || {};
 		if (!term) {
+			select.innerHTML = buildClubOptions([]);
+			return;
+		}
+		if (term.length < 2) {
 			select.innerHTML = buildClubOptions([]);
 			return;
 		}
@@ -39,14 +47,27 @@
 		var url = (window.UFSC_LC_Admin && (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl))
 			? (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl)
 			: window.ajaxurl;
-		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? UFSC_LC_Admin.nonces.clubSearch : '';
-		fetch(url + '?action=ufsc_lc_club_search&term=' + encodeURIComponent(term) + '&_ajax_nonce=' + encodeURIComponent(nonce))
+		var action = settings.action || 'ufsc_lc_club_search';
+		var nonceKey = settings.nonceKey || 'clubSearch';
+		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? (UFSC_LC_Admin.nonces[nonceKey] || '') : '';
+		var queryParam = action === 'ufsc_lc_search_clubs' ? 'q' : 'term';
+		var nonceParam = action === 'ufsc_lc_search_clubs' ? 'nonce' : '_ajax_nonce';
+		var emptyLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.noResults : '';
+		var query = '?action=' + encodeURIComponent(action)
+			+ '&' + queryParam + '=' + encodeURIComponent(term)
+			+ '&' + nonceParam + '=' + encodeURIComponent(nonce);
+
+		fetch(url + query)
 			.then(function(response) { return response.json(); })
 			.then(function(response) {
-				if (!response.success) {
+				if (!response || !response.success) {
+					select.innerHTML = buildClubOptions([], emptyLabel);
 					return;
 				}
-				select.innerHTML = buildClubOptions(response.data || []);
+				select.innerHTML = buildClubOptions(response.data || [], emptyLabel);
+			})
+			.catch(function() {
+				select.innerHTML = buildClubOptions([], emptyLabel);
 			});
 	}
 
@@ -123,8 +144,17 @@
 		document.querySelectorAll('.ufsc-club-search').forEach(function(input) {
 			var rowIndex = input.getAttribute('data-row-index');
 			var select = document.querySelector('.ufsc-club-select[data-row-index="' + rowIndex + '"]');
+			var action = input.getAttribute('data-ajax-action') || 'ufsc_lc_club_search';
+			var nonceKey = input.getAttribute('data-nonce-key') || (action === 'ufsc_lc_search_clubs' ? 'admin' : 'clubSearch');
+			var debounceTimer;
 			input.addEventListener('input', function() {
-				fetchClubs(input.value, select);
+				window.clearTimeout(debounceTimer);
+				debounceTimer = window.setTimeout(function() {
+					fetchClubs(input.value, select, {
+						action: action,
+						nonceKey: nonceKey
+					});
+				}, 250);
 			});
 		});
 
@@ -160,6 +190,39 @@
 		});
 	}
 
+	function bindLicenceResults() {
+		var table = document.querySelector('.ufsc-lc-results-table');
+		if (!table) {
+			return;
+		}
+
+		function selectRow(row) {
+			table.querySelectorAll('tbody tr').forEach(function(otherRow) {
+				otherRow.classList.remove('is-selected');
+			});
+			row.classList.add('is-selected');
+		}
+
+		table.querySelectorAll('tbody tr').forEach(function(row) {
+			var radio = row.querySelector('input[type="radio"][name="matched_licence_id"]');
+			if (!radio) {
+				return;
+			}
+			radio.addEventListener('change', function() {
+				if (radio.checked) {
+					selectRow(row);
+				}
+			});
+			row.addEventListener('click', function(event) {
+				if (event.target && event.target.tagName === 'INPUT') {
+					return;
+				}
+				radio.checked = true;
+				selectRow(row);
+			});
+		});
+	}
+
 	function initReviewClubSelects() {
 		var selects = document.querySelectorAll('.ufsc-lc-club-select');
 		if (!selects.length) {
@@ -170,7 +233,7 @@
 		var ajaxUrl = (window.UFSC_LC_Admin && (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl))
 			? (UFSC_LC_Admin.ajaxurl || UFSC_LC_Admin.ajaxUrl)
 			: window.ajaxurl;
-		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? UFSC_LC_Admin.nonces.searchClubs : '';
+		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? (UFSC_LC_Admin.nonces.admin || UFSC_LC_Admin.nonces.searchClubs || '') : '';
 
 		function toggleSubmit(select) {
 			var form = select.closest('form');
@@ -204,11 +267,17 @@
 					return {
 						action: 'ufsc_lc_search_clubs',
 						q: params.term || '',
-						_ajax_nonce: nonce
+						nonce: nonce
 					};
 				},
 				processResults: function(response) {
 					var results = (response && response.success) ? (response.data || []) : [];
+					results = results.map(function(item) {
+						return {
+							id: item.id,
+							text: item.text || item.label || ''
+						};
+					});
 					return { results: results };
 				}
 			},
@@ -252,6 +321,7 @@
 		document.addEventListener('DOMContentLoaded', initReviewClubSelects);
 		document.addEventListener('DOMContentLoaded', updateReviewSelectionCount);
 		document.addEventListener('DOMContentLoaded', bindConfirmActions);
+		document.addEventListener('DOMContentLoaded', bindLicenceResults);
 		document.addEventListener('DOMContentLoaded', function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
@@ -276,6 +346,7 @@
 		initReviewClubSelects();
 		updateReviewSelectionCount();
 		bindConfirmActions();
+		bindLicenceResults();
 		(function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');

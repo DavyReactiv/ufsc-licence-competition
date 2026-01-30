@@ -117,6 +117,21 @@ class UFSC_LC_Admin_Assets {
 				array(
 					'ajaxurl'      => admin_url( 'admin-ajax.php' ),
 					'ufsc_lc_nonce' => wp_create_nonce( 'ufsc_lc_nonce' ),
+					'nonces'       => array(
+						'admin'      => wp_create_nonce( 'ufsc_lc_admin_nonce' ),
+						'searchClubs' => wp_create_nonce( 'ufsc_lc_admin_nonce' ),
+						'clubSearch' => wp_create_nonce( 'ufsc_lc_club_search' ),
+						'saveAlias'  => wp_create_nonce( 'ufsc_lc_asptt_save_alias' ),
+					),
+					'strings'      => array(
+						'selectClub'       => __( 'Sélectionner un club', 'ufsc-licence-competition' ),
+						'searchPlaceholder'=> __( 'Rechercher un club…', 'ufsc-licence-competition' ),
+						'noResults'        => __( 'Aucun club trouvé', 'ufsc-licence-competition' ),
+						'errorDefault'     => __( 'Une erreur est survenue.', 'ufsc-licence-competition' ),
+						'selectFirst'      => __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' ),
+						'saving'           => __( 'Enregistrement…', 'ufsc-licence-competition' ),
+						'confirmDelete'    => __( 'Confirmer la suppression ?', 'ufsc-licence-competition' ),
+					),
 				)
 			);
 		}

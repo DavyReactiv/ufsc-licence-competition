@@ -17,6 +17,7 @@ class UFSC_LC_Licence_Documents {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
 		add_action( 'admin_post_ufsc_lc_upload_licence_pdf', array( $this, 'handle_upload' ) );
 		add_action( 'admin_post_ufsc_lc_download_licence_pdf', array( $this, 'handle_download' ) );
+		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
 
 		if ( $this->legacy_enabled ) {
 			add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
@@ -95,12 +96,13 @@ class UFSC_LC_Licence_Documents {
 		$search_notice  = array();
 
 		if ( $search['submitted'] ) {
-			if ( '' === $search['nom'] || '' === $search['prenom'] || '' === $search['date_naissance'] ) {
+			$has_query = '' !== $search['query'];
+			if ( ! $has_query && ( '' === $search['nom'] || '' === $search['prenom'] || '' === $search['date_naissance'] ) ) {
 				$search_notice = array(
 					'type'    => 'error',
-					'message' => __( 'Veuillez renseigner le nom, le prénom et la date de naissance.', 'ufsc-licence-competition' ),
+					'message' => __( 'Veuillez renseigner le nom, le prénom et la date de naissance ou utiliser la recherche rapide.', 'ufsc-licence-competition' ),
 				);
-			} elseif ( ! $search['search_without_club'] && ! $search['club_id'] ) {
+			} elseif ( ! $has_query && ! $search['search_without_club'] && ! $search['club_id'] ) {
 				$search_notice = array(
 					'type'    => 'error',
 					'message' => __( 'Veuillez sélectionner un club ou activer la recherche élargie.', 'ufsc-licence-competition' ),
@@ -136,21 +138,16 @@ class UFSC_LC_Licence_Documents {
 				<input type="hidden" name="ufsc_search" value="1">
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><label for="ufsc_nom"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="ufsc_nom" type="text" id="ufsc_nom" class="regular-text" value="<?php echo esc_attr( $search['nom'] ); ?>" required></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="ufsc_prenom"><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="ufsc_prenom" type="text" id="ufsc_prenom" class="regular-text" value="<?php echo esc_attr( $search['prenom'] ); ?>" required></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="ufsc_date_naissance"><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="ufsc_date_naissance" type="date" id="ufsc_date_naissance" class="regular-text" value="<?php echo esc_attr( $search['date_naissance'] ); ?>" required></td>
+						<th scope="row"><label for="ufsc_query"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<input name="ufsc_query" type="text" id="ufsc_query" class="regular-text" value="<?php echo esc_attr( $search['query'] ); ?>" placeholder="<?php esc_attr_e( 'N° licence UFSC, N° ASPTT ou texte', 'ufsc-licence-competition' ); ?>">
+							<p class="description"><?php esc_html_e( 'Exemples : 123456, ASPTT 98765, Dupont.', 'ufsc-licence-competition' ); ?></p>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_club_search"><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<input type="text" id="ufsc_club_search" class="regular-text ufsc-club-search" data-row-index="0" value="<?php echo esc_attr( $search['club_search'] ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club…', 'ufsc-licence-competition' ); ?>">
+							<input type="text" id="ufsc_club_search" class="regular-text ufsc-club-search" data-row-index="0" data-ajax-action="ufsc_lc_search_clubs" data-nonce-key="admin" value="<?php echo esc_attr( $search['club_search'] ); ?>" placeholder="<?php esc_attr_e( 'Rechercher un club…', 'ufsc-licence-competition' ); ?>">
 							<select id="ufsc_club_id" name="ufsc_club_id" class="regular-text ufsc-club-select" data-row-index="0">
 								<option value=""><?php esc_html_e( 'Sélectionner un club', 'ufsc-licence-competition' ); ?></option>
 								<?php if ( $search['club_id'] ) : ?>
@@ -167,16 +164,33 @@ class UFSC_LC_Licence_Documents {
 						<th scope="row"><label for="ufsc_season"><?php echo esc_html( $search['season_label'] ); ?></label></th>
 						<td><input name="ufsc_season" type="text" id="ufsc_season" class="regular-text" value="<?php echo esc_attr( $search['season'] ); ?>" placeholder="<?php esc_attr_e( 'Optionnel', 'ufsc-licence-competition' ); ?>"></td>
 					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Recherche élargie', 'ufsc-licence-competition' ); ?></th>
-						<td>
-							<label for="ufsc_search_without_club">
-								<input type="checkbox" name="ufsc_search_without_club" id="ufsc_search_without_club" value="1" <?php checked( $search['search_without_club'] ); ?>>
-								<?php esc_html_e( 'Ignorer le club (attention aux homonymes)', 'ufsc-licence-competition' ); ?>
-							</label>
-						</td>
-					</tr>
 				</table>
+				<details class="ufsc-lc-advanced-mode">
+					<summary><?php esc_html_e( 'Mode avancé : recherche par identité', 'ufsc-licence-competition' ); ?></summary>
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="ufsc_nom"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input name="ufsc_nom" type="text" id="ufsc_nom" class="regular-text" value="<?php echo esc_attr( $search['nom'] ); ?>"></td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="ufsc_prenom"><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input name="ufsc_prenom" type="text" id="ufsc_prenom" class="regular-text" value="<?php echo esc_attr( $search['prenom'] ); ?>"></td>
+						</tr>
+						<tr>
+							<th scope="row"><label for="ufsc_date_naissance"><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input name="ufsc_date_naissance" type="date" id="ufsc_date_naissance" class="regular-text" value="<?php echo esc_attr( $search['date_naissance'] ); ?>"></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Recherche élargie', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<label for="ufsc_search_without_club">
+									<input type="checkbox" name="ufsc_search_without_club" id="ufsc_search_without_club" value="1" <?php checked( $search['search_without_club'] ); ?>>
+									<?php esc_html_e( 'Ignorer le club (attention aux homonymes)', 'ufsc-licence-competition' ); ?>
+								</label>
+							</td>
+						</tr>
+					</table>
+				</details>
 				<?php submit_button( __( 'Rechercher les licences', 'ufsc-licence-competition' ), 'secondary' ); ?>
 			</form>
 
@@ -205,10 +219,15 @@ class UFSC_LC_Licence_Documents {
 							<thead>
 								<tr>
 									<th><?php esc_html_e( 'Sélection', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Licence', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'N° licence', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 									<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html( $search['season_label'] ); ?></th>
 									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
 								</tr>
 							</thead>
 							<tbody>
@@ -230,10 +249,15 @@ class UFSC_LC_Licence_Documents {
 									?>
 									<tr>
 										<td><input type="radio" name="matched_licence_id" value="<?php echo esc_attr( $item->id ); ?>" required></td>
-										<td><?php echo esc_html( $nom_affiche . ' ' . $item->prenom . ' · ' . ( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ) ); ?></td>
+										<td><?php echo esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+										<td><?php echo esc_html( $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+										<td><?php echo esc_html( $item->prenom ? $item->prenom : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+										<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 										<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 										<td><?php echo esc_html( $item->season_value ? $item->season_value : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 										<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+										<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+										<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
 									</tr>
 								<?php endforeach; ?>
 							</tbody>
@@ -273,6 +297,41 @@ class UFSC_LC_Licence_Documents {
 			</details>
 		</div>
 		<?php
+	}
+
+	public function ajax_search_clubs() {
+		if ( ! current_user_can( 'manage_options' ) && ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
+
+		$search = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
+		if ( strlen( $search ) < 2 ) {
+			wp_send_json_success( array() );
+		}
+
+		global $wpdb;
+		$table = $this->get_clubs_table();
+		$like  = '%' . $wpdb->esc_like( $search ) . '%';
+
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT 20",
+				$like
+			)
+		);
+
+		$data = array();
+		foreach ( $results as $club ) {
+			$data[] = array(
+				'id'    => (int) $club->id,
+				'label' => $club->nom,
+				'text'  => $club->nom,
+			);
+		}
+
+		wp_send_json_success( $data );
 	}
 
 	public function handle_upload() {
@@ -451,6 +510,7 @@ class UFSC_LC_Licence_Documents {
 
 		return array(
 			'submitted'          => isset( $_GET['ufsc_search'] ),
+			'query'              => isset( $_GET['ufsc_query'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_query'] ) ) : '',
 			'nom'                => isset( $_GET['ufsc_nom'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_nom'] ) ) : '',
 			'prenom'             => isset( $_GET['ufsc_prenom'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_prenom'] ) ) : '',
 			'date_naissance'     => isset( $_GET['ufsc_date_naissance'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_date_naissance'] ) ) : '',
@@ -467,49 +527,93 @@ class UFSC_LC_Licence_Documents {
 
 		$licences_table = $this->get_licences_table();
 		$clubs_table    = $this->get_clubs_table();
+		$documents_table = $this->get_documents_table();
+		$has_documents_table = $this->table_exists( $documents_table );
 
 		$has_nom        = $this->has_column( $licences_table, 'nom' );
 		$has_nom_licence = $this->has_column( $licences_table, 'nom_licence' );
 		$name_clauses   = array();
 		$params         = array();
+		$where          = array();
+		$query          = trim( (string) $filters['query'] );
+		$has_query      = '' !== $query;
 
-		if ( $has_nom ) {
-			$name_clauses[] = 'l.nom LIKE %s';
-			$params[]       = '%' . $wpdb->esc_like( $filters['nom'] ) . '%';
-		}
-		if ( $has_nom_licence ) {
-			$name_clauses[] = 'l.nom_licence LIKE %s';
-			$params[]       = '%' . $wpdb->esc_like( $filters['nom'] ) . '%';
-		}
-		if ( empty( $name_clauses ) ) {
-			$name_clauses[] = '1=0';
+		if ( $has_query ) {
+			$asptt_match = array();
+			if ( preg_match( '/^asptt\s*[:\-]?\s*(.+)$/i', $query, $asptt_match ) ) {
+				$asptt_value = trim( $asptt_match[1] );
+				$asptt_columns = $this->get_asptt_number_columns();
+				if ( '' !== $asptt_value && ! empty( $asptt_columns ) ) {
+					$asptt_like = '%' . $wpdb->esc_like( $asptt_value ) . '%';
+					$asptt_clauses = array();
+					foreach ( $asptt_columns as $column ) {
+						$asptt_clauses[] = "l.{$column} LIKE %s";
+						$params[] = $asptt_like;
+					}
+					$where[] = '(' . implode( ' OR ', $asptt_clauses ) . ')';
+				}
+			} elseif ( ctype_digit( $query ) ) {
+				$number_clauses = array( 'l.id = %d' );
+				$params[] = (int) $query;
+				foreach ( $this->get_licence_number_columns() as $column ) {
+					$number_clauses[] = "l.{$column} = %s";
+					$params[] = $query;
+				}
+				$where[] = '(' . implode( ' OR ', $number_clauses ) . ')';
+			} else {
+				if ( $has_nom ) {
+					$name_clauses[] = 'l.nom LIKE %s';
+					$params[]       = '%' . $wpdb->esc_like( $query ) . '%';
+				}
+				if ( $has_nom_licence ) {
+					$name_clauses[] = 'l.nom_licence LIKE %s';
+					$params[]       = '%' . $wpdb->esc_like( $query ) . '%';
+				}
+				$name_clauses[] = 'l.prenom LIKE %s';
+				$params[]       = '%' . $wpdb->esc_like( $query ) . '%';
+
+				$where[] = '(' . implode( ' OR ', $name_clauses ) . ')';
+
+				if ( '' !== $filters['date_naissance'] ) {
+					$where[] = 'l.date_naissance = %s';
+					$params[] = $filters['date_naissance'];
+				}
+			}
+		} else {
+			if ( $has_nom ) {
+				$name_clauses[] = 'l.nom LIKE %s';
+				$params[]       = '%' . $wpdb->esc_like( $filters['nom'] ) . '%';
+			}
+			if ( $has_nom_licence ) {
+				$name_clauses[] = 'l.nom_licence LIKE %s';
+				$params[]       = '%' . $wpdb->esc_like( $filters['nom'] ) . '%';
+			}
+			if ( empty( $name_clauses ) ) {
+				$name_clauses[] = '1=0';
+			}
+
+			$where[] = '(' . implode( ' OR ', $name_clauses ) . ')';
+			$where[] = 'l.prenom LIKE %s';
+			$where[] = 'l.date_naissance = %s';
+			$params[] = '%' . $wpdb->esc_like( $filters['prenom'] ) . '%';
+			$params[] = $filters['date_naissance'];
 		}
 
-		$where = array(
-			'(' . implode( ' OR ', $name_clauses ) . ')',
-			'l.prenom LIKE %s',
-			'l.date_naissance = %s',
-		);
-		$params[] = '%' . $wpdb->esc_like( $filters['prenom'] ) . '%';
-		$params[] = $filters['date_naissance'];
-
-		if ( ! $filters['search_without_club'] && $filters['club_id'] ) {
+		if ( $filters['club_id'] && ( $has_query || ! $filters['search_without_club'] ) ) {
 			$where[] = 'l.club_id = %d';
 			$params[] = $filters['club_id'];
 		}
 
-		$season_column = $this->get_season_column();
-		if ( '' !== $filters['season'] && '' !== $season_column ) {
-			if ( 'season_end_year' === $season_column ) {
-				$season_value = UFSC_LC_Categories::sanitize_season_end_year( $filters['season'] );
-				if ( null !== $season_value ) {
-					$where[] = 'l.season_end_year = %d';
-					$params[] = $season_value;
-				}
-			} else {
-				$where[] = "l.{$season_column} = %s";
+		if ( '' !== $filters['season'] ) {
+			$season_sql = $this->get_season_coalesce_sql( 'l' );
+			if ( "''" !== $season_sql ) {
+				$where[] = "{$season_sql} = %s";
 				$params[] = $filters['season'];
 			}
+		}
+
+		if ( empty( $where ) ) {
+			$where[] = '1=0';
 		}
 
 		$category_column = $this->get_category_column();
@@ -527,10 +631,9 @@ class UFSC_LC_Licence_Documents {
 		}
 		$categorie_affiche_sql = empty( $category_parts ) ? "''" : 'COALESCE(' . implode( ', ', $category_parts ) . ')';
 
-		$season_sql = "'' AS season_value";
-		if ( $season_column ) {
-			$season_sql = "l.{$season_column} AS season_value";
-		}
+		$season_sql = $this->get_season_coalesce_sql( 'l' ) . ' AS season_value';
+		$licence_number_sql = $this->get_licence_number_sql( 'l' );
+		$asptt_number_sql   = $this->get_asptt_number_sql( 'l', $has_documents_table ? 'd' : '' );
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
 
@@ -543,14 +646,26 @@ class UFSC_LC_Licence_Documents {
 		}
 		$nom_affiche_sql = empty( $nom_parts ) ? "''" : 'COALESCE(' . implode( ', ', $nom_parts ) . ')';
 
-		$sql = "SELECT l.id, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
-			l.club_id, c.nom AS club_name
+		$join_documents = '';
+		$document_params = array();
+		$select_documents = '0 AS has_pdf';
+
+		if ( $has_documents_table ) {
+			$join_documents = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
+			$document_params[] = self::SOURCE;
+			$select_documents = "CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
+		}
+
+		$sql = "SELECT l.id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
+			l.club_id, c.nom AS club_name, {$select_documents}
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
+			{$join_documents}
 			{$where_sql}
-			ORDER BY {$nom_affiche_sql} ASC, l.prenom ASC, l.id ASC";
+			ORDER BY {$nom_affiche_sql} ASC, l.prenom ASC, l.id ASC
+			LIMIT 50";
 
-		return $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+		return $wpdb->get_results( $wpdb->prepare( $sql, array_merge( $document_params, $params ) ) );
 	}
 
 	private function render_licence_summary( $item, $season_label ) {
@@ -569,12 +684,15 @@ class UFSC_LC_Licence_Documents {
 		}
 		$lines = array(
 			'<strong>' . esc_html__( 'Licence ID', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->id ),
+			'<strong>' . esc_html__( 'N° licence', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ),
+			'<strong>' . esc_html__( 'N° ASPTT', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Prénom', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->prenom ),
 			'<strong>' . esc_html__( 'Date de naissance', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Club', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html( $season_label ) . '</strong>: ' . esc_html( $item->season_value ? $item->season_value : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Catégorie', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ),
+			'<strong>' . esc_html__( 'PDF', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ),
 		);
 
 		return '<ul class="ufsc-lc-summary"><li>' . implode( '</li><li>', $lines ) . '</li></ul>';
@@ -584,12 +702,32 @@ class UFSC_LC_Licence_Documents {
 		global $wpdb;
 
 		$table = $this->get_licences_table();
-
-		if ( $licence_id ) {
-			return $wpdb->get_row( $wpdb->prepare( "SELECT id, club_id, numero_licence_delegataire FROM {$table} WHERE id = %d", $licence_id ) );
+		$licence_number_column = $this->has_column( $table, 'numero_licence_delegataire' ) ? 'numero_licence_delegataire' : ( $this->has_column( $table, 'licence_number' ) ? 'licence_number' : '' );
+		$select_columns = 'id, club_id';
+		if ( $licence_number_column ) {
+			$select_columns .= ', ' . $licence_number_column;
 		}
 
-		return $wpdb->get_row( $wpdb->prepare( "SELECT id, club_id, numero_licence_delegataire FROM {$table} WHERE numero_licence_delegataire = %s", $numero_licence ) );
+		if ( $licence_id ) {
+			return $wpdb->get_row( $wpdb->prepare( "SELECT {$select_columns} FROM {$table} WHERE id = %d", $licence_id ) );
+		}
+
+		$licence_columns = $this->get_licence_number_columns();
+		if ( empty( $licence_columns ) ) {
+			return null;
+		}
+
+		$where_clauses = array();
+		$params = array();
+		foreach ( $licence_columns as $column ) {
+			$where_clauses[] = "{$column} = %s";
+			$params[] = $numero_licence;
+		}
+
+		$where_sql = implode( ' OR ', $where_clauses );
+		$sql = "SELECT {$select_columns} FROM {$table} WHERE {$where_sql} LIMIT 1";
+
+		return $wpdb->get_row( $wpdb->prepare( $sql, $params ) );
 	}
 
 	private function get_document_by_licence( $licence_id ) {
@@ -711,6 +849,65 @@ class UFSC_LC_Licence_Documents {
 		}
 
 		return '';
+	}
+
+	private function get_licence_number_columns() {
+		$table = $this->get_licences_table();
+		$columns = array();
+		foreach ( array( 'numero_licence_delegataire', 'licence_number' ) as $column ) {
+			if ( $this->has_column( $table, $column ) ) {
+				$columns[] = $column;
+			}
+		}
+		return $columns;
+	}
+
+	private function get_asptt_number_columns() {
+		$table = $this->get_licences_table();
+		$columns = array();
+		foreach ( array( 'numero_licence_asptt', 'asptt_number' ) as $column ) {
+			if ( $this->has_column( $table, $column ) ) {
+				$columns[] = $column;
+			}
+		}
+		return $columns;
+	}
+
+	private function get_licence_number_sql( $alias ) {
+		$parts = array();
+		foreach ( $this->get_licence_number_columns() as $column ) {
+			$parts[] = "NULLIF({$alias}.{$column}, '')";
+		}
+		$parts[] = "{$alias}.id";
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_asptt_number_sql( $alias, $documents_alias = '' ) {
+		$parts = array();
+		foreach ( $this->get_asptt_number_columns() as $column ) {
+			$parts[] = "NULLIF({$alias}.{$column}, '')";
+		}
+		if ( $documents_alias ) {
+			$parts[] = "NULLIF({$documents_alias}.source_licence_number, '')";
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_season_coalesce_sql( $alias ) {
+		$table = $this->get_licences_table();
+		$parts = array();
+		foreach ( array( 'season_end_year', 'season', 'saison' ) as $column ) {
+			if ( $this->has_column( $table, $column ) ) {
+				$parts[] = "NULLIF({$alias}.{$column}, '')";
+			}
+		}
+		if ( empty( $parts ) ) {
+			return "''";
+		}
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
 	private function has_column( $table, $column ) {

@@ -447,7 +447,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
-		check_ajax_referer( 'ufsc_lc_search_clubs' );
+		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
 
 		$search = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 		if ( strlen( $search ) < 2 ) {
@@ -459,8 +459,9 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		foreach ( $clubs as $club ) {
 			$data[] = array(
-				'id'   => $club['id'],
-				'text' => $club['label'],
+				'id'    => $club['id'],
+				'label' => $club['label'],
+				'text'  => $club['label'],
 			);
 		}
 
