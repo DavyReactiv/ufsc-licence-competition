@@ -38,9 +38,15 @@ class Bouts_Page {
 
 		$action = isset( $_GET['ufsc_action'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_action'] ) ) : '';
 		$notice = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
+		$fight_notice = isset( $_GET['ufsc_fight_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_fight_notice'] ) ) : '';
+		$fight_message = isset( $_GET['ufsc_fight_message'] ) ? sanitize_text_field( rawurldecode( wp_unslash( $_GET['ufsc_fight_message'] ) ) ) : '';
 		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+		$competition_id = isset( $_GET['ufsc_competition_id'] ) ? absint( $_GET['ufsc_competition_id'] ) : 0;
 
 		$this->render_notice( $notice );
+		if ( $fight_notice && class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
+			\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::render_notice( $fight_notice, $fight_message );
+		}
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			$item = null;
@@ -61,6 +67,11 @@ class Bouts_Page {
 			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
 			<hr class="wp-header-end">
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php
+			if ( class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
+				\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::render_panel( $competition_id );
+			}
+			?>
 			<?php $list_table->views(); ?>
 			<form method="post">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />

@@ -116,6 +116,24 @@ class FightRepository {
 		return $deleted;
 	}
 
+	public function get_max_fight_no( $competition_id ): int {
+		global $wpdb;
+
+		$competition_id = absint( $competition_id );
+		if ( ! $competition_id ) {
+			return 0;
+		}
+
+		$max = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT MAX(fight_no) FROM " . Db::fights_table() . " WHERE competition_id = %d",
+				$competition_id
+			)
+		);
+
+		return absint( $max );
+	}
+
 	private function set_deleted_at( $id, $deleted_at, $action ) {
 		global $wpdb;
 

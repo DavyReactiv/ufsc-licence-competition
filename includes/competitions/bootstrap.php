@@ -41,6 +41,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/PoolGenerator.php',
 		$base . '/Services/BracketGenerator.php',
 		$base . '/Services/StandingsCalculator.php',
+		$base . '/Services/FightAutoGenerationService.php',
 		$base . '/Services/PrintRenderer.php',
 		$base . '/Services/Plateau_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
@@ -92,6 +93,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Entries_Page.php',
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
+		$base . '/Admin/Pages/Bouts_AutoGeneration.php',
 		$base . '/Admin/Pages/Settings_Page.php',
 		$base . '/Admin/Pages/CompetitionLogs_Page.php',
 		$base . '/Admin/Pages/Guide_Page.php',
@@ -126,6 +128,10 @@ add_action(
 		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Exports\Entries_Export_Controller' ) ) {
 			$controller = new \UFSC\Competitions\Admin\Exports\Entries_Export_Controller();
 			$controller->register();
+		}
+
+		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
+			\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::register_actions();
 		}
 
 		// Call maybe_upgrade if available, defensively
