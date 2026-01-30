@@ -1235,7 +1235,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		// Map "category" => merged values (config + DB).
 		if ( 'category' === $column ) {
-			return $this->get_category_filter_values();
+			return $this->get_category_filter_options();
 		}
 
 		// Map "saison" => dynamic season column (saison|season)
@@ -1263,6 +1263,10 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	}
 
 	private function get_category_filter_values() {
+		return $this->get_category_filter_options();
+	}
+
+	private function get_category_filter_options() {
 		global $wpdb;
 
 		$table = $this->get_licences_table();
@@ -1282,16 +1286,19 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$db_categories = array();
 		if ( ! empty( $category_columns ) ) {
 			$coalesce_parts = array();
-			$where_parts    = array();
 			foreach ( $category_columns as $column ) {
 				$coalesce_parts[] = "NULLIF({$column}, '')";
-				$where_parts[] = "{$column} IS NOT NULL AND {$column} != ''";
 			}
 
 			$coalesce_sql = 'COALESCE(' . implode( ', ', $coalesce_parts ) . ')';
-			$where_sql    = implode( ' OR ', $where_parts );
 
-			$db_categories = $wpdb->get_col( "SELECT DISTINCT {$coalesce_sql} FROM {$table} WHERE {$where_sql} ORDER BY {$coalesce_sql} ASC" );
+			$db_categories = $wpdb->get_col(
+				"SELECT DISTINCT {$coalesce_sql} AS cat
+					FROM {$table}
+					WHERE {$coalesce_sql} IS NOT NULL
+						AND {$coalesce_sql} <> ''
+					ORDER BY {$coalesce_sql} ASC"
+			);
 			$db_categories = array_filter( array_map( 'strval', $db_categories ) );
 		}
 

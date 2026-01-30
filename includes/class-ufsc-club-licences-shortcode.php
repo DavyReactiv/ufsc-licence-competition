@@ -545,6 +545,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$licences_table  = $this->get_licences_table();
 		$documents_table = $this->get_documents_table();
 		$category_column = $this->get_category_column();
+		$columns_source  = $filters['columns'] ?? $this->get_licence_columns();
+		$columns         = $this->normalize_columns( $columns_source );
+		if ( empty( $columns ) ) {
+			$columns = $this->get_licence_columns();
+		}
+		if ( ! is_array( $columns ) ) {
+			$columns = array();
+		}
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
@@ -836,6 +844,24 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return $wpdb->get_row(
 			$wpdb->prepare( "SELECT id, club_id FROM {$table} WHERE id = %d", $licence_id )
 		);
+	}
+
+	private function normalize_columns( $columns ) {
+		if ( is_string( $columns ) ) {
+			$columns = array_filter( array_map( 'trim', explode( ',', $columns ) ) );
+		} elseif ( is_array( $columns ) ) {
+			$columns = array_map(
+				static function ( $value ) {
+					return trim( (string) $value );
+				},
+				$columns
+			);
+			$columns = array_filter( $columns, 'strlen' );
+		} else {
+			$columns = array();
+		}
+
+		return $columns;
 	}
 
 	private function get_distinct_values( $column, $club_id ) {
