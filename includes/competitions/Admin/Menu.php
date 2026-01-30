@@ -151,13 +151,14 @@ class Menu {
 		);
 		if ( $hook_suffix && class_exists( '\UFSC\Competitions\Admin\Assets' ) ) {
 			$assets = new Assets();
-			$assets->register( $hook_suffix, self::PAGE_COMPETITIONS === $slug );
+			$assets->register( $hook_suffix, self::PAGE_COMPETITIONS === $slug, $slug );
 		}
 	}
 
 	public function register_page_actions(): void {
 		$page_classes = array(
 			'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 		);
