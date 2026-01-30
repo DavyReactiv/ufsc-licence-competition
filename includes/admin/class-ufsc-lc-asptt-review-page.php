@@ -127,7 +127,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			$this->redirect_with_notice( 'error', __( 'Licence invalide.', 'ufsc-licence-competition' ) );
 		}
 
-		$match = $this->find_matching_licence_id( $club_id, $document->nom_licence, $document->prenom, $document->date_naissance, $document->sexe );
+		$match = $this->find_matching_licence_id( $club_id, ufsc_lc_get_nom_affiche( $document ), $document->prenom, $document->date_naissance, $document->sexe );
 		if ( ! $match ) {
 			$this->redirect_with_notice( 'warning', __( 'Aucune licence correspondante pour ce club.', 'ufsc-licence-competition' ) );
 		}
@@ -388,7 +388,7 @@ class UFSC_LC_ASPTT_Review_Page {
 			<input type="hidden" name="redirect_to" value="<?php echo esc_url( $this->get_review_url() ); ?>" />
 			<p>
 				<strong><?php esc_html_e( 'Choisir un club pour la licence', 'ufsc-licence-competition' ); ?></strong>
-				<?php echo esc_html( $document->nom_licence . ' ' . $document->prenom ); ?>
+				<?php echo esc_html( ufsc_lc_get_nom_affiche( $document ) . ' ' . $document->prenom ); ?>
 			</p>
 			<select name="club_id" class="ufsc-lc-club-select" data-licence-id="<?php echo esc_attr( (int) $document->licence_id ); ?>" required>
 				<option value=""><?php esc_html_e( 'Rechercher un club…', 'ufsc-licence-competition' ); ?></option>
@@ -592,13 +592,23 @@ class UFSC_LC_ASPTT_Review_Page {
 		$licences_table  = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table     = $wpdb->prefix . 'ufsc_clubs';
 		$meta_table      = $wpdb->prefix . 'ufsc_licence_documents_meta';
+		$has_nom         = $this->column_exists( $licences_table, 'nom' );
+		$has_nom_licence = $this->column_exists( $licences_table, 'nom_licence' );
+		$name_parts      = array();
+		if ( $has_nom ) {
+			$name_parts[] = "NULLIF(licences.nom, '')";
+		}
+		if ( $has_nom_licence ) {
+			$name_parts[] = "NULLIF(licences.nom_licence, '')";
+		}
+		$nom_affiche_sql = empty( $name_parts ) ? "''" : 'COALESCE(' . implode( ', ', $name_parts ) . ')';
 
 		$sql = "SELECT
 			docs.id AS document_id,
 			docs.licence_id,
 			docs.source,
 			docs.asptt_club_note,
-			licences.nom_licence,
+			{$nom_affiche_sql} AS nom_affiche,
 			licences.prenom,
 			licences.date_naissance,
 			licences.sexe,
@@ -722,7 +732,18 @@ class UFSC_LC_ASPTT_Review_Page {
 			return 0;
 		}
 
-		$sql     = "SELECT id, sexe, nom_licence, prenom FROM {$table} WHERE club_id = %d AND date_naissance = %s";
+		$has_nom         = $this->column_exists( $table, 'nom' );
+		$has_nom_licence = $this->column_exists( $table, 'nom_licence' );
+		$name_parts      = array();
+		if ( $has_nom ) {
+			$name_parts[] = "NULLIF(nom, '')";
+		}
+		if ( $has_nom_licence ) {
+			$name_parts[] = "NULLIF(nom_licence, '')";
+		}
+		$nom_affiche_sql = empty( $name_parts ) ? "''" : 'COALESCE(' . implode( ', ', $name_parts ) . ')';
+
+		$sql     = "SELECT id, sexe, {$nom_affiche_sql} AS nom_affiche, prenom FROM {$table} WHERE club_id = %d AND date_naissance = %s";
 		$results = $wpdb->get_results( $wpdb->prepare( $sql, $club_id, $dob_value ) );
 
 		if ( empty( $results ) ) {
@@ -731,7 +752,7 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		$matches = array();
 		foreach ( $results as $row ) {
-			if ( $this->normalize_name( $row->nom_licence ) === $normalized_nom
+			if ( $this->normalize_name( $row->nom_affiche ) === $normalized_nom
 				&& $this->normalize_name( $row->prenom ) === $normalized_prenom ) {
 				$matches[] = $row;
 			}
@@ -755,6 +776,14 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		return 0;
+	}
+
+	private function column_exists( $table, $column ) {
+		global $wpdb;
+
+		return (bool) $wpdb->get_var(
+			$wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column )
+		);
 	}
 
 	private function normalize_name( $value ) {

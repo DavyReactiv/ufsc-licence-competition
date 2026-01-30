@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/ufsc-lc-helpers.php';
 require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
 require_once __DIR__ . '/class-ufsc-lc-categories.php';
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
@@ -27,7 +28,7 @@ if ( file_exists( $competitions_bootstrap ) ) {
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.5.0';
+	const DB_VERSION        = '1.5.1';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	// Must match add_menu_page slug.
 	const PARENT_SLUG       = 'ufsc-licence-documents';
@@ -170,6 +171,7 @@ class UFSC_LC_Plugin {
 		$migrations = new UFSC_LC_Licence_Migrations();
 		$migrations->ensure_licence_columns();
 		$migrations->backfill_categories();
+		$migrations->backfill_nom_columns();
 
 		$indexes = new UFSC_LC_Licence_Indexes();
 		$indexes->ensure_indexes();
