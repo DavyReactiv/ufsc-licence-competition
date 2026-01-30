@@ -12,6 +12,7 @@ class UFSC_LC_Licences_Admin {
 		add_action( 'admin_notices', array( $this, 'render_notices' ) );
 		add_action( 'admin_post_ufsc_lc_export_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
+		add_action( 'admin_post_ufsc_lc_update_asptt_number', array( $this, 'handle_update_asptt_number' ) );
 	}
 
 	public function register_menu() {
@@ -30,6 +31,11 @@ class UFSC_LC_Licences_Admin {
 	public function render_page() {
 		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( $this->is_edit_asptt_action() ) {
+			$this->render_asptt_edit_page();
+			return;
 		}
 
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
@@ -76,11 +82,13 @@ class UFSC_LC_Licences_Admin {
 				'bulk_remove_pdf'           => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
 				'bulk_recalculate_categories' => __( 'Catégories recalculées.', 'ufsc-licence-competition' ),
 				'bulk_change_season'        => __( 'Saison mise à jour.', 'ufsc-licence-competition' ),
+				'asptt_updated'             => __( 'N° licence ASPTT mis à jour.', 'ufsc-licence-competition' ),
 			),
 			'error' => array(
 				'documents_meta_missing' => __( 'Action impossible : table meta des documents manquante.', 'ufsc-licence-competition' ),
 				'documents_missing'      => __( 'Action impossible : table des documents absente.', 'ufsc-licence-competition' ),
 				'season_missing'         => __( 'Action impossible : colonne saison absente.', 'ufsc-licence-competition' ),
+				'asptt_missing'           => __( 'Impossible de mettre à jour le N° ASPTT (colonne manquante).', 'ufsc-licence-competition' ),
 			),
 			'warning' => array(
 				'bulk_recalculate_empty'   => __( 'Aucune licence valide pour recalculer les catégories.', 'ufsc-licence-competition' ),
@@ -133,9 +141,261 @@ class UFSC_LC_Licences_Admin {
 		$exporter->stream_licences_csv( $filters );
 	}
 
+	public function handle_update_asptt_number() {
+		if ( ! $this->current_user_can_edit_asptt() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$nonce = isset( $_POST['ufsc_lc_asptt_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_update_asptt_number' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$licence_id = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
+		$asptt_number = isset( $_POST['asptt_number'] ) ? sanitize_text_field( wp_unslash( $_POST['asptt_number'] ) ) : '';
+
+		if ( ! $licence_id ) {
+			wp_die( esc_html__( 'Licence invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 400 ) );
+		}
+
+		$updated = $this->update_licence_asptt_number( $licence_id, $asptt_number );
+		if ( is_wp_error( $updated ) ) {
+			$this->redirect_to_edit_page( $licence_id, 'error', 'asptt_missing' );
+			return;
+		}
+
+		$this->redirect_to_edit_page( $licence_id, 'success', 'asptt_updated' );
+	}
+
 	private function is_licences_screen() {
 		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
 
 		return 'ufsc-lc-licences' === $page;
+	}
+
+	private function is_edit_asptt_action() {
+		if ( ! $this->is_licences_screen() ) {
+			return false;
+		}
+
+		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;
+
+		return 'edit_asptt' === $action && $licence_id > 0;
+	}
+
+	private function render_asptt_edit_page() {
+		if ( ! $this->current_user_can_edit_asptt() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		}
+
+		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;
+		$licence = $this->get_licence_context( $licence_id );
+		$asptt_number = $this->get_licence_asptt_number( $licence_id );
+		$back_url = admin_url( 'admin.php?page=ufsc-lc-licences' );
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Modifier le N° licence ASPTT', 'ufsc-licence-competition' ); ?></h1>
+			<p><a href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( 'Retour aux licences', 'ufsc-licence-competition' ); ?></a></p>
+			<?php if ( ! $licence ) : ?>
+				<div class="notice notice-error"><p><?php esc_html_e( 'Licence introuvable.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php else : ?>
+				<div class="ufsc-lc-licence-summary" style="margin-bottom: 20px;">
+					<strong><?php echo esc_html( $licence['label'] ); ?></strong>
+				</div>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_lc_update_asptt_number', 'ufsc_lc_asptt_nonce' ); ?>
+					<input type="hidden" name="action" value="ufsc_lc_update_asptt_number">
+					<input type="hidden" name="licence_id" value="<?php echo esc_attr( $licence_id ); ?>">
+					<table class="form-table" role="presentation">
+						<tr>
+							<th scope="row"><label for="ufsc_asptt_number"><?php esc_html_e( 'N° licence ASPTT', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<input type="text" id="ufsc_asptt_number" name="asptt_number" class="regular-text" value="<?php echo esc_attr( $asptt_number ); ?>">
+							</td>
+						</tr>
+					</table>
+					<?php submit_button( __( 'Mettre à jour', 'ufsc-licence-competition' ) ); ?>
+				</form>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	private function current_user_can_edit_asptt() {
+		return current_user_can( UFSC_LC_Capabilities::get_manage_capability() ) || current_user_can( 'manage_options' );
+	}
+
+	private function get_licence_context( $licence_id ) {
+		global $wpdb;
+
+		$licence_id = (int) $licence_id;
+		if ( $licence_id <= 0 ) {
+			return null;
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return null;
+		}
+
+		$columns = array( 'id', 'prenom', 'nom', 'nom_licence', 'numero_licence_delegataire', 'licence_number' );
+		$existing_columns = array();
+		foreach ( $columns as $column ) {
+			if ( $this->column_exists( $table, $column ) ) {
+				$existing_columns[] = $column;
+			}
+		}
+
+		if ( empty( $existing_columns ) ) {
+			return null;
+		}
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT ' . implode( ', ', $existing_columns ) . " FROM {$table} WHERE id = %d",
+				$licence_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $row ) {
+			return null;
+		}
+
+		$name = '';
+		if ( ! empty( $row['nom_licence'] ) ) {
+			$name = $row['nom_licence'];
+		} elseif ( ! empty( $row['nom'] ) ) {
+			$name = $row['nom'];
+		}
+		if ( ! empty( $row['prenom'] ) ) {
+			$name = trim( $row['prenom'] . ' ' . $name );
+		}
+
+		$licence_number = $row['numero_licence_delegataire'] ?? $row['licence_number'] ?? '';
+		$label_parts = array(
+			sprintf( __( 'Licence #%d', 'ufsc-licence-competition' ), $licence_id ),
+		);
+		if ( '' !== $name ) {
+			$label_parts[] = $name;
+		}
+		if ( '' !== $licence_number ) {
+			$label_parts[] = $licence_number;
+		}
+
+		return array(
+			'label' => implode( ' · ', array_map( 'sanitize_text_field', $label_parts ) ),
+		);
+	}
+
+	private function get_licence_asptt_number( $licence_id ) {
+		global $wpdb;
+
+		$licence_id = (int) $licence_id;
+		if ( $licence_id <= 0 ) {
+			return '';
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return '';
+		}
+
+		$columns = $this->get_asptt_columns( $table );
+		if ( empty( $columns ) ) {
+			return '';
+		}
+
+		$parts = array();
+		foreach ( $columns as $column ) {
+			$parts[] = "NULLIF({$column}, '')";
+		}
+		$select = 'COALESCE(' . implode( ', ', $parts ) . ') AS asptt_number';
+
+		$value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT {$select} FROM {$table} WHERE id = %d",
+				$licence_id
+			)
+		);
+
+		return is_string( $value ) ? $value : '';
+	}
+
+	private function update_licence_asptt_number( $licence_id, $asptt_number ) {
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return new WP_Error( 'licence_table_missing', __( 'Table licences indisponible.', 'ufsc-licence-competition' ) );
+		}
+
+		$columns = $this->get_asptt_columns( $table );
+		if ( empty( $columns ) ) {
+			return new WP_Error( 'asptt_column_missing', __( 'Colonne ASPTT indisponible.', 'ufsc-licence-competition' ) );
+		}
+
+		$data = array();
+		$formats = array();
+		foreach ( $columns as $column ) {
+			$data[ $column ] = $asptt_number;
+			$formats[] = '%s';
+		}
+
+		$result = $wpdb->update(
+			$table,
+			$data,
+			array( 'id' => (int) $licence_id ),
+			$formats,
+			array( '%d' )
+		);
+
+		if ( false === $result && ! empty( $wpdb->last_error ) ) {
+			return new WP_Error( 'licence_update_failed', __( 'Erreur lors de la mise à jour de la licence.', 'ufsc-licence-competition' ) );
+		}
+
+		return $result;
+	}
+
+	private function get_licences_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_licences';
+	}
+
+	private function get_asptt_columns( $table ) {
+		$columns = array();
+		foreach ( array( 'numero_licence_asptt', 'asptt_number' ) as $column ) {
+			if ( $this->column_exists( $table, $column ) ) {
+				$columns[] = $column;
+			}
+		}
+
+		return $columns;
+	}
+
+	private function column_exists( $table, $column ) {
+		global $wpdb;
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
+	}
+
+	private function table_exists( $table ) {
+		global $wpdb;
+		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+	}
+
+	private function redirect_to_edit_page( $licence_id, $type, $code ) {
+		$url = add_query_arg(
+			array(
+				'page'       => 'ufsc-lc-licences',
+				'action'     => 'edit_asptt',
+				'licence_id' => (int) $licence_id,
+				$type        => $code,
+			),
+			admin_url( 'admin.php' )
+		);
+
+		wp_safe_redirect( $url );
+		exit;
 	}
 }
