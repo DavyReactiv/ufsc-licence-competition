@@ -11,6 +11,8 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 	private $clubs = array();
 	private $filters = array();
+	private $has_season_end_year = false;
+	private $category_column = '';
 
 	public function __construct( $clubs = array() ) {
 		parent::__construct(
@@ -22,6 +24,9 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		);
 
 		$this->clubs = $clubs;
+		$licences_table = $this->get_licences_table();
+		$this->has_season_end_year = $this->column_exists( $licences_table, 'season_end_year' );
+		$this->category_column = $this->resolve_category_column( $licences_table );
 	}
 
 	public function get_columns() {
@@ -385,6 +390,8 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 
 		$order_by = $this->get_orderby_sql();
 		$order = 'ASC' === $this->filters['order'] ? 'ASC' : 'DESC';
+		$season_end_year_sql = $this->has_season_end_year ? 'licences.season_end_year' : 'NULL';
+		$category_sql        = $this->category_column ? 'licences.' . $this->category_column : 'NULL';
 
 		$count_sql = "SELECT COUNT(DISTINCT docs.id) {$joins} {$where_sql}";
 		$total_items = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
@@ -398,8 +405,8 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 			licences.prenom,
 			licences.date_naissance,
 			licences.sexe,
-			licences.season_end_year,
-			licences.category,
+			{$season_end_year_sql} AS season_end_year,
+			{$category_sql} AS category,
 			clubs.id AS club_id,
 			clubs.nom AS club_name,
 			meta_conf.meta_value AS confidence_score,
@@ -490,5 +497,31 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		}
 
 		return add_query_arg( $params, admin_url( 'admin.php' ) );
+	}
+
+	private function get_licences_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_licences';
+	}
+
+	private function resolve_category_column( $table ) {
+		if ( $this->column_exists( $table, 'category' ) ) {
+			return 'category';
+		}
+
+		if ( $this->column_exists( $table, 'categorie' ) ) {
+			return 'categorie';
+		}
+
+		return '';
+	}
+
+	private function column_exists( $table, $column ) {
+		global $wpdb;
+
+		$column = sanitize_key( $column );
+		return (bool) $wpdb->get_var(
+			$wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column )
+		);
 	}
 }

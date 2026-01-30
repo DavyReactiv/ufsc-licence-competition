@@ -53,7 +53,7 @@ class LicenseBridge {
 		}
 
 		// Resolve schema differences across installs.
-		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
 		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
 		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
@@ -164,7 +164,7 @@ class LicenseBridge {
 			return null;
 		}
 
-		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
 		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
 		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
