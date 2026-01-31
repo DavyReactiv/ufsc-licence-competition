@@ -193,5 +193,14 @@ add_action(
 		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
 			\UFSC\Competitions\Services\AuditLogger::register_hooks();
 		}
+
+		// Ensure fights schema (fight_no, deleted_at) is verified even outside wp-admin.
+		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+			try {
+				\UFSC\Competitions\Db::maybe_upgrade();
+			} catch ( \Throwable $e ) {
+				error_log( 'UFSC Competitions: Db::maybe_upgrade failed on init: ' . $e->getMessage() );
+			}
+		}
 	}
 );
