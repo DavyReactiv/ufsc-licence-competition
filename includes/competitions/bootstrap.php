@@ -12,8 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Provides:
  * - load_competitions_core_dependencies()
  * - load_competitions_admin_dependencies()
- * - Defensive admin_init that calls Db::maybe_upgrade() only if available
- * - register_module() to register admin menu when appropriate
+ * - Defensive early upgrades via Db::maybe_upgrade()
+ * - register menus/pages when appropriate
  *
  * This file is idempotent and safe to require_once from plugin bootstrap.
  */
@@ -113,6 +113,21 @@ function load_competitions_admin_dependencies(): void {
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
 
+// Run DB upgrades as early as possible so repository queries don't fail.
+add_action(
+	'plugins_loaded',
+	function() {
+		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+			try {
+				\UFSC\Competitions\Db::maybe_upgrade();
+			} catch ( \Throwable $e ) {
+				error_log( 'UFSC Competitions: Db::maybe_upgrade failed on plugins_loaded: ' . $e->getMessage() );
+			}
+		}
+	},
+	1
+);
+
 // Register safe admin_init for upgrade/migrations and admin deps.
 add_action(
 	'admin_init',
@@ -141,12 +156,11 @@ add_action(
 			try {
 				\UFSC\Competitions\Db::maybe_upgrade();
 			} catch ( \Throwable $e ) {
-				// Do not use non-existing static loggers; use error_log
 				error_log( 'UFSC Competitions: Db::maybe_upgrade failed: ' . $e->getMessage() );
 			}
 		}
 	},
-	5
+	1
 );
 
 /**
@@ -192,15 +206,6 @@ add_action(
 
 		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
 			\UFSC\Competitions\Services\AuditLogger::register_hooks();
-		}
-
-		// Ensure fights schema (fight_no, deleted_at) is verified even outside wp-admin.
-		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
-			try {
-				\UFSC\Competitions\Db::maybe_upgrade();
-			} catch ( \Throwable $e ) {
-				error_log( 'UFSC Competitions: Db::maybe_upgrade failed on init: ' . $e->getMessage() );
-			}
 		}
 	}
 );

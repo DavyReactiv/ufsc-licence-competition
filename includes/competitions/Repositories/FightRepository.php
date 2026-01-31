@@ -358,49 +358,11 @@ class FightRepository {
 	}
 
 	private function has_deleted_at_column(): bool {
-		global $wpdb;
+		return Db::has_table_column( Db::fights_table(), 'deleted_at' );
+	}
 
-		static $cache = array();
-		$table = Db::fights_table();
-
-		if ( array_key_exists( $table, $cache ) ) {
-			return $cache[ $table ];
-		}
-
-		$cache_key = 'ufsc_fights_has_deleted_at_' . md5( $table );
-		$cached = wp_cache_get( $cache_key, 'ufsc_competitions' );
-		if ( false !== $cached ) {
-			$cache[ $table ] = (bool) $cached;
-			return $cache[ $table ];
-		}
-
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		if ( $exists !== $table ) {
-			$cache[ $table ] = false;
-			wp_cache_set( $cache_key, $cache[ $table ], 'ufsc_competitions', HOUR_IN_SECONDS );
-			return $cache[ $table ];
-		}
-
-		$column = $wpdb->get_var(
-			$wpdb->prepare(
-				"SHOW COLUMNS FROM {$table} LIKE %s",
-				'deleted_at'
-			)
-		);
-		if ( empty( $column ) ) {
-			$column = $wpdb->get_var(
-				$wpdb->prepare(
-					"SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
-					$table,
-					'deleted_at'
-				)
-			);
-		}
-		$cache[ $table ] = ! empty( $column );
-
-		wp_cache_set( $cache_key, $cache[ $table ], 'ufsc_competitions', HOUR_IN_SECONDS );
-
-		return $cache[ $table ];
+	private function has_fight_no_column(): bool {
+		return Db::has_table_column( Db::fights_table(), 'fight_no' );
 	}
 
 	private function has_fight_no_column(): bool {
