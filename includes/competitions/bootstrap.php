@@ -6,6 +6,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( defined( 'UFSC_COMPETITIONS_BOOTSTRAP_LOADED' ) ) {
+	return;
+}
+
+define( 'UFSC_COMPETITIONS_BOOTSTRAP_LOADED', true );
+
 /**
  * Competitions module bootstrap / loader.
  *
