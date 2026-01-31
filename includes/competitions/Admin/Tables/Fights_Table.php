@@ -34,6 +34,10 @@ class Fights_Table extends \WP_List_Table {
 			)
 		);
 
+		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+			\UFSC\Competitions\Db::maybe_upgrade();
+		}
+
 		$this->repository = new FightRepository();
 		$this->competition_repository = new CompetitionRepository();
 		$this->category_repository = new CategoryRepository();

@@ -113,6 +113,21 @@ function load_competitions_admin_dependencies(): void {
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
 
+// Run DB upgrades as early as possible so repository queries don't fail.
+add_action(
+	'plugins_loaded',
+	function() {
+		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+			try {
+				\UFSC\Competitions\Db::maybe_upgrade();
+			} catch ( \Throwable $e ) {
+				error_log( 'UFSC Competitions: Db::maybe_upgrade failed on plugins_loaded: ' . $e->getMessage() );
+			}
+		}
+	},
+	1
+);
+
 // Register safe admin_init for upgrade/migrations and admin deps.
 add_action(
 	'admin_init',
@@ -146,7 +161,7 @@ add_action(
 			}
 		}
 	},
-	5
+	1
 );
 
 /**
@@ -193,5 +208,6 @@ add_action(
 		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
 			\UFSC\Competitions\Services\AuditLogger::register_hooks();
 		}
+
 	}
 );

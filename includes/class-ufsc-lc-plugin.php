@@ -178,6 +178,9 @@ class UFSC_LC_Plugin {
 
 		if ( class_exists( '\\UFSC\\Competitions\\Db' ) ) {
 			\UFSC\Competitions\Db::create_tables();
+			if ( method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+				\UFSC\Competitions\Db::maybe_upgrade();
+			}
 		}
 	}
 
