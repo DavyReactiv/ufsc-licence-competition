@@ -69,6 +69,8 @@ class EntriesModule {
 		$selected_license = null;
 		$license_term = isset( $_GET['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_term'] ) ) : '';
 		$license_number = isset( $_GET['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_number'] ) ) : '';
+		$license_birthdate = isset( $_GET['ufsc_license_birthdate'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_birthdate'] ) ) : '';
+		$license_birthdate = self::normalize_birthdate_input( $license_birthdate );
 		$license_id = isset( $_GET['ufsc_license_id'] ) ? absint( $_GET['ufsc_license_id'] ) : 0;
 		$repo = null;
 
@@ -77,7 +79,10 @@ class EntriesModule {
 			$entries = $repo->list_by_competition_and_club( (int) $competition->id, (int) $club_id );
 			$editing_entry = self::resolve_editing_entry( $entries );
 
-			$license_results = self::get_license_search_results( $license_term, $license_number, $club_id, $repo );
+			$license_results = self::get_license_search_results( $license_term, $license_number, $license_birthdate, $club_id, $repo );
+			if ( ! $license_id && 1 === count( $license_results ) ) {
+				$license_id = (int) ( $license_results[0]['id'] ?? 0 );
+			}
 			if ( $license_id ) {
 				$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 				if ( is_array( $license_data ) ) {
@@ -114,6 +119,8 @@ class EntriesModule {
 				'selected_license' => $selected_license,
 				'license_term' => $license_term,
 				'license_number' => $license_number,
+				'license_birthdate' => $license_birthdate,
+				'return_url' => self::get_return_url( (int) ( $competition->id ?? 0 ) ),
 				'license_id' => $license_id,
 				'prefill' => $prefill,
 				'entry_repo' => $repo,
@@ -288,13 +295,38 @@ class EntriesModule {
 		return (bool) apply_filters( 'ufsc_competitions_front_registration_is_open', $is_open, $competition, $club_id );
 	}
 
-	private static function get_license_search_results( string $term, string $license_number, int $club_id, EntryFrontRepository $repo ): array {
-		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number );
+	private static function get_license_search_results( string $term, string $license_number, string $birthdate, int $club_id, EntryFrontRepository $repo ): array {
+		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number, $birthdate );
 		if ( ! is_array( $results ) ) {
 			$results = array();
 		}
 
 		return $repo->normalize_license_results( $results, 20 );
+	}
+
+	private static function normalize_birthdate_input( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( preg_match( '/^\\d{2}\\/\\d{2}\\/\\d{4}$/', $value ) ) {
+			$parts = explode( '/', $value );
+			if ( 3 === count( $parts ) ) {
+				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
+			}
+		}
+
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+			return $value;
+		}
+
+		$date = date_create( $value );
+		if ( $date ) {
+			return $date->format( 'Y-m-d' );
+		}
+
+		return '';
 	}
 
 	public static function get_category_from_birthdate( string $birthdate, array $license, $competition ): string {
@@ -428,6 +460,22 @@ class EntriesModule {
 				'weight_status' => $weight_result['status'] ?? '',
 			)
 		);
+	}
+
+	private static function get_return_url( int $competition_id ): string {
+		if ( $competition_id ) {
+			$details_url = Front::get_competition_details_url( $competition_id );
+			if ( $details_url ) {
+				return $details_url;
+			}
+		}
+
+		$referer = wp_get_referer();
+		if ( $referer ) {
+			return $referer;
+		}
+
+		return home_url( '/' );
 	}
 
 	private static function resolve_editing_entry( array $entries ) {

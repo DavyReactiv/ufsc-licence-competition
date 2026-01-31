@@ -477,46 +477,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$nom_affiche_sql = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
 
 		if ( '' !== $filters['q'] ) {
-			$like = '%' . $wpdb->esc_like( $filters['q'] ) . '%';
-			$normalized = function_exists( 'ufsc_lc_normalize_search' ) ? ufsc_lc_normalize_search( $filters['q'] ) : '';
-			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : '';
-
-			$search_clauses = array();
-
-			if ( "''" !== $nom_affiche_sql ) {
-				$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
-				$params[] = $like;
-
-				if ( $like_normalized ) {
-					$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
-					$params[] = $like_normalized;
-				}
-			}
-
-			if ( $has_prenom ) {
-				$search_clauses[] = 'l.prenom LIKE %s';
-				$params[] = $like;
-
-				if ( $like_normalized ) {
-					$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
-					$params[] = $like_normalized;
-				}
-			}
-
-			if ( $join_sql && $has_doc_source_number ) {
-				$search_clauses[] = 'd.source_licence_number LIKE %s';
-				$params[] = $like;
-
-				if ( $like_normalized ) {
-					$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
-					$params[] = $like_normalized;
-				}
-			}
-
-			if ( empty( $search_clauses ) ) {
-				$where[] = '1=0';
-			} else {
-				$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
+			$search_clause = $this->build_search_clause(
+				$filters['q'],
+				$nom_affiche_sql,
+				$has_prenom,
+				$has_doc_source_number,
+				$can_join_docs,
+				$params
+			);
+			if ( $search_clause ) {
+				$where[] = $search_clause;
 			}
 		}
 
@@ -624,15 +594,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
 
-		$like = null;
-		$like_normalized = null;
-
-		if ( '' !== $filters['q'] ) {
-			$like = '%' . $wpdb->esc_like( $filters['q'] ) . '%';
-			$normalized = function_exists( 'ufsc_lc_normalize_search' ) ? ufsc_lc_normalize_search( $filters['q'] ) : '';
-			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : null;
-		}
-
 		if ( '' !== $filters['statut'] && $has_statut ) {
 			$where[] = 'l.statut = %s';
 			$params[] = $filters['statut'];
@@ -690,42 +651,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 			);
 
 			if ( '' !== $filters['q'] ) {
-				$search_clauses = array();
-
-				if ( "''" !== $nom_affiche_sql ) {
-					$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
-					$params[] = $like;
-
-					if ( $like_normalized ) {
-						$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
-						$params[] = $like_normalized;
-					}
-				}
-
-				if ( $has_prenom ) {
-					$search_clauses[] = 'l.prenom LIKE %s';
-					$params[] = $like;
-
-					if ( $like_normalized ) {
-						$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
-						$params[] = $like_normalized;
-					}
-				}
-
-				if ( $has_doc_source_number ) {
-					$search_clauses[] = 'd.source_licence_number LIKE %s';
-					$params[] = $like;
-
-					if ( $like_normalized ) {
-						$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
-						$params[] = $like_normalized;
-					}
-				}
-
-				if ( empty( $search_clauses ) ) {
-					$where[] = '1=0';
-				} else {
-					$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
+				$search_clause = $this->build_search_clause(
+					$filters['q'],
+					$nom_affiche_sql,
+					$has_prenom,
+					$has_doc_source_number,
+					$can_join_docs,
+					$params
+				);
+				if ( $search_clause ) {
+					$where[] = $search_clause;
 				}
 			}
 
@@ -734,32 +669,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		} else {
 			if ( '' !== $filters['q'] ) {
-				$search_clauses = array();
-
-				if ( "''" !== $nom_affiche_sql ) {
-					$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
-					$params[] = $like;
-
-					if ( $like_normalized ) {
-						$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
-						$params[] = $like_normalized;
-					}
-				}
-
-				if ( $has_prenom ) {
-					$search_clauses[] = 'l.prenom LIKE %s';
-					$params[] = $like;
-
-					if ( $like_normalized ) {
-						$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
-						$params[] = $like_normalized;
-					}
-				}
-
-				if ( empty( $search_clauses ) ) {
-					$where[] = '1=0';
-				} else {
-					$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
+				$search_clause = $this->build_search_clause(
+					$filters['q'],
+					$nom_affiche_sql,
+					$has_prenom,
+					false,
+					false,
+					$params
+				);
+				if ( $search_clause ) {
+					$where[] = $search_clause;
 				}
 			}
 
@@ -1029,7 +948,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 				$results = $wpdb->get_col(
 					$wpdb->prepare(
-						"SELECT DISTINCT {$select} AS category FROM {$table} WHERE club_id = %d HAVING category IS NOT NULL AND category != '' ORDER BY category ASC",
+						"SELECT DISTINCT category FROM (SELECT {$select} AS category FROM {$table} WHERE club_id = %d) t WHERE category IS NOT NULL AND category != '' ORDER BY category ASC",
 						$club_id
 					)
 				);
@@ -1138,6 +1057,71 @@ class UFSC_LC_Club_Licences_Shortcode {
 		wp_cache_set( $cache_key, $cached, 'ufsc_licence_competition', HOUR_IN_SECONDS );
 
 		return $cached;
+	}
+
+	private function normalize_search_term( string $value ): string {
+		if ( function_exists( 'ufsc_lc_normalize_search' ) ) {
+			return (string) ufsc_lc_normalize_search( $value );
+		}
+
+		$value = trim( $value );
+
+		if ( function_exists( 'mb_strtolower' ) ) {
+			return mb_strtolower( $value );
+		}
+
+		return strtolower( $value );
+	}
+
+	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
+		global $wpdb;
+
+		$term = trim( $term );
+		if ( '' === $term ) {
+			return '';
+		}
+
+		$like = '%' . $wpdb->esc_like( $term ) . '%';
+		$normalized = $this->normalize_search_term( $term );
+		$like_normalized = '' !== $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : '';
+
+		$search_clauses = array();
+
+		if ( "''" !== $nom_affiche_sql ) {
+			$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
+			$params[] = $like;
+
+			if ( '' !== $like_normalized ) {
+				$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
+				$params[] = $like_normalized;
+			}
+		}
+
+		if ( $has_prenom ) {
+			$search_clauses[] = 'l.prenom LIKE %s';
+			$params[] = $like;
+
+			if ( '' !== $like_normalized ) {
+				$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
+				$params[] = $like_normalized;
+			}
+		}
+
+		if ( $can_join_docs && $has_doc_source_number ) {
+			$search_clauses[] = 'd.source_licence_number LIKE %s';
+			$params[] = $like;
+
+			if ( '' !== $like_normalized ) {
+				$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
+				$params[] = $like_normalized;
+			}
+		}
+
+		if ( empty( $search_clauses ) ) {
+			return '1=0';
+		}
+
+		return '(' . implode( ' OR ', $search_clauses ) . ')';
 	}
 
 	private function get_licence_columns() {

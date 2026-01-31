@@ -58,6 +58,14 @@ class EntryActions {
 			self::redirect_with_notice( 0, 'error_forbidden' );
 		}
 
+		self::debug_log( 'entry_action_start', array( 'action' => $action ) );
+
+		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
+		if ( $required_capability && ! current_user_can( $required_capability ) ) {
+			self::redirect_with_notice( 0, 'error_forbidden' );
+		}
+
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		$competition    = EntriesModule::get_competition( $competition_id );
 
@@ -119,6 +127,8 @@ class EntryActions {
 		$license_id = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
 		$license_term = isset( $_POST['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_term'] ) ) : '';
 		$license_number = isset( $_POST['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_number'] ) ) : '';
+		$license_birthdate = isset( $_POST['ufsc_license_birthdate'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_birthdate'] ) ) : '';
+		$license_birthdate = self::normalize_birthdate_input( $license_birthdate );
 		$license    = null;
 		if ( $license_id ) {
 			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
@@ -129,7 +139,7 @@ class EntryActions {
 
 		if ( 'create' === $action && ! $license ) {
 			if ( '' !== $license_term || '' !== $license_number ) {
-				$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $license_term, $club_id, $license_number );
+				$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $license_term, $club_id, $license_number, $license_birthdate );
 				if ( is_array( $results ) ) {
 					$normalized = $repo->normalize_license_results( $results, 2 );
 					if ( 1 === count( $normalized ) && ! empty( $normalized[0]['id'] ) ) {
@@ -143,6 +153,16 @@ class EntryActions {
 			}
 
 			if ( ! $license ) {
+				self::debug_log(
+					'entry_action_license_missing',
+					array(
+						'action' => $action,
+						'club_id' => $club_id,
+						'term' => $license_term,
+						'number' => $license_number,
+						'birthdate' => $license_birthdate,
+					)
+				);
 				self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
 			}
 		}
@@ -211,6 +231,7 @@ class EntryActions {
 			do_action( 'ufsc_competitions_entry_before_create', $data, $competition, $club_id );
 			$entry_id = $repo->insert( $data );
 			if ( ! $entry_id ) {
+				self::debug_log( 'entry_action_create_failed', array( 'competition_id' => $competition_id, 'club_id' => $club_id ) );
 				self::redirect_with_notice( $competition_id, 'error' );
 			}
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
@@ -227,6 +248,14 @@ class EntryActions {
 
 	private static function handle_status_action( string $action ): void {
 		if ( ! is_user_logged_in() ) {
+			self::redirect_with_notice( 0, 'error_forbidden' );
+		}
+
+		self::debug_log( 'entry_status_action_start', array( 'action' => $action ) );
+
+		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
+		if ( $required_capability && ! current_user_can( $required_capability ) ) {
 			self::redirect_with_notice( 0, 'error_forbidden' );
 		}
 
@@ -485,7 +514,10 @@ class EntryActions {
 	}
 
 	private static function redirect_with_notice( int $competition_id, string $notice ): void {
-		$url = $competition_id ? Front::get_competition_details_url( $competition_id ) : '';
+		$url = self::get_return_url_from_request();
+		if ( ! $url ) {
+			$url = $competition_id ? Front::get_competition_details_url( $competition_id ) : '';
+		}
 		if ( ! $url ) {
 			$url = wp_get_referer();
 		}
@@ -516,5 +548,50 @@ class EntryActions {
 		$redirect = add_query_arg( 'ufsc_notice', $notice, $redirect );
 		wp_safe_redirect( $redirect );
 		exit;
+	}
+
+	private static function get_return_url_from_request(): string {
+		if ( isset( $_REQUEST['ufsc_return_url'] ) ) {
+			$return_url = esc_url_raw( wp_unslash( $_REQUEST['ufsc_return_url'] ) );
+			if ( $return_url ) {
+				return $return_url;
+			}
+		}
+
+		return '';
+	}
+
+	private static function normalize_birthdate_input( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( preg_match( '/^\\d{2}\\/\\d{2}\\/\\d{4}$/', $value ) ) {
+			$parts = explode( '/', $value );
+			if ( 3 === count( $parts ) ) {
+				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
+			}
+		}
+
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+			return $value;
+		}
+
+		$date = date_create( $value );
+		if ( $date ) {
+			return $date->format( 'Y-m-d' );
+		}
+
+		return '';
+	}
+
+	private static function debug_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'UFSC_LC_DEBUG' ) || ! UFSC_LC_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( sprintf( '[UFSC LC] %s %s', $message, $payload ) );
 	}
 }

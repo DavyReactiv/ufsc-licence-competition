@@ -15,7 +15,7 @@ class LicenseBridge {
 			return;
 		}
 
-		add_filter( 'ufsc_competitions_front_license_search_results', array( __CLASS__, 'filter_search_results' ), 10, 4 );
+		add_filter( 'ufsc_competitions_front_license_search_results', array( __CLASS__, 'filter_search_results' ), 10, 5 );
 		add_filter( 'ufsc_competitions_front_license_by_id', array( __CLASS__, 'filter_license_by_id' ), 10, 3 );
 	}
 
@@ -24,10 +24,11 @@ class LicenseBridge {
 	 * @param string $term Search term (name / free text).
 	 * @param int    $club_id Club id.
 	 * @param string $license_number Optional license number term.
+	 * @param string $birthdate Optional birthdate (YYYY-MM-DD or dd/mm/YYYY).
 	 */
-	public static function filter_search_results( array $results, string $term, int $club_id, string $license_number = '' ): array {
+	public static function filter_search_results( array $results, string $term, int $club_id, string $license_number = '', string $birthdate = '' ): array {
 		$bridge = new self();
-		return $bridge->search( $term, $club_id, $license_number );
+		return $bridge->search( $term, $club_id, $license_number, $birthdate );
 	}
 
 	/**
@@ -40,7 +41,7 @@ class LicenseBridge {
 		return $bridge->get_by_id( $id, $club_id );
 	}
 
-	public function search( string $term, int $club_id, string $license_number = '' ): array {
+	public function search( string $term, int $club_id, string $license_number = '', string $birthdate = '' ): array {
 		if ( ! $club_id ) {
 			return array();
 		}
@@ -61,10 +62,12 @@ class LicenseBridge {
 
 		$term           = sanitize_text_field( $term );
 		$license_number = sanitize_text_field( $license_number );
+		$birthdate      = sanitize_text_field( $birthdate );
 		$normalized_term = $this->normalize_search( $term );
 		$normalized_number = $this->normalize_search( $license_number );
+		$normalized_birthdate = $this->normalize_birthdate( $birthdate );
 
-		if ( '' === $term && '' === $license_number ) {
+		if ( '' === $term && '' === $license_number && '' === $normalized_birthdate ) {
 			return array();
 		}
 
@@ -132,6 +135,11 @@ class LicenseBridge {
 				$where[]  = "LOWER({$license_column}) LIKE %s";
 				$params[] = '%' . $wpdb->esc_like( $normalized_number ) . '%';
 			}
+		}
+
+		if ( '' !== $normalized_birthdate && $birthdate_column ) {
+			$where[]  = "{$birthdate_column} LIKE %s";
+			$params[] = $normalized_birthdate . '%';
 		}
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
@@ -293,5 +301,30 @@ class LicenseBridge {
 		}
 
 		return $value;
+	}
+
+	private function normalize_birthdate( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( preg_match( '/^\\d{2}\\/\\d{2}\\/\\d{4}$/', $value ) ) {
+			$parts = explode( '/', $value );
+			if ( 3 === count( $parts ) ) {
+				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
+			}
+		}
+
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+			return $value;
+		}
+
+		$date = date_create( $value );
+		if ( $date ) {
+			return $date->format( 'Y-m-d' );
+		}
+
+		return '';
 	}
 }
