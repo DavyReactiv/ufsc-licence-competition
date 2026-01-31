@@ -358,15 +358,11 @@ class FightRepository {
 	}
 
 	private function has_deleted_at_column(): bool {
-		return $this->has_table_column( 'deleted_at' );
+		return Db::has_table_column( Db::fights_table(), 'deleted_at' );
 	}
 
 	private function has_fight_no_column(): bool {
-		return $this->has_table_column( 'fight_no' );
-	}
-
-	private function has_table_column( string $column ): bool {
-		return Db::has_table_column( Db::fights_table(), $column );
+		return Db::has_table_column( Db::fights_table(), 'fight_no' );
 	}
 
 	private function get_insert_format() {
