@@ -991,19 +991,69 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return;
 		}
 
-		if ( 1 === count( $columns ) ) {
-			$where[] = "l.{$columns[0]} = %s";
-			$params[] = $value;
+		$normalized = $this->normalize_category_value( $value );
+		if ( '' === $normalized ) {
 			return;
 		}
 
-		$parts = array();
-		foreach ( $columns as $column ) {
-			$parts[] = "l.{$column} = %s";
-			$params[] = $value;
+		$parts = array_map(
+			static function ( $column ) {
+				return "NULLIF(l.{$column}, '')";
+			},
+			$columns
+		);
+		$coalesce_sql = 'COALESCE(' . implode( ', ', $parts ) . ')';
+		$expression = "TRIM(LOWER({$coalesce_sql}))";
+		$collation = $this->get_category_collation();
+		$value_clause = '%s';
+		if ( '' !== $collation ) {
+			$expression .= " COLLATE {$collation}";
+			$value_clause .= " COLLATE {$collation}";
 		}
 
-		$where[] = '(' . implode( ' OR ', $parts ) . ')';
+		$where[] = "{$expression} = {$value_clause}";
+		$params[] = $normalized;
+	}
+
+	private function normalize_category_value( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( function_exists( 'mb_strtolower' ) ) {
+			return mb_strtolower( $value );
+		}
+
+		return strtolower( $value );
+	}
+
+	private function get_category_collation(): string {
+		static $cached = null;
+
+		if ( null !== $cached ) {
+			return $cached;
+		}
+
+		$cache_key = 'ufsc_lc_category_collation';
+		$cached_value = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		if ( false !== $cached_value ) {
+			$cached = (string) $cached_value;
+			return $cached;
+		}
+
+		global $wpdb;
+		$collation = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COLLATION_NAME FROM information_schema.COLLATIONS WHERE COLLATION_NAME = %s",
+				'utf8mb4_0900_ai_ci'
+			)
+		);
+
+		$cached = $collation ? 'utf8mb4_0900_ai_ci' : '';
+		wp_cache_set( $cache_key, $cached, 'ufsc_licence_competition', HOUR_IN_SECONDS );
+
+		return $cached;
 	}
 
 	private function get_licence_columns() {
