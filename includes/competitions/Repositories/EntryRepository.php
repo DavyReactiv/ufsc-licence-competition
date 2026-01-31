@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Repositories;
 
 use UFSC\Competitions\Db;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Services\LogService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -114,6 +115,45 @@ class EntryRepository {
 		return $deleted;
 	}
 
+	public function get_status_storage_field(): string {
+		$columns = array( 'status', 'notes', 'meta', 'metadata' );
+		foreach ( $columns as $column ) {
+			if ( $this->has_entry_column( $column ) ) {
+				return $column;
+			}
+		}
+
+		return '';
+	}
+
+	public function get_entry_status( $entry ): string {
+		if ( ! $entry ) {
+			return 'draft';
+		}
+
+		$status_field = $this->get_status_storage_field();
+		if ( 'status' === $status_field && isset( $entry->status ) ) {
+			return $this->normalize_status( (string) $entry->status );
+		}
+
+		if ( $status_field && isset( $entry->{$status_field} ) ) {
+			$status = $this->extract_status_from_note( (string) $entry->{$status_field} );
+			if ( '' !== $status ) {
+				return $this->normalize_status( $status );
+			}
+		}
+
+		return 'draft';
+	}
+
+	public function has_entry_column( string $name ): bool {
+		if ( '' === $name ) {
+			return false;
+		}
+
+		return Db::has_table_column( Db::entries_table(), $name );
+	}
+
 	private function set_deleted_at( $id, $deleted_at, $action ) {
 		global $wpdb;
 
@@ -216,5 +256,37 @@ class EntryRepository {
 		}
 
 		return $formats;
+	}
+
+	private function extract_status_from_note( string $note ): string {
+		if ( '' === $note ) {
+			return '';
+		}
+
+		if ( preg_match_all( '/status:([a-z0-9_-]+)/', $note, $matches ) && ! empty( $matches[1] ) ) {
+			$last = end( $matches[1] );
+			return sanitize_key( (string) $last );
+		}
+
+		return '';
+	}
+
+	private function normalize_status( string $status ): string {
+		$status = sanitize_key( $status );
+
+		if ( class_exists( EntriesWorkflow::class ) && method_exists( EntriesWorkflow::class, 'normalize_status' ) ) {
+			return EntriesWorkflow::normalize_status( $status );
+		}
+
+		if ( 'withdrawn' === $status ) {
+			$status = 'cancelled';
+		}
+
+		$allowed = array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		if ( ! in_array( $status, $allowed, true ) ) {
+			return 'draft';
+		}
+
+		return $status;
 	}
 }
