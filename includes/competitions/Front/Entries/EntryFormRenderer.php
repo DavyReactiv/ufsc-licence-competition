@@ -111,6 +111,7 @@ class EntryFormRenderer {
 									<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php echo esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Dernière maj.', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Actions', 'ufsc-licence-competition' ); ?></th>
@@ -132,6 +133,7 @@ class EntryFormRenderer {
 									$birth_date      = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
 									$category        = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
 									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+									$weight_class    = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
 									$license_number  = $show_license_column ? self::get_entry_value( $entry, $license_keys ) : '';
 
 									$details_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
@@ -158,6 +160,7 @@ class EntryFormRenderer {
 										<td><?php echo esc_html( $birth_date ); ?></td>
 										<td><?php echo esc_html( $category ); ?></td>
 										<td><?php echo esc_html( $weight ); ?></td>
+										<td><?php echo esc_html( $weight_class ); ?></td>
 										<td>
 											<span class="ufsc-badge <?php echo esc_attr( $status_class ); ?>">
 												<?php echo esc_html( $status_label ); ?>
@@ -355,6 +358,7 @@ class EntryFormRenderer {
 						'birth_date'     => 'identity',
 						'sex'            => 'identity',
 						'weight'         => 'category',
+						'weight_class'   => 'category',
 						'category'       => 'category',
 						'level'          => 'category',
 					);
@@ -425,6 +429,9 @@ class EntryFormRenderer {
 								</select>
 								<?php if ( 'category' === $field_name ) : ?>
 									<small class="ufsc-entry-category-status" aria-live="polite"></small>
+								<?php endif; ?>
+								<?php if ( 'weight_class' === $field_name ) : ?>
+									<small class="ufsc-entry-weight-status" aria-live="polite"></small>
 								<?php endif; ?>
 							<?php else : ?>
 								<span class="ufsc-field-input">
@@ -503,6 +510,7 @@ class EntryFormRenderer {
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
 			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),
+			'error_weight_required'    => array( 'error', __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ) ),
 
 			'export_empty'             => array( 'info', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),

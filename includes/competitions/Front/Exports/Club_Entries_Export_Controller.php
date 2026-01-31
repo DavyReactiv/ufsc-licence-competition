@@ -132,6 +132,10 @@ class Club_Entries_Export_Controller {
 				'label' => __( 'weight', 'ufsc-licence-competition' ),
 				'key'   => 'weight',
 			),
+			'weight_class' => array(
+				'label' => __( 'weight_class', 'ufsc-licence-competition' ),
+				'key'   => 'weight_class',
+			),
 			'status' => array(
 				'label' => __( 'status', 'ufsc-licence-competition' ),
 				'key'   => 'status',
@@ -157,6 +161,7 @@ class Club_Entries_Export_Controller {
 			'birthdate'        => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
 			'category'         => (string) ( $entry->category ?? $entry->category_name ?? '' ),
 			'weight'           => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
+			'weight_class'     => (string) ( $entry->weight_class ?? '' ),
 			'status'           => 'validated',
 			'validated_at'     => (string) ( $entry->validated_at ?? '' ),
 		);

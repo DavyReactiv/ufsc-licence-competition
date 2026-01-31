@@ -8,6 +8,7 @@ use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Services\CategoryAssigner;
+use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -149,6 +150,7 @@ class EntriesModule {
 					'loading' => __( 'Calcul en cours…', 'ufsc-licence-competition' ),
 					'missing' => __( 'Veuillez renseigner poids + date de naissance.', 'ufsc-licence-competition' ),
 					'error' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ),
+					'weightMissing' => __( 'Poids manquant.', 'ufsc-licence-competition' ),
 				),
 			)
 		);
@@ -224,6 +226,14 @@ class EntriesModule {
 				'required' => false,
 				'placeholder' => __( 'ex: 67.5', 'ufsc-licence-competition' ),
 				'columns' => array( 'weight', 'weight_kg', 'poids' ),
+			),
+			array(
+				'name' => 'weight_class',
+				'label' => __( 'Catégorie de poids', 'ufsc-licence-competition' ),
+				'type' => 'select',
+				'required' => false,
+				'options' => array(),
+				'columns' => array( 'weight_class', 'weight_cat', 'weight_category' ),
 			),
 			array(
 				'name' => 'category',
@@ -390,6 +400,19 @@ class EntriesModule {
 			$competition
 		);
 
+		$weight_context = array(
+			'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+			'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+			'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+		);
+		$weight_result = WeightCategoryResolver::resolve_with_details(
+			$birth_date,
+			$sex,
+			$weight_value,
+			$weight_context
+		);
+		$weight_classes = WeightCategoryResolver::get_weight_classes( $birth_date, $sex, $weight_context );
+
 		if ( '' === $category ) {
 			wp_send_json_error( array( 'message' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ) ), 404 );
 		}
@@ -399,6 +422,10 @@ class EntriesModule {
 				'age_cat' => $category,
 				'weight_cat' => $category,
 				'label' => $category,
+				'weight_class' => $weight_result['label'] ?? '',
+				'weight_classes' => $weight_classes,
+				'weight_message' => $weight_result['message'] ?? '',
+				'weight_status' => $weight_result['status'] ?? '',
 			)
 		);
 	}

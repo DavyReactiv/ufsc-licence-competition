@@ -70,6 +70,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 			'licensee' => __( 'Licencié', 'ufsc-licence-competition' ),
 			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
 			'club' => __( 'Club', 'ufsc-licence-competition' ),
+			'weight' => __( 'Poids', 'ufsc-licence-competition' ),
+			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
 			'status' => __( 'Statut', 'ufsc-licence-competition' ),
 			'submitted' => __( 'Soumise le', 'ufsc-licence-competition' ),
 			'updated' => __( 'Mise à jour', 'ufsc-licence-competition' ),
@@ -115,6 +117,10 @@ class Entries_Validation_Table extends \WP_List_Table {
 				return esc_html( $this->get_competition_name( $item->competition_id ) );
 			case 'club':
 				return esc_html( (string) ( $item->club_id ?? '' ) );
+			case 'weight':
+				return esc_html( (string) ( $item->weight ?? $item->weight_kg ?? '' ) );
+			case 'weight_class':
+				return esc_html( (string) ( $item->weight_class ?? '' ) );
 			case 'status':
 				return $this->format_status( $item );
 			case 'submitted':
