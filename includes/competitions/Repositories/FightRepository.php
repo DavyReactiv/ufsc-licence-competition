@@ -362,14 +362,14 @@ class FightRepository {
 	}
 
 	private function has_fight_no_column(): bool {
-		return Db::has_table_column( Db::fights_table(), 'fight_no' );
-	}
-
-	private function has_fight_no_column(): bool {
 		global $wpdb;
 
-		static $cache = array();
 		$table = Db::fights_table();
+		if ( is_callable( array( Db::class, 'has_table_column' ) ) ) {
+			return Db::has_table_column( $table, 'fight_no' );
+		}
+
+		static $cache = array();
 
 		if ( array_key_exists( $table, $cache ) ) {
 			return $cache[ $table ];
