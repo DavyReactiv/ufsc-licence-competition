@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.7';
+	const DB_VERSION = '1.8';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -239,6 +239,7 @@ class Db {
 			'break_duration' => "ALTER TABLE {$table} ADD COLUMN break_duration smallint(5) unsigned NULL",
 			'fight_pause' => "ALTER TABLE {$table} ADD COLUMN fight_pause smallint(5) unsigned NULL",
 			'fight_duration' => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
+			'deleted_at' => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
@@ -255,6 +256,23 @@ class Db {
 						$wpdb->last_error
 					)
 				);
+			} else {
+				$columns[] = $column;
+			}
+		}
+
+		if ( in_array( 'deleted_at', $columns, true ) ) {
+			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_deleted_at'" );
+			if ( empty( $index_exists ) ) {
+				$index_result = $wpdb->query( "ALTER TABLE {$table} ADD INDEX idx_deleted_at (deleted_at)" );
+				if ( false === $index_result ) {
+					error_log(
+						sprintf(
+							'UFSC Competitions DB upgrade failed to add index idx_deleted_at: %s',
+							$wpdb->last_error
+						)
+					);
+				}
 			}
 		}
 	}

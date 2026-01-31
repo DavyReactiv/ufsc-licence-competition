@@ -21,7 +21,7 @@ class FightRepository {
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
 
-		$where_deleted = $include_deleted ? '' : 'AND deleted_at IS NULL';
+		$where_deleted = ( $include_deleted || ! $this->has_deleted_at_column() ) ? '' : 'AND deleted_at IS NULL';
 
 		return $wpdb->get_row(
 			$wpdb->prepare(
@@ -256,6 +256,11 @@ class FightRepository {
 	private function set_deleted_at( $id, $deleted_at, $action ) {
 		global $wpdb;
 
+		if ( ! $this->has_deleted_at_column() ) {
+			$this->logger->log( $action, 'fight', $id, 'Fight status change skipped: deleted_at column missing.', array() );
+			return 0;
+		}
+
 		$updated = $wpdb->update(
 			Db::fights_table(),
 			array(
@@ -307,10 +312,12 @@ class FightRepository {
 
 		$view = $filters['view'] ?? 'all';
 
-		if ( 'trash' === $view ) {
-			$where[] = 'deleted_at IS NOT NULL';
-		} else {
-			$where[] = 'deleted_at IS NULL';
+		if ( $this->has_deleted_at_column() ) {
+			if ( 'trash' === $view ) {
+				$where[] = 'deleted_at IS NOT NULL';
+			} else {
+				$where[] = 'deleted_at IS NULL';
+			}
 		}
 
 		if ( ! empty( $filters['competition_id'] ) ) {
@@ -333,6 +340,36 @@ class FightRepository {
 		}
 
 		return 'WHERE ' . implode( ' AND ', $where );
+	}
+
+	private function has_deleted_at_column(): bool {
+		global $wpdb;
+
+		static $cache = array();
+		$table = Db::fights_table();
+
+		if ( array_key_exists( $table, $cache ) ) {
+			return $cache[ $table ];
+		}
+
+		$cache_key = 'ufsc_fights_has_deleted_at';
+		$cached = wp_cache_get( $cache_key, 'ufsc_competitions' );
+		if ( false !== $cached ) {
+			$cache[ $table ] = (bool) $cached;
+			return $cache[ $table ];
+		}
+
+		$column = $wpdb->get_var(
+			$wpdb->prepare(
+				"SHOW COLUMNS FROM {$table} LIKE %s",
+				'deleted_at'
+			)
+		);
+		$cache[ $table ] = ! empty( $column );
+
+		wp_cache_set( $cache_key, $cache[ $table ], 'ufsc_competitions', HOUR_IN_SECONDS );
+
+		return $cache[ $table ];
 	}
 
 	private function get_insert_format() {
