@@ -73,3 +73,17 @@ function ufsc_lc_compute_category_from_birthdate( $birthdate, $season_end_year )
 	$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
 	return isset( $computed['category'] ) ? (string) $computed['category'] : '';
 }
+
+function ufsc_lc_normalize_search( $value ) {
+	$value = remove_accents( (string) $value );
+	$value = preg_replace( '/\s+/', ' ', $value );
+	$value = trim( $value );
+
+	if ( function_exists( 'mb_strtolower' ) ) {
+		$value = mb_strtolower( $value );
+	} else {
+		$value = strtolower( $value );
+	}
+
+	return $value;
+}

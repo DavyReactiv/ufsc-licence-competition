@@ -69,6 +69,15 @@ class FightRepository {
 	public function update( $id, array $data ) {
 		global $wpdb;
 
+		$existing = $this->get( $id, true );
+		if ( $existing ) {
+			foreach ( array( 'timing_profile_id', 'round_duration', 'rounds', 'break_duration', 'fight_pause', 'fight_duration' ) as $field ) {
+				if ( ! array_key_exists( $field, $data ) && isset( $existing->{$field} ) ) {
+					$data[ $field ] = $existing->{$field};
+				}
+			}
+		}
+
 		$prepared = $this->sanitize( $data );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['updated_by'] = get_current_user_id() ?: null;
@@ -282,6 +291,12 @@ class FightRepository {
 			'score_red'       => sanitize_text_field( $data['score_red'] ?? '' ),
 			'score_blue'      => sanitize_text_field( $data['score_blue'] ?? '' ),
 			'scheduled_at'    => isset( $data['scheduled_at'] ) ? sanitize_text_field( $data['scheduled_at'] ) : null,
+			'timing_profile_id' => isset( $data['timing_profile_id'] ) ? absint( $data['timing_profile_id'] ) : null,
+			'round_duration' => isset( $data['round_duration'] ) ? absint( $data['round_duration'] ) : null,
+			'rounds' => isset( $data['rounds'] ) ? absint( $data['rounds'] ) : null,
+			'break_duration' => isset( $data['break_duration'] ) ? absint( $data['break_duration'] ) : null,
+			'fight_pause' => isset( $data['fight_pause'] ) ? absint( $data['fight_pause'] ) : null,
+			'fight_duration' => isset( $data['fight_duration'] ) ? absint( $data['fight_duration'] ) : null,
 		);
 	}
 
@@ -321,10 +336,10 @@ class FightRepository {
 	}
 
 	private function get_insert_format() {
-		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s' );
+		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d' );
 	}
 
 	private function get_update_format() {
-		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d' );
+		return array( '%d', '%d', '%d', '%s', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%d' );
 	}
 }

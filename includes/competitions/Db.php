@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.6';
+	const DB_VERSION = '1.7';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -40,6 +40,11 @@ class Db {
 		return $wpdb->prefix . 'ufsc_fights';
 	}
 
+	public static function timing_profiles_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_timing_profiles';
+	}
+
 	/**
 	 * Maybe upgrade DB: compare option and run create_tables if needed.
 	 */
@@ -52,6 +57,7 @@ class Db {
 		try {
 			self::create_tables();
 			self::maybe_upgrade_entries_table();
+			self::maybe_upgrade_fights_table();
 			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 		} catch ( \Throwable $e ) {
 			// Never fatal: log and continue
@@ -74,6 +80,7 @@ class Db {
 		$logs_table         = self::logs_table();
 		$entries_table      = self::entries_table();
 		$fights_table       = self::fights_table();
+		$timing_profiles_table = self::timing_profiles_table();
 
 		// Note: avoid SQL comments inside the CREATE TABLE string (dbDelta sensitivity)
 		$competitions_sql = "CREATE TABLE {$competitions_table} (
@@ -145,6 +152,28 @@ class Db {
 		dbDelta( $categories_sql );
 
 		// leave other tables as-is if present; they are created elsewhere if needed
+
+		$timing_profiles_sql = "CREATE TABLE {$timing_profiles_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			name varchar(190) NOT NULL,
+			discipline varchar(190) NULL,
+			age_min smallint(5) unsigned NULL,
+			age_max smallint(5) unsigned NULL,
+			level varchar(50) NULL,
+			format varchar(50) NULL,
+			round_duration smallint(5) unsigned NOT NULL DEFAULT 2,
+			rounds smallint(5) unsigned NOT NULL DEFAULT 1,
+			break_duration smallint(5) unsigned NOT NULL DEFAULT 1,
+			fight_pause smallint(5) unsigned NOT NULL DEFAULT 0,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY (id),
+			KEY idx_discipline (discipline),
+			KEY idx_age_min (age_min),
+			KEY idx_age_max (age_max)
+		) {$charset_collate};";
+
+		dbDelta( $timing_profiles_sql );
 	}
 
 	private static function maybe_upgrade_entries_table(): void {
@@ -169,6 +198,47 @@ class Db {
 			'validated_at' => "ALTER TABLE {$table} ADD COLUMN validated_at datetime NULL",
 			'updated_at' => "ALTER TABLE {$table} ADD COLUMN updated_at datetime NULL",
 			'updated_by' => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
+		);
+
+		foreach ( $desired as $column => $sql ) {
+			if ( in_array( $column, $columns, true ) ) {
+				continue;
+			}
+
+			$result = $wpdb->query( $sql );
+			if ( false === $result ) {
+				error_log(
+					sprintf(
+						'UFSC Competitions DB upgrade failed to add column %s: %s',
+						$column,
+						$wpdb->last_error
+					)
+				);
+			}
+		}
+	}
+
+	private static function maybe_upgrade_fights_table(): void {
+		global $wpdb;
+
+		$table = self::fights_table();
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $exists !== $table ) {
+			return;
+		}
+
+		$columns = $wpdb->get_col( "DESC {$table}", 0 );
+		if ( ! is_array( $columns ) ) {
+			$columns = array();
+		}
+
+		$desired = array(
+			'timing_profile_id' => "ALTER TABLE {$table} ADD COLUMN timing_profile_id bigint(20) unsigned NULL",
+			'round_duration' => "ALTER TABLE {$table} ADD COLUMN round_duration smallint(5) unsigned NULL",
+			'rounds' => "ALTER TABLE {$table} ADD COLUMN rounds smallint(5) unsigned NULL",
+			'break_duration' => "ALTER TABLE {$table} ADD COLUMN break_duration smallint(5) unsigned NULL",
+			'fight_pause' => "ALTER TABLE {$table} ADD COLUMN fight_pause smallint(5) unsigned NULL",
+			'fight_duration' => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {

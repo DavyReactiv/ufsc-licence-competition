@@ -61,6 +61,8 @@ class LicenseBridge {
 
 		$term           = sanitize_text_field( $term );
 		$license_number = sanitize_text_field( $license_number );
+		$normalized_term = $this->normalize_search( $term );
+		$normalized_number = $this->normalize_search( $license_number );
 
 		if ( '' === $term && '' === $license_number ) {
 			return array();
@@ -72,19 +74,45 @@ class LicenseBridge {
 		// Free text term: search in last/first name (if present) + license column (if present)
 		if ( '' !== $term ) {
 			$like   = '%' . $wpdb->esc_like( $term ) . '%';
+			$normalized_like = '' !== $normalized_term ? '%' . $wpdb->esc_like( $normalized_term ) . '%' : '';
 			$clause = array();
+
+			$term_parts = array_values( array_filter( array_map( 'trim', explode( ' ', $normalized_term ) ) ) );
+
+			if ( $last_name_column && $first_name_column && count( $term_parts ) >= 2 ) {
+				$part_a = '%' . $wpdb->esc_like( $term_parts[0] ) . '%';
+				$part_b = '%' . $wpdb->esc_like( $term_parts[1] ) . '%';
+				$clause[] = "(LOWER({$last_name_column}) LIKE %s AND LOWER({$first_name_column}) LIKE %s)";
+				$params[] = $part_a;
+				$params[] = $part_b;
+				$clause[] = "(LOWER({$last_name_column}) LIKE %s AND LOWER({$first_name_column}) LIKE %s)";
+				$params[] = $part_b;
+				$params[] = $part_a;
+			}
 
 			if ( $last_name_column ) {
 				$clause[] = "{$last_name_column} LIKE %s";
 				$params[] = $like;
+				if ( $normalized_like ) {
+					$clause[] = "LOWER({$last_name_column}) LIKE %s";
+					$params[] = $normalized_like;
+				}
 			}
 			if ( $first_name_column ) {
 				$clause[] = "{$first_name_column} LIKE %s";
 				$params[] = $like;
+				if ( $normalized_like ) {
+					$clause[] = "LOWER({$first_name_column}) LIKE %s";
+					$params[] = $normalized_like;
+				}
 			}
 			if ( $license_column ) {
 				$clause[] = "{$license_column} LIKE %s";
 				$params[] = $like;
+				if ( $normalized_like ) {
+					$clause[] = "LOWER({$license_column}) LIKE %s";
+					$params[] = $normalized_like;
+				}
 			}
 
 			// If we cannot search anything, exit safely.
@@ -100,6 +128,10 @@ class LicenseBridge {
 			$number_like = '%' . $wpdb->esc_like( $license_number ) . '%';
 			$where[]     = "{$license_column} LIKE %s";
 			$params[]    = $number_like;
+			if ( '' !== $normalized_number ) {
+				$where[]  = "LOWER({$license_column}) LIKE %s";
+				$params[] = '%' . $wpdb->esc_like( $normalized_number ) . '%';
+			}
 		}
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
@@ -247,5 +279,19 @@ class LicenseBridge {
 			}
 		}
 		return '';
+	}
+
+	private function normalize_search( string $value ): string {
+		$value = remove_accents( $value );
+		$value = preg_replace( '/\s+/', ' ', $value );
+		$value = trim( $value );
+
+		if ( function_exists( 'mb_strtolower' ) ) {
+			$value = mb_strtolower( $value );
+		} else {
+			$value = strtolower( $value );
+		}
+
+		return $value;
 	}
 }

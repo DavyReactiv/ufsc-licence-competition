@@ -55,6 +55,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/FightRepository.php',
 		$base . '/Repositories/LogRepository.php',
 		$base . '/Repositories/ClubRepository.php',
+		$base . '/Repositories/TimingProfileRepository.php',
 		$base . '/Front/Front.php',
 	);
 
@@ -94,6 +95,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
 		$base . '/Admin/Pages/Bouts_AutoGeneration.php',
+		$base . '/Admin/Pages/Timing_Profiles_Page.php',
 		$base . '/Admin/Pages/Settings_Page.php',
 		$base . '/Admin/Pages/CompetitionLogs_Page.php',
 		$base . '/Admin/Pages/Guide_Page.php',
@@ -159,6 +161,10 @@ add_action(
 		}
 		if ( is_admin() && function_exists( '\UFSC\Competitions\load_competitions_admin_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_admin_dependencies();
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Front\Entries\EntriesModule' ) ) {
+			\UFSC\Competitions\Front\Entries\EntriesModule::register_actions();
 		}
 
 		// Register admin menu only if class exists

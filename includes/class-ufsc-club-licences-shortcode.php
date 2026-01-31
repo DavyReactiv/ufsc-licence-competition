@@ -440,9 +440,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$columns         = $this->get_licence_columns();
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
-		$columns         = $this->get_licence_columns();
-		$has_nom         = in_array( 'nom', $columns, true );
-		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
@@ -457,23 +454,42 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		if ( '' !== $filters['q'] ) {
 			$like = '%' . $wpdb->esc_like( $filters['q'] ) . '%';
+			$normalized = ufsc_lc_normalize_search( $filters['q'] );
+			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : '';
 			$name_clauses = array();
 			if ( $has_nom ) {
 				$name_clauses[] = 'l.nom LIKE %s';
 				$params[]       = $like;
+				if ( $like_normalized ) {
+					$name_clauses[] = 'LOWER(l.nom) LIKE %s';
+					$params[]       = $like_normalized;
+				}
 			}
 			if ( $has_nom_licence ) {
 				$name_clauses[] = 'l.nom_licence LIKE %s';
 				$params[]       = $like;
+				if ( $like_normalized ) {
+					$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
+					$params[]       = $like_normalized;
+				}
 			}
 			$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
 			if ( $join_sql ) {
 				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s OR d.source_licence_number LIKE %s)";
 				$params[] = $like;
 				$params[] = $like;
+				if ( $like_normalized ) {
+					$where[] = "(LOWER(l.prenom) LIKE %s OR LOWER(d.source_licence_number) LIKE %s)";
+					$params[] = $like_normalized;
+					$params[] = $like_normalized;
+				}
 			} else {
 				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s)";
 				$params[] = $like;
+				if ( $like_normalized ) {
+					$where[] = "LOWER(l.prenom) LIKE %s";
+					$params[] = $like_normalized;
+				}
 			}
 		}
 
@@ -482,9 +498,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$params[] = $filters['statut'];
 		}
 
-		if ( '' !== $filters['categorie'] && $category_column ) {
-			$where[] = "l.{$category_column} = %s";
-			$params[] = $filters['categorie'];
+		if ( '' !== $filters['categorie'] ) {
+			$this->append_category_filter( $where, $params, $filters['categorie'] );
 		}
 
 		if ( '' !== $filters['competition'] ) {
@@ -553,13 +568,18 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( ! is_array( $columns ) ) {
 			$columns = array();
 		}
+		$has_nom         = in_array( 'nom', $columns, true );
+		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
 
 		$like = null;
+		$like_normalized = null;
 		if ( '' !== $filters['q'] ) {
 			$like = '%' . $wpdb->esc_like( $filters['q'] ) . '%';
+			$normalized = ufsc_lc_normalize_search( $filters['q'] );
+			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : null;
 		}
 
 		if ( '' !== $filters['statut'] ) {
@@ -567,9 +587,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$params[] = $filters['statut'];
 		}
 
-		if ( '' !== $filters['categorie'] && $category_column ) {
-			$where[] = "l.{$category_column} = %s";
-			$params[] = $filters['categorie'];
+		if ( '' !== $filters['categorie'] ) {
+			$this->append_category_filter( $where, $params, $filters['categorie'] );
 		}
 
 		if ( '' !== $filters['competition'] ) {
@@ -607,15 +626,28 @@ class UFSC_LC_Club_Licences_Shortcode {
 				if ( $has_nom ) {
 					$name_clauses[] = 'l.nom LIKE %s';
 					$params[]       = $like;
+					if ( $like_normalized ) {
+						$name_clauses[] = 'LOWER(l.nom) LIKE %s';
+						$params[]       = $like_normalized;
+					}
 				}
 				if ( $has_nom_licence ) {
 					$name_clauses[] = 'l.nom_licence LIKE %s';
 					$params[]       = $like;
+					if ( $like_normalized ) {
+						$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
+						$params[]       = $like_normalized;
+					}
 				}
 				$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
 				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s OR d.source_licence_number LIKE %s)";
 				$params[] = $like;
 				$params[] = $like;
+				if ( $like_normalized ) {
+					$where[] = "(LOWER(l.prenom) LIKE %s OR LOWER(d.source_licence_number) LIKE %s)";
+					$params[] = $like_normalized;
+					$params[] = $like_normalized;
+				}
 			}
 			if ( '' !== $filters['pdf'] ) {
 				$where[] = '1' === $filters['pdf'] ? 'd.attachment_id IS NOT NULL' : 'd.attachment_id IS NULL';
@@ -626,14 +658,26 @@ class UFSC_LC_Club_Licences_Shortcode {
 				if ( $has_nom ) {
 					$name_clauses[] = 'l.nom LIKE %s';
 					$params[]       = $like;
+					if ( $like_normalized ) {
+						$name_clauses[] = 'LOWER(l.nom) LIKE %s';
+						$params[]       = $like_normalized;
+					}
 				}
 				if ( $has_nom_licence ) {
 					$name_clauses[] = 'l.nom_licence LIKE %s';
 					$params[]       = $like;
+					if ( $like_normalized ) {
+						$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
+						$params[]       = $like_normalized;
+					}
 				}
 				$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
 				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s)";
 				$params[] = $like;
+				if ( $like_normalized ) {
+					$where[] = "LOWER(l.prenom) LIKE %s";
+					$params[] = $like_normalized;
+				}
 			}
 			if ( '' !== $filters['pdf'] && '1' === $filters['pdf'] ) {
 				return array(
@@ -880,7 +924,32 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$columns = $this->get_licence_columns();
 
 		if ( 'categorie' === $column ) {
-			$column = $this->get_category_column();
+			$category_columns = $this->get_category_columns();
+			if ( empty( $category_columns ) ) {
+				return array();
+			}
+			if ( 1 === count( $category_columns ) ) {
+				$column = $category_columns[0];
+			} else {
+				$select = 'COALESCE(' . implode(
+					', ',
+					array_map(
+						static function ( $col ) {
+							return "NULLIF({$col}, '')";
+						},
+						$category_columns
+					)
+				) . ')';
+
+				$results = $wpdb->get_col(
+					$wpdb->prepare(
+						"SELECT DISTINCT {$select} AS category FROM {$table} WHERE club_id = %d HAVING category IS NOT NULL AND category != '' ORDER BY category ASC",
+						$club_id
+					)
+				);
+
+				return array_filter( array_map( 'strval', $results ) );
+			}
 		}
 
 		if ( ! $column || ! in_array( $column, $columns, true ) ) {
@@ -898,17 +967,43 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_category_column() {
+		$columns = $this->get_category_columns();
+
+		return $columns[0] ?? '';
+	}
+
+	private function get_category_columns() {
 		$columns = $this->get_licence_columns();
+		$available = array();
 
-		if ( in_array( 'category', $columns, true ) ) {
-			return 'category';
+		foreach ( array( 'category', 'categorie', 'legacy_category' ) as $candidate ) {
+			if ( in_array( $candidate, $columns, true ) ) {
+				$available[] = $candidate;
+			}
 		}
 
-		if ( in_array( 'categorie', $columns, true ) ) {
-			return 'categorie';
+		return $available;
+	}
+
+	private function append_category_filter( array &$where, array &$params, string $value ): void {
+		$columns = $this->get_category_columns();
+		if ( empty( $columns ) ) {
+			return;
 		}
 
-		return '';
+		if ( 1 === count( $columns ) ) {
+			$where[] = "l.{$columns[0]} = %s";
+			$params[] = $value;
+			return;
+		}
+
+		$parts = array();
+		foreach ( $columns as $column ) {
+			$parts[] = "l.{$column} = %s";
+			$params[] = $value;
+		}
+
+		$where[] = '(' . implode( ' OR ', $parts ) . ')';
 	}
 
 	private function get_licence_columns() {

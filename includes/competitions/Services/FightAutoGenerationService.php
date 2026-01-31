@@ -6,6 +6,7 @@ use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Repositories\TimingProfileRepository;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -36,6 +37,7 @@ class FightAutoGenerationService {
 		$settings['surface_count'] = max( 1, absint( $settings['surface_count'] ) );
 		$settings['fight_duration'] = max( 1, absint( $settings['fight_duration'] ) );
 		$settings['break_duration'] = max( 0, absint( $settings['break_duration'] ) );
+		$settings['timing_mode'] = 'category' === ( $settings['timing_mode'] ?? 'global' ) ? 'category' : 'global';
 		$settings['mode'] = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock'] = ! empty( $settings['auto_lock'] ) ? 1 : 0;
 
@@ -66,6 +68,9 @@ class FightAutoGenerationService {
 		}
 		if ( isset( $data['break_duration'] ) ) {
 			$settings['break_duration'] = max( 0, absint( $data['break_duration'] ) );
+		}
+		if ( isset( $data['timing_mode'] ) ) {
+			$settings['timing_mode'] = 'category' === $data['timing_mode'] ? 'category' : 'global';
 		}
 		if ( isset( $data['mode'] ) ) {
 			$settings['mode'] = 'manual' === $data['mode'] ? 'manual' : 'auto';
@@ -429,6 +434,7 @@ class FightAutoGenerationService {
 			'surface_labels' => '',
 			'fight_duration' => 2,
 			'break_duration' => 1,
+			'timing_mode' => 'global',
 			'mode' => 'auto',
 			'auto_lock' => 0,
 		);
@@ -446,6 +452,8 @@ class FightAutoGenerationService {
 				'weight_max' => isset( $category->weight_max ) ? (float) $category->weight_max : null,
 				'sex' => sanitize_text_field( $category->sex ?? '' ),
 				'level' => sanitize_text_field( $category->level ?? '' ),
+				'discipline' => sanitize_text_field( $category->discipline ?? '' ),
+				'format' => sanitize_text_field( $category->format ?? '' ),
 			);
 		}
 
@@ -575,6 +583,12 @@ class FightAutoGenerationService {
 			'score_red' => '',
 			'score_blue' => '',
 			'scheduled_at' => null,
+			'timing_profile_id' => null,
+			'round_duration' => null,
+			'rounds' => null,
+			'break_duration' => null,
+			'fight_pause' => null,
+			'fight_duration' => null,
 		);
 	}
 
@@ -594,7 +608,6 @@ class FightAutoGenerationService {
 
 		$duration = max( 1, absint( $settings['fight_duration'] ?? 2 ) );
 		$break = max( 0, absint( $settings['break_duration'] ?? 1 ) );
-		$step = ( $duration + $break ) * MINUTE_IN_SECONDS;
 
 		$meta = CompetitionMeta::get( $competition_id );
 		$start = $meta['fights_start'] ?? '';
@@ -612,6 +625,16 @@ class FightAutoGenerationService {
 			$surface_times[ $i ] = $start_ts;
 		}
 
+		$profiles = array();
+		$categories = array();
+
+		if ( 'category' === ( $settings['timing_mode'] ?? 'global' ) ) {
+			$profile_repo = new TimingProfileRepository();
+			$profiles = $profile_repo->list();
+			$category_repo = new CategoryRepository();
+			$categories = $category_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
+		}
+
 		foreach ( $fights as $index => $fight ) {
 			$surface_index = 0;
 			$min_time = $surface_times[0];
@@ -622,14 +645,136 @@ class FightAutoGenerationService {
 				}
 			}
 
+			$timing = self::resolve_fight_timing( $fight, $settings, $profiles, $categories );
+			$fights[ $index ] = array_merge( $fight, $timing );
+
 			$fights[ $index ]['ring'] = $surface_labels[ $surface_index ];
 			if ( $start_ts ) {
 				$fights[ $index ]['scheduled_at'] = date_i18n( 'Y-m-d H:i:s', $surface_times[ $surface_index ] );
+				$step = ( (int) $timing['fight_duration'] + (int) $timing['fight_pause'] ) * MINUTE_IN_SECONDS;
 				$surface_times[ $surface_index ] += $step;
 			}
 		}
 
 		return $fights;
+	}
+
+	private static function resolve_fight_timing( array $fight, array $settings, array $profiles, array $categories ): array {
+		$duration = max( 1, absint( $settings['fight_duration'] ?? 2 ) );
+		$pause = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+
+		$timing = array(
+			'timing_profile_id' => array_key_exists( 'timing_profile_id', $fight ) ? absint( $fight['timing_profile_id'] ) : 0,
+			'round_duration' => array_key_exists( 'round_duration', $fight ) ? absint( $fight['round_duration'] ) : 0,
+			'rounds' => array_key_exists( 'rounds', $fight ) ? absint( $fight['rounds'] ) : 0,
+			'break_duration' => array_key_exists( 'break_duration', $fight ) ? absint( $fight['break_duration'] ) : 0,
+			'fight_pause' => array_key_exists( 'fight_pause', $fight ) ? absint( $fight['fight_pause'] ) : 0,
+			'fight_duration' => array_key_exists( 'fight_duration', $fight ) ? absint( $fight['fight_duration'] ) : 0,
+		);
+
+		if ( $timing['fight_duration'] > 0 ) {
+			if ( ! array_key_exists( 'fight_pause', $fight ) || null === $fight['fight_pause'] ) {
+				$timing['fight_pause'] = $pause;
+			}
+			return $timing;
+		}
+
+		if ( 'category' !== ( $settings['timing_mode'] ?? 'global' ) || empty( $profiles ) ) {
+			$timing['fight_duration'] = $duration;
+			$timing['fight_pause'] = $pause;
+			return $timing;
+		}
+
+		$category_id = absint( $fight['category_id'] ?? 0 );
+		$category = null;
+		if ( $category_id ) {
+			foreach ( $categories as $category_row ) {
+				if ( (int) ( $category_row->id ?? 0 ) === $category_id ) {
+					$category = $category_row;
+					break;
+				}
+			}
+		}
+
+		$profile = self::match_timing_profile( $profiles, $category );
+		if ( ! $profile ) {
+			$timing['fight_duration'] = $duration;
+			$timing['fight_pause'] = $pause;
+			return $timing;
+		}
+
+		$round_duration = max( 1, absint( $profile->round_duration ?? 2 ) );
+		$rounds = max( 1, absint( $profile->rounds ?? 1 ) );
+		$break_duration = max( 0, absint( $profile->break_duration ?? 0 ) );
+		$fight_pause = max( 0, absint( $profile->fight_pause ?? 0 ) );
+
+		$timing['timing_profile_id'] = absint( $profile->id ?? 0 );
+		$timing['round_duration'] = $round_duration;
+		$timing['rounds'] = $rounds;
+		$timing['break_duration'] = $break_duration;
+		$timing['fight_pause'] = $fight_pause;
+		$timing['fight_duration'] = ( $round_duration * $rounds ) + ( $rounds > 1 ? $break_duration * ( $rounds - 1 ) : 0 );
+
+		return $timing;
+	}
+
+	private static function match_timing_profile( array $profiles, $category ) {
+		if ( empty( $profiles ) ) {
+			return null;
+		}
+
+		$best = null;
+		$best_score = -1;
+		$category_discipline = $category ? sanitize_text_field( $category->discipline ?? '' ) : '';
+		$category_level = $category ? sanitize_text_field( $category->level ?? '' ) : '';
+		$category_format = $category ? sanitize_text_field( $category->format ?? '' ) : '';
+		$category_age_min = $category && isset( $category->age_min ) ? (int) $category->age_min : null;
+		$category_age_max = $category && isset( $category->age_max ) ? (int) $category->age_max : null;
+
+		foreach ( $profiles as $profile ) {
+			$score = 0;
+			$discipline = sanitize_text_field( $profile->discipline ?? '' );
+			$level = sanitize_text_field( $profile->level ?? '' );
+			$format = sanitize_text_field( $profile->format ?? '' );
+			$age_min = isset( $profile->age_min ) ? (int) $profile->age_min : null;
+			$age_max = isset( $profile->age_max ) ? (int) $profile->age_max : null;
+
+			if ( $discipline && $category_discipline && 0 !== strcasecmp( $discipline, $category_discipline ) ) {
+				continue;
+			}
+			if ( $level && $category_level && 0 !== strcasecmp( $level, $category_level ) ) {
+				continue;
+			}
+			if ( $format && $category_format && 0 !== strcasecmp( $format, $category_format ) ) {
+				continue;
+			}
+			if ( null !== $age_min && null !== $category_age_max && $category_age_max < $age_min ) {
+				continue;
+			}
+			if ( null !== $age_max && null !== $category_age_min && $category_age_min > $age_max ) {
+				continue;
+			}
+
+			if ( $discipline ) {
+				$score++;
+			}
+			if ( null !== $age_min || null !== $age_max ) {
+				$score++;
+			}
+			if ( $level ) {
+				$score++;
+			}
+			if ( $format ) {
+				$score++;
+			}
+
+			if ( $score > $best_score ) {
+				$best = $profile;
+				$best_score = $score;
+			}
+		}
+
+		return $best;
 	}
 
 	private static function validate_draft( array $draft ): array {
