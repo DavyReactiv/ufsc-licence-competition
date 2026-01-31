@@ -678,10 +678,10 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
-			$category_filter_sql = $this->get_category_affiche_sql( 'l' );
+			$category_filter_sql = $this->get_category_filter_sql( 'l' );
 			if ( "''" !== $category_filter_sql ) {
 				$where[] = "{$category_filter_sql} = %s";
-				$params[] = $categorie;
+				$params[] = $this->normalize_category_filter_value( $categorie );
 			}
 		}
 
@@ -906,10 +906,10 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
-			$category_filter_sql = $this->get_category_affiche_sql( 'l' );
+			$category_filter_sql = $this->get_category_filter_sql( 'l' );
 			if ( "''" !== $category_filter_sql ) {
 				$where[] = "{$category_filter_sql} = %s";
-				$params[] = $categorie;
+				$params[] = $this->normalize_category_filter_value( $categorie );
 			}
 		}
 
@@ -1418,6 +1418,63 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return "''";
 		}
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_category_filter_sql( $alias ) {
+		$category_sql = $this->get_category_affiche_sql( $alias );
+		if ( "''" === $category_sql ) {
+			return "''";
+		}
+
+		$normalized_sql = "TRIM(LOWER({$category_sql}))";
+		if ( $this->supports_ai_collation() ) {
+			$normalized_sql .= ' COLLATE utf8mb4_0900_ai_ci';
+		}
+
+		return $normalized_sql;
+	}
+
+	private function normalize_category_filter_value( $value ) {
+		$normalized = trim( (string) $value );
+		if ( '' === $normalized ) {
+			return '';
+		}
+
+		if ( function_exists( 'mb_strtolower' ) ) {
+			$normalized = mb_strtolower( $normalized );
+		} else {
+			$normalized = strtolower( $normalized );
+		}
+
+		return $normalized;
+	}
+
+	private function supports_ai_collation() {
+		global $wpdb;
+
+		static $supported = null;
+		if ( null !== $supported ) {
+			return $supported;
+		}
+
+		$cache_key = 'ufsc_lc_collation_ai_supported';
+		$cached    = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			$supported = (bool) $cached;
+			return $supported;
+		}
+
+		$collation = $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COLLATION_NAME FROM information_schema.COLLATIONS WHERE COLLATION_NAME = %s',
+				'utf8mb4_0900_ai_ci'
+			)
+		);
+
+		$supported = ! empty( $collation );
+		wp_cache_set( $cache_key, $supported, 'ufsc_licence_competition', HOUR_IN_SECONDS );
+
+		return $supported;
 	}
 
 	private function calculate_category_fallback( $item ) {

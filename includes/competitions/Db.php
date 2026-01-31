@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.9';
+	const DB_VERSION = '1.10';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
