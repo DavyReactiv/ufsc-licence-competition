@@ -4,8 +4,8 @@ namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Admin\Entries_Validation_Menu;
 use UFSC\Competitions\Entries\EntriesWorkflow;
-use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -30,7 +30,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			)
 		);
 
-		$this->repository = new EntryFrontRepository();
+		$this->repository = new EntryRepository();
 		$this->competition_repository = new CompetitionRepository();
 	}
 

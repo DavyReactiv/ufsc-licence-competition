@@ -5,8 +5,8 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Admin\Entries_Validation_Menu;
 use UFSC\Competitions\Admin\Tables\Entries_Validation_Table;
 use UFSC\Competitions\Capabilities;
-use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -47,7 +47,7 @@ class Entries_Validation_Page {
 
 	private function render_reject_form(): void {
 		$entry_id = isset( $_GET['entry_id'] ) ? absint( $_GET['entry_id'] ) : 0;
-		$repo = new EntryFrontRepository();
+		$repo = new EntryRepository();
 		$entry = $entry_id ? $repo->get( $entry_id ) : null;
 
 		if ( ! $entry ) {

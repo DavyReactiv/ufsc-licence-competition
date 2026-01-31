@@ -9,6 +9,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 	private $legacy_enabled = false;
 	private $licence_columns = null;
+	private $documents_columns = null;
 
 	public function __construct( $legacy_enabled = false ) {
 		$this->legacy_enabled = (bool) $legacy_enabled;
@@ -435,11 +436,28 @@ class UFSC_LC_Club_Licences_Shortcode {
 		global $wpdb;
 
 		$licences_table  = $this->get_licences_table();
+		if ( ! $this->table_exists( $licences_table ) ) {
+			return array(
+				'total'         => 0,
+				'with_pdf'      => 0,
+				'without_pdf'   => 0,
+				'with_asptt'    => 0,
+				'without_asptt' => 0,
+			);
+		}
+
 		$documents_table = $this->get_documents_table();
-		$category_column = $this->get_category_column();
 		$columns         = $this->get_licence_columns();
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
+		$has_prenom      = in_array( 'prenom', $columns, true );
+		$has_statut      = in_array( 'statut', $columns, true );
+		$has_competition = in_array( 'competition', $columns, true );
+		$can_join_docs   = $this->table_exists( $documents_table )
+			&& $this->has_document_column( 'licence_id' )
+			&& $this->has_document_column( 'source' );
+		$has_doc_attachment    = $can_join_docs && $this->has_document_column( 'attachment_id' );
+		$has_doc_source_number = $can_join_docs && $this->has_document_column( 'source_licence_number' );
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
@@ -447,53 +465,51 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$join_sql    = '';
 		$join_params = array();
 
-		if ( $this->table_exists( $documents_table ) ) {
+		if ( $can_join_docs ) {
 			$join_sql    = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$join_params = array( self::SOURCE );
 		}
+
+		$nom_affiche_sql = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
 
 		if ( '' !== $filters['q'] ) {
 			$like = '%' . $wpdb->esc_like( $filters['q'] ) . '%';
 			$normalized = ufsc_lc_normalize_search( $filters['q'] );
 			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : '';
-			$name_clauses = array();
-			if ( $has_nom ) {
-				$name_clauses[] = 'l.nom LIKE %s';
-				$params[]       = $like;
-				if ( $like_normalized ) {
-					$name_clauses[] = 'LOWER(l.nom) LIKE %s';
-					$params[]       = $like_normalized;
-				}
-			}
-			if ( $has_nom_licence ) {
-				$name_clauses[] = 'l.nom_licence LIKE %s';
-				$params[]       = $like;
-				if ( $like_normalized ) {
-					$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
-					$params[]       = $like_normalized;
-				}
-			}
-			$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
-			if ( $join_sql ) {
-				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s OR d.source_licence_number LIKE %s)";
-				$params[] = $like;
+			$search_clauses = array();
+			if ( "''" !== $nom_affiche_sql ) {
+				$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
 				$params[] = $like;
 				if ( $like_normalized ) {
-					$where[] = "(LOWER(l.prenom) LIKE %s OR LOWER(d.source_licence_number) LIKE %s)";
-					$params[] = $like_normalized;
+					$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
 					$params[] = $like_normalized;
 				}
+			}
+			if ( $has_prenom ) {
+				$search_clauses[] = 'l.prenom LIKE %s';
+				$params[] = $like;
+				if ( $like_normalized ) {
+					$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
+					$params[] = $like_normalized;
+				}
+			}
+			if ( $join_sql && $has_doc_source_number ) {
+				$search_clauses[] = 'd.source_licence_number LIKE %s';
+				$params[] = $like;
+				if ( $like_normalized ) {
+					$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
+					$params[] = $like_normalized;
+				}
+			}
+
+			if ( empty( $search_clauses ) ) {
+				$where[] = '1=0';
 			} else {
-				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s)";
-				$params[] = $like;
-				if ( $like_normalized ) {
-					$where[] = "LOWER(l.prenom) LIKE %s";
-					$params[] = $like_normalized;
-				}
+				$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
 			}
 		}
 
-		if ( '' !== $filters['statut'] ) {
+		if ( '' !== $filters['statut'] && $has_statut ) {
 			$where[] = 'l.statut = %s';
 			$params[] = $filters['statut'];
 		}
@@ -502,13 +518,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
 		}
 
-		if ( '' !== $filters['competition'] ) {
+		if ( '' !== $filters['competition'] && $has_competition ) {
 			$where[] = 'l.competition = %s';
 			$params[] = $filters['competition'];
 		}
 
 		if ( '' !== $filters['pdf'] ) {
-			if ( $join_sql ) {
+			if ( $join_sql && $has_doc_attachment ) {
 				$where[] = '1' === $filters['pdf'] ? 'd.attachment_id IS NOT NULL' : 'd.attachment_id IS NULL';
 			} else {
 				if ( '1' === $filters['pdf'] ) {
@@ -526,9 +542,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
 
 		if ( $join_sql ) {
+			$pdf_select = $has_doc_attachment ? 'SUM(CASE WHEN d.attachment_id IS NOT NULL THEN 1 ELSE 0 END) AS with_pdf' : '0 AS with_pdf';
+			$asptt_select = $has_doc_source_number ? "SUM(CASE WHEN d.source_licence_number IS NOT NULL AND d.source_licence_number != '' THEN 1 ELSE 0 END) AS with_asptt" : '0 AS with_asptt';
 			$select_sql = "SELECT COUNT(*) AS total,
-				SUM(CASE WHEN d.attachment_id IS NOT NULL THEN 1 ELSE 0 END) AS with_pdf,
-				SUM(CASE WHEN d.source_licence_number IS NOT NULL AND d.source_licence_number != '' THEN 1 ELSE 0 END) AS with_asptt
+				{$pdf_select},
+				{$asptt_select}
 				FROM {$licences_table} l
 				{$join_sql}
 				{$where_sql}";
@@ -558,8 +576,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 		global $wpdb;
 
 		$licences_table  = $this->get_licences_table();
+		if ( ! $this->table_exists( $licences_table ) ) {
+			return array(
+				'items' => array(),
+				'total' => 0,
+			);
+		}
+
 		$documents_table = $this->get_documents_table();
-		$category_column = $this->get_category_column();
 		$columns_source  = $filters['columns'] ?? $this->get_licence_columns();
 		$columns         = $this->normalize_columns( $columns_source );
 		if ( empty( $columns ) ) {
@@ -570,6 +594,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
+		$has_prenom      = in_array( 'prenom', $columns, true );
+		$has_birthdate   = in_array( 'date_naissance', $columns, true );
+		$has_statut      = in_array( 'statut', $columns, true );
+		$has_competition = in_array( 'competition', $columns, true );
+		$can_join_docs   = $this->table_exists( $documents_table )
+			&& $this->has_document_column( 'licence_id' )
+			&& $this->has_document_column( 'source' );
+		$has_doc_attachment    = $can_join_docs && $this->has_document_column( 'attachment_id' );
+		$has_doc_source_number = $can_join_docs && $this->has_document_column( 'source_licence_number' );
+		$has_doc_source_date   = $can_join_docs && $this->has_document_column( 'source_created_at' );
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
@@ -582,7 +616,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$like_normalized = $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : null;
 		}
 
-		if ( '' !== $filters['statut'] ) {
+		if ( '' !== $filters['statut'] && $has_statut ) {
 			$where[] = 'l.statut = %s';
 			$params[] = $filters['statut'];
 		}
@@ -591,7 +625,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
 		}
 
-		if ( '' !== $filters['competition'] ) {
+		if ( '' !== $filters['competition'] && $has_competition ) {
 			$where[] = 'l.competition = %s';
 			$params[] = $filters['competition'];
 		}
@@ -616,67 +650,80 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$season_end_year_sql = in_array( 'season_end_year', $columns, true ) ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 		$select_document_columns = 'NULL AS asptt_number, NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
+		$prenom_select           = $has_prenom ? 'l.prenom' : 'NULL AS prenom';
+		$birthdate_select        = $has_birthdate ? 'l.date_naissance' : 'NULL AS date_naissance';
+		$statut_select           = $has_statut ? 'l.statut' : 'NULL AS statut';
+		$competition_select      = $has_competition ? 'l.competition' : 'NULL AS competition';
 
-		if ( $this->table_exists( $documents_table ) ) {
+		if ( $can_join_docs ) {
 			$join_sql = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
-			$select_document_columns = 'd.source_licence_number AS asptt_number, d.source_created_at AS date_asptt, d.attachment_id';
+			$select_document_columns = sprintf(
+				'%s AS asptt_number, %s AS date_asptt, %s AS attachment_id',
+				$has_doc_source_number ? 'd.source_licence_number' : 'NULL',
+				$has_doc_source_date ? 'd.source_created_at' : 'NULL',
+				$has_doc_attachment ? 'd.attachment_id' : 'NULL'
+			);
 			$document_params         = array( self::SOURCE );
 			if ( '' !== $filters['q'] ) {
-				$name_clauses = array();
-				if ( $has_nom ) {
-					$name_clauses[] = 'l.nom LIKE %s';
-					$params[]       = $like;
+				$search_clauses = array();
+				if ( "''" !== $nom_affiche_sql ) {
+					$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
+					$params[] = $like;
 					if ( $like_normalized ) {
-						$name_clauses[] = 'LOWER(l.nom) LIKE %s';
-						$params[]       = $like_normalized;
+						$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
+						$params[] = $like_normalized;
 					}
 				}
-				if ( $has_nom_licence ) {
-					$name_clauses[] = 'l.nom_licence LIKE %s';
-					$params[]       = $like;
+				if ( $has_prenom ) {
+					$search_clauses[] = 'l.prenom LIKE %s';
+					$params[] = $like;
 					if ( $like_normalized ) {
-						$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
-						$params[]       = $like_normalized;
+						$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
+						$params[] = $like_normalized;
 					}
 				}
-				$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
-				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s OR d.source_licence_number LIKE %s)";
-				$params[] = $like;
-				$params[] = $like;
-				if ( $like_normalized ) {
-					$where[] = "(LOWER(l.prenom) LIKE %s OR LOWER(d.source_licence_number) LIKE %s)";
-					$params[] = $like_normalized;
-					$params[] = $like_normalized;
+				if ( $has_doc_source_number ) {
+					$search_clauses[] = 'd.source_licence_number LIKE %s';
+					$params[] = $like;
+					if ( $like_normalized ) {
+						$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
+						$params[] = $like_normalized;
+					}
+				}
+
+				if ( empty( $search_clauses ) ) {
+					$where[] = '1=0';
+				} else {
+					$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
 				}
 			}
-			if ( '' !== $filters['pdf'] ) {
+			if ( '' !== $filters['pdf'] && $has_doc_attachment ) {
 				$where[] = '1' === $filters['pdf'] ? 'd.attachment_id IS NOT NULL' : 'd.attachment_id IS NULL';
 			}
 		} else {
 			if ( '' !== $filters['q'] ) {
-				$name_clauses = array();
-				if ( $has_nom ) {
-					$name_clauses[] = 'l.nom LIKE %s';
-					$params[]       = $like;
+				$search_clauses = array();
+				if ( "''" !== $nom_affiche_sql ) {
+					$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
+					$params[] = $like;
 					if ( $like_normalized ) {
-						$name_clauses[] = 'LOWER(l.nom) LIKE %s';
-						$params[]       = $like_normalized;
+						$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
+						$params[] = $like_normalized;
 					}
 				}
-				if ( $has_nom_licence ) {
-					$name_clauses[] = 'l.nom_licence LIKE %s';
-					$params[]       = $like;
+				if ( $has_prenom ) {
+					$search_clauses[] = 'l.prenom LIKE %s';
+					$params[] = $like;
 					if ( $like_normalized ) {
-						$name_clauses[] = 'LOWER(l.nom_licence) LIKE %s';
-						$params[]       = $like_normalized;
+						$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
+						$params[] = $like_normalized;
 					}
 				}
-				$name_clause_sql = ! empty( $name_clauses ) ? '(' . implode( ' OR ', $name_clauses ) . ')' : '1=0';
-				$where[] = "({$name_clause_sql} OR l.prenom LIKE %s)";
-				$params[] = $like;
-				if ( $like_normalized ) {
-					$where[] = "LOWER(l.prenom) LIKE %s";
-					$params[] = $like_normalized;
+
+				if ( empty( $search_clauses ) ) {
+					$where[] = '1=0';
+				} else {
+					$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
 				}
 			}
 			if ( '' !== $filters['pdf'] && '1' === $filters['pdf'] ) {
@@ -703,13 +750,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$offset = ( $current_page - 1 ) * $filters['per_page'];
 
 		if ( 'date_asptt' === $filters['orderby'] ) {
-			$orderby = $join_sql ? 'd.source_created_at' : $nom_affiche_sql;
+			$orderby = ( $join_sql && $has_doc_source_date ) ? 'd.source_created_at' : $nom_affiche_sql;
+		}
+		if ( 'date_naissance' === $filters['orderby'] && ! $has_birthdate ) {
+			$orderby = $nom_affiche_sql;
 		}
 		if ( 'nom_licence' === $filters['orderby'] ) {
 			$orderby = $nom_affiche_sql;
 		}
 
-		$items_sql = "SELECT l.id, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, {$category_select}, {$season_end_year_sql}, l.competition,
+		$items_sql = "SELECT l.id, {$nom_affiche_sql} AS nom_affiche, {$prenom_select}, {$birthdate_select}, {$statut_select}, {$category_select}, {$season_end_year_sql}, {$competition_select},
 			{$select_document_columns}
 			FROM {$licences_table} l
 			{$join_sql}
@@ -1073,6 +1123,30 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$this->licence_columns = is_array( $columns ) ? $columns : array();
 
 		return $this->licence_columns;
+	}
+
+	private function get_documents_columns() {
+		if ( null !== $this->documents_columns ) {
+			return $this->documents_columns;
+		}
+
+		global $wpdb;
+
+		$table = $this->get_documents_table();
+		if ( ! $this->table_exists( $table ) ) {
+			$this->documents_columns = array();
+			return $this->documents_columns;
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$this->documents_columns = is_array( $columns ) ? $columns : array();
+
+		return $this->documents_columns;
+	}
+
+	private function has_document_column( string $column ): bool {
+		$columns = $this->get_documents_columns();
+		return in_array( $column, $columns, true );
 	}
 
 	private function format_competition( $value ) {
