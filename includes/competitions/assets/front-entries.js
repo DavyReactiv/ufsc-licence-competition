@@ -1,0 +1,116 @@
+(() => {
+  const config = window.ufscCompetitionsFront;
+  if (!config) {
+    return;
+  }
+
+  const form = document.querySelector(".ufsc-competition-entry-form form");
+  if (!form) {
+    return;
+  }
+
+  const birthInput = document.getElementById("ufsc-entry-birth_date");
+  const weightInput = document.getElementById("ufsc-entry-weight");
+  const sexInput = document.getElementById("ufsc-entry-sex");
+  const levelInput = document.getElementById("ufsc-entry-level");
+  const categoryInput = document.getElementById("ufsc-entry-category");
+  const statusNode = document.querySelector(
+    ".ufsc-entry-category-status"
+  );
+
+  if (!birthInput || !weightInput || !categoryInput) {
+    return;
+  }
+
+  const setStatus = (message, type = "") => {
+    if (!statusNode) {
+      return;
+    }
+    statusNode.textContent = message || "";
+    statusNode.dataset.status = type;
+  };
+
+  let timeout;
+  const debounce = (fn, delay = 400) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(fn, delay);
+  };
+
+  const getValue = (input) =>
+    input && typeof input.value !== "undefined" ? input.value.trim() : "";
+
+  const shouldCompute = () =>
+    getValue(birthInput) !== "" && getValue(weightInput) !== "";
+
+  const applyCategory = (label) => {
+    if (!label) {
+      return;
+    }
+    if (categoryInput.tagName === "SELECT") {
+      const option = Array.from(categoryInput.options).find(
+        (opt) => opt.value === label
+      );
+      if (option) {
+        categoryInput.value = label;
+      }
+    } else {
+      categoryInput.value = label;
+    }
+  };
+
+  const computeCategory = async () => {
+    if (!shouldCompute()) {
+      setStatus(config.labels?.missing || "");
+      return;
+    }
+
+    setStatus(config.labels?.loading || "", "loading");
+
+    const payload = new URLSearchParams({
+      action: "ufsc_competitions_compute_category",
+      nonce: config.nonce || "",
+      competition_id: String(config.competitionId || ""),
+      birth_date: getValue(birthInput),
+      weight: getValue(weightInput),
+      sex: getValue(sexInput),
+      level: getValue(levelInput),
+      discipline: config.discipline || "",
+    });
+
+    try {
+      const response = await fetch(config.ajaxUrl, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+        },
+        body: payload.toString(),
+      });
+
+      const data = await response.json();
+      if (!data || !data.success) {
+        setStatus(data?.data?.message || config.labels?.error || "", "error");
+        return;
+      }
+
+      const label = data.data?.label || "";
+      applyCategory(label);
+      setStatus(label ? label : "", "success");
+    } catch (error) {
+      setStatus(config.labels?.error || "", "error");
+    }
+  };
+
+  const bindInput = (input) => {
+    if (!input) {
+      return;
+    }
+    input.addEventListener("input", () => debounce(computeCategory));
+    input.addEventListener("change", () => debounce(computeCategory, 100));
+  };
+
+  bindInput(birthInput);
+  bindInput(weightInput);
+  bindInput(sexInput);
+  bindInput(levelInput);
+})();

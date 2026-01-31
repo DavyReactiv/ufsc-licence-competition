@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Front\Entries;
 
 use UFSC\Competitions\Front\Access\ClubAccess;
+use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
@@ -16,6 +17,17 @@ class EntriesModule {
 	public static function register(): void {
 		add_action( 'ufsc_competitions_front_registration_box', array( __CLASS__, 'render_notice' ), 5, 1 );
 		add_action( 'ufsc_competitions_front_registration_box', array( __CLASS__, 'render' ), 10, 1 );
+
+		self::register_actions();
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
+	}
+
+	public static function register_actions(): void {
+		static $registered = false;
+		if ( $registered ) {
+			return;
+		}
+		$registered = true;
 
 		add_action( 'admin_post_ufsc_competitions_entry_create', array( EntryActions::class, 'handle_create' ) );
 		add_action( 'admin_post_ufsc_competitions_entry_update', array( EntryActions::class, 'handle_update' ) );
@@ -33,6 +45,8 @@ class EntriesModule {
 		add_action( 'admin_post_nopriv_ufsc_entry_submit', array( EntryActions::class, 'handle_not_logged_in' ) );
 		add_action( 'admin_post_nopriv_ufsc_entry_withdraw', array( EntryActions::class, 'handle_not_logged_in' ) );
 		add_action( 'admin_post_nopriv_ufsc_entry_cancel', array( EntryActions::class, 'handle_not_logged_in' ) );
+
+		add_action( 'wp_ajax_ufsc_competitions_compute_category', array( __CLASS__, 'handle_compute_category' ) );
 	}
 
 	public static function render( $competition ): void {
@@ -106,6 +120,40 @@ class EntriesModule {
 		);
 	}
 
+	public static function enqueue_assets(): void {
+		$competition_id = Front::get_competition_id_from_request();
+		if ( ! $competition_id ) {
+			return;
+		}
+
+		$competition = self::get_competition( (int) $competition_id );
+		if ( ! $competition ) {
+			return;
+		}
+
+		$handle = 'ufsc-competitions-front-entries';
+		$asset_path = UFSC_LC_DIR . 'includes/competitions/assets/front-entries.js';
+		$asset_url = UFSC_LC_URL . 'includes/competitions/assets/front-entries.js';
+		$version = file_exists( $asset_path ) ? (string) filemtime( $asset_path ) : '1.0.0';
+
+		wp_enqueue_script( $handle, $asset_url, array(), $version, true );
+		wp_localize_script(
+			$handle,
+			'ufscCompetitionsFront',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce' => wp_create_nonce( 'ufsc_competitions_compute_category' ),
+				'competitionId' => (int) $competition_id,
+				'discipline' => sanitize_text_field( (string) ( $competition->discipline ?? '' ) ),
+				'labels' => array(
+					'loading' => __( 'Calcul en cours…', 'ufsc-licence-competition' ),
+					'missing' => __( 'Veuillez renseigner poids + date de naissance.', 'ufsc-licence-competition' ),
+					'error' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ),
+				),
+			)
+		);
+	}
+
 	public static function render_notice( $competition ): void {
 		if ( ! $competition ) {
 			return;
@@ -125,6 +173,7 @@ class EntriesModule {
 	}
 
 	public static function get_fields_schema( $competition ): array {
+		$category_options = self::get_category_options( $competition );
 		$schema = array(
 			array(
 				'name' => 'first_name',
@@ -179,8 +228,9 @@ class EntriesModule {
 			array(
 				'name' => 'category',
 				'label' => __( 'Catégorie', 'ufsc-licence-competition' ),
-				'type' => 'text',
+				'type' => $category_options ? 'select' : 'text',
 				'required' => false,
+				'options' => $category_options,
 				'columns' => array( 'category', 'category_name' ),
 			),
 			array(
@@ -286,6 +336,73 @@ class EntriesModule {
 		return (string) apply_filters( 'ufsc_competitions_front_category_from_birthdate', $category, $birthdate, $competition );
 	}
 
+	public static function handle_compute_category(): void {
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_competitions_compute_category', 'nonce' );
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$birth_date = isset( $_POST['birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['birth_date'] ) ) : '';
+		$weight = isset( $_POST['weight'] ) ? sanitize_text_field( wp_unslash( $_POST['weight'] ) ) : '';
+		$sex = isset( $_POST['sex'] ) ? sanitize_key( wp_unslash( $_POST['sex'] ) ) : '';
+		$level = isset( $_POST['level'] ) ? sanitize_text_field( wp_unslash( $_POST['level'] ) ) : '';
+
+		$competition = self::get_competition( $competition_id );
+		if ( ! $competition ) {
+			wp_send_json_error( array( 'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ), 404 );
+		}
+
+		$club_access = new ClubAccess();
+		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		if ( ! $club_id ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		$weight_value = '' !== $weight ? (float) str_replace( ',', '.', $weight ) : null;
+
+		$errors = array();
+		if ( '' === $birth_date || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
+			$errors[] = 'birth_date';
+		}
+		if ( null === $weight_value || $weight_value <= 0 ) {
+			$errors[] = 'weight';
+		}
+
+		if ( $errors ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Veuillez renseigner poids + date de naissance.', 'ufsc-licence-competition' ),
+					'errors' => $errors,
+				),
+				422
+			);
+		}
+
+		$category = self::get_category_from_birthdate(
+			$birth_date,
+			array(
+				'sex' => $sex,
+				'weight' => $weight_value,
+				'level' => $level,
+			),
+			$competition
+		);
+
+		if ( '' === $category ) {
+			wp_send_json_error( array( 'message' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ) ), 404 );
+		}
+
+		wp_send_json_success(
+			array(
+				'age_cat' => $category,
+				'weight_cat' => $category,
+				'label' => $category,
+			)
+		);
+	}
+
 	private static function resolve_editing_entry( array $entries ) {
 		$edit_id = isset( $_GET['ufsc_entry_edit'] ) ? absint( $_GET['ufsc_entry_edit'] ) : 0;
 		if ( ! $edit_id ) {
@@ -299,5 +416,33 @@ class EntriesModule {
 		}
 
 		return null;
+	}
+
+	private static function get_category_options( $competition ): array {
+		if ( ! $competition ) {
+			return array();
+		}
+
+		$repo = new CategoryRepository();
+		$categories = $repo->list(
+			array( 'competition_id' => (int) ( $competition->id ?? 0 ) ),
+			200,
+			0
+		);
+
+		if ( ! is_array( $categories ) || ! $categories ) {
+			return array();
+		}
+
+		$options = array();
+		foreach ( $categories as $category ) {
+			$name = sanitize_text_field( $category->name ?? '' );
+			if ( '' === $name ) {
+				continue;
+			}
+			$options[ $name ] = $name;
+		}
+
+		return $options;
 	}
 }

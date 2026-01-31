@@ -412,12 +412,20 @@ class EntryFormRenderer {
 							<?php if ( 'select' === $field_type ) : ?>
 								<select id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>" name="<?php echo esc_attr( $field_name ); ?>" <?php echo esc_attr( $disabled_attr ); ?>>
 									<option value=""><?php echo esc_html__( '—', 'ufsc-licence-competition' ); ?></option>
+									<?php if ( '' !== $value && ! array_key_exists( $value, $field_options ) ) : ?>
+										<option value="<?php echo esc_attr( $value ); ?>" selected>
+											<?php echo esc_html( $value ); ?>
+										</option>
+									<?php endif; ?>
 									<?php foreach ( $field_options as $option_value => $option_label ) : ?>
 										<option value="<?php echo esc_attr( (string) $option_value ); ?>" <?php selected( (string) $value, (string) $option_value ); ?>>
 											<?php echo esc_html( (string) $option_label ); ?>
 										</option>
 									<?php endforeach; ?>
 								</select>
+								<?php if ( 'category' === $field_name ) : ?>
+									<small class="ufsc-entry-category-status" aria-live="polite"></small>
+								<?php endif; ?>
 							<?php else : ?>
 								<span class="ufsc-field-input">
 								<input
@@ -432,6 +440,9 @@ class EntryFormRenderer {
 								/>
 								<?php if ( 'weight' === $field_name ) : ?>
 									<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<?php if ( 'category' === $field_name ) : ?>
+									<small class="ufsc-entry-category-status" aria-live="polite"></small>
 								<?php endif; ?>
 								<?php if ( 'license_number' === $field_name && $license_number_selected && '' === $value ) : ?>
 									<small class="description"><?php echo esc_html__( 'Le numéro n’est pas remonté par la base licences.', 'ufsc-licence-competition' ); ?></small>

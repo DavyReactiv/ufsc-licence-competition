@@ -386,12 +386,29 @@ class EntryActions {
 				if ( '' === $value && ! empty( $prefill['birth_date'] ) ) {
 					$value = sanitize_text_field( $prefill['birth_date'] );
 				}
+				if ( $value ) {
+					$date = date_create( $value );
+					if ( ! $date ) {
+						$value = '';
+					}
+				}
 				if ( $value && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
 					$value = '';
 				}
 			} elseif ( 'weight' === $name ) {
 				$value = sanitize_text_field( $value );
 				$value = '' !== $value ? (string) (float) str_replace( ',', '.', $value ) : '';
+				if ( '' !== $value ) {
+					$weight = (float) $value;
+					if ( $weight <= 0 || $weight > 300 ) {
+						$value = '';
+					}
+				}
+			} elseif ( 'sex' === $name ) {
+				$value = sanitize_text_field( $value );
+				if ( '' !== $value && ! in_array( $value, array( 'm', 'f', 'x' ), true ) ) {
+					$value = '';
+				}
 			} else {
 				$value = sanitize_text_field( $value );
 			}

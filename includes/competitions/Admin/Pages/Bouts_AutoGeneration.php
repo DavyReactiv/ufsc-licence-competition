@@ -95,6 +95,25 @@ class Bouts_AutoGeneration {
 						<td><input name="break_duration" type="number" min="0" id="ufsc_break_duration" value="<?php echo esc_attr( $settings['break_duration'] ); ?>"></td>
 					</tr>
 					<tr>
+						<th scope="row"><label for="ufsc_timing_mode"><?php esc_html_e( 'Timing combats', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="timing_mode" id="ufsc_timing_mode">
+								<option value="global" <?php selected( $settings['timing_mode'], 'global' ); ?>><?php esc_html_e( 'Global (actuel)', 'ufsc-licence-competition' ); ?></option>
+								<option value="category" <?php selected( $settings['timing_mode'], 'category' ); ?>><?php esc_html_e( 'Par catégories (profils)', 'ufsc-licence-competition' ); ?></option>
+							</select>
+							<p class="description">
+								<?php
+								printf(
+									'%s <a href="%s">%s</a>.',
+									esc_html__( 'Les profils se gèrent dans', 'ufsc-licence-competition' ),
+									esc_url( admin_url( 'admin.php?page=ufsc-competitions-timing-profiles' ) ),
+									esc_html__( 'Timing Profiles', 'ufsc-licence-competition' )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+					<tr>
 						<th scope="row"><label for="ufsc_generation_mode"><?php esc_html_e( 'Mode', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
 							<select name="mode" id="ufsc_generation_mode">

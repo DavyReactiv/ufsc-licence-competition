@@ -21,6 +21,7 @@ class Menu {
 	public const PAGE_CATEGORIES   = 'ufsc-competitions-categories';
 	public const PAGE_ENTRIES      = 'ufsc-competitions-entries';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
+	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
 	public const PAGE_PRINT        = 'ufsc-competitions-print';
 	public const PAGE_SETTINGS     = 'ufsc-competitions-settings';
@@ -76,6 +77,14 @@ class Menu {
 			__( 'Combats', 'ufsc-licence-competition' ),
 			__( 'Combats', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Bouts_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
+			self::PAGE_TIMING,
+			__( 'Timing Profiles', 'ufsc-licence-competition' ),
+			__( 'Timing Profiles', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page'
 		);
 
 		$this->add_submenu_safe(
@@ -161,6 +170,7 @@ class Menu {
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',
 		);
 
 		foreach ( $page_classes as $page_class ) {
