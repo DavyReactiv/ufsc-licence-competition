@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.11';
+	const DB_VERSION = '1.12';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -226,6 +226,8 @@ class Db {
 			'validated_at'    => "ALTER TABLE {$table} ADD COLUMN validated_at datetime NULL",
 			'updated_at'      => "ALTER TABLE {$table} ADD COLUMN updated_at datetime NULL",
 			'updated_by'      => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
+			'weight_kg'       => "ALTER TABLE {$table} ADD COLUMN weight_kg decimal(6,2) NULL",
+			'weight_class'    => "ALTER TABLE {$table} ADD COLUMN weight_class varchar(20) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {

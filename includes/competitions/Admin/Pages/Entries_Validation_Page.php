@@ -108,6 +108,7 @@ class Entries_Validation_Page {
 			'error_not_found' => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status' => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
 			'error_invalid_fields' => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
+			'error_weight_required' => array( 'error', __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ) ),
 			'error' => array( 'error', __( 'Une erreur est survenue.', 'ufsc-licence-competition' ) ),
 		);
 

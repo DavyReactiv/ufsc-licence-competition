@@ -38,6 +38,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',
 		$base . '/Services/CategoryAssigner.php',
+		$base . '/Services/WeightCategoryResolver.php',
 		$base . '/Services/PoolGenerator.php',
 		$base . '/Services/BracketGenerator.php',
 		$base . '/Services/StandingsCalculator.php',

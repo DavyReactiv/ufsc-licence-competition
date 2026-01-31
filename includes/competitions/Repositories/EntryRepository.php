@@ -68,7 +68,7 @@ class EntryRepository {
 		$prepared['created_by'] = get_current_user_id() ?: null;
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
-		$wpdb->insert( Db::entries_table(), $prepared, $this->get_insert_format() );
+		$wpdb->insert( Db::entries_table(), $prepared, $this->build_formats( $prepared ) );
 		$id = (int) $wpdb->insert_id;
 
 		$this->logger->log( 'create', 'entry', $id, 'Entry created.', array( 'data' => $prepared ) );
@@ -87,7 +87,7 @@ class EntryRepository {
 			Db::entries_table(),
 			$prepared,
 			array( 'id' => absint( $id ) ),
-			$this->get_update_format(),
+			$this->build_formats( $prepared ),
 			array( '%d' )
 		);
 
@@ -136,13 +136,14 @@ class EntryRepository {
 	}
 
 	private function sanitize( array $data ) {
+		$table = Db::entries_table();
 		$allowed_status = array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
 		$status = sanitize_key( $data['status'] ?? 'draft' );
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'draft';
 		}
 
-		return array(
+		$payload = array(
 			'competition_id' => absint( $data['competition_id'] ?? 0 ),
 			'category_id'    => isset( $data['category_id'] ) && '' !== $data['category_id'] ? absint( $data['category_id'] ) : null,
 			'club_id'        => isset( $data['club_id'] ) && '' !== $data['club_id'] ? absint( $data['club_id'] ) : null,
@@ -150,6 +151,21 @@ class EntryRepository {
 			'status'         => $status,
 			'assigned_at'    => isset( $data['assigned_at'] ) ? sanitize_text_field( $data['assigned_at'] ) : null,
 		);
+
+		if ( Db::has_table_column( $table, 'weight_kg' ) ) {
+			$weight = isset( $data['weight_kg'] ) ? (float) str_replace( ',', '.', (string) $data['weight_kg'] ) : null;
+			if ( null !== $weight && ( $weight <= 0 || $weight > 300 ) ) {
+				$weight = null;
+			}
+			$payload['weight_kg'] = $weight;
+		}
+
+		if ( Db::has_table_column( $table, 'weight_class' ) ) {
+			$weight_class = isset( $data['weight_class'] ) ? sanitize_text_field( $data['weight_class'] ) : '';
+			$payload['weight_class'] = '' !== $weight_class ? $weight_class : null;
+		}
+
+		return $payload;
 	}
 
 	private function build_where( array $filters ) {
@@ -187,11 +203,18 @@ class EntryRepository {
 		return 'WHERE ' . implode( ' AND ', $where );
 	}
 
-	private function get_insert_format() {
-		return array( '%d', '%d', '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s' );
-	}
+	private function build_formats( array $data ): array {
+		$formats = array();
+		foreach ( $data as $value ) {
+			if ( is_int( $value ) ) {
+				$formats[] = '%d';
+			} elseif ( is_float( $value ) ) {
+				$formats[] = '%f';
+			} else {
+				$formats[] = '%s';
+			}
+		}
 
-	private function get_update_format() {
-		return array( '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%d' );
+		return $formats;
 	}
 }

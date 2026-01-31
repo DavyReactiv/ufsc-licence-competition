@@ -25,6 +25,10 @@
   const categorySelect = document.getElementById("ufsc_entry_category");
   const autoCategoryPreview = document.getElementById("ufsc_entry_auto_category_preview");
   const competitionSelect = document.getElementById("ufsc_entry_competition");
+  const weightInput = document.getElementById("ufsc_entry_weight");
+  const weightClassSelect = document.getElementById("ufsc_entry_weight_class");
+  const weightClassPreview = document.getElementById("ufsc_entry_weight_class_preview");
+  const weightMessage = document.getElementById("ufsc_entry_weight_message");
 
   if (
     !nameInput ||
@@ -48,10 +52,19 @@
   let lastSelected = null;
   let searchTimeout = null;
   let searchController = null;
+  let weightClassTouched = false;
 
   function setMessage(text, type = "") {
     messageContainer.textContent = text || "";
     messageContainer.dataset.type = type;
+  }
+
+  function setWeightMessage(text, type = "") {
+    if (!weightMessage) {
+      return;
+    }
+    weightMessage.textContent = text || "";
+    weightMessage.dataset.type = type;
   }
 
   function clearResults() {
@@ -76,6 +89,94 @@
     autoCategoryPreview.dataset.visible = config.autoCategoryEmptyLabel
       ? "true"
       : "false";
+  }
+
+  function updateWeightClassPreview(label) {
+    if (!weightClassPreview) {
+      return;
+    }
+    if (label) {
+      weightClassPreview.textContent = `${config.weightClassLabel || ""} ${label}`;
+      weightClassPreview.dataset.visible = "true";
+      return;
+    }
+    weightClassPreview.textContent = "";
+    weightClassPreview.dataset.visible = "false";
+  }
+
+  function updateWeightClassOptions(options, selected) {
+    if (!weightClassSelect) {
+      return;
+    }
+
+    const current = weightClassSelect.value;
+    const keepValue = weightClassTouched ? current : selected || current;
+
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent =
+      config.weightClassEmptyLabel || "Auto / non assignée";
+
+    weightClassSelect.innerHTML = "";
+    weightClassSelect.appendChild(placeholder);
+
+    if (options && options.length) {
+      options.forEach((optionValue) => {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = optionValue;
+        weightClassSelect.appendChild(option);
+      });
+    }
+
+    if (keepValue && (!options || !options.includes(keepValue))) {
+      const option = document.createElement("option");
+      option.value = keepValue;
+      option.textContent = keepValue;
+      weightClassSelect.appendChild(option);
+    }
+
+    if (keepValue) {
+      weightClassSelect.value = keepValue;
+    }
+  }
+
+  async function resolveWeightClass() {
+    if (!weightInput || !weightClassSelect) {
+      return;
+    }
+
+    const payload = {
+      action: "ufsc_lc_resolve_weight_class",
+      nonce: config.nonce,
+      competition_id: competitionSelect.value || "0",
+      licensee_id: selectedHidden.value || "",
+      birth_date: lastSelected?.date_naissance || "",
+      sex: lastSelected?.sex || "",
+      weight_kg: weightInput.value || "",
+    };
+
+    setWeightMessage("", "");
+
+    try {
+      const { ok, json } = await postAjax(payload);
+      if (!ok || !json || json.success !== true) {
+        setWeightMessage(config.weightMissingMessage || "", "warning");
+        return;
+      }
+
+      const data = json.data || {};
+      updateWeightClassOptions(data.classes || [], data.label || "");
+      updateWeightClassPreview(data.label || "");
+      if (data.message) {
+        setWeightMessage(
+          data.message,
+          data.status === "missing_sex" ? "warning" : "info"
+        );
+      }
+    } catch (error) {
+      setWeightMessage(config.weightMissingMessage || "", "warning");
+    }
   }
 
   function renderResults(items) {
@@ -110,6 +211,8 @@
       radio.dataset.birthdate = item.date_naissance || "";
       radio.dataset.birthdateFmt = item.date_naissance_fmt || "";
       radio.dataset.category = item.category || "";
+      radio.dataset.sex = item.sex || "";
+      radio.dataset.weightKg = item.weight_kg || "";
 
       const info = document.createElement("span");
       info.className = "ufsc-entry-licensee-result-info";
@@ -242,18 +345,25 @@
       date_naissance: selected.dataset.birthdate || "",
       date_naissance_fmt: selected.dataset.birthdateFmt || "",
       category: selected.dataset.category || "",
+      sex: selected.dataset.sex || "",
+      weight_kg: selected.dataset.weightKg || "",
     };
 
     if (data.licence_id) {
       licenseeInput.value = String(data.licence_id);
       selectedHidden.value = String(data.licence_id);
       lastSelected = data;
+      weightClassTouched = false;
     }
 
     if (!clubInput.value || clubInput.value === "0") {
       if (data.club_id) {
         clubInput.value = String(data.club_id);
       }
+    }
+
+    if (weightInput && !weightInput.value && data.weight_kg) {
+      weightInput.value = String(data.weight_kg);
     }
 
     const displayName = `${data.nom || ""} ${data.prenom || ""}`.trim();
@@ -263,6 +373,7 @@
       : "";
 
     updateAutoCategory(data);
+    resolveWeightClass();
   }
 
   async function fetchLicenseeById(id) {
@@ -295,6 +406,7 @@
 
       lastSelected = data;
       selectedHidden.value = String(data.licence_id || id);
+      weightClassTouched = false;
       updateAutoCategory(data);
 
       if (!clubInput.value || clubInput.value === "0") {
@@ -302,6 +414,12 @@
           clubInput.value = String(data.club_id);
         }
       }
+
+      if (weightInput && !weightInput.value && data.weight_kg) {
+        weightInput.value = String(data.weight_kg);
+      }
+
+      resolveWeightClass();
     } catch (error) {
       updateAutoCategory(null);
     }
@@ -332,10 +450,40 @@
     } else {
       updateAutoCategory(lastSelected);
     }
+    resolveWeightClass();
+  });
+
+  if (weightInput) {
+    weightInput.addEventListener("input", () => {
+      weightClassTouched = false;
+      resolveWeightClass();
+    });
+  }
+
+  if (weightClassSelect) {
+    weightClassSelect.addEventListener("change", () => {
+      weightClassTouched = true;
+      updateWeightClassPreview(weightClassSelect.value);
+    });
+  }
+
+  form.addEventListener("submit", (event) => {
+    if (!weightInput) {
+      return;
+    }
+    const statusInput = document.getElementById("ufsc_entry_status");
+    const status = statusInput ? statusInput.value : "draft";
+    if ((status === "submitted" || status === "validated") && !weightInput.value) {
+      event.preventDefault();
+      setWeightMessage(config.weightRequiredMessage || "", "error");
+      weightInput.focus();
+    }
   });
 
   const initialId = parseInt(licenseeInput.value || "0", 10);
   if (initialId) {
     fetchLicenseeById(initialId);
+  } else {
+    resolveWeightClass();
   }
 })();

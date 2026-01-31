@@ -152,6 +152,8 @@ class EntryActions {
 			'last_name'  => $license['last_name'] ?? '',
 			'birth_date' => $license['birthdate'] ?? '',
 			'sex'        => $license['sex'] ?? '',
+			'weight'     => isset( $license['weight'] ) ? (string) $license['weight'] : '',
+			'weight_class' => $license['weight_class'] ?? '',
 		) : array();
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
@@ -176,6 +178,20 @@ class EntryActions {
 			if ( '' !== $category ) {
 				$data['category'] = $category;
 			}
+		}
+
+		if ( empty( $data['weight_class'] ) && ! empty( $data['birth_date'] ) && ! empty( $data['weight'] ) ) {
+			$weight_context = array(
+				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+			);
+			$data['weight_class'] = \UFSC\Competitions\Services\WeightCategoryResolver::resolve(
+				$data['birth_date'],
+				$data['sex'] ?? '',
+				$data['weight'],
+				$weight_context
+			);
 		}
 
 		$new_status = '';
@@ -260,6 +276,24 @@ class EntryActions {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
 
+			$weight_context = array(
+				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+			);
+			if ( \UFSC\Competitions\Services\WeightCategoryResolver::requires_weight( $weight_context ) ) {
+				$weight_value = '';
+				foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
+					if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
+						$weight_value = (string) $entry->{$key};
+						break;
+					}
+				}
+				if ( '' === $weight_value ) {
+					self::redirect_with_notice( $competition_id, 'error_weight_required' );
+				}
+			}
+
 			$quota_result = apply_filters(
 				'ufsc_entries_quota_check',
 				array( 'ok' => true, 'message' => '' ),
@@ -336,6 +370,24 @@ class EntryActions {
 		$competition  = EntriesModule::get_competition( (int) ( $entry->competition_id ?? 0 ) );
 
 		if ( 'validate' === $action ) {
+			$weight_context = array(
+				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+			);
+			if ( \UFSC\Competitions\Services\WeightCategoryResolver::requires_weight( $weight_context ) ) {
+				$weight_value = '';
+				foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
+					if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
+						$weight_value = (string) $entry->{$key};
+						break;
+					}
+				}
+				if ( '' === $weight_value ) {
+					self::redirect_admin_with_notice( 'error_weight_required' );
+				}
+			}
+
 			$result = $repo->validate( $entry_id, $user_id );
 			if ( ! empty( $result['ok'] ) ) {
 				do_action( 'ufsc_entries_after_validate', $entry_id, $entry, $competition, $entry->club_id ?? 0 );
@@ -404,6 +456,8 @@ class EntryActions {
 						$value = '';
 					}
 				}
+			} elseif ( 'weight_class' === $name ) {
+				$value = sanitize_text_field( $value );
 			} elseif ( 'sex' === $name ) {
 				$value = sanitize_text_field( $value );
 				if ( '' !== $value && ! in_array( $value, array( 'm', 'f', 'x' ), true ) ) {

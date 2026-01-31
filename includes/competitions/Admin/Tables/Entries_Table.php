@@ -81,6 +81,8 @@ class Entries_Table extends \WP_List_Table {
 			'competition'=> __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
 			'category'   => __( 'Catégorie', 'ufsc-licence-competition' ),
+			'weight'     => __( 'Poids', 'ufsc-licence-competition' ),
+			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Mise à jour', 'ufsc-licence-competition' ),
 		);
@@ -165,6 +167,10 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->get_competition_discipline( $item->competition_id ) );
 			case 'category':
 				return esc_html( $this->get_category_name( $item->category_id ) );
+			case 'weight':
+				return esc_html( (string) ( $item->weight ?? $item->weight_kg ?? '' ) );
+			case 'weight_class':
+				return esc_html( (string) ( $item->weight_class ?? '' ) );
 			case 'status':
 				return esc_html( $this->format_status( $item->status ) );
 			case 'updated':

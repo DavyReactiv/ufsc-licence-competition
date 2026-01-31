@@ -4,10 +4,12 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Entries_Table;
+use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -37,6 +39,7 @@ class Entries_Page {
 		add_action( 'admin_post_ufsc_competitions_delete_entry', array( $this, 'handle_delete' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_licence', array( $this, 'ajax_search_licence' ) );
 		add_action( 'wp_ajax_ufsc_lc_get_licensee', array( $this, 'ajax_get_licensee' ) );
+		add_action( 'wp_ajax_ufsc_lc_resolve_weight_class', array( $this, 'ajax_resolve_weight_class' ) );
 	}
 
 	public function render() {
@@ -96,6 +99,11 @@ class Entries_Page {
 			'licensee_id'    => isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0,
 			'status'         => isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'draft',
 		);
+		$weight_kg_raw = isset( $_POST['weight_kg'] ) ? wp_unslash( $_POST['weight_kg'] ) : '';
+		$weight_class_raw = isset( $_POST['weight_class'] ) ? wp_unslash( $_POST['weight_class'] ) : '';
+		$weight_kg = $this->sanitize_weight( $weight_kg_raw );
+		$weight_class = sanitize_text_field( (string) $weight_class_raw );
+
 		$selected_licensee_id = isset( $_POST['selected_licensee_id'] ) ? absint( $_POST['selected_licensee_id'] ) : 0;
 		if ( ! $data['licensee_id'] && $selected_licensee_id ) {
 			$data['licensee_id'] = $selected_licensee_id;
@@ -107,6 +115,28 @@ class Entries_Page {
 
 		if ( ! $id && $this->repository->get_by_competition_licensee( $data['competition_id'], $data['licensee_id'] ) ) {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id );
+		}
+
+		$licensee_data = $this->get_licensee_data( $data['licensee_id'] );
+		$weight_context = $this->get_weight_context( $data['competition_id'] );
+		if ( '' === $weight_class && null !== $weight_kg ) {
+			$resolved = WeightCategoryResolver::resolve_with_details(
+				$licensee_data['birthdate'] ?? '',
+				$licensee_data['sex'] ?? '',
+				$weight_kg,
+				$weight_context
+			);
+			$weight_class = (string) ( $resolved['label'] ?? '' );
+		}
+
+		$data['weight_kg'] = $weight_kg;
+		$data['weight_class'] = '' !== $weight_class ? $weight_class : null;
+
+		if ( in_array( $data['status'], array( 'submitted', 'validated' ), true )
+			&& WeightCategoryResolver::requires_weight( $weight_context )
+			&& null === $weight_kg
+		) {
+			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'weight_required', $id );
 		}
 
 		if ( $id ) {
@@ -154,6 +184,11 @@ class Entries_Page {
 		$licences_table = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
 		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
+		$columns        = Db::get_table_columns( $licences_table );
+		$sex_column     = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
+		$weight_column  = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
+		$sex_select     = $sex_column ? "l.{$sex_column} AS sex," : "'' AS sex,";
+		$weight_select  = $weight_column ? "l.{$weight_column} AS weight_kg," : "NULL AS weight_kg,";
 
 		$where  = array();
 		$params = array();
@@ -175,7 +210,7 @@ class Entries_Page {
 
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
-		$sql = "SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, l.club_id, c.nom AS club_nom
+		$sql = "SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 			{$where_sql}
@@ -213,6 +248,8 @@ class Entries_Page {
 				'date_naissance_fmt' => $this->format_birthdate( $birthdate_raw ),
 				'club_id'            => absint( $row['club_id'] ?? 0 ),
 				'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
+				'sex'                => trim( sanitize_text_field( $row['sex'] ?? '' ) ),
+				'weight_kg'          => isset( $row['weight_kg'] ) ? $this->sanitize_weight( $row['weight_kg'] ) : null,
 				'category'           => $category,
 			);
 		}
@@ -246,10 +283,15 @@ class Entries_Page {
 		$licences_table = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
 		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
+		$columns        = Db::get_table_columns( $licences_table );
+		$sex_column     = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
+		$weight_column  = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
+		$sex_select     = $sex_column ? "l.{$sex_column} AS sex," : "'' AS sex,";
+		$weight_select  = $weight_column ? "l.{$weight_column} AS weight_kg," : "NULL AS weight_kg,";
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, l.club_id, c.nom AS club_nom
+				"SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
 				FROM {$licences_table} l
 				LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 				WHERE l.id = %d
@@ -277,10 +319,49 @@ class Entries_Page {
 			'date_naissance_fmt' => $this->format_birthdate( $birthdate_raw ),
 			'club_id'            => absint( $row['club_id'] ?? 0 ),
 			'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
+			'sex'                => trim( sanitize_text_field( $row['sex'] ?? '' ) ),
+			'weight_kg'          => isset( $row['weight_kg'] ) ? $this->sanitize_weight( $row['weight_kg'] ) : null,
 			'category'           => $category,
 		);
 
 		wp_send_json_success( $data );
+	}
+
+	public function ajax_resolve_weight_class() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_lc_entries', 'nonce' );
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$licensee_id = isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0;
+		$birth_date = isset( $_POST['birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['birth_date'] ) ) : '';
+		$sex = isset( $_POST['sex'] ) ? sanitize_text_field( wp_unslash( $_POST['sex'] ) ) : '';
+		$weight_raw = isset( $_POST['weight_kg'] ) ? wp_unslash( $_POST['weight_kg'] ) : '';
+
+		if ( $licensee_id && '' === $birth_date ) {
+			$licensee_data = $this->get_licensee_data( $licensee_id );
+			$birth_date = $licensee_data['birthdate'] ?? '';
+			if ( '' === $sex ) {
+				$sex = $licensee_data['sex'] ?? '';
+			}
+		}
+
+		$weight_kg = $this->sanitize_weight( $weight_raw );
+		$context = $this->get_weight_context( $competition_id );
+
+		$classes = WeightCategoryResolver::get_weight_classes( $birth_date, $sex, $context );
+		$result = WeightCategoryResolver::resolve_with_details( $birth_date, $sex, $weight_kg, $context );
+
+		wp_send_json_success(
+			array(
+				'classes' => $classes,
+				'label' => $result['label'] ?? '',
+				'message' => $result['message'] ?? '',
+				'status' => $result['status'] ?? '',
+			)
+		);
 	}
 
 	private function normalize_birthdate( $raw ) {
@@ -368,11 +449,18 @@ class Entries_Page {
 			'club_id'        => $item->club_id ?? 0,
 			'licensee_id'    => $item->licensee_id ?? 0,
 			'status'         => $item->status ?? 'draft',
+			'weight_kg'      => $item->weight_kg ?? '',
+			'weight_class'   => $item->weight_class ?? '',
 		);
 
 		$competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
 		$categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer l\'inscription', 'ufsc-licence-competition' );
+		$licensee_data = $this->get_licensee_data( (int) $values['licensee_id'] );
+		$weight_context = $this->get_weight_context( (int) $values['competition_id'] );
+		$weight_classes = $licensee_data
+			? WeightCategoryResolver::get_weight_classes( $licensee_data['birthdate'] ?? '', $licensee_data['sex'] ?? '', $weight_context )
+			: array();
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier l\'inscription', 'ufsc-licence-competition' ) : __( 'Nouvelle inscription', 'ufsc-licence-competition' ) ); ?></h1>
@@ -403,6 +491,30 @@ class Entries_Page {
 								<?php endforeach; ?>
 							</select>
 							<p class="description ufsc-entry-auto-category" id="ufsc_entry_auto_category_preview"></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_entry_weight"><?php esc_html_e( 'Poids (kg)', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<input name="weight_kg" type="number" step="0.1" min="0" id="ufsc_entry_weight" value="<?php echo esc_attr( $values['weight_kg'] ); ?>" placeholder="<?php echo esc_attr__( 'ex: 63.5', 'ufsc-licence-competition' ); ?>">
+							<p class="description" id="ufsc_entry_weight_message"></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_entry_weight_class"><?php esc_html_e( 'Catégorie de poids', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="weight_class" id="ufsc_entry_weight_class" class="regular-text">
+								<option value=""><?php esc_html_e( 'Auto / non assignée', 'ufsc-licence-competition' ); ?></option>
+								<?php if ( '' !== (string) $values['weight_class'] && ! in_array( (string) $values['weight_class'], $weight_classes, true ) ) : ?>
+									<option value="<?php echo esc_attr( (string) $values['weight_class'] ); ?>" selected><?php echo esc_html( (string) $values['weight_class'] ); ?></option>
+								<?php endif; ?>
+								<?php foreach ( $weight_classes as $weight_class_option ) : ?>
+									<option value="<?php echo esc_attr( $weight_class_option ); ?>" <?php selected( (string) $values['weight_class'], $weight_class_option ); ?>>
+										<?php echo esc_html( $weight_class_option ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description ufsc-entry-auto-category" id="ufsc_entry_weight_class_preview"></p>
 						</td>
 					</tr>
 					<tr>
@@ -489,13 +601,14 @@ class Entries_Page {
 			'error_required'=> __( 'Veuillez renseigner la compétition et le licencié.', 'ufsc-licence-competition' ),
 			'duplicate'     => __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Inscription introuvable.', 'ufsc-licence-competition' ),
+			'weight_required' => __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required' ), true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
 
@@ -548,5 +661,86 @@ class Entries_Page {
 		);
 
 		$this->redirect_with_notice( $page_slug, $notice_map[ $action ] ?? 'updated' );
+	}
+
+	private function sanitize_weight( $value ): ?float {
+		if ( null === $value || '' === $value ) {
+			return null;
+		}
+		$value = is_scalar( $value ) ? (string) $value : '';
+		$value = str_replace( ',', '.', $value );
+		$weight = (float) $value;
+		if ( $weight <= 0 || $weight > 300 ) {
+			return null;
+		}
+
+		return $weight;
+	}
+
+	private function resolve_first_column( array $columns, array $candidates ): string {
+		foreach ( $candidates as $candidate ) {
+			if ( in_array( $candidate, $columns, true ) ) {
+				return $candidate;
+			}
+		}
+
+		return '';
+	}
+
+	private function get_licensee_data( int $licensee_id ): array {
+		global $wpdb;
+
+		$licensee_id = absint( $licensee_id );
+		if ( ! $licensee_id ) {
+			return array();
+		}
+
+		$licences_table = $wpdb->prefix . 'ufsc_licences';
+		$columns = Db::get_table_columns( $licences_table );
+		if ( ! $columns ) {
+			return array();
+		}
+
+		$sex_column = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
+		$weight_column = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
+
+		$select = array( 'date_naissance' );
+		if ( $sex_column ) {
+			$select[] = $sex_column . ' AS sex';
+		}
+		if ( $weight_column ) {
+			$select[] = $weight_column . ' AS weight_kg';
+		}
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT ' . implode( ', ', $select ) . ' FROM ' . $licences_table . ' WHERE id = %d LIMIT 1',
+				$licensee_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $row ) {
+			return array();
+		}
+
+		return array(
+			'birthdate' => trim( sanitize_text_field( $row['date_naissance'] ?? '' ) ),
+			'sex' => trim( sanitize_text_field( $row['sex'] ?? '' ) ),
+			'weight_kg' => isset( $row['weight_kg'] ) ? $this->sanitize_weight( $row['weight_kg'] ) : null,
+		);
+	}
+
+	private function get_weight_context( int $competition_id ): array {
+		$competition = $competition_id ? $this->competition_repository->get( $competition_id, true ) : null;
+		if ( ! $competition ) {
+			return array();
+		}
+
+		return array(
+			'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+			'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+			'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+		);
 	}
 }

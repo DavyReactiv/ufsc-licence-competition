@@ -77,6 +77,10 @@ class Assets {
 							'selectionRequiredMessage' => __( 'Veuillez sélectionner un licencié dans la liste.', 'ufsc-licence-competition' ),
 							'autoCategoryLabel'        => __( 'Catégorie auto détectée :', 'ufsc-licence-competition' ),
 							'autoCategoryEmptyLabel'   => __( 'Non déterminée', 'ufsc-licence-competition' ),
+							'weightClassLabel'         => __( 'Catégorie de poids suggérée :', 'ufsc-licence-competition' ),
+							'weightClassEmptyLabel'    => __( 'Auto / non assignée', 'ufsc-licence-competition' ),
+							'weightRequiredMessage'    => __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ),
+							'weightMissingMessage'     => __( 'Poids manquant.', 'ufsc-licence-competition' ),
 						)
 					);
 				}

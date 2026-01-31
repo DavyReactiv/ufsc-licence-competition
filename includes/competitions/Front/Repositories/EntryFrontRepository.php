@@ -195,6 +195,7 @@ class EntryFrontRepository {
 			'birthdate' => sanitize_text_field( $license['birthdate'] ?? $license['birth_date'] ?? '' ),
 			'sex' => sanitize_text_field( $license['sex'] ?? $license['gender'] ?? '' ),
 			'weight' => isset( $license['weight'] ) ? $this->sanitize_float_value( $license['weight'] ) : null,
+			'weight_class' => sanitize_text_field( $license['weight_class'] ?? '' ),
 			'level' => sanitize_text_field( $license['level'] ?? '' ),
 			'license_number' => $license_number,
 		);
@@ -236,6 +237,8 @@ class EntryFrontRepository {
 			'last_name' => $license['last_name'] ?? '',
 			'birth_date' => $license['birthdate'] ?? '',
 			'sex' => $license['sex'] ?? '',
+			'weight' => $license['weight'] ?? '',
+			'weight_class' => $license['weight_class'] ?? '',
 			'license_number' => $license['license_number'] ?? '',
 		);
 
@@ -505,6 +508,9 @@ class EntryFrontRepository {
 
 		$weight = $this->sanitize_float_value( $payload['weight'] ?? '' );
 		$this->map_float_value( $data, $weight, array( 'weight', 'weight_kg', 'poids' ) );
+
+		$weight_class = $this->sanitize_text_value( $payload['weight_class'] ?? '' );
+		$this->map_string_value( $data, $weight_class, array( 'weight_class', 'weight_cat', 'weight_category' ) );
 
 		$category = $this->sanitize_text_value( $payload['category'] ?? '' );
 		$this->map_string_value( $data, $category, array( 'category', 'category_name' ) );

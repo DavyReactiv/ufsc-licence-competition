@@ -61,6 +61,7 @@ class Plateau_Pdf_Renderer {
 				'birthdate'  => (string) ( $entry->birth_date ?? $entry->birthdate ?? '' ),
 				'category'   => (string) ( $entry->category ?? $entry->category_name ?? '' ),
 				'weight'     => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
+				'weight_class' => (string) ( $entry->weight_class ?? '' ),
 				'club_id'    => (string) ( $entry->club_id ?? '' ),
 				'status'     => (string) ( $entry->status ?? '' ),
 			);
@@ -147,6 +148,7 @@ HTML;
 			'birthdate'  => esc_html__( 'Date de naissance', 'ufsc-licence-competition' ),
 			'category'   => esc_html__( 'Catégorie', 'ufsc-licence-competition' ),
 			'weight'     => esc_html__( 'Poids', 'ufsc-licence-competition' ),
+			'weight_class' => esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ),
 			'club_id'    => esc_html__( 'Club', 'ufsc-licence-competition' ),
 			'status'     => esc_html__( 'Statut', 'ufsc-licence-competition' ),
 		);
