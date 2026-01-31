@@ -12,8 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Provides:
  * - load_competitions_core_dependencies()
  * - load_competitions_admin_dependencies()
- * - Defensive admin_init that calls Db::maybe_upgrade() only if available
- * - register_module() to register admin menu when appropriate
+ * - Defensive early upgrades via Db::maybe_upgrade()
+ * - register menus/pages when appropriate
  *
  * This file is idempotent and safe to require_once from plugin bootstrap.
  */
@@ -156,7 +156,6 @@ add_action(
 			try {
 				\UFSC\Competitions\Db::maybe_upgrade();
 			} catch ( \Throwable $e ) {
-				// Do not use non-existing static loggers; use error_log
 				error_log( 'UFSC Competitions: Db::maybe_upgrade failed: ' . $e->getMessage() );
 			}
 		}
@@ -208,6 +207,5 @@ add_action(
 		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
 			\UFSC\Competitions\Services\AuditLogger::register_hooks();
 		}
-
 	}
 );

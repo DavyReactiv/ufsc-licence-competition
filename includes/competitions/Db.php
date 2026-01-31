@@ -62,9 +62,11 @@ class Db {
 		}
 		set_transient( $lock_key, 1, 10 );
 
-		$option = get_option( self::DB_VERSION_OPTION, '' );
+		$option              = get_option( self::DB_VERSION_OPTION, '' );
 		$needs_version_upgrade = ( $option !== self::DB_VERSION );
-		$needs_fights_upgrade = self::fights_schema_needs_upgrade();
+		$needs_fights_upgrade  = self::fights_schema_needs_upgrade();
+
+		// Nothing to do: release lock & exit.
 		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade ) {
 			delete_transient( $lock_key );
 			return;
@@ -75,9 +77,11 @@ class Db {
 				self::create_tables();
 				self::maybe_upgrade_entries_table();
 			}
+
 			if ( $needs_fights_upgrade ) {
 				self::maybe_upgrade_fights_table();
 			}
+
 			if ( $needs_version_upgrade ) {
 				update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 			}
@@ -99,12 +103,12 @@ class Db {
 
 		$charset_collate = $wpdb->get_charset_collate();
 
-		$competitions_table = self::competitions_table();
-		$categories_table   = self::categories_table();
-		$logs_table         = self::logs_table();
-		$entries_table      = self::entries_table();
-		$fights_table       = self::fights_table();
-		$timing_profiles_table = self::timing_profiles_table();
+		$competitions_table     = self::competitions_table();
+		$categories_table       = self::categories_table();
+		$logs_table             = self::logs_table();
+		$entries_table          = self::entries_table();
+		$fights_table           = self::fights_table();
+		$timing_profiles_table  = self::timing_profiles_table();
 
 		// Note: avoid SQL comments inside the CREATE TABLE string (dbDelta sensitivity)
 		$competitions_sql = "CREATE TABLE {$competitions_table} (
@@ -203,7 +207,7 @@ class Db {
 	private static function maybe_upgrade_entries_table(): void {
 		global $wpdb;
 
-		$table = self::entries_table();
+		$table  = self::entries_table();
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 		if ( $exists !== $table ) {
 			return;
@@ -215,13 +219,13 @@ class Db {
 		}
 
 		$desired = array(
-			'status' => "ALTER TABLE {$table} ADD COLUMN status varchar(50) NOT NULL DEFAULT 'draft'",
-			'admin_note' => "ALTER TABLE {$table} ADD COLUMN admin_note text NULL",
+			'status'          => "ALTER TABLE {$table} ADD COLUMN status varchar(50) NOT NULL DEFAULT 'draft'",
+			'admin_note'      => "ALTER TABLE {$table} ADD COLUMN admin_note text NULL",
 			'rejected_reason' => "ALTER TABLE {$table} ADD COLUMN rejected_reason text NULL",
-			'submitted_at' => "ALTER TABLE {$table} ADD COLUMN submitted_at datetime NULL",
-			'validated_at' => "ALTER TABLE {$table} ADD COLUMN validated_at datetime NULL",
-			'updated_at' => "ALTER TABLE {$table} ADD COLUMN updated_at datetime NULL",
-			'updated_by' => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
+			'submitted_at'    => "ALTER TABLE {$table} ADD COLUMN submitted_at datetime NULL",
+			'validated_at'    => "ALTER TABLE {$table} ADD COLUMN validated_at datetime NULL",
+			'updated_at'      => "ALTER TABLE {$table} ADD COLUMN updated_at datetime NULL",
+			'updated_by'      => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
@@ -245,7 +249,7 @@ class Db {
 	private static function maybe_upgrade_fights_table(): void {
 		global $wpdb;
 
-		$table = self::fights_table();
+		$table  = self::fights_table();
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 		if ( $exists !== $table ) {
 			return;
@@ -257,14 +261,14 @@ class Db {
 		}
 
 		$desired = array(
-			'fight_no' => "ALTER TABLE {$table} ADD COLUMN fight_no int unsigned NOT NULL DEFAULT 0",
+			'fight_no'          => "ALTER TABLE {$table} ADD COLUMN fight_no int unsigned NOT NULL DEFAULT 0",
 			'timing_profile_id' => "ALTER TABLE {$table} ADD COLUMN timing_profile_id bigint(20) unsigned NULL",
-			'round_duration' => "ALTER TABLE {$table} ADD COLUMN round_duration smallint(5) unsigned NULL",
-			'rounds' => "ALTER TABLE {$table} ADD COLUMN rounds smallint(5) unsigned NULL",
-			'break_duration' => "ALTER TABLE {$table} ADD COLUMN break_duration smallint(5) unsigned NULL",
-			'fight_pause' => "ALTER TABLE {$table} ADD COLUMN fight_pause smallint(5) unsigned NULL",
-			'fight_duration' => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
-			'deleted_at' => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
+			'round_duration'    => "ALTER TABLE {$table} ADD COLUMN round_duration smallint(5) unsigned NULL",
+			'rounds'            => "ALTER TABLE {$table} ADD COLUMN rounds smallint(5) unsigned NULL",
+			'break_duration'    => "ALTER TABLE {$table} ADD COLUMN break_duration smallint(5) unsigned NULL",
+			'fight_pause'       => "ALTER TABLE {$table} ADD COLUMN fight_pause smallint(5) unsigned NULL",
+			'fight_duration'    => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
+			'deleted_at'        => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
@@ -315,6 +319,7 @@ class Db {
 				}
 			}
 
+			// Optional safe backfill so ordering is stable on legacy rows.
 			self::maybe_backfill_fight_no( $table );
 		}
 	}
@@ -322,7 +327,7 @@ class Db {
 	private static function fights_schema_needs_upgrade(): bool {
 		global $wpdb;
 
-		$table = self::fights_table();
+		$table  = self::fights_table();
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 		if ( $exists !== $table ) {
 			return false;
@@ -352,6 +357,7 @@ class Db {
 				$table
 			)
 		);
+
 		if ( is_array( $results ) ) {
 			foreach ( $results as $row ) {
 				if ( ! empty( $row->COLUMN_NAME ) ) {
@@ -377,14 +383,15 @@ class Db {
 		}
 
 		$wp_cache_key = 'ufsc_competitions_column_' . md5( $cache_key );
-		$cached = wp_cache_get( $wp_cache_key, 'ufsc_competitions' );
+		$cached       = wp_cache_get( $wp_cache_key, 'ufsc_competitions' );
+
 		if ( false !== $cached ) {
 			$cache[ $cache_key ] = (bool) $cached;
 			return $cache[ $cache_key ];
 		}
 
-		$columns = self::get_table_columns( $table );
-		$cache[ $cache_key ] = in_array( $column, $columns, true );
+		$columns              = self::get_table_columns( $table );
+		$cache[ $cache_key ]  = in_array( $column, $columns, true );
 
 		wp_cache_set( $wp_cache_key, $cache[ $cache_key ], 'ufsc_competitions', HOUR_IN_SECONDS );
 
@@ -406,7 +413,10 @@ class Db {
 		}
 
 		$updated = $wpdb->query(
-			"UPDATE {$table} SET fight_no = id WHERE fight_no = 0 OR fight_no IS NULL ORDER BY id ASC LIMIT 2000"
+			"UPDATE {$table} SET fight_no = id
+			 WHERE fight_no = 0 OR fight_no IS NULL
+			 ORDER BY id ASC
+			 LIMIT 2000"
 		);
 
 		if ( false === $updated ) {
