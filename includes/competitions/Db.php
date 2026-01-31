@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.10';
+	const DB_VERSION = '1.11';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -50,15 +50,23 @@ class Db {
 	 */
 	public static function maybe_upgrade() {
 		$option = get_option( self::DB_VERSION_OPTION, '' );
-		if ( $option === self::DB_VERSION ) {
+		$needs_version_upgrade = ( $option !== self::DB_VERSION );
+		$needs_fights_upgrade = self::fights_schema_needs_upgrade();
+		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade ) {
 			return;
 		}
 
 		try {
-			self::create_tables();
-			self::maybe_upgrade_entries_table();
-			self::maybe_upgrade_fights_table();
-			update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+			if ( $needs_version_upgrade ) {
+				self::create_tables();
+				self::maybe_upgrade_entries_table();
+			}
+			if ( $needs_fights_upgrade ) {
+				self::maybe_upgrade_fights_table();
+			}
+			if ( $needs_version_upgrade ) {
+				update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+			}
 		} catch ( \Throwable $e ) {
 			// Never fatal: log and continue
 			error_log( 'UFSC Competitions DB upgrade failed: ' . $e->getMessage() );
@@ -227,12 +235,13 @@ class Db {
 			return;
 		}
 
-		$columns = $wpdb->get_col( "DESC {$table}", 0 );
+		$columns = self::get_table_columns( $table );
 		if ( ! is_array( $columns ) ) {
 			$columns = array();
 		}
 
 		$desired = array(
+			'fight_no' => "ALTER TABLE {$table} ADD COLUMN fight_no int unsigned NOT NULL DEFAULT 0",
 			'timing_profile_id' => "ALTER TABLE {$table} ADD COLUMN timing_profile_id bigint(20) unsigned NULL",
 			'round_duration' => "ALTER TABLE {$table} ADD COLUMN round_duration smallint(5) unsigned NULL",
 			'rounds' => "ALTER TABLE {$table} ADD COLUMN rounds smallint(5) unsigned NULL",
@@ -275,5 +284,69 @@ class Db {
 				}
 			}
 		}
+
+		if ( in_array( 'fight_no', $columns, true ) ) {
+			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_fight_no'" );
+			if ( empty( $index_exists ) ) {
+				$index_result = $wpdb->query( "ALTER TABLE {$table} ADD INDEX idx_fight_no (fight_no)" );
+				if ( false === $index_result ) {
+					error_log(
+						sprintf(
+							'UFSC Competitions DB upgrade failed to add index idx_fight_no: %s',
+							$wpdb->last_error
+						)
+					);
+				}
+			}
+		}
+	}
+
+	private static function fights_schema_needs_upgrade(): bool {
+		global $wpdb;
+
+		$table = self::fights_table();
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $exists !== $table ) {
+			return false;
+		}
+
+		$columns = self::get_table_columns( $table );
+		if ( ! is_array( $columns ) ) {
+			return true;
+		}
+
+		foreach ( array( 'fight_no', 'deleted_at' ) as $required ) {
+			if ( ! in_array( $required, $columns, true ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static function get_table_columns( string $table ): array {
+		global $wpdb;
+
+		$columns = array();
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+				$table
+			)
+		);
+		if ( is_array( $results ) ) {
+			foreach ( $results as $row ) {
+				if ( ! empty( $row->COLUMN_NAME ) ) {
+					$columns[] = $row->COLUMN_NAME;
+				}
+			}
+		}
+
+		if ( $columns ) {
+			return $columns;
+		}
+
+		$fallback = $wpdb->get_col( "DESC {$table}", 0 );
+		return is_array( $fallback ) ? $fallback : array();
 	}
 }
