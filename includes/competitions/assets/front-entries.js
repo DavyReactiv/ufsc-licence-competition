@@ -148,6 +148,10 @@
         body: payload.toString(),
       });
 
+      if (!response.ok) {
+        throw new Error("Bad response");
+      }
+
       const data = await response.json();
       if (!data || !data.success) {
         setStatus(data?.data?.message || config.labels?.error || "", "error");
@@ -178,6 +182,7 @@
     }
     input.addEventListener("input", () => debounce(computeCategory));
     input.addEventListener("change", () => debounce(computeCategory, 100));
+    input.addEventListener("blur", () => debounce(computeCategory, 100));
   };
 
   bindInput(birthInput);

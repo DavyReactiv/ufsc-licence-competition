@@ -189,8 +189,11 @@ class EntryRepository {
 			'club_id'        => isset( $data['club_id'] ) && '' !== $data['club_id'] ? absint( $data['club_id'] ) : null,
 			'licensee_id'    => absint( $data['licensee_id'] ?? 0 ),
 			'status'         => $status,
-			'assigned_at'    => isset( $data['assigned_at'] ) ? sanitize_text_field( $data['assigned_at'] ) : null,
 		);
+
+		if ( isset( $data['assigned_at'] ) && Db::has_table_column( $table, 'assigned_at' ) ) {
+			$payload['assigned_at'] = sanitize_text_field( $data['assigned_at'] );
+		}
 
 		if ( Db::has_table_column( $table, 'weight_kg' ) ) {
 			$weight = isset( $data['weight_kg'] ) ? (float) str_replace( ',', '.', (string) $data['weight_kg'] ) : null;

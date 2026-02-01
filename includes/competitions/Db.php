@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.12';
+	const DB_VERSION = '1.13';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
 
 	// Backwards-compatible constants (do not remove)
@@ -220,6 +220,7 @@ class Db {
 
 		$desired = array(
 			'status'          => "ALTER TABLE {$table} ADD COLUMN status varchar(50) NOT NULL DEFAULT 'draft'",
+			'assigned_at'     => "ALTER TABLE {$table} ADD COLUMN assigned_at datetime NULL",
 			'admin_note'      => "ALTER TABLE {$table} ADD COLUMN admin_note text NULL",
 			'rejected_reason' => "ALTER TABLE {$table} ADD COLUMN rejected_reason text NULL",
 			'submitted_at'    => "ALTER TABLE {$table} ADD COLUMN submitted_at datetime NULL",
