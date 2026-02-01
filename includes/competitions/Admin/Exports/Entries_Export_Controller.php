@@ -14,6 +14,8 @@ class Entries_Export_Controller {
 	public function register(): void {
 		add_action( 'admin_post_ufsc_competitions_export_plateau_csv', array( $this, 'handle_csv_export' ) );
 		add_action( 'admin_post_ufsc_competitions_download_plateau_pdf', array( $this, 'handle_pdf_download' ) );
+		add_action( 'admin_post_ufsc_competitions_export_entries_pdf', array( $this, 'handle_entries_pdf_export' ) );
+		add_action( 'admin_post_ufsc_competitions_download_entries_export', array( $this, 'handle_entries_export_download' ) );
 	}
 
 	public function handle_csv_export(): void {
@@ -212,7 +214,7 @@ class Entries_Export_Controller {
 		);
 
 		$repository = new EntryRepository();
-		$entries = $repository->list( $filters, 2000, 0 );
+		$entries = $repository->list_with_details( $filters, 2000, 0 );
 
 		$entries = is_array( $entries ) ? $entries : array();
 
@@ -220,6 +222,10 @@ class Entries_Export_Controller {
 	}
 
 	private function build_csv_row( array $headers, $entry, $competition ): array {
+		$status = class_exists( '\\UFSC\\Competitions\\Entries\\EntriesWorkflow' )
+			? \UFSC\Competitions\Entries\EntriesWorkflow::normalize_status( (string) ( $entry->status ?? '' ) )
+			: (string) ( $entry->status ?? '' );
+
 		$row = array(
 			'competition_id' => (int) ( $competition->id ?? 0 ),
 			'competition_name' => (string) ( $competition->name ?? '' ),
@@ -234,7 +240,7 @@ class Entries_Export_Controller {
 			'weight_class' => (string) ( $entry->weight_class ?? '' ),
 			'discipline' => (string) ( $competition->discipline ?? '' ),
 			'type' => (string) ( $competition->type ?? '' ),
-			'status' => (string) ( $entry->status ?? '' ),
+			'status' => (string) $status,
 			'submitted_at' => (string) ( $entry->submitted_at ?? '' ),
 			'validated_at' => (string) ( $entry->validated_at ?? '' ),
 			'rejected_reason' => (string) ( $entry->rejected_reason ?? '' ),
@@ -254,7 +260,7 @@ class Entries_Export_Controller {
 
 	private function get_requested_filters(): array {
 		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
-		if ( '' !== $status && ! in_array( $status, array( 'draft', 'submitted', 'validated', 'rejected', 'withdrawn', 'cancelled' ), true ) ) {
+		if ( '' !== $status && ! in_array( $status, array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' ), true ) ) {
 			$status = '';
 		}
 
@@ -296,10 +302,136 @@ class Entries_Export_Controller {
 						}
 					}
 
+					if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
+						$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' );
+						if ( empty( $eligibility['eligible'] ) ) {
+							return false;
+						}
+					}
+
 					return true;
 				}
 			)
 		);
+	}
+
+	public function handle_entries_pdf_export(): void {
+		if ( ! Capabilities::user_can_validate_entries() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( 'ufsc_competitions_export_entries_pdf' );
+
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		if ( ! $competition_id ) {
+			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+
+		$filters = $this->get_requested_filters();
+		$entries = $this->get_plateau_entries( $competition_id, $filters );
+
+		$renderer = new \UFSC\Competitions\Services\Entries_Pdf_Renderer();
+		$pdf = $renderer->render_pdf( $competition, $entries );
+		if ( empty( $pdf ) ) {
+			wp_die( esc_html__( 'PDF indisponible.', 'ufsc-licence-competition' ) );
+		}
+
+		$export = $this->store_pdf_export( $competition_id, $pdf );
+		if ( empty( $export['file'] ) ) {
+			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+		}
+
+		$this->send_pdf_file( $export['file'], $export['filename'], true );
+		exit;
+	}
+
+	public function handle_entries_export_download(): void {
+		if ( ! Capabilities::user_can_validate_entries() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$export_id = isset( $_GET['export_id'] ) ? sanitize_text_field( wp_unslash( $_GET['export_id'] ) ) : '';
+		$mode = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( $_GET['mode'] ) ) : 'inline';
+
+		if ( ! $competition_id || '' === $export_id ) {
+			wp_die( esc_html__( 'Export introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+
+		check_admin_referer( 'ufsc_competitions_download_entries_export_' . $export_id );
+
+		$history = $this->get_exports_history( $competition_id );
+		foreach ( $history as $export ) {
+			if ( (string) ( $export['id'] ?? '' ) === $export_id ) {
+				$file = $export['file'] ?? '';
+				$filename = $export['filename'] ?? basename( $file );
+				$this->send_pdf_file( $file, $filename, 'download' === $mode );
+				exit;
+			}
+		}
+
+		wp_die( esc_html__( 'Export introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+	}
+
+	public function get_exports_history( int $competition_id ): array {
+		$history = get_option( 'ufsc_competitions_entries_exports_' . $competition_id, array() );
+		return is_array( $history ) ? $history : array();
+	}
+
+	private function store_pdf_export( int $competition_id, string $pdf ): array {
+		$upload = wp_upload_dir();
+		if ( empty( $upload['basedir'] ) ) {
+			return array();
+		}
+
+		$timestamp = current_time( 'timestamp' );
+		$dir = trailingslashit( $upload['basedir'] ) . 'ufsc-exports/competitions/' . $competition_id;
+		wp_mkdir_p( $dir );
+
+		$filename = sprintf( 'inscriptions-%d-%s.pdf', $competition_id, date_i18n( 'Ymd-His', $timestamp ) );
+		$file = trailingslashit( $dir ) . $filename;
+
+		if ( false === file_put_contents( $file, $pdf ) ) {
+			return array();
+		}
+
+		$history = $this->get_exports_history( $competition_id );
+		$export_id = uniqid( 'export_', true );
+		$history[] = array(
+			'id' => $export_id,
+			'file' => $file,
+			'filename' => $filename,
+			'generated_at' => current_time( 'mysql' ),
+			'generated_by' => get_current_user_id(),
+		);
+
+		update_option( 'ufsc_competitions_entries_exports_' . $competition_id, $history, false );
+
+		return array(
+			'id' => $export_id,
+			'file' => $file,
+			'filename' => $filename,
+		);
+	}
+
+	private function send_pdf_file( string $file, string $filename, bool $download ): void {
+		if ( ! $file || ! file_exists( $file ) ) {
+			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+
+		$this->prepare_export_headers();
+		nocache_headers();
+		header( 'Content-Type: application/pdf' );
+		header( 'Content-Disposition: ' . ( $download ? 'attachment' : 'inline' ) . '; filename="' . sanitize_file_name( $filename ) . '"' );
+		header( 'Content-Length: ' . filesize( $file ) );
+		readfile( $file ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
 	}
 
 	private function prepare_export_headers(): void {

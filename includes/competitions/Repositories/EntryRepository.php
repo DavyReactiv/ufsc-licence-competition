@@ -30,6 +30,27 @@ class EntryRepository {
 		);
 	}
 
+	public function get_with_details( int $entry_id, bool $include_deleted = false ) {
+		$entry_id = absint( $entry_id );
+		if ( ! $entry_id ) {
+			return null;
+		}
+
+		$filters = array(
+			'entry_id' => $entry_id,
+		);
+		if ( $include_deleted ) {
+			$filters['include_deleted'] = true;
+		}
+
+		$rows = $this->list_with_details( $filters, 1, 0 );
+		if ( empty( $rows ) || ! is_array( $rows ) ) {
+			return null;
+		}
+
+		return $rows[0] ?? null;
+	}
+
 	public function get_by_competition_licensee( $competition_id, $licensee_id ) {
 		global $wpdb;
 
@@ -222,7 +243,7 @@ class EntryRepository {
 			'total' => 0,
 			'submitted' => 0,
 			'pending' => 0,
-			'validated' => 0,
+			'approved' => 0,
 			'rejected' => 0,
 			'cancelled' => 0,
 			'draft' => 0,
@@ -289,7 +310,7 @@ class EntryRepository {
 
 	private function sanitize( array $data ) {
 		$table = Db::entries_table();
-		$allowed_status = array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		$allowed_status = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		$status = \UFSC\Competitions\Entries\EntriesWorkflow::normalize_status( (string) ( $data['status'] ?? 'draft' ) );
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'draft';
@@ -403,7 +424,7 @@ class EntryRepository {
 
 		$status = sanitize_key( $status );
 
-		$allowed = array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		$allowed = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		if ( ! in_array( $status, $allowed, true ) ) {
 			return 'draft';
 		}
@@ -420,11 +441,14 @@ class EntryRepository {
 		$joins = array();
 		$where = array( '1=1' );
 
-		$view  = $filters['view'] ?? 'all';
-		if ( 'trash' === $view && $this->has_entry_column( 'deleted_at' ) ) {
-			$where[] = "{$entries_alias}.deleted_at IS NOT NULL";
-		} elseif ( $this->has_entry_column( 'deleted_at' ) ) {
-			$where[] = "{$entries_alias}.deleted_at IS NULL";
+		$view            = $filters['view'] ?? 'all';
+		$include_deleted = ! empty( $filters['include_deleted'] );
+		if ( ! $include_deleted ) {
+			if ( 'trash' === $view && $this->has_entry_column( 'deleted_at' ) ) {
+				$where[] = "{$entries_alias}.deleted_at IS NOT NULL";
+			} elseif ( $this->has_entry_column( 'deleted_at' ) ) {
+				$where[] = "{$entries_alias}.deleted_at IS NULL";
+			}
 		}
 
 		if ( ! empty( $filters['competition_id'] ) ) {
@@ -441,6 +465,10 @@ class EntryRepository {
 
 		if ( ! empty( $filters['club_id'] ) ) {
 			$where[] = $wpdb->prepare( "{$entries_alias}.club_id = %d", absint( $filters['club_id'] ) );
+		}
+
+		if ( ! empty( $filters['entry_id'] ) ) {
+			$where[] = $wpdb->prepare( "{$entries_alias}.id = %d", absint( $filters['entry_id'] ) );
 		}
 
 		$status_field = $this->get_status_storage_field();
@@ -520,6 +548,16 @@ class EntryRepository {
 			}
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
 			$select .= ', c.nom AS club_name';
+			$club_columns = Db::get_table_columns( $clubs_table );
+			if ( is_array( $club_columns ) ) {
+				if ( in_array( 'ville', $club_columns, true ) ) {
+					$select .= ', c.ville AS club_city';
+				} elseif ( in_array( 'city', $club_columns, true ) ) {
+					$select .= ', c.city AS club_city';
+				} else {
+					$select .= ', NULL AS club_city';
+				}
+			}
 		}
 
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
@@ -666,15 +704,15 @@ class EntryRepository {
 			'en-attente',
 		);
 
-		$validated_variants = array(
-			'validated',
-			'Validée',
-			'validee',
-			'validée',
+		$approved_variants = array(
 			'approved',
 			'Approuvée',
 			'approuvee',
 			'approuvée',
+			'validated',
+			'Validée',
+			'validee',
+			'validée',
 		);
 
 		$rejected_variants = array(
@@ -706,8 +744,8 @@ class EntryRepository {
 				return array_values( array_unique( array_merge( $submitted_variants, $pending_variants ) ) );
 			case 'pending':
 				return $pending_variants;
-			case 'validated':
-				return $validated_variants;
+			case 'approved':
+				return $approved_variants;
 			case 'rejected':
 				return $rejected_variants;
 			case 'cancelled':
@@ -724,7 +762,12 @@ class EntryRepository {
 			return 'pending';
 		}
 
-		return $this->normalize_status( $status );
+		$normalized = $this->normalize_status( $status );
+		if ( 'validated' === $normalized ) {
+			return 'approved';
+		}
+
+		return $normalized;
 	}
 
 	private function normalize_status_slug( string $status ): string {

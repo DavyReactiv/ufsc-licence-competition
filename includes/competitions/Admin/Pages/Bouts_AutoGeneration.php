@@ -36,6 +36,7 @@ class Bouts_AutoGeneration {
 			'swap_ok' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
 			'reorder_ok' => __( 'Combats réordonnés.', 'ufsc-licence-competition' ),
 			'action_error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
+			'invalid_settings' => __( 'Paramètres invalides : chaque surface doit avoir un nom et un type.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -64,7 +65,7 @@ class Bouts_AutoGeneration {
 		?>
 		<div class="ufsc-competitions-box">
 			<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
-			<p><?php esc_html_e( 'Générez un brouillon basé sur les inscriptions validées, puis validez avant écriture définitive.', 'ufsc-licence-competition' ); ?></p>
+			<p><?php esc_html_e( 'Générez un brouillon basé sur les inscriptions approuvées, puis validez avant écriture définitive.', 'ufsc-licence-competition' ); ?></p>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_fight_settings' ); ?>
@@ -80,10 +81,34 @@ class Bouts_AutoGeneration {
 						<td><input name="surface_count" type="number" min="1" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>"></td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="ufsc_surface_labels"><?php esc_html_e( 'Noms des surfaces', 'ufsc-licence-competition' ); ?></label></th>
+						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
 						<td>
-							<input name="surface_labels" type="text" id="ufsc_surface_labels" class="regular-text" value="<?php echo esc_attr( $settings['surface_labels'] ); ?>">
-							<p class="description"><?php esc_html_e( 'Séparer par virgules pour nommer chaque surface.', 'ufsc-licence-competition' ); ?></p>
+							<div class="ufsc-competitions-surfaces" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+								<?php
+								$surface_details = isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] )
+									? $settings['surface_details']
+									: array();
+								for ( $i = 0; $i < $settings['surface_count']; $i++ ) :
+									$detail = $surface_details[ $i ] ?? array();
+									$surface_name = (string) ( $detail['name'] ?? '' );
+									$surface_type = (string) ( $detail['type'] ?? 'tatami' );
+									?>
+									<div class="ufsc-competitions-surface-row">
+										<label>
+											<?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?>
+											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" required>
+										</label>
+										<label>
+											<?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?>
+											<select name="surface_details[<?php echo esc_attr( $i ); ?>][type]" required>
+												<option value="tatami" <?php selected( $surface_type, 'tatami' ); ?>><?php esc_html_e( 'Tatami', 'ufsc-licence-competition' ); ?></option>
+												<option value="ring" <?php selected( $surface_type, 'ring' ); ?>><?php esc_html_e( 'Ring', 'ufsc-licence-competition' ); ?></option>
+											</select>
+										</label>
+									</div>
+								<?php endfor; ?>
+							</div>
+							<p class="description"><?php esc_html_e( 'Le nombre de surfaces génère automatiquement les blocs ci-dessus.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -223,13 +248,72 @@ class Bouts_AutoGeneration {
 				</form>
 			<?php endif; ?>
 		</div>
+		<script>
+			(function() {
+				const countInput = document.getElementById('ufsc_surface_count');
+				const container = document.querySelector('.ufsc-competitions-surfaces');
+				if (!countInput || !container) {
+					return;
+				}
+
+				const buildRow = (index) => {
+					const row = document.createElement('div');
+					row.className = 'ufsc-competitions-surface-row';
+
+					const label = document.createElement('label');
+					label.textContent = `<?php echo esc_js( __( 'Surface', 'ufsc-licence-competition' ) ); ?> ${index + 1} `;
+
+					const input = document.createElement('input');
+					input.type = 'text';
+					input.name = `surface_details[${index}][name]`;
+					input.className = 'regular-text';
+					input.required = true;
+					label.appendChild(input);
+
+					const typeLabel = document.createElement('label');
+					typeLabel.textContent = '<?php echo esc_js( __( 'Type', 'ufsc-licence-competition' ) ); ?> ';
+
+					const select = document.createElement('select');
+					select.name = `surface_details[${index}][type]`;
+					select.required = true;
+					const tatami = new Option('<?php echo esc_js( __( 'Tatami', 'ufsc-licence-competition' ) ); ?>', 'tatami');
+					const ring = new Option('<?php echo esc_js( __( 'Ring', 'ufsc-licence-competition' ) ); ?>', 'ring');
+					select.appendChild(tatami);
+					select.appendChild(ring);
+					typeLabel.appendChild(select);
+
+					row.appendChild(label);
+					row.appendChild(typeLabel);
+					return row;
+				};
+
+				const syncRows = () => {
+					const targetCount = Math.max(1, parseInt(countInput.value || '1', 10));
+					const rows = container.querySelectorAll('.ufsc-competitions-surface-row');
+					if (rows.length > targetCount) {
+						for (let i = rows.length - 1; i >= targetCount; i--) {
+							rows[i].remove();
+						}
+					} else if (rows.length < targetCount) {
+						for (let i = rows.length; i < targetCount; i++) {
+							container.appendChild(buildRow(i));
+						}
+					}
+				};
+
+				countInput.addEventListener('input', syncRows);
+			})();
+		</script>
 		<?php
 	}
 
 	public static function handle_save_settings(): void {
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
-		FightAutoGenerationService::save_settings( $competition_id, wp_unslash( $_POST ) );
+		$saved = FightAutoGenerationService::save_settings( $competition_id, wp_unslash( $_POST ) );
+		if ( ! $saved ) {
+			self::redirect( $competition_id, 'invalid_settings' );
+		}
 		self::redirect( $competition_id, 'settings_saved' );
 	}
 

@@ -473,7 +473,7 @@
     }
     const statusInput = document.getElementById("ufsc_entry_status");
     const status = statusInput ? statusInput.value : "draft";
-    if ((status === "submitted" || status === "validated") && !weightInput.value) {
+    if ((status === "submitted" || status === "approved") && !weightInput.value) {
       event.preventDefault();
       setWeightMessage(config.weightRequiredMessage || "", "error");
       weightInput.focus();

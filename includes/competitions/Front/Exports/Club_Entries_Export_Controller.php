@@ -167,7 +167,7 @@ class Club_Entries_Export_Controller {
 			'category'         => (string) ( $entry->category ?? $entry->category_name ?? '' ),
 			'weight'           => (string) ( $entry->weight ?? $entry->weight_kg ?? '' ),
 			'weight_class'     => (string) ( $entry->weight_class ?? '' ),
-			'status'           => 'validated',
+			'status'           => 'approved',
 			'validated_at'     => (string) ( $entry->validated_at ?? '' ),
 		);
 
@@ -192,7 +192,12 @@ class Club_Entries_Export_Controller {
 				$this->redirect_with_notice( 0, 'error_forbidden' );
 			}
 
-			if ( 'validated' !== $repo->get_entry_status( $entry ) ) {
+			if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
+				$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports_club' );
+				if ( empty( $eligibility['eligible'] ) ) {
+					continue;
+				}
+			} elseif ( 'approved' !== $repo->get_entry_status( $entry ) ) {
 				continue;
 			}
 

@@ -12,10 +12,9 @@ class EntriesWorkflow {
 			'draft' => __( 'Brouillon', 'ufsc-licence-competition' ),
 			'submitted' => __( 'Soumise', 'ufsc-licence-competition' ),
 			'pending' => __( 'En attente', 'ufsc-licence-competition' ),
-			'validated' => __( 'Validée', 'ufsc-licence-competition' ),
+			'approved' => __( 'Approuvée', 'ufsc-licence-competition' ),
 			'rejected' => __( 'Rejetée', 'ufsc-licence-competition' ),
 			'cancelled' => __( 'Annulée', 'ufsc-licence-competition' ),
-			'withdrawn' => __( 'Annulée', 'ufsc-licence-competition' ),
 		);
 
 		$filtered = apply_filters( 'ufsc_entries_allowed_statuses', array_keys( $statuses ) );
@@ -45,7 +44,7 @@ class EntriesWorkflow {
 			case 'approved':
 			case 'approuvee':
 			case 'approuve':
-				return 'validated';
+				return 'approved';
 			case 'rejected':
 			case 'refusee':
 			case 'refuse':
@@ -82,7 +81,7 @@ class EntriesWorkflow {
 			case 'submitted':
 			case 'pending':
 				return 'ufsc-badge--warning';
-			case 'validated':
+			case 'approved':
 				return 'ufsc-badge--success';
 			case 'rejected':
 				return 'ufsc-badge--danger';
@@ -98,18 +97,18 @@ class EntriesWorkflow {
 
 		switch ( $status ) {
 			case 'draft':
-				return __( 'Brouillon → Soumise → Validée/Rejetée', 'ufsc-licence-competition' );
+				return __( 'Brouillon → Soumise → Approuvée/Rejetée', 'ufsc-licence-competition' );
 			case 'submitted':
 			case 'pending':
-				return __( 'Brouillon → Soumise (en attente) → Validée/Rejetée', 'ufsc-licence-competition' );
-			case 'validated':
-				return __( 'Brouillon → Soumise → Validée', 'ufsc-licence-competition' );
+				return __( 'Brouillon → Soumise (en attente) → Approuvée/Rejetée', 'ufsc-licence-competition' );
+			case 'approved':
+				return __( 'Brouillon → Soumise → Approuvée', 'ufsc-licence-competition' );
 			case 'rejected':
 				return __( 'Brouillon → Soumise → Rejetée', 'ufsc-licence-competition' );
 			case 'cancelled':
 				return __( 'Brouillon → Soumise → Annulée', 'ufsc-licence-competition' );
 			default:
-				return __( 'Brouillon → Soumise → Validée/Rejetée', 'ufsc-licence-competition' );
+				return __( 'Brouillon → Soumise → Approuvée/Rejetée', 'ufsc-licence-competition' );
 		}
 	}
 

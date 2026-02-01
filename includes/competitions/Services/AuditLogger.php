@@ -225,7 +225,7 @@ class AuditLogger {
 				'entry_id'       => $entry_id,
 				'club_id'        => $club_id,
 				'status_from'    => $status,
-				'status_to'      => 'validated',
+				'status_to'      => 'approved',
 				'context'        => array(
 					'source' => 'admin',
 				),
@@ -270,13 +270,13 @@ class AuditLogger {
 	}
 
 	public static function handle_plateau_export( $competition, string $status, array $filters ): void {
-		if ( 'validated' !== $status ) {
+		if ( 'approved' !== $status ) {
 			return;
 		}
 
 		$club_id = isset( $filters['club_id'] ) ? absint( $filters['club_id'] ) : 0;
 		self::log(
-			'export_validated_csv',
+			'export_approved_csv',
 			array(
 				'competition_id' => (int) ( $competition->id ?? 0 ),
 				'club_id'        => $club_id,

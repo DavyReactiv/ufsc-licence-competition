@@ -247,15 +247,8 @@ class Categories_Table extends \WP_List_Table {
 	}
 
 	private function format_datetime( $date ) {
-		if ( empty( $date ) ) {
-			return '';
-		}
-
-		$timestamp = strtotime( $date );
-		if ( ! $timestamp ) {
-			return '';
-		}
-
-		return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );
+		return function_exists( 'ufsc_lc_format_datetime' )
+			? ufsc_lc_format_datetime( $date, '' )
+			: ( $date ? (string) $date : '' );
 	}
 }

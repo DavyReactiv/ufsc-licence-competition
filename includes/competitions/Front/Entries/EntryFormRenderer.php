@@ -74,7 +74,7 @@ class EntryFormRenderer {
 				<h4><?php echo esc_html__( 'Vos inscriptions', 'ufsc-licence-competition' ); ?></h4>
 
 				<?php
-				// Export CSV validées (club) – visible uniquement si club_id résolu.
+				// Export CSV approuvées (club) – visible uniquement si club_id résolu.
 				$show_export = $club_id
 					? (bool) apply_filters( 'ufsc_competitions_show_club_export', true, $competition, $club_id )
 					: false;
@@ -93,9 +93,35 @@ class EntryFormRenderer {
 					?>
 					<p class="ufsc-competition-entries-export">
 						<a class="button" href="<?php echo esc_url( $export_url ); ?>">
-							<?php echo esc_html__( 'Exporter CSV validées', 'ufsc-licence-competition' ); ?>
+							<?php echo esc_html__( 'Exporter CSV approuvées', 'ufsc-licence-competition' ); ?>
 						</a>
 					</p>
+				<?php endif; ?>
+
+				<?php
+				$official_notice = '';
+				if ( $club_id && ! empty( $entries ) && ! empty( $competition->event_start_datetime ) ) {
+					$event_start = (string) $competition->event_start_datetime;
+					$event_ts = strtotime( $event_start );
+					if ( $event_ts ) {
+						$publish_ts = $event_ts - ( 15 * DAY_IN_SECONDS );
+						$publish_date = function_exists( 'ufsc_lc_format_datetime' )
+							? ufsc_lc_format_datetime( date_i18n( 'Y-m-d H:i:s', $publish_ts ) )
+							: date_i18n( 'Y-m-d H:i:s', $publish_ts );
+						if ( current_time( 'timestamp' ) < $publish_ts ) {
+							$official_notice = sprintf(
+								/* translators: %s: date */
+								__( 'La liste officielle sera publiée le %s.', 'ufsc-licence-competition' ),
+								$publish_date
+							);
+						} else {
+							$official_notice = __( 'La liste officielle est publiée.', 'ufsc-licence-competition' );
+						}
+					}
+				}
+				?>
+				<?php if ( $official_notice ) : ?>
+					<p class="ufsc-competition-official-list"><?php echo esc_html( $official_notice ); ?></p>
 				<?php endif; ?>
 
 				<?php if ( empty( $entries ) ) : ?>
@@ -122,6 +148,7 @@ class EntryFormRenderer {
 									<?php endif; ?>
 									<th><?php echo esc_html__( 'Club', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+									<th><?php echo esc_html__( 'Année', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ); ?></th>
@@ -134,7 +161,9 @@ class EntryFormRenderer {
 								<?php foreach ( $entries as $entry ) : ?>
 									<?php
 									$entry_id        = absint( $entry->id ?? 0 );
-									$status          = $repo->get_entry_status( $entry );
+									$status          = function_exists( 'ufsc_is_entry_eligible' )
+										? (string) ( ufsc_is_entry_eligible( $entry_id, 'front_club' )['status'] ?? '' )
+										: $repo->get_entry_status( $entry );
 									$name            = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
 
 									if ( '' === $name ) {
@@ -144,6 +173,7 @@ class EntryFormRenderer {
 									}
 
 									$birth_date      = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+									$birth_year      = self::get_birth_year( $birth_date );
 									$category        = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
 									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 									$weight_class    = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
@@ -162,6 +192,9 @@ class EntryFormRenderer {
 									$status_label    = EntriesWorkflow::get_status_label( $status );
 									$status_class    = EntriesWorkflow::get_status_badge_class( $status );
 									$updated_at      = isset( $entry->updated_at ) ? (string) $entry->updated_at : '';
+									if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
+										$updated_at = ufsc_lc_format_datetime( $updated_at );
+									}
 									$rejected_reason = isset( $entry->rejected_reason ) ? (string) $entry->rejected_reason : '';
 
 									$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
@@ -173,6 +206,7 @@ class EntryFormRenderer {
 										<?php endif; ?>
 										<td><?php echo esc_html( self::format_display_value( $club_name ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $birth_date ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $birth_year ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $category ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight_class ) ); ?></td>
@@ -181,7 +215,7 @@ class EntryFormRenderer {
 												<?php echo esc_html( $status_label ); ?>
 											</span>
 
-											<?php if ( 'submitted' === $status ) : ?>
+											<?php if ( in_array( $status, array( 'submitted', 'pending' ), true ) ) : ?>
 												<br /><small><?php echo esc_html__( 'En attente validation', 'ufsc-licence-competition' ); ?></small>
 											<?php endif; ?>
 
@@ -217,7 +251,7 @@ class EntryFormRenderer {
 														</button>
 													</form>
 
-												<?php elseif ( in_array( $status, array( 'submitted', 'rejected' ), true ) ) : ?>
+												<?php elseif ( in_array( $status, array( 'submitted', 'pending', 'rejected' ), true ) ) : ?>
 													<?php if ( $can_withdraw ) : ?>
 														<form method="post" action="<?php echo esc_url( $post_action ); ?>" class="ufsc-inline-form" style="display:inline;">
 															<input type="hidden" name="action" value="ufsc_entry_withdraw" />
@@ -527,7 +561,7 @@ class EntryFormRenderer {
 			'entry_deleted'            => array( 'success', __( 'Inscription supprimée.', 'ufsc-licence-competition' ) ),
 
 			'entry_submitted'          => array( 'success', __( 'Inscription soumise.', 'ufsc-licence-competition' ) ),
-			'entry_validated'          => array( 'success', __( 'Inscription validée.', 'ufsc-licence-competition' ) ),
+			'entry_validated'          => array( 'success', __( 'Inscription approuvée.', 'ufsc-licence-competition' ) ),
 			'entry_rejected'           => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
 			'entry_withdrawn'          => array( 'success', __( 'Inscription retirée.', 'ufsc-licence-competition' ) ),
 			'entry_cancelled'          => array( 'success', __( 'Inscription annulée.', 'ufsc-licence-competition' ) ),
@@ -544,7 +578,7 @@ class EntryFormRenderer {
 			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),
 			'error_weight_required'    => array( 'error', __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ) ),
 
-			'export_empty'             => array( 'info', __( 'Aucune inscription validée à exporter.', 'ufsc-licence-competition' ) ),
+			'export_empty'             => array( 'info', __( 'Aucune inscription approuvée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 			'entry_reopened'           => array( 'success', __( 'Inscription réouverte.', 'ufsc-licence-competition' ) ),
 		);
@@ -588,5 +622,17 @@ class EntryFormRenderer {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private static function get_birth_year( string $birthdate ): string {
+		$birthdate = trim( $birthdate );
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
+		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
+		}
+
+		return '';
 	}
 }
