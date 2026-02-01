@@ -14,6 +14,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Club_Entries_Export_Controller {
 
 	public function register(): void {
+		static $registered = false;
+		if ( $registered ) {
+			return;
+		}
+		$registered = true;
+
 		add_action( 'admin_post_ufsc_competitions_export_club_csv', array( $this, 'handle_export' ) );
 		add_action( 'admin_post_nopriv_ufsc_competitions_export_club_csv', array( $this, 'handle_export' ) );
 	}

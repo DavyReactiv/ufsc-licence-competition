@@ -155,7 +155,7 @@ class EntriesModule {
 				'discipline' => sanitize_text_field( (string) ( $competition->discipline ?? '' ) ),
 				'labels' => array(
 					'loading' => __( 'Calcul en cours…', 'ufsc-licence-competition' ),
-					'missing' => __( 'Veuillez renseigner poids + date de naissance.', 'ufsc-licence-competition' ),
+					'missing' => __( 'Veuillez renseigner la date de naissance.', 'ufsc-licence-competition' ),
 					'error' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ),
 					'weightMissing' => __( 'Poids manquant.', 'ufsc-licence-competition' ),
 				),
@@ -375,6 +375,10 @@ class EntriesModule {
 			}
 		}
 
+		if ( '' === $category ) {
+			$category = self::resolve_fallback_age_category( $birthdate, $competition );
+		}
+
 		return (string) apply_filters( 'ufsc_competitions_front_category_from_birthdate', $category, $birthdate, $competition );
 	}
 
@@ -404,19 +408,11 @@ class EntriesModule {
 
 		$weight_value = '' !== $weight ? (float) str_replace( ',', '.', $weight ) : null;
 
-		$errors = array();
 		if ( '' === $birth_date || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
-			$errors[] = 'birth_date';
-		}
-		if ( null === $weight_value || $weight_value <= 0 ) {
-			$errors[] = 'weight';
-		}
-
-		if ( $errors ) {
 			wp_send_json_error(
 				array(
-					'message' => __( 'Veuillez renseigner poids + date de naissance.', 'ufsc-licence-competition' ),
-					'errors' => $errors,
+					'message' => __( 'Veuillez renseigner la date de naissance.', 'ufsc-licence-competition' ),
+					'errors' => array( 'birth_date' ),
 				),
 				422
 			);
@@ -444,10 +440,6 @@ class EntriesModule {
 			$weight_context
 		);
 		$weight_classes = WeightCategoryResolver::get_weight_classes( $birth_date, $sex, $weight_context );
-
-		if ( '' === $category ) {
-			wp_send_json_error( array( 'message' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ) ), 404 );
-		}
 
 		wp_send_json_success(
 			array(
@@ -519,5 +511,56 @@ class EntriesModule {
 		}
 
 		return $options;
+	}
+
+	private static function resolve_fallback_age_category( string $birthdate, $competition ): string {
+		if ( '' === $birthdate || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birthdate ) ) {
+			return '';
+		}
+
+		$age_reference = sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) );
+		if ( ! preg_match( '/^\d{2}-\d{2}$/', $age_reference ) ) {
+			$age_reference = '12-31';
+		}
+		$season_end_year = isset( $competition->season ) ? (int) $competition->season : 0;
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+
+		try {
+			$birth = new \DateTimeImmutable( $birthdate, $timezone );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		$reference_date = null;
+		if ( $season_end_year ) {
+			$reference_date = \DateTimeImmutable::createFromFormat( '!Y-m-d', $season_end_year . '-' . $age_reference, $timezone );
+		}
+		if ( ! $reference_date ) {
+			$reference_date = new \DateTimeImmutable( 'now', $timezone );
+		}
+
+		$age = (int) $birth->diff( $reference_date )->y;
+
+		$groups = array(
+			array( 'label' => __( 'Poussin', 'ufsc-licence-competition' ), 'age_min' => 7, 'age_max' => 9 ),
+			array( 'label' => __( 'Pupille', 'ufsc-licence-competition' ), 'age_min' => 10, 'age_max' => 11 ),
+			array( 'label' => __( 'Benjamin', 'ufsc-licence-competition' ), 'age_min' => 12, 'age_max' => 13 ),
+			array( 'label' => __( 'Minime', 'ufsc-licence-competition' ), 'age_min' => 14, 'age_max' => 15 ),
+			array( 'label' => __( 'Cadet', 'ufsc-licence-competition' ), 'age_min' => 16, 'age_max' => 17 ),
+			array( 'label' => __( 'Junior', 'ufsc-licence-competition' ), 'age_min' => 18, 'age_max' => 19 ),
+			array( 'label' => __( 'Senior', 'ufsc-licence-competition' ), 'age_min' => 20, 'age_max' => 34 ),
+			array( 'label' => __( 'Vétéran', 'ufsc-licence-competition' ), 'age_min' => 35, 'age_max' => 99 ),
+		);
+
+		foreach ( $groups as $group ) {
+			$min = (int) $group['age_min'];
+			$max = (int) $group['age_max'];
+			if ( $age < $min || $age > $max ) {
+				continue;
+			}
+			return (string) $group['label'];
+		}
+
+		return '';
 	}
 }

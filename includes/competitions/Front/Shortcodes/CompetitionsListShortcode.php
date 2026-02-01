@@ -94,7 +94,8 @@ class CompetitionsListShortcode {
 	}
 
 	private function render_filters_form( array $filters ): string {
-		$action = esc_url( remove_query_arg( array( 'ufsc_page' ) ) );
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		$action = esc_url( remove_query_arg( array( 'ufsc_page' ), $request_uri ) );
 
 		return sprintf(
 			'<form class="ufsc-competitions-filters" method="get" action="%s">

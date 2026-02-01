@@ -137,6 +137,10 @@ class EntryActions {
 			}
 		}
 
+		if ( $license_id && ! $license ) {
+			self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
+		}
+
 		if ( 'create' === $action && ! $license ) {
 			if ( '' !== $license_term || '' !== $license_number ) {
 				$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $license_term, $club_id, $license_number, $license_birthdate );
@@ -163,7 +167,6 @@ class EntryActions {
 						'birthdate' => $license_birthdate,
 					)
 				);
-				self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
 			}
 		}
 

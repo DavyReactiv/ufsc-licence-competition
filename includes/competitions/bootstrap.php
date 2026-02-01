@@ -63,6 +63,14 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/LogRepository.php',
 		$base . '/Repositories/ClubRepository.php',
 		$base . '/Repositories/TimingProfileRepository.php',
+		// Front repositories and handlers required for admin-post actions.
+		$base . '/Front/Access/ClubAccess.php',
+		$base . '/Front/Entries/EntryActions.php',
+		$base . '/Front/Entries/EntryFormRenderer.php',
+		$base . '/Front/Entries/EntriesModule.php',
+		$base . '/Front/Exports/Club_Entries_Export_Controller.php',
+		$base . '/Front/Repositories/EntryFrontRepository.php',
+		$base . '/Front/Repositories/CompetitionReadRepository.php',
 		$base . '/Front/Front.php',
 	);
 
@@ -173,7 +181,7 @@ add_action(
 /**
  * Register the module (menus/pages) on init, defensively.
  */
-add_action(
+	add_action(
 	'init',
 	function() {
 		// ensure core and admin deps are loaded when registering module
@@ -186,6 +194,10 @@ add_action(
 
 		if ( class_exists( '\UFSC\Competitions\Front\Entries\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register_actions();
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller' ) ) {
+			( new \UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller() )->register();
 		}
 
 		// Register admin menu only if class exists

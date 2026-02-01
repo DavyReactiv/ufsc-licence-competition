@@ -47,8 +47,7 @@
   const getValue = (input) =>
     input && typeof input.value !== "undefined" ? input.value.trim() : "";
 
-  const shouldCompute = () =>
-    getValue(birthInput) !== "" && getValue(weightInput) !== "";
+  const shouldCompute = () => getValue(birthInput) !== "";
 
   const applyCategory = (label) => {
     if (!label) {
@@ -126,6 +125,7 @@
       const data = await response.json();
       if (!data || !data.success) {
         setStatus(data?.data?.message || config.labels?.error || "", "error");
+        setWeightStatus(data?.data?.message || config.labels?.weightMissing || "", "error");
         return;
       }
 
@@ -158,4 +158,8 @@
   bindInput(weightInput);
   bindInput(sexInput);
   bindInput(levelInput);
+
+  if (getValue(birthInput)) {
+    debounce(computeCategory, 50);
+  }
 })();
