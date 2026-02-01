@@ -9,6 +9,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Entries_Table;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -97,7 +98,7 @@ class Entries_Page {
 			'category_id'    => isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0,
 			'club_id'        => isset( $_POST['club_id'] ) ? absint( $_POST['club_id'] ) : 0,
 			'licensee_id'    => isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0,
-			'status'         => isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'draft',
+			'status'         => isset( $_POST['status'] ) ? EntriesWorkflow::normalize_status( (string) wp_unslash( $_POST['status'] ) ) : 'draft',
 		);
 		$weight_kg_raw = isset( $_POST['weight_kg'] ) ? wp_unslash( $_POST['weight_kg'] ) : '';
 		$weight_class_raw = isset( $_POST['weight_class'] ) ? wp_unslash( $_POST['weight_class'] ) : '';
@@ -140,11 +141,25 @@ class Entries_Page {
 		}
 
 		if ( $id ) {
-			$this->repository->update( $id, $data );
+			$updated = $this->repository->update( $id, $data );
+			if ( false === $updated ) {
+				global $wpdb;
+				if ( ! empty( $wpdb->last_error ) ) {
+					error_log( 'UFSC Competitions entry update failed: ' . $wpdb->last_error );
+				}
+				$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'db_error', $id );
+			}
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'updated', $id );
 		}
 
 		$new_id = $this->repository->insert( $data );
+		if ( ! $new_id ) {
+			global $wpdb;
+			if ( ! empty( $wpdb->last_error ) ) {
+				error_log( 'UFSC Competitions entry insert failed: ' . $wpdb->last_error );
+			}
+			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'db_error', $id );
+		}
 		$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'created', $new_id );
 	}
 
@@ -558,12 +573,13 @@ class Entries_Page {
 					<tr>
 						<th scope="row"><label for="ufsc_entry_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<select name="status" id="ufsc_entry_status" class="regular-text">
-								<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
-								<option value="submitted" <?php selected( $values['status'], 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
-								<option value="validated" <?php selected( $values['status'], 'validated' ); ?>><?php esc_html_e( 'Validée', 'ufsc-licence-competition' ); ?></option>
-								<option value="rejected" <?php selected( $values['status'], 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
-								<option value="withdrawn" <?php selected( $values['status'], 'withdrawn' ); ?>><?php esc_html_e( 'Retirée', 'ufsc-licence-competition' ); ?></option>
+				<select name="status" id="ufsc_entry_status" class="regular-text">
+					<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
+					<option value="submitted" <?php selected( $values['status'], 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
+					<option value="pending" <?php selected( $values['status'], 'pending' ); ?>><?php esc_html_e( 'En attente', 'ufsc-licence-competition' ); ?></option>
+					<option value="validated" <?php selected( $values['status'], 'validated' ); ?>><?php esc_html_e( 'Validée', 'ufsc-licence-competition' ); ?></option>
+					<option value="rejected" <?php selected( $values['status'], 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
+					<option value="withdrawn" <?php selected( $values['status'], 'withdrawn' ); ?>><?php esc_html_e( 'Retirée', 'ufsc-licence-competition' ); ?></option>
 							</select>
 						</td>
 					</tr>
@@ -598,6 +614,7 @@ class Entries_Page {
 			'trashed'       => __( 'Inscription déplacée dans la corbeille.', 'ufsc-licence-competition' ),
 			'restored'      => __( 'Inscription restaurée.', 'ufsc-licence-competition' ),
 			'deleted'       => __( 'Inscription supprimée définitivement.', 'ufsc-licence-competition' ),
+			'db_error'      => __( 'Erreur lors de l’enregistrement de l’inscription.', 'ufsc-licence-competition' ),
 			'error_required'=> __( 'Veuillez renseigner la compétition et le licencié.', 'ufsc-licence-competition' ),
 			'duplicate'     => __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Inscription introuvable.', 'ufsc-licence-competition' ),
@@ -608,7 +625,7 @@ class Entries_Page {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required', 'db_error' ), true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
 

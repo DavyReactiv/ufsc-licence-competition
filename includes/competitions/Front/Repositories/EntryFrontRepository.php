@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Front\Repositories;
 
 use UFSC\Competitions\Db;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\RepositoryHelpers;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -273,10 +274,10 @@ class EntryFrontRepository {
 	}
 
 	public function get_allowed_statuses(): array {
-		$statuses = array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		$statuses = array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
 		$statuses = apply_filters( 'ufsc_entries_allowed_statuses', $statuses );
 		if ( ! is_array( $statuses ) ) {
-			return array( 'draft', 'submitted', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+			return array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
 		}
 
 		return array_values( array_unique( array_map( 'sanitize_key', $statuses ) ) );
@@ -340,7 +341,7 @@ class EntryFrontRepository {
 		if ( 'rejected' === $current && ! $can_reopen ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
-		if ( ! in_array( $current, array( 'submitted', 'rejected' ), true ) ) {
+		if ( ! in_array( $current, array( 'submitted', 'pending', 'rejected' ), true ) ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
 
@@ -358,7 +359,7 @@ class EntryFrontRepository {
 		}
 
 		$current = $this->get_entry_status( $entry );
-		if ( ! in_array( $current, array( 'draft', 'submitted' ), true ) ) {
+		if ( ! in_array( $current, array( 'draft', 'submitted', 'pending' ), true ) ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
 
@@ -371,7 +372,7 @@ class EntryFrontRepository {
 			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( 'submitted' !== $this->get_entry_status( $entry ) ) {
+		if ( ! in_array( $this->get_entry_status( $entry ), array( 'submitted', 'pending' ), true ) ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
 
@@ -396,7 +397,7 @@ class EntryFrontRepository {
 			return $this->build_result( false, __( 'Inscription introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( 'submitted' !== $this->get_entry_status( $entry ) ) {
+		if ( ! in_array( $this->get_entry_status( $entry ), array( 'submitted', 'pending' ), true ) ) {
 			return $this->build_result( false, __( 'Statut invalide.', 'ufsc-licence-competition' ) );
 		}
 
@@ -465,10 +466,13 @@ class EntryFrontRepository {
 			$data['category_id'] = absint( $payload['category_id'] );
 		}
 
-		if ( isset( $payload['licensee_id'] ) && $this->has_column( 'licensee_id' ) ) {
-			$data['licensee_id'] = absint( $payload['licensee_id'] );
-		} elseif ( $this->has_column( 'licensee_id' ) && $is_insert ) {
-			$data['licensee_id'] = 0;
+		$licensee_column = $this->resolve_licensee_column();
+		if ( $licensee_column && isset( $payload['licensee_id'] ) ) {
+			$data[ $licensee_column ] = absint( $payload['licensee_id'] );
+		} elseif ( $licensee_column && isset( $payload['licence_id'] ) ) {
+			$data[ $licensee_column ] = absint( $payload['licence_id'] );
+		} elseif ( $licensee_column && $is_insert ) {
+			$data[ $licensee_column ] = 0;
 		}
 
 		if ( $this->has_column( 'status' ) ) {
@@ -664,17 +668,29 @@ class EntryFrontRepository {
 	}
 
 	private function normalize_status( string $status ): string {
-		$status = sanitize_key( $status );
-		if ( 'withdrawn' === $status ) {
-			$status = 'cancelled';
+		if ( class_exists( EntriesWorkflow::class ) && method_exists( EntriesWorkflow::class, 'normalize_status' ) ) {
+			$normalized = EntriesWorkflow::normalize_status( $status );
+		} else {
+			$normalized = sanitize_key( $status );
 		}
 
 		$allowed = $this->get_allowed_statuses();
-		if ( ! in_array( $status, $allowed, true ) ) {
+		if ( ! in_array( $normalized, $allowed, true ) ) {
 			return 'draft';
 		}
 
-		return $status;
+		return $normalized;
+	}
+
+	private function resolve_licensee_column(): string {
+		if ( $this->has_column( 'licensee_id' ) ) {
+			return 'licensee_id';
+		}
+		if ( $this->has_column( 'licence_id' ) ) {
+			return 'licence_id';
+		}
+
+		return '';
 	}
 
 	private function update_status( $entry, string $status, array $data, int $user_id = 0 ): array {

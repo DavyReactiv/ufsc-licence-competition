@@ -7,6 +7,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -63,8 +64,8 @@ class Entries_Table extends \WP_List_Table {
 			$filters['competition_ids'] = $this->get_competition_ids_by_discipline( $filters['discipline'] );
 		}
 
-		$total_items = $this->repository->count( $filters );
-		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$total_items = $this->repository->count_with_details( $filters );
+		$this->items = $this->repository->list_with_details( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
 		$this->set_pagination_args(
 			array(
@@ -78,6 +79,9 @@ class Entries_Table extends \WP_List_Table {
 		return array(
 			'cb'         => '<input type="checkbox" />',
 			'licensee'   => __( 'Licencié', 'ufsc-licence-competition' ),
+			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
+			'birthdate'  => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'club'       => __( 'Club', 'ufsc-licence-competition' ),
 			'competition'=> __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
 			'category'   => __( 'Catégorie', 'ufsc-licence-competition' ),
@@ -85,6 +89,7 @@ class Entries_Table extends \WP_List_Table {
 			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Mise à jour', 'ufsc-licence-competition' ),
+			'actions'    => __( 'Actions', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -117,6 +122,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	protected function column_licensee( $item ) {
+		$name = $this->format_fallback( $this->format_entry_name( $item ) );
 		$edit_url = add_query_arg(
 			array(
 				'page'        => Menu::PAGE_ENTRIES,
@@ -126,7 +132,19 @@ class Entries_Table extends \WP_List_Table {
 			admin_url( 'admin.php' )
 		);
 
-		$title = sprintf( '<strong><a href="%s">#%d</a></strong>', esc_url( $edit_url ), (int) $item->licensee_id );
+		return sprintf( '<strong><a href="%s">%s</a></strong>', esc_url( $edit_url ), esc_html( $name ) );
+	}
+
+	protected function column_actions( $item ) {
+		$edit_url = add_query_arg(
+			array(
+				'page'        => Menu::PAGE_ENTRIES,
+				'ufsc_action' => 'edit',
+				'id'          => $item->id,
+			),
+			admin_url( 'admin.php' )
+		);
+
 		$actions = array();
 		if ( empty( $item->deleted_at ) ) {
 			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
@@ -152,7 +170,7 @@ class Entries_Table extends \WP_List_Table {
 			}
 		}
 
-		return $title . $this->row_actions( $actions );
+		return $this->row_actions( $actions );
 	}
 
 	public function column_cb( $item ) {
@@ -161,16 +179,22 @@ class Entries_Table extends \WP_List_Table {
 
 	protected function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
+			case 'license_number':
+				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
+			case 'birthdate':
+				return esc_html( $this->format_fallback( $item->licensee_birthdate ?? '' ) );
+			case 'club':
+				return esc_html( $this->format_fallback( $item->club_name ?? '' ) );
 			case 'competition':
-				return esc_html( $this->get_competition_name( $item->competition_id ) );
+				return esc_html( $this->format_fallback( $this->get_competition_name( $item->competition_id ) ) );
 			case 'discipline':
-				return esc_html( $this->get_competition_discipline( $item->competition_id ) );
+				return esc_html( $this->format_fallback( $this->get_competition_discipline( $item->competition_id ) ) );
 			case 'category':
-				return esc_html( $this->get_category_name( $item->category_id ) );
+				return esc_html( $this->format_fallback( $this->get_category_name( $item->category_id ) ) );
 			case 'weight':
-				return esc_html( (string) ( $item->weight ?? $item->weight_kg ?? '' ) );
+				return esc_html( $this->format_fallback( (string) ( $item->weight ?? $item->weight_kg ?? '' ) ) );
 			case 'weight_class':
-				return esc_html( (string) ( $item->weight_class ?? '' ) );
+				return esc_html( $this->format_fallback( (string) ( $item->weight_class ?? '' ) ) );
 			case 'status':
 				return esc_html( $this->format_status( $item->status ) );
 			case 'updated':
@@ -207,6 +231,7 @@ class Entries_Table extends \WP_List_Table {
 				<option value=""><?php esc_html_e( 'Tous les statuts', 'ufsc-licence-competition' ); ?></option>
 				<option value="draft" <?php selected( $status, 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
 				<option value="submitted" <?php selected( $status, 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
+				<option value="pending" <?php selected( $status, 'pending' ); ?>><?php esc_html_e( 'En attente', 'ufsc-licence-competition' ); ?></option>
 				<option value="validated" <?php selected( $status, 'validated' ); ?>><?php esc_html_e( 'Validée', 'ufsc-licence-competition' ); ?></option>
 				<option value="rejected" <?php selected( $status, 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
 				<option value="withdrawn" <?php selected( $status, 'withdrawn' ); ?>><?php esc_html_e( 'Retirée', 'ufsc-licence-competition' ); ?></option>
@@ -277,26 +302,48 @@ class Entries_Table extends \WP_List_Table {
 		return $ids ? $ids : array( 0 );
 	}
 
-	private function format_status( $status ) {
-		$labels = array(
-			'draft'     => __( 'Brouillon', 'ufsc-licence-competition' ),
-			'submitted' => __( 'Soumise', 'ufsc-licence-competition' ),
-			'validated' => __( 'Validée', 'ufsc-licence-competition' ),
-			'rejected'  => __( 'Rejetée', 'ufsc-licence-competition' ),
-			'withdrawn' => __( 'Retirée', 'ufsc-licence-competition' ),
-		);
+	private function format_entry_name( $item ): string {
+		$last = isset( $item->licensee_last_name ) ? (string) $item->licensee_last_name : '';
+		$first = isset( $item->licensee_first_name ) ? (string) $item->licensee_first_name : '';
+		$name = trim( $last . ' ' . $first );
 
-		return $labels[ $status ] ?? $status;
+		if ( '' !== $name ) {
+			return $name;
+		}
+
+		foreach ( array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) as $key ) {
+			if ( isset( $item->{$key} ) && '' !== (string) $item->{$key} ) {
+				return (string) $item->{$key};
+			}
+		}
+
+		$licensee_id = $item->licensee_id ?? $item->licence_id ?? 0;
+		if ( $licensee_id ) {
+			return sprintf( '#%d', (int) $licensee_id );
+		}
+
+		return '';
+	}
+
+	private function format_fallback( $value ): string {
+		$value = is_scalar( $value ) ? (string) $value : '';
+		$value = trim( $value );
+
+		return '' !== $value ? $value : '—';
+	}
+
+	private function format_status( $status ) {
+		return EntriesWorkflow::get_status_label( (string) $status );
 	}
 
 	private function format_datetime( $date ) {
 		if ( empty( $date ) ) {
-			return '';
+			return '—';
 		}
 
 		$timestamp = strtotime( $date );
 		if ( ! $timestamp ) {
-			return '';
+			return '—';
 		}
 
 		return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );

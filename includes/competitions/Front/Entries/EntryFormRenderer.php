@@ -17,6 +17,7 @@ class EntryFormRenderer {
 		$club_id              = absint( $context['club_id'] ?? 0 );
 		$entries              = $context['entries'] ?? array();
 		$editing_entry        = $context['editing_entry'] ?? null;
+		$club_label           = (string) ( $context['club_label'] ?? '' );
 		$registration_open    = (bool) ( $context['registration_open'] ?? true );
 		$license_results      = $context['license_results'] ?? array();
 		$selected_license     = $context['selected_license'] ?? null;
@@ -119,6 +120,7 @@ class EntryFormRenderer {
 									<?php if ( $show_license_column ) : ?>
 										<th><?php echo esc_html__( 'N° licence', 'ufsc-licence-competition' ); ?></th>
 									<?php endif; ?>
+									<th><?php echo esc_html__( 'Club', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
@@ -146,6 +148,7 @@ class EntryFormRenderer {
 									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 									$weight_class    = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
 									$license_number  = $show_license_column ? self::get_entry_value( $entry, $license_keys ) : '';
+									$club_name       = $club_label ?: (string) ( $entry->club_name ?? '' );
 
 									$details_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
 									$edit_url    = $details_url ? add_query_arg( 'ufsc_entry_edit', $entry_id, $details_url ) : '';
@@ -164,14 +167,15 @@ class EntryFormRenderer {
 									$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
 									?>
 									<tr>
-										<td><?php echo esc_html( $name ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $name ) ); ?></td>
 										<?php if ( $show_license_column ) : ?>
-											<td><?php echo esc_html( $license_number ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $license_number ) ); ?></td>
 										<?php endif; ?>
-										<td><?php echo esc_html( $birth_date ); ?></td>
-										<td><?php echo esc_html( $category ); ?></td>
-										<td><?php echo esc_html( $weight ); ?></td>
-										<td><?php echo esc_html( $weight_class ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $club_name ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $birth_date ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $category ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $weight ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $weight_class ) ); ?></td>
 										<td>
 											<span class="ufsc-badge <?php echo esc_attr( $status_class ); ?>">
 												<?php echo esc_html( $status_label ); ?>
@@ -185,7 +189,7 @@ class EntryFormRenderer {
 												<br /><small><?php echo esc_html( $rejected_reason ); ?></small>
 											<?php endif; ?>
 										</td>
-										<td><?php echo $updated_at ? esc_html( $updated_at ) : '—'; ?></td>
+										<td><?php echo esc_html( self::format_display_value( $updated_at ) ); ?></td>
 										<td>
 											<?php if ( $registration_open ) : ?>
 												<?php if ( 'draft' === $status ) : ?>
@@ -577,5 +581,12 @@ class EntryFormRenderer {
 		}
 
 		return '';
+	}
+
+	private static function format_display_value( $value ): string {
+		$value = is_scalar( $value ) ? (string) $value : '';
+		$value = trim( $value );
+
+		return '' !== $value ? $value : '—';
 	}
 }

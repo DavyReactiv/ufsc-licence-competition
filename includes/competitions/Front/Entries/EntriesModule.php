@@ -6,6 +6,7 @@ use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
+use UFSC\Competitions\Repositories\ClubRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Services\CategoryAssigner;
 use UFSC\Competitions\Services\WeightCategoryResolver;
@@ -68,6 +69,7 @@ class EntriesModule {
 		$editing_entry = null;
 		$license_results = array();
 		$selected_license = null;
+		$club_label = '';
 		$license_term = isset( $_GET['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_term'] ) ) : '';
 		$license_number = isset( $_GET['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_number'] ) ) : '';
 		$license_birthdate = isset( $_GET['ufsc_license_birthdate'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_license_birthdate'] ) ) : '';
@@ -79,6 +81,10 @@ class EntriesModule {
 			$repo = new EntryFrontRepository();
 			$entries = $repo->list_by_competition_and_club( (int) $competition->id, (int) $club_id );
 			$editing_entry = self::resolve_editing_entry( $entries );
+
+			$club_repo = new ClubRepository();
+			$club = $club_repo->get( $club_id );
+			$club_label = $club_repo->get_region_label( $club );
 
 			$license_results = self::get_license_search_results( $license_term, $license_number, $license_birthdate, $club_id, $repo );
 			if ( ! $license_id && 1 === count( $license_results ) ) {
@@ -115,6 +121,7 @@ class EntriesModule {
 				'club_id' => $club_id,
 				'entries' => $entries,
 				'editing_entry' => $editing_entry,
+				'club_label' => $club_label,
 				'registration_open' => $registration_open,
 				'license_results' => $license_results,
 				'selected_license' => $selected_license,
