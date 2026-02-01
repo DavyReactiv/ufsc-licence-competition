@@ -5,7 +5,9 @@ namespace UFSC\Competitions\Admin\Tables;
 use UFSC\Competitions\Admin\Entries_Validation_Menu;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
+use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -18,8 +20,10 @@ if ( ! class_exists( 'WP_List_Table' ) ) {
 class Entries_Validation_Table extends \WP_List_Table {
 	private $repository;
 	private $competition_repository;
+	private $category_repository;
 	private $filters = array();
 	private $competitions = array();
+	private $categories = array();
 
 	public function __construct() {
 		parent::__construct(
@@ -32,6 +36,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		$this->repository = new EntryRepository();
 		$this->competition_repository = new CompetitionRepository();
+		$this->category_repository = new CategoryRepository();
 	}
 
 	public function prepare_items() {
@@ -42,6 +47,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
 			'club_id' => isset( $_REQUEST['ufsc_club_id'] ) ? absint( $_REQUEST['ufsc_club_id'] ) : 0,
 			'status' => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
+			'discipline' => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 			'search' => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
@@ -51,9 +57,14 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		$this->filters = $filters;
 		$this->competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
+		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
 
-		$items = $this->get_entries( $filters, $per_page, ( $current_page - 1 ) * $per_page );
-		$total_items = $this->count_entries( $filters );
+		if ( $filters['discipline'] && ! $filters['competition_id'] ) {
+			$filters['competition_ids'] = $this->get_competition_ids_by_discipline( $filters['discipline'] );
+		}
+
+		$items = $this->repository->list_with_details( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$total_items = $this->repository->count_with_details( $filters );
 
 		$this->items = $items;
 
@@ -68,6 +79,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function get_columns() {
 		return array(
 			'licensee' => __( 'Licencié', 'ufsc-licence-competition' ),
+			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
+			'birthdate' => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'category' => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
 			'club' => __( 'Club', 'ufsc-licence-competition' ),
 			'weight' => __( 'Poids', 'ufsc-licence-competition' ),
@@ -75,6 +89,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			'status' => __( 'Statut', 'ufsc-licence-competition' ),
 			'submitted' => __( 'Soumise le', 'ufsc-licence-competition' ),
 			'updated' => __( 'Mise à jour', 'ufsc-licence-competition' ),
+			'actions' => __( 'Actions', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -84,12 +99,16 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	protected function column_licensee( $item ) {
 		$name = $this->format_entry_name( $item );
-		$title = $name ? sprintf( '<strong>%s</strong>', esc_html( $name ) ) : sprintf( '<strong>#%d</strong>', (int) ( $item->licensee_id ?? 0 ) );
+		$title = $name ? sprintf( '<strong>%s</strong>', esc_html( $name ) ) : sprintf( '<strong>#%d</strong>', (int) ( $item->licensee_id ?? $item->licence_id ?? 0 ) );
 
+		return $title;
+	}
+
+	protected function column_actions( $item ) {
 		$actions = array();
 		$status = $this->repository->get_entry_status( $item );
 
-		if ( 'submitted' === $status ) {
+		if ( in_array( $status, array( 'submitted', 'pending' ), true ) ) {
 			$actions['validate'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $this->build_admin_action_url( 'ufsc_entry_admin_validate', $item->id, 'ufsc_entry_admin_validate_' . $item->id ) ),
@@ -108,19 +127,25 @@ class Entries_Validation_Table extends \WP_List_Table {
 			);
 		}
 
-		return $title . $this->row_actions( $actions );
+		return $this->row_actions( $actions );
 	}
 
 	protected function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
+			case 'license_number':
+				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
+			case 'birthdate':
+				return esc_html( $this->format_fallback( $item->licensee_birthdate ?? '' ) );
+			case 'category':
+				return esc_html( $this->format_fallback( $this->get_category_name( $item->category_id ?? 0 ) ) );
 			case 'competition':
-				return esc_html( $this->get_competition_name( $item->competition_id ) );
+				return esc_html( $this->format_fallback( $this->get_competition_name( $item->competition_id ) ) );
 			case 'club':
-				return esc_html( (string) ( $item->club_id ?? '' ) );
+				return esc_html( $this->format_fallback( $item->club_name ?? (string) ( $item->club_id ?? '' ) ) );
 			case 'weight':
-				return esc_html( (string) ( $item->weight ?? $item->weight_kg ?? '' ) );
+				return esc_html( $this->format_fallback( (string) ( $item->weight ?? $item->weight_kg ?? '' ) ) );
 			case 'weight_class':
-				return esc_html( (string) ( $item->weight_class ?? '' ) );
+				return esc_html( $this->format_fallback( (string) ( $item->weight_class ?? '' ) ) );
 			case 'status':
 				return $this->format_status( $item );
 			case 'submitted':
@@ -140,6 +165,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 		$current_competition = $this->filters['competition_id'] ?? 0;
 		$status = $this->filters['status'] ?? '';
 		$club_id = $this->filters['club_id'] ?? 0;
+		$discipline = $this->filters['discipline'] ?? '';
+		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
 			<label class="screen-reader-text" for="ufsc_competition_filter"><?php esc_html_e( 'Filtrer par compétition', 'ufsc-licence-competition' ); ?></label>
@@ -156,6 +183,13 @@ class Entries_Validation_Table extends \WP_List_Table {
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $status, $value ); ?>><?php echo esc_html( $label ); ?></option>
 				<?php endforeach; ?>
 			</select>
+			<label class="screen-reader-text" for="ufsc_discipline_filter"><?php esc_html_e( 'Filtrer par discipline', 'ufsc-licence-competition' ); ?></label>
+			<select name="ufsc_discipline" id="ufsc_discipline_filter">
+				<option value=""><?php esc_html_e( 'Toutes les disciplines', 'ufsc-licence-competition' ); ?></option>
+				<?php foreach ( $disciplines as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline, $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select>
 			<label class="screen-reader-text" for="ufsc_club_filter"><?php esc_html_e( 'Filtrer par club', 'ufsc-licence-competition' ); ?></label>
 			<input type="number" name="ufsc_club_id" id="ufsc_club_filter" placeholder="<?php echo esc_attr__( 'Club ID', 'ufsc-licence-competition' ); ?>" value="<?php echo esc_attr( $club_id ); ?>" />
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
@@ -164,6 +198,14 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $entry ): string {
+		$last = isset( $entry->licensee_last_name ) ? (string) $entry->licensee_last_name : '';
+		$first = isset( $entry->licensee_first_name ) ? (string) $entry->licensee_first_name : '';
+		$name = trim( $last . ' ' . $first );
+
+		if ( '' !== $name ) {
+			return $name;
+		}
+
 		$keys = array( 'athlete_name', 'full_name', 'name', 'licensee_name' );
 		foreach ( $keys as $key ) {
 			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
@@ -171,22 +213,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			}
 		}
 
-		$first = '';
-		$last = '';
-		foreach ( array( 'first_name', 'firstname', 'prenom' ) as $key ) {
-			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
-				$first = (string) $entry->{$key};
-				break;
-			}
-		}
-		foreach ( array( 'last_name', 'lastname', 'nom' ) as $key ) {
-			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
-				$last = (string) $entry->{$key};
-				break;
-			}
-		}
-
-		return trim( $first . ' ' . $last );
+		return '';
 	}
 
 	private function format_status( $entry ): string {
@@ -210,7 +237,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 	private function format_datetime( $value ): string {
 		$value = (string) $value;
 		if ( '' === $value ) {
-			return '';
+			return '—';
 		}
 
 		return $value;
@@ -226,70 +253,32 @@ class Entries_Validation_Table extends \WP_List_Table {
 		return '';
 	}
 
-	private function get_entries( array $filters, int $limit, int $offset ): array {
-		global $wpdb;
-
-		$where = array( 'deleted_at IS NULL' );
-		$status_field = $this->repository->get_status_storage_field();
-
-		if ( ! empty( $filters['competition_id'] ) ) {
-			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
+	private function get_category_name( $category_id ): string {
+		foreach ( $this->categories as $category ) {
+			if ( (int) $category->id === (int) $category_id ) {
+				return (string) $category->name;
+			}
 		}
 
-		if ( ! empty( $filters['club_id'] ) ) {
-			$where[] = $wpdb->prepare( 'club_id = %d', absint( $filters['club_id'] ) );
-		}
-
-		if ( ! empty( $filters['status'] ) && 'status' === $status_field ) {
-			$where[] = $wpdb->prepare( 'status = %s', sanitize_key( $filters['status'] ) );
-		}
-
-		if ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$where[] = $wpdb->prepare( 'licensee_id LIKE %s', $like );
-		}
-
-		$where_sql = 'WHERE ' . implode( ' AND ', $where );
-		$table = \UFSC\Competitions\Db::entries_table();
-		$order_by = 'created_at DESC';
-		if ( $this->repository->has_entry_column( 'submitted_at' ) ) {
-			$order_by = 'submitted_at DESC, created_at DESC';
-		}
-		$sql = "SELECT * FROM {$table} {$where_sql} ORDER BY {$order_by}";
-		$sql .= $wpdb->prepare( ' LIMIT %d OFFSET %d', absint( $limit ), absint( $offset ) );
-
-		$items = $wpdb->get_results( $sql );
-
-		return is_array( $items ) ? $items : array();
+		return '';
 	}
 
-	private function count_entries( array $filters ): int {
-		global $wpdb;
-
-		$where = array( 'deleted_at IS NULL' );
-		$status_field = $this->repository->get_status_storage_field();
-
-		if ( ! empty( $filters['competition_id'] ) ) {
-			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
+	private function get_competition_ids_by_discipline( string $discipline ): array {
+		$ids = array();
+		foreach ( $this->competitions as $competition ) {
+			if ( $discipline === (string) ( $competition->discipline ?? '' ) ) {
+				$ids[] = (int) $competition->id;
+			}
 		}
 
-		if ( ! empty( $filters['club_id'] ) ) {
-			$where[] = $wpdb->prepare( 'club_id = %d', absint( $filters['club_id'] ) );
-		}
+		return $ids ? $ids : array( 0 );
+	}
 
-		if ( ! empty( $filters['status'] ) && 'status' === $status_field ) {
-			$where[] = $wpdb->prepare( 'status = %s', sanitize_key( $filters['status'] ) );
-		}
+	private function format_fallback( $value ): string {
+		$value = is_scalar( $value ) ? (string) $value : '';
+		$value = trim( $value );
 
-		if ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$where[] = $wpdb->prepare( 'licensee_id LIKE %s', $like );
-		}
-
-		$where_sql = 'WHERE ' . implode( ' AND ', $where );
-		$table = \UFSC\Competitions\Db::entries_table();
-
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} {$where_sql}" );
+		return '' !== $value ? $value : '—';
 	}
 
 	private function build_admin_action_url( string $action, int $entry_id, string $nonce_action ): string {

@@ -4,6 +4,8 @@ namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -17,6 +19,8 @@ class Competitions_Table extends \WP_List_Table {
 
 	/** @var CompetitionRepository */
 	private $repository;
+	private $entries_repository;
+	private $entry_counts = array();
 
 	/** @var array */
 	private $filters = array();
@@ -31,6 +35,7 @@ class Competitions_Table extends \WP_List_Table {
 		);
 
 		$this->repository = new CompetitionRepository();
+		$this->entries_repository = new EntryRepository();
 	}
 
 	public function get_filters() {
@@ -41,12 +46,66 @@ class Competitions_Table extends \WP_List_Table {
 		return array(
 			'cb'         => '<input type="checkbox" />',
 			'name'       => __( 'Nom', 'ufsc-licence-competition' ),
+			'entries'    => __( 'Inscrits', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
 			'type'       => __( 'Type', 'ufsc-licence-competition' ),
 			'season'     => __( 'Saison', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
 			'event'      => __( 'Début', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Maj', 'ufsc-licence-competition' ),
+		);
+	}
+
+	public function column_entries( $item ) {
+		$competition_id = (int) ( $item->id ?? 0 );
+		if ( ! $competition_id ) {
+			return '—';
+		}
+
+		$counts = $this->entry_counts[ $competition_id ] ?? array();
+		$total = (int) ( $counts['total'] ?? 0 );
+
+		$submitted = (int) ( $counts['submitted'] ?? 0 );
+		$pending = (int) ( $counts['pending'] ?? 0 );
+		$validated = (int) ( $counts['validated'] ?? 0 );
+		$rejected = (int) ( $counts['rejected'] ?? 0 );
+
+		$badges = array();
+		if ( $submitted ) {
+			$badges[] = sprintf(
+				'<span class="ufsc-badge %s">%s</span>',
+				esc_attr( EntriesWorkflow::get_status_badge_class( 'submitted' ) ),
+				esc_html( sprintf( __( 'Soumises: %d', 'ufsc-licence-competition' ), $submitted ) )
+			);
+		}
+		if ( $pending ) {
+			$badges[] = sprintf(
+				'<span class="ufsc-badge %s">%s</span>',
+				esc_attr( EntriesWorkflow::get_status_badge_class( 'pending' ) ),
+				esc_html( sprintf( __( 'En attente: %d', 'ufsc-licence-competition' ), $pending ) )
+			);
+		}
+		if ( $validated ) {
+			$badges[] = sprintf(
+				'<span class="ufsc-badge %s">%s</span>',
+				esc_attr( EntriesWorkflow::get_status_badge_class( 'validated' ) ),
+				esc_html( sprintf( __( 'Validées: %d', 'ufsc-licence-competition' ), $validated ) )
+			);
+		}
+		if ( $rejected ) {
+			$badges[] = sprintf(
+				'<span class="ufsc-badge %s">%s</span>',
+				esc_attr( EntriesWorkflow::get_status_badge_class( 'rejected' ) ),
+				esc_html( sprintf( __( 'Refusées: %d', 'ufsc-licence-competition' ), $rejected ) )
+			);
+		}
+
+		$badges_html = $badges ? '<div class="ufsc-competition-entry-counts">' . implode( ' ', $badges ) . '</div>' : '';
+
+		return sprintf(
+			'<strong>%s</strong>%s',
+			esc_html( sprintf( __( 'Total: %d', 'ufsc-licence-competition' ), $total ) ),
+			$badges_html
 		);
 	}
 
@@ -438,6 +497,14 @@ class Competitions_Table extends \WP_List_Table {
 
 		$total_items = (int) $this->repository->count( $filters );
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+
+		$competition_ids = array();
+		foreach ( $this->items as $item ) {
+			if ( isset( $item->id ) ) {
+				$competition_ids[] = (int) $item->id;
+			}
+		}
+		$this->entry_counts = $competition_ids ? $this->entries_repository->get_competition_counters( $competition_ids ) : array();
 
 		$columns  = $this->get_columns();
 		$hidden   = $this->get_hidden_columns();

@@ -8,8 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.13';
+	const DB_VERSION = '1.14';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
+	const UFSC_COMP_DB_VERSION = '1.14';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -179,6 +180,39 @@ class Db {
 
 		dbDelta( $categories_sql );
 
+		$entries_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $entries_table ) );
+		if ( $entries_exists !== $entries_table ) {
+			$entries_sql = "CREATE TABLE {$entries_table} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				competition_id bigint(20) unsigned NOT NULL,
+				club_id bigint(20) unsigned NULL,
+				licensee_id bigint(20) unsigned NOT NULL,
+				category_id bigint(20) unsigned NULL,
+				weight_kg decimal(6,2) NULL,
+				weight_class varchar(20) NULL,
+				status varchar(50) NOT NULL DEFAULT 'draft',
+				admin_note text NULL,
+				rejected_reason text NULL,
+				created_at datetime NOT NULL,
+				updated_at datetime NOT NULL,
+				assigned_at datetime NULL,
+				submitted_at datetime NULL,
+				validated_at datetime NULL,
+				created_by bigint(20) unsigned NULL,
+				updated_by bigint(20) unsigned NULL,
+				deleted_at datetime NULL,
+				deleted_by bigint(20) unsigned NULL,
+				PRIMARY KEY (id),
+				KEY idx_competition_status (competition_id, status),
+				KEY idx_competition (competition_id),
+				KEY idx_club (club_id),
+				KEY idx_licensee (licensee_id),
+				KEY idx_updated_at (updated_at)
+			) {$charset_collate};";
+
+			dbDelta( $entries_sql );
+		}
+
 		// leave other tables as-is if present; they are created elsewhere if needed
 
 		$timing_profiles_sql = "CREATE TABLE {$timing_profiles_table} (
@@ -242,6 +276,64 @@ class Db {
 					sprintf(
 						'UFSC Competitions DB upgrade failed to add column %s: %s',
 						$column,
+						$wpdb->last_error
+					)
+				);
+			}
+		}
+
+		self::maybe_upgrade_entries_indexes( $table );
+	}
+
+	private static function maybe_upgrade_entries_indexes( string $table ): void {
+		global $wpdb;
+
+		$columns = self::get_table_columns( $table );
+		if ( ! is_array( $columns ) ) {
+			$columns = array();
+		}
+
+		$indexes = array(
+			'idx_competition_status' => array( 'competition_id', 'status' ),
+			'idx_competition'        => array( 'competition_id' ),
+			'idx_club'               => array( 'club_id' ),
+			'idx_updated_at'         => array( 'updated_at' ),
+		);
+
+		$licensee_column = '';
+		if ( in_array( 'licensee_id', $columns, true ) ) {
+			$licensee_column = 'licensee_id';
+		} elseif ( in_array( 'licence_id', $columns, true ) ) {
+			$licensee_column = 'licence_id';
+		}
+		if ( $licensee_column ) {
+			$indexes['idx_licensee'] = array( $licensee_column );
+		}
+
+		foreach ( $indexes as $index_name => $index_columns ) {
+			$index_exists = $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM {$table} WHERE Key_name = %s", $index_name ) );
+			if ( ! empty( $index_exists ) ) {
+				continue;
+			}
+
+			$missing = false;
+			foreach ( $index_columns as $column ) {
+				if ( ! in_array( $column, $columns, true ) ) {
+					$missing = true;
+					break;
+				}
+			}
+			if ( $missing ) {
+				continue;
+			}
+
+			$index_sql = "ALTER TABLE {$table} ADD INDEX {$index_name} (" . implode( ',', $index_columns ) . ')';
+			$result    = $wpdb->query( $index_sql );
+			if ( false === $result ) {
+				error_log(
+					sprintf(
+						'UFSC Competitions DB upgrade failed to add index %s: %s',
+						$index_name,
 						$wpdb->last_error
 					)
 				);
