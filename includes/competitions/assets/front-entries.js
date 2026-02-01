@@ -17,8 +17,11 @@
   const categoryInput = document.getElementById("ufsc-entry-category");
   const statusNode = document.querySelector(".ufsc-entry-category-status");
   const weightStatusNode = document.querySelector(".ufsc-entry-weight-status");
+  const licenseSearchForm = document.querySelector(".ufsc-license-search-form");
+  const licenseSelectForm = document.querySelector(".ufsc-license-select-form");
+  const licenseSearchFeedback = document.querySelector(".ufsc-license-search-feedback");
 
-  if (!birthInput || !weightInput || !categoryInput) {
+  if (!birthInput || !categoryInput) {
     return;
   }
 
@@ -38,6 +41,7 @@
     weightStatusNode.dataset.status = type;
   };
 
+  let licenseResults = [];
   let timeout;
   const debounce = (fn, delay = 400) => {
     clearTimeout(timeout);
@@ -47,19 +51,35 @@
   const getValue = (input) =>
     input && typeof input.value !== "undefined" ? input.value.trim() : "";
 
-  const shouldCompute = () => getValue(birthInput) !== "";
+  const normalizeBirthDate = (value) => {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      const parts = trimmed.split("/");
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return "";
+  };
+
+  const shouldCompute = () => normalizeBirthDate(getValue(birthInput)) !== "";
 
   const applyCategory = (label) => {
     if (!label) {
       return;
     }
     if (categoryInput.tagName === "SELECT") {
-      const option = Array.from(categoryInput.options).find(
+      let option = Array.from(categoryInput.options).find(
         (opt) => opt.value === label
       );
-      if (option) {
-        categoryInput.value = label;
+      if (!option) {
+        option = document.createElement("option");
+        option.value = label;
+        option.textContent = label;
+        categoryInput.appendChild(option);
       }
+      categoryInput.value = label;
     } else {
       categoryInput.value = label;
     }
@@ -83,6 +103,12 @@
           weightClassInput.appendChild(option);
         });
       }
+      if (label && !options.includes(label)) {
+        const option = document.createElement("option");
+        option.value = label;
+        option.textContent = label;
+        weightClassInput.appendChild(option);
+      }
       if (label) {
         weightClassInput.value = label;
       }
@@ -105,7 +131,7 @@
       action: "ufsc_competitions_compute_category",
       nonce: config.nonce || "",
       competition_id: String(config.competitionId || ""),
-      birth_date: getValue(birthInput),
+      birth_date: normalizeBirthDate(getValue(birthInput)),
       weight: getValue(weightInput),
       sex: getValue(sexInput),
       level: getValue(levelInput),
@@ -129,8 +155,8 @@
         return;
       }
 
-      const label = data.data?.label || "";
-      const weightClass = data.data?.weight_class || "";
+      const label = data.data?.category_age || data.data?.label || "";
+      const weightClass = data.data?.suggested_weight_class || data.data?.weight_class || "";
       const weightClasses = data.data?.weight_classes || [];
       applyCategory(label);
       applyWeightClass(weightClass, weightClasses);
@@ -161,5 +187,162 @@
 
   if (getValue(birthInput)) {
     debounce(computeCategory, 50);
+  }
+
+  const applyLicensePayload = (license) => {
+    if (!license) {
+      return;
+    }
+    const fieldMap = {
+      first_name: "ufsc-entry-first_name",
+      last_name: "ufsc-entry-last_name",
+      birthdate: "ufsc-entry-birth_date",
+      sex: "ufsc-entry-sex",
+      license_number: "ufsc-entry-license_number",
+      weight: "ufsc-entry-weight",
+      weight_class: "ufsc-entry-weight_class",
+      level: "ufsc-entry-level",
+    };
+
+    Object.entries(fieldMap).forEach(([key, fieldId]) => {
+      const field = document.getElementById(fieldId);
+      if (!field) {
+        return;
+      }
+      const value = license[key];
+      if (typeof value === "undefined" || value === null || value === "") {
+        return;
+      }
+      field.value = String(value);
+    });
+
+    const hiddenLicenseId = form.querySelector('input[name="ufsc_license_id"]');
+    if (hiddenLicenseId) {
+      hiddenLicenseId.value = String(license.id || "");
+    }
+
+    debounce(computeCategory, 50);
+  };
+
+  const setLicenseFeedback = (message, type = "") => {
+    if (!licenseSearchFeedback) {
+      return;
+    }
+    licenseSearchFeedback.textContent = message || "";
+    licenseSearchFeedback.dataset.status = type;
+  };
+
+  const populateLicenseSelect = (results, selectedId = "") => {
+    if (!licenseSelectForm) {
+      return;
+    }
+    const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+    if (!select) {
+      return;
+    }
+    select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Sélectionner un licencié";
+    select.appendChild(placeholder);
+    results.forEach((result) => {
+      const option = document.createElement("option");
+      option.value = String(result.id || "");
+      option.textContent = result.label || "";
+      select.appendChild(option);
+    });
+    if (selectedId) {
+      select.value = String(selectedId);
+    }
+    licenseSelectForm.style.display = "";
+    licenseResults = results;
+  };
+
+  if (licenseSearchForm) {
+    licenseSearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const term = getValue(licenseSearchForm.querySelector("input[name='ufsc_license_term']"));
+      const licenseNumber = getValue(
+        licenseSearchForm.querySelector("input[name='ufsc_license_number']")
+      );
+      const birthDate = getValue(
+        licenseSearchForm.querySelector("input[name='ufsc_license_birthdate']")
+      );
+
+      if (!term && !licenseNumber && !birthDate) {
+        setLicenseFeedback(config.labels?.searchEmpty || "", "error");
+        return;
+      }
+
+      setLicenseFeedback(config.labels?.searching || "", "loading");
+
+      const payload = new URLSearchParams({
+        action: "ufsc_competitions_license_search",
+        nonce: config.licenseSearchNonce || "",
+        term,
+        license_number: licenseNumber,
+        birth_date: birthDate,
+      });
+
+      try {
+        const response = await fetch(config.ajaxUrl, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+          },
+          body: payload.toString(),
+        });
+        const data = await response.json();
+        if (!data || !data.success) {
+          setLicenseFeedback(config.labels?.searchError || "", "error");
+          return;
+        }
+
+        const results = data.data?.results || [];
+        if (!results.length) {
+          setLicenseFeedback(
+            data.data?.message || config.labels?.searchNoResult || "",
+            "warning"
+          );
+          if (licenseSelectForm) {
+            licenseSelectForm.style.display = "none";
+          }
+          return;
+        }
+
+        licenseResults = results;
+        if (results.length === 1) {
+          applyLicensePayload(results[0]);
+          setLicenseFeedback(config.labels?.searchOne || "", "success");
+          if (licenseSelectForm) {
+            licenseSelectForm.style.display = "none";
+          }
+          return;
+        }
+
+        populateLicenseSelect(results);
+        setLicenseFeedback(config.labels?.searchMultiple || "", "info");
+      } catch (error) {
+        setLicenseFeedback(config.labels?.searchError || "", "error");
+      }
+    });
+  }
+
+  if (licenseSelectForm) {
+    const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+    licenseSelectForm.addEventListener("submit", (event) => {
+      if (!select || !select.value || !licenseResults.length) {
+        return;
+      }
+      event.preventDefault();
+      const selected = licenseResults.find(
+        (item) => String(item.id) === String(select.value)
+      );
+      if (selected) {
+        applyLicensePayload(selected);
+      }
+      setLicenseFeedback(config.labels?.searchOne || "", "success");
+    });
   }
 })();

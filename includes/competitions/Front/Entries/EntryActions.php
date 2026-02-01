@@ -239,7 +239,7 @@ class EntryActions {
 			}
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
 			do_action( 'ufsc_competitions_entry_status_changed', $entry_id, '', $new_status ?: 'draft', $competition, $club_id );
-			self::redirect_with_notice( $competition_id, 'entry_created' );
+			self::redirect_with_notice( $competition_id, 'created' );
 		}
 
 		$result = $repo->update( $entry_id, $data );

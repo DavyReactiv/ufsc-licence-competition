@@ -95,6 +95,9 @@ class CompetitionsListShortcode {
 
 	private function render_filters_form( array $filters ): string {
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		if ( '' === $request_uri ) {
+			$request_uri = home_url( '/' );
+		}
 		$action = esc_url( remove_query_arg( array( 'ufsc_page' ), $request_uri ) );
 
 		return sprintf(
@@ -210,11 +213,16 @@ class CompetitionsListShortcode {
 			return '';
 		}
 
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		if ( '' === $request_uri ) {
+			$request_uri = home_url( '/' );
+		}
+
 		$total_pages = (int) ceil( $total / $per_page );
 		$links = array();
 
 		for ( $page = 1; $page <= $total_pages; $page++ ) {
-			$url = add_query_arg( 'ufsc_page', $page );
+			$url = add_query_arg( 'ufsc_page', $page, $request_uri );
 			$links[] = sprintf(
 				'<a class="ufsc-competitions-page%s" href="%s">%s</a>',
 				$page === $current_page ? ' is-current' : '',
