@@ -590,7 +590,9 @@ class EntryActions {
 	}
 
 	private static function debug_log( string $message, array $context = array() ): void {
-		if ( ! defined( 'UFSC_LC_DEBUG' ) || ! UFSC_LC_DEBUG ) {
+		$enabled = ( defined( 'UFSC_LC_DEBUG' ) && UFSC_LC_DEBUG )
+			|| ( defined( 'WP_DEBUG' ) && WP_DEBUG );
+		if ( ! $enabled ) {
 			return;
 		}
 
