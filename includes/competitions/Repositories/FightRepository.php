@@ -9,6 +9,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( class_exists( __NAMESPACE__ . '\\FightRepository', false ) ) {
+	return;
+}
+
 class FightRepository {
 	private const DRAFT_PREFIX = 'ufsc_competitions_fight_draft_';
 
