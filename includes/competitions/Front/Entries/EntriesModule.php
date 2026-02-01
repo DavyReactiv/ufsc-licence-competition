@@ -48,6 +48,7 @@ class EntriesModule {
 		add_action( 'admin_post_nopriv_ufsc_entry_cancel', array( EntryActions::class, 'handle_not_logged_in' ) );
 
 		add_action( 'wp_ajax_ufsc_competitions_compute_category', array( __CLASS__, 'handle_compute_category' ) );
+		add_action( 'wp_ajax_ufsc_competitions_license_search', array( __CLASS__, 'handle_license_search' ) );
 	}
 
 	public static function render( $competition ): void {
@@ -151,6 +152,7 @@ class EntriesModule {
 			array(
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce' => wp_create_nonce( 'ufsc_competitions_compute_category' ),
+				'licenseSearchNonce' => wp_create_nonce( 'ufsc_competitions_license_search' ),
 				'competitionId' => (int) $competition_id,
 				'discipline' => sanitize_text_field( (string) ( $competition->discipline ?? '' ) ),
 				'labels' => array(
@@ -158,6 +160,12 @@ class EntriesModule {
 					'missing' => __( 'Veuillez renseigner la date de naissance.', 'ufsc-licence-competition' ),
 					'error' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ),
 					'weightMissing' => __( 'Poids manquant.', 'ufsc-licence-competition' ),
+					'searching' => __( 'Recherche en cours…', 'ufsc-licence-competition' ),
+					'searchEmpty' => __( 'Veuillez renseigner un nom ou un numéro de licence.', 'ufsc-licence-competition' ),
+					'searchNoResult' => __( 'Aucun licencié trouvé.', 'ufsc-licence-competition' ),
+					'searchMultiple' => __( 'Plusieurs licenciés trouvés. Sélectionnez la bonne personne.', 'ufsc-licence-competition' ),
+					'searchError' => __( 'Recherche indisponible.', 'ufsc-licence-competition' ),
+					'searchOne' => __( 'Licencié trouvé et pré-rempli.', 'ufsc-licence-competition' ),
 				),
 			)
 		);
@@ -443,13 +451,55 @@ class EntriesModule {
 
 		wp_send_json_success(
 			array(
+				'category_age' => $category,
 				'age_cat' => $category,
 				'weight_cat' => $category,
 				'label' => $category,
+				'suggested_weight_class' => $weight_result['label'] ?? '',
 				'weight_class' => $weight_result['label'] ?? '',
 				'weight_classes' => $weight_classes,
 				'weight_message' => $weight_result['message'] ?? '',
 				'weight_status' => $weight_result['status'] ?? '',
+			)
+		);
+	}
+
+	public static function handle_license_search(): void {
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		check_ajax_referer( 'ufsc_competitions_license_search', 'nonce' );
+
+		$term = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
+		$license_number = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
+		$birth_date = isset( $_POST['birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['birth_date'] ) ) : '';
+		$birth_date = self::normalize_birthdate_input( $birth_date );
+
+		if ( '' === $term && '' === $license_number && '' === $birth_date ) {
+			wp_send_json_success(
+				array(
+					'found' => false,
+					'results' => array(),
+					'message' => __( 'Veuillez renseigner un nom ou un numéro de licence.', 'ufsc-licence-competition' ),
+				)
+			);
+		}
+
+		$club_access = new ClubAccess();
+		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		if ( ! $club_id ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		$repo = new EntryFrontRepository();
+		$results = self::get_license_search_results( $term, $license_number, $birth_date, $club_id, $repo );
+
+		wp_send_json_success(
+			array(
+				'found' => ! empty( $results ),
+				'results' => $results,
+				'message' => empty( $results ) ? __( 'Aucun licencié trouvé.', 'ufsc-licence-competition' ) : '',
 			)
 		);
 	}

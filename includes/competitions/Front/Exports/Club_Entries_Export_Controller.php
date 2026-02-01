@@ -21,7 +21,6 @@ class Club_Entries_Export_Controller {
 		$registered = true;
 
 		add_action( 'admin_post_ufsc_competitions_export_club_csv', array( $this, 'handle_export' ) );
-		add_action( 'admin_post_nopriv_ufsc_competitions_export_club_csv', array( $this, 'handle_export' ) );
 	}
 
 	public function handle_export(): void {

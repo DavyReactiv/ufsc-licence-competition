@@ -737,6 +737,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 	private function render_pagination( $filters, $total_pages ) {
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+		if ( '' === $request_uri ) {
+			$request_uri = home_url( '/' );
+		}
 		$base = remove_query_arg( 'ufsc_page', $request_uri );
 		$base = add_query_arg( $this->get_pagination_query_args( $filters ), $base );
 

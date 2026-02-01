@@ -677,7 +677,7 @@ class UFSC_LC_Settings_Page {
 				submit_button( __( 'Enregistrer', 'ufsc-licence-competition' ) );
 				?>
 				<?php
-				$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+				$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
 				if ( '' === $request_uri || false === strpos( $request_uri, 'tab=' ) ) {
 					$referer_url = add_query_arg(
 						array(

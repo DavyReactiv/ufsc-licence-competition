@@ -281,8 +281,13 @@ class EntryFormRenderer {
 							<p class="description"><?php echo esc_html( $license_notice ); ?></p>
 						<?php endif; ?>
 
-						<?php if ( ! empty( $license_results ) ) : ?>
-							<form method="get" action="<?php echo esc_url( Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) ) ); ?>#ufsc-inscriptions" class="ufsc-license-select-form">
+						<p class="ufsc-license-search-feedback" aria-live="polite"></p>
+
+						<?php
+						$has_license_results = ! empty( $license_results );
+						$select_form_style = $has_license_results ? '' : 'style="display:none;"';
+						?>
+						<form method="get" action="<?php echo esc_url( Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) ) ); ?>#ufsc-inscriptions" class="ufsc-license-select-form" <?php echo $select_form_style; ?>>
 								<input type="hidden" name="ufsc_license_term" value="<?php echo esc_attr( $license_term ); ?>" />
 								<input type="hidden" name="ufsc_license_number" value="<?php echo esc_attr( $license_number ); ?>" />
 								<input type="hidden" name="ufsc_license_birthdate" value="<?php echo esc_attr( $license_birthdate ); ?>" />
@@ -292,16 +297,17 @@ class EntryFormRenderer {
 
 								<select name="ufsc_license_id">
 									<option value=""><?php echo esc_html__( 'Sélectionner un licencié', 'ufsc-licence-competition' ); ?></option>
-									<?php foreach ( $license_results as $license_row ) : ?>
-										<option value="<?php echo esc_attr( (int) ( $license_row['id'] ?? 0 ) ); ?>" <?php selected( (int) $license_id, (int) ( $license_row['id'] ?? 0 ) ); ?>>
-											<?php echo esc_html( (string) ( $license_row['label'] ?? '' ) ); ?>
-										</option>
-									<?php endforeach; ?>
+									<?php if ( $has_license_results ) : ?>
+										<?php foreach ( $license_results as $license_row ) : ?>
+											<option value="<?php echo esc_attr( (int) ( $license_row['id'] ?? 0 ) ); ?>" <?php selected( (int) $license_id, (int) ( $license_row['id'] ?? 0 ) ); ?>>
+												<?php echo esc_html( (string) ( $license_row['label'] ?? '' ) ); ?>
+											</option>
+										<?php endforeach; ?>
+									<?php endif; ?>
 								</select>
 
 								<button type="submit" class="button"><?php echo esc_html__( 'Pré-remplir', 'ufsc-licence-competition' ); ?></button>
 							</form>
-						<?php endif; ?>
 					</div>
 				<?php endif; ?>
 
@@ -322,9 +328,7 @@ class EntryFormRenderer {
 					<?php if ( $editing_entry ) : ?>
 						<input type="hidden" name="entry_id" value="<?php echo esc_attr( (int) ( $editing_entry->id ?? 0 ) ); ?>" />
 					<?php endif; ?>
-					<?php if ( $license_id ) : ?>
-						<input type="hidden" name="ufsc_license_id" value="<?php echo esc_attr( $license_id ); ?>" />
-					<?php endif; ?>
+					<input type="hidden" name="ufsc_license_id" value="<?php echo esc_attr( $license_id ); ?>" />
 					<?php if ( $license_term ) : ?>
 						<input type="hidden" name="ufsc_license_term" value="<?php echo esc_attr( $license_term ); ?>" />
 					<?php endif; ?>
