@@ -101,7 +101,7 @@ class Entries_Validation_Page {
 
 	private function render_notice( string $notice ): string {
 		$messages = array(
-			'entry_validated' => array( 'success', __( 'Inscription validée.', 'ufsc-licence-competition' ) ),
+			'entry_validated' => array( 'success', __( 'Inscription approuvée.', 'ufsc-licence-competition' ) ),
 			'entry_rejected' => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
 			'entry_reopened' => array( 'success', __( 'Inscription ré-ouverte.', 'ufsc-licence-competition' ) ),
 			'error_forbidden' => array( 'error', __( 'Action non autorisée.', 'ufsc-licence-competition' ) ),

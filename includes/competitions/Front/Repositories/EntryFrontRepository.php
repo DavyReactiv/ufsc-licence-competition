@@ -274,10 +274,10 @@ class EntryFrontRepository {
 	}
 
 	public function get_allowed_statuses(): array {
-		$statuses = array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+		$statuses = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		$statuses = apply_filters( 'ufsc_entries_allowed_statuses', $statuses );
 		if ( ! is_array( $statuses ) ) {
-			return array( 'draft', 'submitted', 'pending', 'validated', 'rejected', 'cancelled', 'withdrawn' );
+			return array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		}
 
 		return array_values( array_unique( array_map( 'sanitize_key', $statuses ) ) );
@@ -388,7 +388,7 @@ class EntryFrontRepository {
 			);
 		}
 
-		return $this->update_status( $entry, 'validated', $data, $admin_user_id );
+		return $this->update_status( $entry, 'approved', $data, $admin_user_id );
 	}
 
 	public function reject( int $entry_id, int $admin_user_id, string $reason ): array {

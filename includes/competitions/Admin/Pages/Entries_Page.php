@@ -133,7 +133,7 @@ class Entries_Page {
 		$data['weight_kg'] = $weight_kg;
 		$data['weight_class'] = '' !== $weight_class ? $weight_class : null;
 
-		if ( in_array( $data['status'], array( 'submitted', 'validated' ), true )
+		if ( in_array( $data['status'], array( 'submitted', 'approved' ), true )
 			&& WeightCategoryResolver::requires_weight( $weight_context )
 			&& null === $weight_kg
 		) {
@@ -577,9 +577,9 @@ class Entries_Page {
 					<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
 					<option value="submitted" <?php selected( $values['status'], 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
 					<option value="pending" <?php selected( $values['status'], 'pending' ); ?>><?php esc_html_e( 'En attente', 'ufsc-licence-competition' ); ?></option>
-					<option value="validated" <?php selected( $values['status'], 'validated' ); ?>><?php esc_html_e( 'Validée', 'ufsc-licence-competition' ); ?></option>
+						<option value="approved" <?php selected( $values['status'], 'approved' ); ?>><?php esc_html_e( 'Approuvée', 'ufsc-licence-competition' ); ?></option>
 					<option value="rejected" <?php selected( $values['status'], 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
-					<option value="withdrawn" <?php selected( $values['status'], 'withdrawn' ); ?>><?php esc_html_e( 'Retirée', 'ufsc-licence-competition' ); ?></option>
+					<option value="cancelled" <?php selected( $values['status'], 'cancelled' ); ?>><?php esc_html_e( 'Annulée', 'ufsc-licence-competition' ); ?></option>
 							</select>
 						</td>
 					</tr>

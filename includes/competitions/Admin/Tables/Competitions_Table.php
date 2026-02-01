@@ -67,7 +67,7 @@ class Competitions_Table extends \WP_List_Table {
 
 		$submitted = (int) ( $counts['submitted'] ?? 0 );
 		$pending = (int) ( $counts['pending'] ?? 0 );
-		$validated = (int) ( $counts['validated'] ?? 0 );
+		$approved = (int) ( $counts['approved'] ?? 0 );
 		$rejected = (int) ( $counts['rejected'] ?? 0 );
 
 		$badges = array();
@@ -85,11 +85,11 @@ class Competitions_Table extends \WP_List_Table {
 				esc_html( sprintf( __( 'En attente: %d', 'ufsc-licence-competition' ), $pending ) )
 			);
 		}
-		if ( $validated ) {
+		if ( $approved ) {
 			$badges[] = sprintf(
 				'<span class="ufsc-badge %s">%s</span>',
-				esc_attr( EntriesWorkflow::get_status_badge_class( 'validated' ) ),
-				esc_html( sprintf( __( 'Validées: %d', 'ufsc-licence-competition' ), $validated ) )
+				esc_attr( EntriesWorkflow::get_status_badge_class( 'approved' ) ),
+				esc_html( sprintf( __( 'Approuvées: %d', 'ufsc-licence-competition' ), $approved ) )
 			);
 		}
 		if ( $rejected ) {
@@ -327,6 +327,22 @@ class Competitions_Table extends \WP_List_Table {
 				esc_url( $pdf_fiche_complete_url ),
 				esc_html__( 'Télécharger PDF fiche complète', 'ufsc-licence-competition' )
 			);
+
+			$entries_pdf_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action'         => 'ufsc_competitions_export_entries_pdf',
+						'competition_id' => $id,
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_export_entries_pdf'
+			);
+			$actions['export_entries_pdf'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $entries_pdf_url ),
+				esc_html__( 'Exporter la liste des inscriptions (PDF)', 'ufsc-licence-competition' )
+			);
 		}
 
 		$title = sprintf(
@@ -350,10 +366,10 @@ class Competitions_Table extends \WP_List_Table {
 				return esc_html( (string) ( $item->status ?? '' ) );
 			case 'event':
 				$dt = (string) ( $item->event_start_datetime ?? '' );
-				return $dt ? esc_html( $dt ) : '—';
+				return esc_html( function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $dt ) : ( $dt ?: '—' ) );
 			case 'updated':
 				$u = (string) ( $item->updated_at ?? '' );
-				return $u ? esc_html( $u ) : '—';
+				return esc_html( function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $u ) : ( $u ?: '—' ) );
 		}
 
 		return '';

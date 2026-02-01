@@ -73,7 +73,7 @@ class CompetitionLogs_Page {
 					<?php else : ?>
 						<?php foreach ( $logs as $row ) : ?>
 							<tr>
-								<td><?php echo esc_html( $row['timestamp'] ?? '' ); ?></td>
+								<td><?php echo esc_html( function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $row['timestamp'] ?? '' ) : ( $row['timestamp'] ?? '' ) ); ?></td>
 								<td><?php echo esc_html( $row['action'] ?? '' ); ?></td>
 								<td><?php echo esc_html( (string) ( $row['competition_id'] ?? '' ) ); ?></td>
 								<td><?php echo esc_html( (string) ( $row['club_id'] ?? '' ) ); ?></td>
@@ -186,7 +186,7 @@ class CompetitionLogs_Page {
 			'entry_validate' => __( 'Validate', 'ufsc-licence-competition' ),
 			'entry_reject' => __( 'Reject', 'ufsc-licence-competition' ),
 			'entry_reopen' => __( 'Reopen', 'ufsc-licence-competition' ),
-			'export_validated_csv' => __( 'Export CSV (validated)', 'ufsc-licence-competition' ),
+			'export_approved_csv' => __( 'Export CSV (approuvé)', 'ufsc-licence-competition' ),
 		);
 
 		?>

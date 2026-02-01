@@ -7,7 +7,6 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\TimingProfileRepository;
-use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -41,6 +40,8 @@ class FightAutoGenerationService {
 		$settings['mode'] = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock'] = ! empty( $settings['auto_lock'] ) ? 1 : 0;
 
+		$settings['surface_details'] = self::normalize_surface_details( $settings );
+
 		return $settings;
 	}
 
@@ -60,9 +61,9 @@ class FightAutoGenerationService {
 		if ( isset( $data['surface_count'] ) ) {
 			$settings['surface_count'] = max( 1, absint( $data['surface_count'] ) );
 		}
-		if ( isset( $data['surface_labels'] ) ) {
-			$settings['surface_labels'] = sanitize_text_field( (string) $data['surface_labels'] );
-		}
+		$settings['surface_details'] = isset( $data['surface_details'] ) && is_array( $data['surface_details'] )
+			? $data['surface_details']
+			: array();
 		if ( isset( $data['fight_duration'] ) ) {
 			$settings['fight_duration'] = max( 1, absint( $data['fight_duration'] ) );
 		}
@@ -77,6 +78,11 @@ class FightAutoGenerationService {
 		}
 		if ( isset( $data['auto_lock'] ) ) {
 			$settings['auto_lock'] = ! empty( $data['auto_lock'] ) ? 1 : 0;
+		}
+
+		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
+		if ( empty( $settings['surface_details'] ) ) {
+			return false;
 		}
 
 		return (bool) update_option( self::SETTINGS_PREFIX . $competition_id, $settings, false );
@@ -155,21 +161,51 @@ class FightAutoGenerationService {
 			}
 
 			$entry_repo = new EntryRepository();
-			$entry_front = new EntryFrontRepository();
 			$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 
 			$valid_entries = array();
+			$ineligible_reasons = array();
 			foreach ( $entries as $entry ) {
-				if ( 'validated' !== $entry_front->get_entry_status( $entry ) ) {
+				$entry_id = (int) ( $entry->id ?? 0 );
+				$eligibility = function_exists( 'ufsc_is_entry_eligible' )
+					? ufsc_is_entry_eligible( $entry_id, 'fights' )
+					: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
+
+				if ( empty( $eligibility['eligible'] ) ) {
+					foreach ( $eligibility['reasons'] as $reason ) {
+						$ineligible_reasons[ $reason ] = true;
+					}
 					continue;
 				}
+
 				$valid_entries[] = $entry;
 			}
 
 			if ( ! $valid_entries ) {
+				$reason_messages = array(
+					'status_not_approved' => __( 'Validation admin requise.', 'ufsc-licence-competition' ),
+					'weight_missing' => __( 'Poids manquant.', 'ufsc-licence-competition' ),
+					'weight_class_missing' => __( 'Catégorie de poids manquante.', 'ufsc-licence-competition' ),
+					'license_missing' => __( 'Licence manquante.', 'ufsc-licence-competition' ),
+					'club_missing' => __( 'Club manquant.', 'ufsc-licence-competition' ),
+					'entry_deleted' => __( 'Inscription supprimée.', 'ufsc-licence-competition' ),
+				);
+
+				$reasons = array();
+				foreach ( array_keys( $ineligible_reasons ) as $reason ) {
+					if ( isset( $reason_messages[ $reason ] ) ) {
+						$reasons[] = $reason_messages[ $reason ];
+					}
+				}
+
+				$message = __( 'Aucun combattant éligible pour générer des combats.', 'ufsc-licence-competition' );
+				if ( $reasons ) {
+					$message .= ' ' . implode( ' ', $reasons );
+				}
+
 				return array(
 					'ok' => false,
-					'message' => __( 'Aucune inscription validée pour générer des combats.', 'ufsc-licence-competition' ),
+					'message' => $message,
 				);
 			}
 
@@ -432,6 +468,7 @@ class FightAutoGenerationService {
 			'plateau_name' => '',
 			'surface_count' => 1,
 			'surface_labels' => '',
+			'surface_details' => array(),
 			'fight_duration' => 2,
 			'break_duration' => 1,
 			'timing_mode' => 'global',
@@ -593,18 +630,8 @@ class FightAutoGenerationService {
 	}
 
 	public static function assign_surfaces_and_schedule( array $fights, array $settings, int $competition_id ): array {
-		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
-		$labels_raw = sanitize_text_field( (string) ( $settings['surface_labels'] ?? '' ) );
-		$labels = array_filter( array_map( 'trim', explode( ',', $labels_raw ) ) );
-
-		$surface_labels = array();
-		for ( $i = 0; $i < $surface_count; $i++ ) {
-			if ( ! empty( $labels[ $i ] ) ) {
-				$surface_labels[ $i ] = $labels[ $i ];
-			} else {
-				$surface_labels[ $i ] = sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 );
-			}
-		}
+		$surface_labels = self::get_surface_labels( $settings );
+		$surface_count = max( 1, count( $surface_labels ) );
 
 		$duration = max( 1, absint( $settings['fight_duration'] ?? 2 ) );
 		$break = max( 0, absint( $settings['break_duration'] ?? 1 ) );
@@ -657,6 +684,95 @@ class FightAutoGenerationService {
 		}
 
 		return $fights;
+	}
+
+	private static function normalize_surface_details( array $settings ): array {
+		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
+		$details = array();
+		$raw = isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] )
+			? $settings['surface_details']
+			: array();
+
+		foreach ( $raw as $detail ) {
+			if ( ! is_array( $detail ) ) {
+				continue;
+			}
+			$name = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
+			$type = sanitize_key( (string) ( $detail['type'] ?? 'tatami' ) );
+			$type = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+			$details[] = array(
+				'name' => $name,
+				'type' => $type,
+			);
+		}
+
+		if ( empty( $details ) && ! empty( $settings['surface_labels'] ) ) {
+			$labels_raw = sanitize_text_field( (string) $settings['surface_labels'] );
+			$labels = array_filter( array_map( 'trim', explode( ',', $labels_raw ) ) );
+			foreach ( $labels as $label ) {
+				$details[] = array(
+					'name' => sanitize_text_field( $label ),
+					'type' => 'tatami',
+				);
+			}
+		}
+
+		$details = self::fill_surface_defaults( $details, $surface_count );
+
+		return $details;
+	}
+
+	private static function sanitize_surface_details( array $details, int $surface_count ): array {
+		$surface_count = max( 1, $surface_count );
+		$clean = array();
+		for ( $i = 0; $i < $surface_count; $i++ ) {
+			$detail = $details[ $i ] ?? array();
+			$name = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
+			$type = sanitize_key( (string) ( $detail['type'] ?? 'tatami' ) );
+			$type = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : '';
+
+			if ( '' === $name || '' === $type ) {
+				return array();
+			}
+
+			$clean[] = array(
+				'name' => $name,
+				'type' => $type,
+			);
+		}
+
+		return $clean;
+	}
+
+	private static function fill_surface_defaults( array $details, int $surface_count ): array {
+		$surface_count = max( 1, $surface_count );
+		for ( $i = 0; $i < $surface_count; $i++ ) {
+			if ( ! isset( $details[ $i ] ) || ! is_array( $details[ $i ] ) ) {
+				$details[ $i ] = array(
+					'name' => sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ),
+					'type' => 'tatami',
+				);
+				continue;
+			}
+			if ( '' === (string) ( $details[ $i ]['name'] ?? '' ) ) {
+				$details[ $i ]['name'] = sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 );
+			}
+			$type = sanitize_key( (string) ( $details[ $i ]['type'] ?? 'tatami' ) );
+			$details[ $i ]['type'] = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+		}
+
+		return $details;
+	}
+
+	private static function get_surface_labels( array $settings ): array {
+		$details = self::normalize_surface_details( $settings );
+		$labels = array();
+		foreach ( $details as $index => $detail ) {
+			$name = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
+			$labels[ $index ] = '' !== $name ? $name : sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $index + 1 );
+		}
+
+		return $labels;
 	}
 
 	private static function resolve_fight_timing( array $fight, array $settings, array $profiles, array $categories ): array {

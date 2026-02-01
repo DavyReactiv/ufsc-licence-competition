@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Admin\Exports\Entries_Export_Controller;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\ClubRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
@@ -146,6 +147,61 @@ class Competitions_Page {
 				$list_table->display();
 				?>
 			</form>
+
+			<?php if ( $is_edit && class_exists( Entries_Export_Controller::class ) ) : ?>
+				<?php
+				$export_controller = new Entries_Export_Controller();
+				$history = $export_controller->get_exports_history( (int) $item->id );
+				?>
+				<h2><?php esc_html_e( 'Historique des exports PDF (inscriptions)', 'ufsc-licence-competition' ); ?></h2>
+				<?php if ( empty( $history ) ) : ?>
+					<p><?php esc_html_e( 'Aucun export enregistré.', 'ufsc-licence-competition' ); ?></p>
+				<?php else : ?>
+					<ul>
+						<?php foreach ( array_reverse( $history ) as $export ) : ?>
+							<?php
+							$export_id = (string) ( $export['id'] ?? '' );
+							$filename = (string) ( $export['filename'] ?? '' );
+							$generated_at = (string) ( $export['generated_at'] ?? '' );
+							$download_url = wp_nonce_url(
+								add_query_arg(
+									array(
+										'action' => 'ufsc_competitions_download_entries_export',
+										'competition_id' => (int) $item->id,
+										'export_id' => $export_id,
+										'mode' => 'download',
+									),
+									admin_url( 'admin-post.php' )
+								),
+								'ufsc_competitions_download_entries_export_' . $export_id
+							);
+							$view_url = wp_nonce_url(
+								add_query_arg(
+									array(
+										'action' => 'ufsc_competitions_download_entries_export',
+										'competition_id' => (int) $item->id,
+										'export_id' => $export_id,
+										'mode' => 'inline',
+									),
+									admin_url( 'admin-post.php' )
+								),
+								'ufsc_competitions_download_entries_export_' . $export_id
+							);
+							$display_date = function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $generated_at ) : $generated_at;
+							?>
+							<li>
+								<strong><?php echo esc_html( $filename ?: $export_id ); ?></strong>
+								<?php if ( $display_date ) : ?>
+									— <?php echo esc_html( $display_date ); ?>
+								<?php endif; ?>
+								<a href="<?php echo esc_url( $view_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Consulter', 'ufsc-licence-competition' ); ?></a>
+								|
+								<a href="<?php echo esc_url( $download_url ); ?>"><?php esc_html_e( 'Télécharger', 'ufsc-licence-competition' ); ?></a>
+							</li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

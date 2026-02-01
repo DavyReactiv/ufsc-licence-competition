@@ -85,7 +85,7 @@ class Guide_Page {
 				), $this->get_step_status( $competition, $stats['entries'] ?? 0, $competition ? 'open' : '' ), $competition ? $this->get_entries_notice( $competition, $stats ) : __( 'Sélectionnez une compétition pour gérer les inscriptions.', 'ufsc-licence-competition' ) ); ?>
 
 				<?php echo $this->render_step( 4, __( 'Générer combats (poules/bracket)', 'ufsc-licence-competition' ), array(
-					__( 'Créer les combats à partir des inscriptions validées.', 'ufsc-licence-competition' ),
+					__( 'Créer les combats à partir des inscriptions approuvées.', 'ufsc-licence-competition' ),
 					__( 'Contrôler les affectations et rounds.', 'ufsc-licence-competition' ),
 				), array(
 					'label' => __( 'Aller à Combats', 'ufsc-licence-competition' ),

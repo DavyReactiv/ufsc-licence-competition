@@ -40,6 +40,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Db.php',
 		$base . '/Capabilities.php',
 		$base . '/Entries/EntriesWorkflow.php',
+		$base . '/Entries/EntryEligibility.php',
 		$base . '/Services/CompetitionMeta.php',
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',
@@ -51,6 +52,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/FightAutoGenerationService.php',
 		$base . '/Services/PrintRenderer.php',
 		$base . '/Services/Plateau_Pdf_Renderer.php',
+		$base . '/Services/Entries_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
 		$base . '/Services/AuditLogger.php',
 		// Repository helpers must be available to all repos

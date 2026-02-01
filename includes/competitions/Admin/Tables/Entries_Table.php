@@ -81,6 +81,7 @@ class Entries_Table extends \WP_List_Table {
 			'licensee'   => __( 'Licencié', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
 			'birthdate'  => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'birth_year' => __( 'Année de naissance', 'ufsc-licence-competition' ),
 			'club'       => __( 'Club', 'ufsc-licence-competition' ),
 			'competition'=> __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
@@ -183,6 +184,8 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
 			case 'birthdate':
 				return esc_html( $this->format_fallback( $item->licensee_birthdate ?? '' ) );
+			case 'birth_year':
+				return esc_html( $this->format_fallback( $this->format_birth_year( $item->licensee_birthdate ?? '' ) ) );
 			case 'club':
 				return esc_html( $this->format_fallback( $item->club_name ?? '' ) );
 			case 'competition':
@@ -196,7 +199,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'weight_class':
 				return esc_html( $this->format_fallback( (string) ( $item->weight_class ?? '' ) ) );
 			case 'status':
-				return esc_html( $this->format_status( $item->status ) );
+				return esc_html( $this->format_status( $item ) );
 			case 'updated':
 				return esc_html( $this->format_datetime( $item->updated_at ) );
 			default:
@@ -232,9 +235,9 @@ class Entries_Table extends \WP_List_Table {
 				<option value="draft" <?php selected( $status, 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
 				<option value="submitted" <?php selected( $status, 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
 				<option value="pending" <?php selected( $status, 'pending' ); ?>><?php esc_html_e( 'En attente', 'ufsc-licence-competition' ); ?></option>
-				<option value="validated" <?php selected( $status, 'validated' ); ?>><?php esc_html_e( 'Validée', 'ufsc-licence-competition' ); ?></option>
+				<option value="approved" <?php selected( $status, 'approved' ); ?>><?php esc_html_e( 'Approuvée', 'ufsc-licence-competition' ); ?></option>
 				<option value="rejected" <?php selected( $status, 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
-				<option value="withdrawn" <?php selected( $status, 'withdrawn' ); ?>><?php esc_html_e( 'Retirée', 'ufsc-licence-competition' ); ?></option>
+				<option value="cancelled" <?php selected( $status, 'cancelled' ); ?>><?php esc_html_e( 'Annulée', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<label class="screen-reader-text" for="ufsc_discipline_filter"><?php esc_html_e( 'Filtrer par discipline', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_discipline" id="ufsc_discipline_filter">
@@ -332,20 +335,34 @@ class Entries_Table extends \WP_List_Table {
 		return '' !== $value ? $value : '—';
 	}
 
-	private function format_status( $status ) {
-		return EntriesWorkflow::get_status_label( (string) $status );
+	private function format_status( $entry ) {
+		$status = '';
+		if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
+			$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_entries' );
+			$status = (string) ( $eligibility['status'] ?? '' );
+		}
+		if ( '' === $status ) {
+			$status = $this->repository->get_entry_status( $entry );
+		}
+
+		return EntriesWorkflow::get_status_label( $status );
 	}
 
 	private function format_datetime( $date ) {
-		if ( empty( $date ) ) {
-			return '—';
+		return function_exists( 'ufsc_lc_format_datetime' )
+			? ufsc_lc_format_datetime( $date )
+			: ( $date ? (string) $date : '—' );
+	}
+
+	private function format_birth_year( $birthdate ): string {
+		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
+		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
 		}
 
-		$timestamp = strtotime( $date );
-		if ( ! $timestamp ) {
-			return '—';
-		}
-
-		return date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $timestamp );
+		return '';
 	}
 }

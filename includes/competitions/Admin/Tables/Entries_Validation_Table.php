@@ -81,6 +81,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			'licensee' => __( 'Licencié', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
 			'birthdate' => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'birth_year' => __( 'Année de naissance', 'ufsc-licence-competition' ),
 			'category' => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
 			'club' => __( 'Club', 'ufsc-licence-competition' ),
@@ -106,7 +107,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	protected function column_actions( $item ) {
 		$actions = array();
-		$status = $this->repository->get_entry_status( $item );
+		$status = function_exists( 'ufsc_is_entry_eligible' )
+			? (string) ( ufsc_is_entry_eligible( (int) ( $item->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
+			: $this->repository->get_entry_status( $item );
 
 		if ( in_array( $status, array( 'submitted', 'pending' ), true ) ) {
 			$actions['validate'] = sprintf(
@@ -136,6 +139,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
 			case 'birthdate':
 				return esc_html( $this->format_fallback( $item->licensee_birthdate ?? '' ) );
+			case 'birth_year':
+				return esc_html( $this->format_fallback( $this->format_birth_year( $item->licensee_birthdate ?? '' ) ) );
 			case 'category':
 				return esc_html( $this->format_fallback( $this->get_category_name( $item->category_id ?? 0 ) ) );
 			case 'competition':
@@ -217,7 +222,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_status( $entry ): string {
-		$status = $this->repository->get_entry_status( $entry );
+		$status = function_exists( 'ufsc_is_entry_eligible' )
+			? (string) ( ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
+			: $this->repository->get_entry_status( $entry );
 		$label = EntriesWorkflow::get_status_label( $status );
 		$class = EntriesWorkflow::get_status_badge_class( $status );
 
@@ -235,12 +242,21 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_datetime( $value ): string {
-		$value = (string) $value;
-		if ( '' === $value ) {
-			return '—';
+		return function_exists( 'ufsc_lc_format_datetime' )
+			? ufsc_lc_format_datetime( $value )
+			: ( $value ? (string) $value : '—' );
+	}
+
+	private function format_birth_year( $birthdate ): string {
+		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
+		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
 		}
 
-		return $value;
+		return '';
 	}
 
 	private function get_competition_name( $competition_id ): string {
