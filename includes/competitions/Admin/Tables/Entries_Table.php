@@ -25,6 +25,8 @@ class Entries_Table extends \WP_List_Table {
 	private $filters = array();
 	private $competitions = array();
 	private $categories = array();
+	private $columns_state = array();
+	private $has_logged_state = false;
 
 	public function __construct() {
 		parent::__construct(
@@ -73,6 +75,9 @@ class Entries_Table extends \WP_List_Table {
 				'per_page'    => $per_page,
 			)
 		);
+
+		$this->get_columns();
+		$this->maybe_log_columns_state();
 	}
 
 	public function get_columns() {
@@ -93,12 +98,20 @@ class Entries_Table extends \WP_List_Table {
 			'actions'    => __( 'Actions', 'ufsc-licence-competition' ),
 		);
 
-		if ( ! is_array( $columns ) || empty( $columns ) ) {
-			$columns = $this->get_fallback_columns();
-			$this->maybe_log_fallback_columns( true );
-		} else {
-			$this->maybe_log_fallback_columns( false );
+		$validation = $this->validate_columns( $columns );
+		$columns = $validation['columns'];
+		$used_fallback = empty( $columns );
+		if ( $used_fallback ) {
+			$columns = $this->get_fallback_columns( ! empty( $this->get_bulk_actions() ) );
 		}
+
+		$this->columns_state = array(
+			'columns'               => $columns,
+			'columns_count'         => count( $columns ),
+			'non_empty_labels_count'=> $this->count_non_empty_labels( $columns ),
+			'used_fallback'         => $used_fallback,
+			'invalid_columns'       => $validation['invalid_columns'],
+		);
 
 		return $columns;
 	}
@@ -189,30 +202,36 @@ class Entries_Table extends \WP_List_Table {
 
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
+			case 'name':
+				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
-				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
+				return esc_html( $this->format_fallback( $this->get_item_value( $item, 'license_number' ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $item->licensee_birthdate ?? '' ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $item->licensee_birthdate ?? '' ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $item->club_name ?? '' ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club', 'club_label' ) ) ) );
 			case 'competition':
-				return esc_html( $this->format_fallback( $this->get_competition_name( $item->competition_id ) ) );
+				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'discipline':
-				return esc_html( $this->format_fallback( $this->get_competition_discipline( $item->competition_id ) ) );
+				return esc_html( $this->format_fallback( $this->get_competition_discipline( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'category':
-				return esc_html( $this->format_fallback( $this->get_category_name( $item->category_id ) ) );
+				$category_id = $this->get_item_value( $item, 'category_id' );
+				$category_name = $category_id ? $this->get_category_name( $category_id ) : $this->get_item_value_from_keys( $item, array( 'category_name', 'category', 'category_label' ) );
+				return esc_html( $this->format_fallback( $category_name ) );
 			case 'weight':
-				return esc_html( $this->format_fallback( (string) ( $item->weight ?? $item->weight_kg ?? '' ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
-				return esc_html( $this->format_fallback( (string) ( $item->weight_class ?? '' ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
 			case 'status':
 				return esc_html( $this->format_status( $item ) );
 			case 'updated':
-				return esc_html( $this->format_datetime( $item->updated_at ) );
+				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
+			case 'updated_at':
+				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
 			default:
-				return esc_html( $this->format_fallback( $item->{$column_name} ?? '' ) );
+				return esc_html( $this->format_fallback( $this->get_item_value( $item, $column_name ) ) );
 		}
 	}
 
@@ -402,19 +421,67 @@ class Entries_Table extends \WP_List_Table {
 		return '';
 	}
 
-	private function get_fallback_columns(): array {
+	private function get_fallback_columns( bool $with_bulk = true ): array {
+		$columns = array(
+			'licensee' => __( 'Nom', 'ufsc-licence-competition' ),
+			'club'     => __( 'Club', 'ufsc-licence-competition' ),
+			'category' => __( 'Catégorie', 'ufsc-licence-competition' ),
+			'status'   => __( 'Statut', 'ufsc-licence-competition' ),
+			'updated'  => __( 'Mise à jour', 'ufsc-licence-competition' ),
+			'actions'  => __( 'Actions', 'ufsc-licence-competition' ),
+		);
+
+		if ( $with_bulk ) {
+			$columns = array_merge(
+				array( 'cb' => '<input type="checkbox" />' ),
+				$columns
+			);
+		}
+
+		return $columns;
+	}
+
+	private function validate_columns( $columns ): array {
+		if ( ! is_array( $columns ) ) {
+			return array(
+				'columns' => array(),
+				'invalid_columns' => array( 'not_array' ),
+			);
+		}
+
+		$filtered = array();
+		$invalid_columns = array();
+		foreach ( $columns as $key => $label ) {
+			$key_valid = is_string( $key ) && '' !== trim( $key );
+			$label_valid = is_string( $label ) && '' !== trim( $label );
+			if ( $key_valid && $label_valid ) {
+				$filtered[ $key ] = $label;
+				continue;
+			}
+			$invalid_columns[ (string) $key ] = is_scalar( $label ) ? (string) $label : '';
+		}
+
 		return array(
-			'cb'          => '<input type="checkbox" />',
-			'licensee'    => __( 'Licencié', 'ufsc-licence-competition' ),
-			'club'        => __( 'Club', 'ufsc-licence-competition' ),
-			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
-			'status'      => __( 'Statut', 'ufsc-licence-competition' ),
-			'updated'     => __( 'Mis à jour', 'ufsc-licence-competition' ),
-			'actions'     => __( 'Actions', 'ufsc-licence-competition' ),
+			'columns' => $filtered,
+			'invalid_columns' => $invalid_columns,
 		);
 	}
 
-	private function maybe_log_fallback_columns( bool $used_fallback ): void {
+	private function count_non_empty_labels( array $columns ): int {
+		$count = 0;
+		foreach ( $columns as $label ) {
+			if ( is_string( $label ) && '' !== trim( $label ) ) {
+				$count++;
+			}
+		}
+
+		return $count;
+	}
+
+	private function maybe_log_columns_state(): void {
+		if ( $this->has_logged_state ) {
+			return;
+		}
 		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
 			return;
 		}
@@ -422,6 +489,62 @@ class Entries_Table extends \WP_List_Table {
 			return;
 		}
 
-		error_log( sprintf( 'UFSC Entries_Table used_fallback_columns=%s', $used_fallback ? 'yes' : 'no' ) );
+		$columns = $this->columns_state['columns'] ?? array();
+		$items = is_array( $this->items ) ? $this->items : array();
+		$items_count = is_countable( $items ) ? count( $items ) : 0;
+		$first_item = $items_count ? $items[0] : null;
+		$item_keys = $first_item ? $this->get_item_keys( $first_item ) : array();
+		$item_keys = array_slice( $item_keys, 0, 20 );
+
+		$log_parts = array(
+			sprintf( 'items=%d', (int) $items_count ),
+			sprintf( 'columns=%d', (int) ( $this->columns_state['columns_count'] ?? count( $columns ) ) ),
+			sprintf( 'non_empty_labels=%d', (int) ( $this->columns_state['non_empty_labels_count'] ?? $this->count_non_empty_labels( $columns ) ) ),
+			sprintf( 'used_fallback_columns=%s', ! empty( $this->columns_state['used_fallback'] ) ? 'yes' : 'no' ),
+			sprintf( 'item_keys=%s', $item_keys ? implode( ',', $item_keys ) : 'n/a' ),
+		);
+
+		if ( ! empty( $this->columns_state['used_fallback'] ) && ! empty( $this->columns_state['invalid_columns'] ) ) {
+			$invalid = wp_json_encode( $this->columns_state['invalid_columns'] );
+			if ( is_string( $invalid ) ) {
+				$log_parts[] = 'invalid_columns=' . $invalid;
+			}
+		}
+
+		error_log( 'UFSC Entries_Table ' . implode( ' ', $log_parts ) );
+		$this->has_logged_state = true;
+	}
+
+	private function get_item_keys( $item ): array {
+		if ( is_array( $item ) ) {
+			return array_keys( $item );
+		}
+		if ( is_object( $item ) ) {
+			return array_keys( get_object_vars( $item ) );
+		}
+
+		return array();
+	}
+
+	private function get_item_value( $item, string $key ) {
+		if ( is_array( $item ) && array_key_exists( $key, $item ) ) {
+			return $item[ $key ];
+		}
+		if ( is_object( $item ) && property_exists( $item, $key ) ) {
+			return $item->{$key};
+		}
+
+		return '';
+	}
+
+	private function get_item_value_from_keys( $item, array $keys ) {
+		foreach ( $keys as $key ) {
+			$value = $this->get_item_value( $item, $key );
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return (string) $value;
+			}
+		}
+
+		return '';
 	}
 }
