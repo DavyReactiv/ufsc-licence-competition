@@ -71,14 +71,23 @@ class Entries_Page {
 		$items_count = is_countable( $list_table->items ) ? count( $list_table->items ) : 0;
 		$table_output = $this->capture_list_table_output( $list_table );
 		$has_table_markup = false !== strpos( $table_output, 'wp-list-table' );
+		$has_table_tag = false !== strpos( $table_output, '<table' );
+		$table_classes = '';
+		if ( preg_match( '/<table[^>]*class="([^"]+)"/i', $table_output, $matches ) ) {
+			$table_classes = $matches[1];
+		}
+		$has_table_nonce = false !== strpos( $table_output, 'name="_wpnonce"' );
+		$needs_bulk_nonce = ( '' !== trim( $table_output ) ) && ! $has_table_nonce;
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
 			error_log(
 				sprintf(
-					'UFSC Entries list render: items=%d output_len=%d has_table=%s',
+					'UFSC Entries list render: items=%d output_len=%d has_table=%s has_table_tag=%s table_classes=%s',
 					(int) $items_count,
 					strlen( $table_output ),
-					$has_table_markup ? 'yes' : 'no'
+					$has_table_markup ? 'yes' : 'no',
+					$has_table_tag ? 'yes' : 'no',
+					$table_classes ?: 'n/a'
 				)
 			);
 		}
@@ -90,10 +99,28 @@ class Entries_Page {
 			<hr class="wp-header-end">
 			<?php $this->render_helper_notice( __( 'Ajouter/valider les inscrits, contrôler doublons, gérer la forclusion.', 'ufsc-licence-competition' ) ); ?>
 			<?php $list_table->views(); ?>
-			<form method="get">
+			<form method="post">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_ENTRIES ); ?>" />
 				<?php if ( $current_view && 'all' !== $current_view ) : ?>
 					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['competition_id'] ) ) : ?>
+					<input type="hidden" name="ufsc_competition_id" value="<?php echo esc_attr( (int) $filters['competition_id'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['status'] ) ) : ?>
+					<input type="hidden" name="ufsc_status" value="<?php echo esc_attr( $filters['status'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['discipline'] ) ) : ?>
+					<input type="hidden" name="ufsc_discipline" value="<?php echo esc_attr( $filters['discipline'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['search'] ) ) : ?>
+					<input type="hidden" name="s" value="<?php echo esc_attr( $filters['search'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $_REQUEST['paged'] ) ) : ?>
+					<input type="hidden" name="paged" value="<?php echo esc_attr( absint( $_REQUEST['paged'] ) ); ?>" />
+				<?php endif; ?>
+				<?php if ( $needs_bulk_nonce ) : ?>
+					<?php wp_nonce_field( 'bulk-' . $list_table->_args['plural'] ); ?>
 				<?php endif; ?>
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
 				<div class="ufsc-competitions-table-wrap ufsc-competitions-entries-table-wrap">

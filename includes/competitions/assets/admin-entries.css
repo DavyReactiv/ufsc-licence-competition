@@ -61,3 +61,21 @@
 .ufsc-entry-auto-category[data-visible="true"] {
   font-weight: 600;
 }
+
+.ufsc-competitions-admin table.wp-list-table {
+  display: table !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  height: auto !important;
+}
+
+.ufsc-competitions-admin .ufsc-competitions-table-wrap {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.ufsc-competitions-admin .wp-list-table th,
+.ufsc-competitions-admin .wp-list-table td {
+  color: inherit !important;
+  font-size: inherit !important;
+}
