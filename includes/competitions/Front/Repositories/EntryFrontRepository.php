@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Front\Repositories;
 
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\RepositoryHelpers;
 
@@ -47,6 +48,8 @@ class EntryFrontRepository {
 					0
 				);
 				if ( is_array( $rows ) ) {
+					$rows = $this->normalize_entries_for_display( $rows );
+					$this->maybe_log_entry_columns( $rows );
 					return $rows;
 				}
 			}
@@ -69,7 +72,11 @@ class EntryFrontRepository {
 
 		$this->maybe_log_db_error( __METHOD__ . ':list' );
 
-		return is_array( $rows ) ? $rows : array();
+		$rows = is_array( $rows ) ? $rows : array();
+		$rows = $this->normalize_entries_for_display( $rows );
+		$this->maybe_log_entry_columns( $rows );
+
+		return $rows;
 	}
 
 	public function get( int $entry_id ) {
@@ -225,6 +232,129 @@ class EntryFrontRepository {
 		}
 
 		return $normalized;
+	}
+
+	private function normalize_entries_for_display( array $rows ): array {
+		$normalized = array();
+
+		foreach ( $rows as $row ) {
+			if ( is_array( $row ) ) {
+				$row = (object) $row;
+			}
+			if ( ! is_object( $row ) ) {
+				continue;
+			}
+			$normalized[] = $this->normalize_entry_for_display( $row );
+		}
+
+		return $normalized;
+	}
+
+	private function normalize_entry_for_display( object $entry ): object {
+		$license_last = $this->get_entry_value(
+			$entry,
+			array( 'licensee_last_name', 'last_name', 'lastname', 'nom' )
+		);
+		$license_first = $this->get_entry_value(
+			$entry,
+			array( 'licensee_first_name', 'first_name', 'firstname', 'prenom' )
+		);
+
+		$name = trim( $license_last . ' ' . $license_first );
+		if ( '' === $name ) {
+			$name = $this->get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+		}
+
+		if ( '' !== $name ) {
+			$entry->name = $name;
+		}
+
+		$birthdate = $this->get_entry_value(
+			$entry,
+			array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' )
+		);
+		if ( '' !== $birthdate ) {
+			$entry->birth_date = $birthdate;
+			$entry->birthdate = $birthdate;
+		}
+
+		$category_name = $this->get_entry_value(
+			$entry,
+			array( 'category_name', 'category_label', 'category_title', 'category' )
+		);
+		if ( '' === $category_name ) {
+			$category_name = $this->resolve_category_name( $entry );
+		}
+		if ( '' !== $category_name ) {
+			$entry->category_name = $category_name;
+		}
+
+		if ( ! isset( $entry->weight ) || '' === (string) $entry->weight ) {
+			$weight = $this->get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+			if ( '' !== $weight ) {
+				$entry->weight = $weight;
+			}
+		}
+
+		if ( ( ! isset( $entry->updated_at ) || '' === (string) $entry->updated_at ) && isset( $entry->created_at ) ) {
+			$entry->updated_at = $entry->created_at;
+		}
+
+		return $entry;
+	}
+
+	private function get_entry_value( object $entry, array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
+				return (string) $entry->{$key};
+			}
+		}
+
+		return '';
+	}
+
+	private function resolve_category_name( object $entry ): string {
+		$category_id = absint( $entry->category_id ?? 0 );
+		if ( ! $category_id || ! class_exists( CategoryRepository::class ) ) {
+			return '';
+		}
+
+		static $cache = array();
+		if ( ! array_key_exists( $category_id, $cache ) ) {
+			$repo = new CategoryRepository();
+			$category = $repo->get( $category_id, true );
+			$cache[ $category_id ] = $category ? (string) ( $category->name ?? '' ) : '';
+		}
+
+		return (string) $cache[ $category_id ];
+	}
+
+	private function maybe_log_entry_columns( array $rows ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		if ( ! apply_filters( 'ufsc_competitions_front_debug_entries', false ) ) {
+			return;
+		}
+
+		if ( function_exists( 'current_user_can' ) && ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		static $logged = false;
+		if ( $logged ) {
+			return;
+		}
+
+		$first = $rows[0] ?? null;
+		if ( ! $first ) {
+			return;
+		}
+
+		$columns = is_object( $first ) ? array_keys( get_object_vars( $first ) ) : array_keys( (array) $first );
+		error_log( 'UFSC Front entries columns: ' . implode( ', ', $columns ) );
+		$logged = true;
 	}
 
 	public function normalize_license_results( array $results, int $limit = 20 ): array {
