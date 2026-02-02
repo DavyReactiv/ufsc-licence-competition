@@ -1898,7 +1898,7 @@ class UFSC_LC_ASPTT_Import_Service {
 	}
 
 	private function parse_date( $value ) {
-		$value = trim( $value );
+		$value = trim( (string) $value );
 		if ( '' === $value ) {
 			return '';
 		}
@@ -2919,6 +2919,7 @@ class UFSC_LC_ASPTT_Import_Service {
 	}
 
 	private function strip_utf8_bom( $value ) {
+		$value = (string) $value;
 		if ( 0 === strpos( $value, "\xEF\xBB\xBF" ) ) {
 			return substr( $value, 3 );
 		}
