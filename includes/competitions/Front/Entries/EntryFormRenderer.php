@@ -131,19 +131,10 @@ class EntryFormRenderer {
 					$license_keys = array(
 						'license_number',
 						'licence_number',
-						'licensee_number',
-						'ufsc_license_number',
-						'ufsc_licence_number',
-						'licence_ufsc',
-						'licence_num',
-						'num_licence',
-						'numero_licence',
-						'licence',
-						'license',
 					);
 					$license_id_keys = array( 'licensee_id', 'licence_id', 'license_id' );
-					$license_number_cache = array();
-					$get_license_number = static function( $entry ) use ( $license_keys, $license_id_keys, $club_id, &$license_number_cache ): string {
+					$get_license_number = static function( $entry ) use ( $license_keys, $license_id_keys, $club_id ): string {
+						static $license_number_cache = array();
 						$license_value = EntryFormRenderer::get_entry_value( $entry, $license_keys );
 						if ( '' !== $license_value ) {
 							return $license_value;
@@ -243,6 +234,7 @@ class EntryFormRenderer {
 									$rejected_reason = isset( $entry->rejected_reason ) ? (string) $entry->rejected_reason : '';
 
 									$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
+									$can_withdraw = $can_withdraw && in_array( $status, array( 'submitted', 'pending', 'rejected' ), true );
 									?>
 									<tr>
 										<td><?php echo esc_html( self::format_display_value( $name ) ); ?></td>
@@ -270,7 +262,11 @@ class EntryFormRenderer {
 										</td>
 										<td><?php echo esc_html( self::format_display_value( $updated_at ) ); ?></td>
 										<td>
-											<?php if ( $registration_open ) : ?>
+											<?php if ( 'approved' === $status ) : ?>
+												<span class="ufsc-entry-action-disabled">
+													<?php echo esc_html__( 'Inscription validée — veuillez contacter l’administration UFSC par email', 'ufsc-licence-competition' ); ?>
+												</span>
+											<?php elseif ( $registration_open ) : ?>
 												<?php if ( 'draft' === $status ) : ?>
 													<a href="<?php echo esc_url( $edit_url ); ?>"><?php echo esc_html__( 'Modifier', 'ufsc-licence-competition' ); ?></a>
 
@@ -618,6 +614,7 @@ class EntryFormRenderer {
 			'error_closed'             => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
 			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
+			'error_withdraw_approved'  => array( 'error', __( 'Inscription validée — veuillez contacter l’administration UFSC par email', 'ufsc-licence-competition' ) ),
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
 			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),

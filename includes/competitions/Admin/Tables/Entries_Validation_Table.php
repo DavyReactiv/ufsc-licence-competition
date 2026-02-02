@@ -158,7 +158,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			case 'updated':
 				return esc_html( $this->format_datetime( $item->updated_at ?? '' ) );
 			default:
-				return '';
+				return esc_html( $this->format_fallback( $item->{$column_name} ?? '' ) );
 		}
 	}
 

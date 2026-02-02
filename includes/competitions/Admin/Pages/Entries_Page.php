@@ -74,7 +74,7 @@ class Entries_Page {
 			<hr class="wp-header-end">
 			<?php $this->render_helper_notice( __( 'Ajouter/valider les inscrits, contrôler doublons, gérer la forclusion.', 'ufsc-licence-competition' ) ); ?>
 			<?php $list_table->views(); ?>
-			<form method="post">
+			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_ENTRIES ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
 				<div class="ufsc-competitions-table-wrap">
