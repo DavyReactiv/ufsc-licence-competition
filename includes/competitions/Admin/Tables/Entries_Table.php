@@ -76,7 +76,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	public function get_columns() {
-		return array(
+		$columns = array(
 			'cb'         => '<input type="checkbox" />',
 			'licensee'   => __( 'Licencié', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
@@ -92,6 +92,15 @@ class Entries_Table extends \WP_List_Table {
 			'updated'    => __( 'Mise à jour', 'ufsc-licence-competition' ),
 			'actions'    => __( 'Actions', 'ufsc-licence-competition' ),
 		);
+
+		if ( ! is_array( $columns ) || empty( $columns ) ) {
+			$columns = $this->get_fallback_columns();
+			$this->maybe_log_fallback_columns( true );
+		} else {
+			$this->maybe_log_fallback_columns( false );
+		}
+
+		return $columns;
 	}
 
 	public function get_views() {
@@ -391,5 +400,28 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		return '';
+	}
+
+	private function get_fallback_columns(): array {
+		return array(
+			'cb'          => '<input type="checkbox" />',
+			'licensee'    => __( 'Licencié', 'ufsc-licence-competition' ),
+			'club'        => __( 'Club', 'ufsc-licence-competition' ),
+			'competition' => __( 'Compétition', 'ufsc-licence-competition' ),
+			'status'      => __( 'Statut', 'ufsc-licence-competition' ),
+			'updated'     => __( 'Mis à jour', 'ufsc-licence-competition' ),
+			'actions'     => __( 'Actions', 'ufsc-licence-competition' ),
+		);
+	}
+
+	private function maybe_log_fallback_columns( bool $used_fallback ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		error_log( sprintf( 'UFSC Entries_Table used_fallback_columns=%s', $used_fallback ? 'yes' : 'no' ) );
 	}
 }
