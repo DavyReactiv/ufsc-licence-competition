@@ -351,8 +351,9 @@ class EntryActions {
 
 		if ( 'withdraw' === $action ) {
 			$current_status = $repo->get_entry_status( $entry );
-			if ( 'approved' === $current_status ) {
-				self::redirect_with_notice( $competition_id, 'error_forbidden' );
+			$withdrawable_statuses = array( 'draft', 'submitted', 'pending', 'rejected' );
+			if ( ! in_array( $current_status, $withdrawable_statuses, true ) ) {
+				self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 			}
 
 			$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
