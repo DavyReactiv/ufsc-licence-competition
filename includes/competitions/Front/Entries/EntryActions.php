@@ -60,7 +60,7 @@ class EntryActions {
 
 		self::debug_log( 'entry_action_start', array( 'action' => $action ) );
 
-		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		$required_capability = class_exists( '\\UFSC_LC_Settings_Page' ) ? \UFSC_LC_Settings_Page::get_club_access_capability() : '';
 		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
 		if ( $required_capability && ! current_user_can( $required_capability ) ) {
 			self::redirect_with_notice( 0, 'error_forbidden' );
@@ -256,7 +256,7 @@ class EntryActions {
 
 		self::debug_log( 'entry_status_action_start', array( 'action' => $action ) );
 
-		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		$required_capability = class_exists( '\\UFSC_LC_Settings_Page' ) ? \UFSC_LC_Settings_Page::get_club_access_capability() : '';
 		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
 		if ( $required_capability && ! current_user_can( $required_capability ) ) {
 			self::redirect_with_notice( 0, 'error_forbidden' );

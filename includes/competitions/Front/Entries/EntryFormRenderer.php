@@ -128,10 +128,55 @@ class EntryFormRenderer {
 					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
 				<?php else : ?>
 					<?php
-					$license_keys = array( 'licensee_id', 'licence_id', 'license_id', 'license_number', 'licence_number', 'licence', 'licensee_number' );
+					$license_keys = array(
+						'license_number',
+						'licence_number',
+						'licensee_number',
+						'ufsc_license_number',
+						'ufsc_licence_number',
+						'licence_ufsc',
+						'licence_num',
+						'num_licence',
+						'numero_licence',
+						'licence',
+						'license',
+					);
+					$license_id_keys = array( 'licensee_id', 'licence_id', 'license_id' );
+					$license_number_cache = array();
+					$get_license_number = static function( $entry ) use ( $license_keys, $license_id_keys, $club_id, &$license_number_cache ): string {
+						$license_value = EntryFormRenderer::get_entry_value( $entry, $license_keys );
+						if ( '' !== $license_value ) {
+							return $license_value;
+						}
+
+						$license_id = 0;
+						foreach ( $license_id_keys as $key ) {
+							if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
+								$license_id = absint( $entry->{$key} );
+								if ( $license_id ) {
+									break;
+								}
+							}
+						}
+
+						if ( ! $license_id ) {
+							return '';
+						}
+
+						if ( ! array_key_exists( $license_id, $license_number_cache ) ) {
+							$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
+							if ( is_array( $license_data ) ) {
+								$license_number_cache[ $license_id ] = (string) ( $license_data['license_number'] ?? $license_data['licence_number'] ?? '' );
+							} else {
+								$license_number_cache[ $license_id ] = '';
+							}
+						}
+
+						return (string) $license_number_cache[ $license_id ];
+					};
 					$show_license_column = false;
 					foreach ( $entries as $entry ) {
-						$license_value = self::get_entry_value( $entry, $license_keys );
+						$license_value = $get_license_number( $entry );
 						if ( '' !== $license_value ) {
 							$show_license_column = true;
 							break;
@@ -177,7 +222,7 @@ class EntryFormRenderer {
 									$category        = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
 									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 									$weight_class    = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
-									$license_number  = $show_license_column ? self::get_entry_value( $entry, $license_keys ) : '';
+									$license_number  = $show_license_column ? $get_license_number( $entry ) : '';
 									$club_name       = $club_label ?: (string) ( $entry->club_name ?? '' );
 
 									$details_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
