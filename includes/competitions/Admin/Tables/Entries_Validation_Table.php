@@ -98,6 +98,17 @@ class Entries_Validation_Table extends \WP_List_Table {
 		esc_html_e( 'Aucune inscription trouvée.', 'ufsc-licence-competition' );
 	}
 
+	public function display_rows_or_placeholder() {
+		if ( empty( $this->items ) ) {
+			echo '<tr class="no-items"><td class="colspanchange" colspan="' . esc_attr( $this->get_column_count() ) . '">';
+			$this->no_items();
+			echo '</td></tr>';
+			return;
+		}
+
+		$this->display_rows();
+	}
+
 	protected function column_licensee( $item ) {
 		$name = $this->format_entry_name( $item );
 		$title = $name ? sprintf( '<strong>%s</strong>', esc_html( $name ) ) : sprintf( '<strong>#%d</strong>', (int) ( $item->licensee_id ?? $item->licence_id ?? 0 ) );
@@ -242,9 +253,15 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_datetime( $value ): string {
+		$normalized = is_scalar( $value ) ? (string) $value : '';
+		$normalized = trim( $normalized );
+		if ( '' === $normalized ) {
+			return '—';
+		}
+
 		return function_exists( 'ufsc_lc_format_datetime' )
-			? ufsc_lc_format_datetime( $value )
-			: ( $value ? (string) $value : '—' );
+			? ufsc_lc_format_datetime( $normalized )
+			: $normalized;
 	}
 
 	private function format_birth_year( $birthdate ): string {
@@ -295,6 +312,12 @@ class Entries_Validation_Table extends \WP_List_Table {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private function get_column_count(): int {
+		list( $columns ) = $this->get_column_info();
+
+		return is_array( $columns ) ? count( $columns ) : 0;
 	}
 
 	private function build_admin_action_url( string $action, int $entry_id, string $nonce_action ): string {

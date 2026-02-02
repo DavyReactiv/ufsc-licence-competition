@@ -128,10 +128,13 @@ class EntryFormRenderer {
 					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
 				<?php else : ?>
 					<?php
+					// Compatibilité large : différentes sources / versions peuvent exposer des clés différentes.
 					$license_keys = array(
 						'license_number',
 						'licence_number',
-						'licensee_number', // ✅ keep (some sources expose this key)
+						'licensee_number', // certaines sources exposent cette clé
+						'licence',         // fallback legacy
+						'license',         // fallback legacy
 					);
 
 					$license_id_keys = array( 'licensee_id', 'licence_id', 'license_id' );
@@ -160,13 +163,18 @@ class EntryFormRenderer {
 
 						if ( ! array_key_exists( $license_id, $license_number_cache ) ) {
 							$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
+
 							if ( is_array( $license_data ) ) {
 								$license_number_cache[ $license_id ] = (string) (
 									$license_data['license_number']
 									?? $license_data['licence_number']
 									?? $license_data['licensee_number']
+									?? $license_data['licence']
+									?? $license_data['license']
 									?? ''
 								);
+							} elseif ( is_scalar( $license_data ) ) {
+								$license_number_cache[ $license_id ] = (string) $license_data;
 							} else {
 								$license_number_cache[ $license_id ] = '';
 							}
@@ -210,7 +218,9 @@ class EntryFormRenderer {
 
 									$status = function_exists( 'ufsc_is_entry_eligible' )
 										? (string) ( ufsc_is_entry_eligible( $entry_id, 'front_club' )['status'] ?? '' )
-										: $repo->get_entry_status( $entry );
+										: (string) $repo->get_entry_status( $entry );
+
+									$status = EntriesWorkflow::normalize_status( $status );
 
 									$name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
 									if ( '' === $name ) {
@@ -247,7 +257,7 @@ class EntryFormRenderer {
 									$rejected_reason = isset( $entry->rejected_reason ) ? (string) $entry->rejected_reason : '';
 
 									$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
-									$can_withdraw = $can_withdraw && in_array( $status, array( 'submitted', 'pending', 'rejected' ), true );
+									$can_withdraw = $can_withdraw && in_array( $status, array( 'draft', 'submitted', 'pending', 'rejected' ), true );
 									?>
 									<tr>
 										<td><?php echo esc_html( self::format_display_value( $name ) ); ?></td>
@@ -275,7 +285,7 @@ class EntryFormRenderer {
 										</td>
 										<td><?php echo esc_html( self::format_display_value( $updated_at ) ); ?></td>
 										<td>
-											<?php if ( 'approved' === $status ) : ?>
+											<?php if ( 'approved' === $status || 'validated' === $status || 'valid' === $status || 'valide' === $status ) : ?>
 												<span class="ufsc-entry-action-disabled">
 													<?php echo esc_html__( 'Inscription validée — veuillez contacter l’administration UFSC par email', 'ufsc-licence-competition' ); ?>
 												</span>
@@ -341,7 +351,9 @@ class EntryFormRenderer {
 				</h4>
 
 				<?php
-				$editing_status = $editing_entry ? $repo->get_entry_status( $editing_entry ) : 'draft';
+				$editing_status = $editing_entry ? (string) $repo->get_entry_status( $editing_entry ) : 'draft';
+				$editing_status = EntriesWorkflow::normalize_status( $editing_status );
+
 				$editing_locked = $editing_entry && 'draft' !== $editing_status;
 				$timeline_label = EntriesWorkflow::get_timeline_label( $editing_status );
 				?>
@@ -462,7 +474,7 @@ class EntryFormRenderer {
 					}
 
 					if ( '' === $license_number_value && ! $editing_entry ) {
-						$license_number_value = (string) ( $selected_license['license_number'] ?? '' );
+						$license_number_value = (string) ( $selected_license['license_number'] ?? $selected_license['licence_number'] ?? $selected_license['licensee_number'] ?? '' );
 					}
 
 					$license_number_selected = $club_id && ( $license_id || ! empty( $selected_license ) );

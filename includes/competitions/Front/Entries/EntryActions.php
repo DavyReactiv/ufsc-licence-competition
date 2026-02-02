@@ -6,6 +6,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -106,11 +107,14 @@ class EntryActions {
 			if ( absint( $entry->club_id ?? 0 ) !== absint( $club_id ) ) {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
+
 			if ( absint( $entry->competition_id ?? 0 ) !== absint( $competition_id ) ) {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
 
-			$status = $repo->get_entry_status( $entry );
+			$status = (string) $repo->get_entry_status( $entry );
+			$status = EntriesWorkflow::normalize_status( $status );
+
 			if ( 'draft' !== $status ) {
 				self::redirect_with_notice( $competition_id, 'error_locked' );
 			}
@@ -185,12 +189,12 @@ class EntryActions {
 		}
 
 		$prefill = $license ? array(
-			'first_name'    => $license['first_name'] ?? '',
-			'last_name'     => $license['last_name'] ?? '',
-			'birth_date'    => $license['birthdate'] ?? '',
-			'sex'           => $license['sex'] ?? '',
-			'weight'        => isset( $license['weight'] ) ? (string) $license['weight'] : '',
-			'weight_class'  => $license['weight_class'] ?? '',
+			'first_name'   => $license['first_name'] ?? '',
+			'last_name'    => $license['last_name'] ?? '',
+			'birth_date'   => $license['birthdate'] ?? '',
+			'sex'          => $license['sex'] ?? '',
+			'weight'       => isset( $license['weight'] ) ? (string) $license['weight'] : '',
+			'weight_class' => $license['weight_class'] ?? '',
 		) : array();
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
@@ -376,10 +380,10 @@ class EntryActions {
 		}
 
 		if ( 'withdraw' === $action ) {
-			$current_status = (string) $repo->get_entry_status( $entry );
+			// ✅ Normalisation robuste (évite les variations "Validé", "validated", etc.)
+			$current_status = EntriesWorkflow::normalize_status( (string) $repo->get_entry_status( $entry ) );
 
-			// ✅ Withdraw allowed only BEFORE admin validation.
-			// If approved/validated/valid/valide => club must contact admin by email.
+			// ✅ Retrait interdit APRES validation admin : le club doit contacter l’UFSC.
 			$locked_statuses = array( 'approved', 'validated', 'valid', 'valide' );
 			if ( in_array( $current_status, $locked_statuses, true ) ) {
 				self::redirect_with_notice( $competition_id, 'error_withdraw_approved' );
@@ -619,14 +623,14 @@ class EntryActions {
 			return '';
 		}
 
-		if ( preg_match( '/^\\d{2}\\/\\d{2}\\/\\d{4}$/', $value ) ) {
+		if ( preg_match( '/^\d{2}\/\d{2}\/\d{4}$/', $value ) ) {
 			$parts = explode( '/', $value );
 			if ( 3 === count( $parts ) ) {
 				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
 			}
 		}
 
-		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
 			return $value;
 		}
 
