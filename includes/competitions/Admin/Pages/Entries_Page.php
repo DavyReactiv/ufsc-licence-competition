@@ -96,7 +96,7 @@ class Entries_Page {
 					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
 				<?php endif; ?>
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
-				<div class="ufsc-competitions-table-wrap">
+				<div class="ufsc-competitions-table-wrap ufsc-competitions-entries-table-wrap">
 					<?php
 					if ( '' !== trim( $table_output ) ) {
 						echo $table_output;
