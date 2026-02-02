@@ -1755,7 +1755,7 @@ class UFSC_LC_ASPTT_Importer {
 			return;
 		}
 
-		$file_path  = wp_normalize_path( $preview['file_path'] );
+		$file_path  = wp_normalize_path( (string) $preview['file_path'] );
 		$upload_dir = wp_upload_dir();
 		$base_dir   = trailingslashit( wp_normalize_path( $upload_dir['basedir'] ) );
 
@@ -1824,7 +1824,7 @@ class UFSC_LC_ASPTT_Importer {
 
 		$upload_dir = wp_upload_dir();
 		$base_dir   = trailingslashit( wp_normalize_path( $upload_dir['basedir'] ) ) . 'ufsc-lc/';
-		$path       = wp_normalize_path( $file_path );
+		$path       = wp_normalize_path( (string) $file_path );
 
 		if ( 0 !== strpos( $path, $base_dir ) ) {
 			return false;

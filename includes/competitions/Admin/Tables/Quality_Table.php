@@ -38,7 +38,7 @@ class Quality_Table extends \WP_List_Table {
 		);
 	}
 
-	protected function column_default( $item, $column_name ) {
+	public function column_default( $item, $column_name ) {
 		return esc_html( $item[ $column_name ] ?? '' );
 	}
 
