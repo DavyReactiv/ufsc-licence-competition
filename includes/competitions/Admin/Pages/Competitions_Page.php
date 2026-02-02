@@ -115,6 +115,7 @@ class Competitions_Page {
 
 		$current_view = isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all';
 		$search       = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$is_edit      = false;
 
 		?>
 		<div class="wrap ufsc-competitions-admin">

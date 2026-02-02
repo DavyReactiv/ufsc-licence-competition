@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Front\Entries;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
+use UFSC\Competitions\Repositories\CategoryRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -222,18 +223,18 @@ class EntryFormRenderer {
 
 									$status = EntriesWorkflow::normalize_status( $status );
 
-									$name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
+									$name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
 									if ( '' === $name ) {
-										$first = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom' ) );
-										$last  = self::get_entry_value( $entry, array( 'last_name', 'lastname', 'nom' ) );
+										$first = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom', 'licensee_first_name' ) );
+										$last  = self::get_entry_value( $entry, array( 'last_name', 'lastname', 'nom', 'licensee_last_name' ) );
 										$name  = trim( $first . ' ' . $last );
 									}
 
-									$birth_date     = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+									$birth_date     = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
 									$birth_year     = self::get_birth_year( $birth_date );
-									$category       = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
+									$category       = self::resolve_category_label( $entry );
 									$weight         = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
-									$weight_class   = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
+									$weight_class   = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
 									$license_number = $show_license_column ? $get_license_number( $entry ) : '';
 									$club_name      = $club_label ?: (string) ( $entry->club_name ?? '' );
 
@@ -250,6 +251,9 @@ class EntryFormRenderer {
 									$status_class = EntriesWorkflow::get_status_badge_class( $status );
 
 									$updated_at = isset( $entry->updated_at ) ? (string) $entry->updated_at : '';
+									if ( '' === $updated_at && isset( $entry->created_at ) ) {
+										$updated_at = (string) $entry->created_at;
+									}
 									if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
 										$updated_at = ufsc_lc_format_datetime( $updated_at );
 									}
@@ -684,6 +688,27 @@ class EntryFormRenderer {
 		}
 
 		return '';
+	}
+
+	private static function resolve_category_label( $entry ): string {
+		$label = self::get_entry_value( $entry, array( 'category', 'category_name', 'category_label', 'category_title' ) );
+		if ( '' !== $label ) {
+			return $label;
+		}
+
+		$category_id = absint( $entry->category_id ?? 0 );
+		if ( ! $category_id || ! class_exists( CategoryRepository::class ) ) {
+			return '';
+		}
+
+		static $cache = array();
+		if ( ! array_key_exists( $category_id, $cache ) ) {
+			$repo = new CategoryRepository();
+			$category = $repo->get( $category_id, true );
+			$cache[ $category_id ] = $category ? (string) ( $category->name ?? '' ) : '';
+		}
+
+		return (string) $cache[ $category_id ];
 	}
 
 	private static function format_display_value( $value ): string {
