@@ -6,6 +6,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -350,9 +351,12 @@ class EntryActions {
 		}
 
 		if ( 'withdraw' === $action ) {
-			$current_status = $repo->get_entry_status( $entry );
+			$current_status = EntriesWorkflow::normalize_status( (string) $repo->get_entry_status( $entry ) );
 			$withdrawable_statuses = array( 'draft', 'submitted', 'pending', 'rejected' );
 			if ( ! in_array( $current_status, $withdrawable_statuses, true ) ) {
+				if ( 'approved' === $current_status ) {
+					self::redirect_with_notice( $competition_id, 'error_entry_validated' );
+				}
 				self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 			}
 

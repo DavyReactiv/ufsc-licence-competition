@@ -26,6 +26,8 @@ class Entries_Validation_Page {
 
 		$table = new Entries_Validation_Table();
 		$table->prepare_items();
+		$table_output = $this->capture_list_table_output( $table );
+		$items_count = is_countable( $table->items ) ? count( $table->items ) : 0;
 
 		$notice = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
 		?>
@@ -39,10 +41,21 @@ class Entries_Validation_Page {
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Entries_Validation_Menu::PAGE_SLUG ); ?>" />
 				<?php $table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-entry-validation' ); ?>
-				<?php $table->display(); ?>
+				<?php echo $table_output; ?>
 			</form>
+			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
+				<!-- UFSC entries debug: display_called=1 items=<?php echo esc_attr( (string) $items_count ); ?> -->
+			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	private function capture_list_table_output( Entries_Validation_Table $table ): string {
+		ob_start();
+		$table->display();
+		$output = (string) ob_get_clean();
+
+		return $output;
 	}
 
 	private function render_reject_form(): void {

@@ -66,6 +66,8 @@ class Entries_Page {
 		$list_table = new Entries_Table();
 		$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_ENTRIES );
 		$list_table->prepare_items();
+		$table_output = $this->capture_list_table_output( $list_table );
+		$items_count = is_countable( $list_table->items ) ? count( $list_table->items ) : 0;
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -78,9 +80,12 @@ class Entries_Page {
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_ENTRIES ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
 				<div class="ufsc-competitions-table-wrap">
-					<?php $list_table->display(); ?>
+					<?php echo $table_output; ?>
 				</div>
 			</form>
+			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
+				<!-- UFSC entries debug: display_called=1 items=<?php echo esc_attr( (string) $items_count ); ?> -->
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -634,6 +639,14 @@ class Entries_Page {
 			'<div class="notice notice-info ufsc-competitions-helper"><p>%s</p></div>',
 			esc_html( $message )
 		);
+	}
+
+	private function capture_list_table_output( Entries_Table $list_table ): string {
+		ob_start();
+		$list_table->display();
+		$output = (string) ob_get_clean();
+
+		return $output;
 	}
 
 	private function maybe_handle_bulk_actions( Entries_Table $list_table, $page_slug ) {

@@ -211,6 +211,17 @@ class Entries_Table extends \WP_List_Table {
 		esc_html_e( 'Aucune inscription trouvée.', 'ufsc-licence-competition' );
 	}
 
+	public function display_rows_or_placeholder() {
+		if ( empty( $this->items ) ) {
+			echo '<tr class="no-items"><td class="colspanchange" colspan="' . esc_attr( $this->get_column_count() ) . '">';
+			$this->no_items();
+			echo '</td></tr>';
+			return;
+		}
+
+		$this->display_rows();
+	}
+
 	protected function extra_tablenav( $which ) {
 		if ( 'top' !== $which ) {
 			return;
@@ -349,9 +360,21 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_datetime( $date ) {
+		$value = is_scalar( $date ) ? (string) $date : '';
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '—';
+		}
+
 		return function_exists( 'ufsc_lc_format_datetime' )
-			? ufsc_lc_format_datetime( $date )
-			: ( $date ? (string) $date : '—' );
+			? ufsc_lc_format_datetime( $value )
+			: $value;
+	}
+
+	private function get_column_count(): int {
+		list( $columns ) = $this->get_column_info();
+
+		return is_array( $columns ) ? count( $columns ) : 0;
 	}
 
 	private function format_birth_year( $birthdate ): string {
