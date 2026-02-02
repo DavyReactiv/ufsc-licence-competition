@@ -66,7 +66,8 @@ class Entries_Page {
 		$list_table = new Entries_Table();
 		$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_ENTRIES );
 		$list_table->prepare_items();
-		$table_output = $this->capture_list_table_output( $list_table );
+		$filters = $list_table->get_filters();
+		$current_view = $filters['view'] ?? 'all';
 		$items_count = is_countable( $list_table->items ) ? count( $list_table->items ) : 0;
 
 		?>
@@ -78,9 +79,12 @@ class Entries_Page {
 			<?php $list_table->views(); ?>
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_ENTRIES ); ?>" />
+				<?php if ( $current_view && 'all' !== $current_view ) : ?>
+					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
+				<?php endif; ?>
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
 				<div class="ufsc-competitions-table-wrap">
-					<?php echo $table_output; ?>
+					<?php $list_table->display(); ?>
 				</div>
 			</form>
 			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
