@@ -178,7 +178,7 @@ class Entries_Table extends \WP_List_Table {
 		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', absint( $item->id ) );
 	}
 
-	protected function column_default( $item, $column_name ) {
+	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'license_number':
 				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );
@@ -371,8 +371,14 @@ class Entries_Table extends \WP_List_Table {
 			: $value;
 	}
 
-	public function get_column_count() {
-		return parent::get_column_count();
+	public function get_column_count(): int {
+		if ( method_exists( '\WP_List_Table', 'get_column_count' ) ) {
+			return (int) parent::get_column_count();
+		}
+
+		list( $columns ) = $this->get_column_info();
+
+		return is_array( $columns ) ? count( $columns ) : 0;
 	}
 
 	private function format_birth_year( $birthdate ): string {

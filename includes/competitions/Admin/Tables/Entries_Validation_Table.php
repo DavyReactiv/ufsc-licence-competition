@@ -144,7 +144,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 		return $this->row_actions( $actions );
 	}
 
-	protected function column_default( $item, $column_name ) {
+	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'license_number':
 				return esc_html( $this->format_fallback( $item->license_number ?? '' ) );

@@ -109,7 +109,7 @@ class Competitions_Table extends \WP_List_Table {
 		);
 	}
 
-	protected function get_sortable_columns() {
+	public function get_sortable_columns() {
 		return array(
 			'name'    => array( 'name', false ),
 			'season'  => array( 'season', false ),
@@ -119,7 +119,7 @@ class Competitions_Table extends \WP_List_Table {
 		);
 	}
 
-	protected function get_hidden_columns() {
+	public function get_hidden_columns() {
 		return array();
 	}
 
@@ -375,7 +375,7 @@ class Competitions_Table extends \WP_List_Table {
 		return '';
 	}
 
-	protected function get_bulk_actions() {
+	public function get_bulk_actions() {
 		$view = isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all';
 
 		if ( 'trash' === $view ) {
@@ -398,7 +398,7 @@ class Competitions_Table extends \WP_List_Table {
 		);
 	}
 
-	protected function bulk_actions( $which = '' ) {
+	public function bulk_actions( $which = '' ) {
 		if ( is_null( $this->_actions ) ) {
 			$this->_actions = $this->get_bulk_actions();
 			$this->_actions = apply_filters( "bulk_actions-{$this->screen->id}", $this->_actions );

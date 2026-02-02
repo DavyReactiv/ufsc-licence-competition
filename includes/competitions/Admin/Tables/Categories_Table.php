@@ -152,7 +152,7 @@ class Categories_Table extends \WP_List_Table {
 		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', absint( $item->id ) );
 	}
 
-	protected function column_default( $item, $column_name ) {
+	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'competition':
 				return esc_html( $this->get_competition_name( $item->competition_id ) );
