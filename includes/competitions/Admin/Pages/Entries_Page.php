@@ -696,7 +696,15 @@ class Entries_Page {
 		$list_table->display();
 		$output = (string) ob_get_clean();
 
-		return $output;
+		$stripped_output = preg_replace( '/<form\b[^>]*>/i', '', $output );
+		$stripped_output = preg_replace( '/<\/form>/i', '', $stripped_output );
+		$stripped_nested_form = $stripped_output !== $output;
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
+			error_log( sprintf( 'UFSC entries: stripped_nested_form=%s', $stripped_nested_form ? 'yes' : 'no' ) );
+		}
+
+		return $stripped_output;
 	}
 
 	private function maybe_handle_bulk_actions( Entries_Table $list_table, $page_slug ) {
