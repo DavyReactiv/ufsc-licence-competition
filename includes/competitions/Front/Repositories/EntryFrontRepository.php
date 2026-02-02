@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Front\Repositories;
 
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\RepositoryHelpers;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -31,6 +32,24 @@ class EntryFrontRepository {
 
 		if ( ! $this->has_column( 'competition_id' ) || ! $this->has_column( 'club_id' ) ) {
 			return array();
+		}
+
+		if ( class_exists( EntryRepository::class ) ) {
+			$details_repo = new EntryRepository();
+			if ( method_exists( $details_repo, 'list_with_details' ) ) {
+				$rows = $details_repo->list_with_details(
+					array(
+						'competition_id' => $competition_id,
+						'club_id' => $club_id,
+						'view' => 'all',
+					),
+					0,
+					0
+				);
+				if ( is_array( $rows ) ) {
+					return $rows;
+				}
+			}
 		}
 
 		$table = Db::entries_table();

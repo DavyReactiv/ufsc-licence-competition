@@ -69,6 +69,19 @@ class Entries_Page {
 		$filters = $list_table->get_filters();
 		$current_view = $filters['view'] ?? 'all';
 		$items_count = is_countable( $list_table->items ) ? count( $list_table->items ) : 0;
+		$table_output = $this->capture_list_table_output( $list_table );
+		$has_table_markup = false !== strpos( $table_output, 'wp-list-table' );
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
+			error_log(
+				sprintf(
+					'UFSC Entries list render: items=%d output_len=%d has_table=%s',
+					(int) $items_count,
+					strlen( $table_output ),
+					$has_table_markup ? 'yes' : 'no'
+				)
+			);
+		}
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -84,7 +97,13 @@ class Entries_Page {
 				<?php endif; ?>
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competition-entries-search' ); ?>
 				<div class="ufsc-competitions-table-wrap">
-					<?php $list_table->display(); ?>
+					<?php
+					if ( '' !== trim( $table_output ) ) {
+						echo $table_output;
+					} else {
+						$list_table->display();
+					}
+					?>
 				</div>
 			</form>
 			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
