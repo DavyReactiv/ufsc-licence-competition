@@ -13,6 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class EntryActions {
+
 	public static function handle_create(): void {
 		self::handle_action( 'create' );
 	}
@@ -61,8 +62,10 @@ class EntryActions {
 
 		self::debug_log( 'entry_action_start', array( 'action' => $action ) );
 
+		// Capability (club access) - avoid namespace issues by referencing the global class.
 		$required_capability = class_exists( '\\UFSC_LC_Settings_Page' ) ? \UFSC_LC_Settings_Page::get_club_access_capability() : '';
 		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
+
 		if ( $required_capability && ! current_user_can( $required_capability ) ) {
 			self::redirect_with_notice( 0, 'error_forbidden' );
 		}
@@ -76,6 +79,7 @@ class EntryActions {
 
 		$club_access = new ClubAccess();
 		$club_id     = $club_access->get_club_id_for_user( get_current_user_id() );
+
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
@@ -103,11 +107,14 @@ class EntryActions {
 			if ( absint( $entry->club_id ?? 0 ) !== absint( $club_id ) ) {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
+
 			if ( absint( $entry->competition_id ?? 0 ) !== absint( $competition_id ) ) {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
 
-			$status = $repo->get_entry_status( $entry );
+			$status = (string) $repo->get_entry_status( $entry );
+			$status = EntriesWorkflow::normalize_status( $status );
+
 			if ( 'draft' !== $status ) {
 				self::redirect_with_notice( $competition_id, 'error_locked' );
 			}
@@ -125,12 +132,14 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, $result ? 'entry_deleted' : 'error' );
 		}
 
-		$license_id = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
-		$license_term = isset( $_POST['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_term'] ) ) : '';
-		$license_number = isset( $_POST['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_number'] ) ) : '';
+		$license_id        = isset( $_POST['ufsc_license_id'] ) ? absint( $_POST['ufsc_license_id'] ) : 0;
+		$license_term      = isset( $_POST['ufsc_license_term'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_term'] ) ) : '';
+		$license_number    = isset( $_POST['ufsc_license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_number'] ) ) : '';
 		$license_birthdate = isset( $_POST['ufsc_license_birthdate'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_license_birthdate'] ) ) : '';
 		$license_birthdate = self::normalize_birthdate_input( $license_birthdate );
-		$license    = null;
+
+		$license = null;
+
 		if ( $license_id ) {
 			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 			if ( is_array( $license_data ) ) {
@@ -144,11 +153,19 @@ class EntryActions {
 
 		if ( 'create' === $action && ! $license ) {
 			if ( '' !== $license_term || '' !== $license_number ) {
-				$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $license_term, $club_id, $license_number, $license_birthdate );
+				$results = apply_filters(
+					'ufsc_competitions_front_license_search_results',
+					array(),
+					$license_term,
+					$club_id,
+					$license_number,
+					$license_birthdate
+				);
+
 				if ( is_array( $results ) ) {
 					$normalized = $repo->normalize_license_results( $results, 2 );
 					if ( 1 === count( $normalized ) && ! empty( $normalized[0]['id'] ) ) {
-						$license_id = (int) $normalized[0]['id'];
+						$license_id   = (int) $normalized[0]['id'];
 						$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 						if ( is_array( $license_data ) ) {
 							$license = $repo->normalize_license_result( $license_data );
@@ -161,10 +178,10 @@ class EntryActions {
 				self::debug_log(
 					'entry_action_license_missing',
 					array(
-						'action' => $action,
-						'club_id' => $club_id,
-						'term' => $license_term,
-						'number' => $license_number,
+						'action'    => $action,
+						'club_id'   => $club_id,
+						'term'      => $license_term,
+						'number'    => $license_number,
 						'birthdate' => $license_birthdate,
 					)
 				);
@@ -172,11 +189,11 @@ class EntryActions {
 		}
 
 		$prefill = $license ? array(
-			'first_name' => $license['first_name'] ?? '',
-			'last_name'  => $license['last_name'] ?? '',
-			'birth_date' => $license['birthdate'] ?? '',
-			'sex'        => $license['sex'] ?? '',
-			'weight'     => isset( $license['weight'] ) ? (string) $license['weight'] : '',
+			'first_name'   => $license['first_name'] ?? '',
+			'last_name'    => $license['last_name'] ?? '',
+			'birth_date'   => $license['birthdate'] ?? '',
+			'sex'          => $license['sex'] ?? '',
+			'weight'       => isset( $license['weight'] ) ? (string) $license['weight'] : '',
 			'weight_class' => $license['weight_class'] ?? '',
 		) : array();
 
@@ -206,10 +223,11 @@ class EntryActions {
 
 		if ( empty( $data['weight_class'] ) && ! empty( $data['birth_date'] ) && ! empty( $data['weight'] ) ) {
 			$weight_context = array(
-				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
-				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'discipline'      => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference'   => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
 				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
 			);
+
 			$data['weight_class'] = \UFSC\Competitions\Services\WeightCategoryResolver::resolve(
 				$data['birth_date'],
 				$data['sex'] ?? '',
@@ -222,6 +240,7 @@ class EntryActions {
 		if ( 'create' === $action ) {
 			$status_field = $repo->get_status_storage_field();
 			$new_status   = 'draft';
+
 			if ( 'status' === $status_field ) {
 				$data['status'] = $new_status;
 			} elseif ( '' !== $status_field ) {
@@ -233,13 +252,16 @@ class EntryActions {
 
 		if ( 'create' === $action ) {
 			do_action( 'ufsc_competitions_entry_before_create', $data, $competition, $club_id );
+
 			$entry_id = $repo->insert( $data );
 			if ( ! $entry_id ) {
 				self::debug_log( 'entry_action_create_failed', array( 'competition_id' => $competition_id, 'club_id' => $club_id ) );
 				self::redirect_with_notice( $competition_id, 'error' );
 			}
+
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
 			do_action( 'ufsc_competitions_entry_status_changed', $entry_id, '', $new_status ?: 'draft', $competition, $club_id );
+
 			self::redirect_with_notice( $competition_id, 'created' );
 		}
 
@@ -247,6 +269,7 @@ class EntryActions {
 		if ( $result ) {
 			do_action( 'ufsc_competitions_entry_after_update', $entry_id, $data, $competition, $club_id, $entry );
 		}
+
 		self::redirect_with_notice( $competition_id, $result ? 'entry_updated' : 'error' );
 	}
 
@@ -257,8 +280,10 @@ class EntryActions {
 
 		self::debug_log( 'entry_status_action_start', array( 'action' => $action ) );
 
+		// Capability (club access) - avoid namespace issues by referencing the global class.
 		$required_capability = class_exists( '\\UFSC_LC_Settings_Page' ) ? \UFSC_LC_Settings_Page::get_club_access_capability() : '';
 		$required_capability = apply_filters( 'ufsc_competitions_front_entry_capability', $required_capability );
+
 		if ( $required_capability && ! current_user_can( $required_capability ) ) {
 			self::redirect_with_notice( 0, 'error_forbidden' );
 		}
@@ -287,6 +312,7 @@ class EntryActions {
 		$entry_id = isset( $_POST['entry_id'] ) ? absint( $_POST['entry_id'] ) : 0;
 		$repo     = new EntryFrontRepository();
 		$entry    = $entry_id ? $repo->get( $entry_id ) : null;
+
 		if ( ! $entry ) {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
@@ -310,10 +336,11 @@ class EntryActions {
 			}
 
 			$weight_context = array(
-				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
-				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'discipline'      => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference'   => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
 				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
 			);
+
 			if ( \UFSC\Competitions\Services\WeightCategoryResolver::requires_weight( $weight_context ) ) {
 				$weight_value = '';
 				foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
@@ -333,6 +360,7 @@ class EntryActions {
 				$competition,
 				$club_id
 			);
+
 			if ( is_array( $quota_result ) && empty( $quota_result['ok'] ) ) {
 				self::redirect_with_notice( $competition_id, 'error_quota' );
 			}
@@ -347,16 +375,22 @@ class EntryActions {
 				do_action( 'ufsc_entries_after_submit', $entry_id, $entry, $competition, $club_id );
 				self::redirect_with_notice( $competition_id, 'entry_submitted' );
 			}
+
 			self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 		}
 
 		if ( 'withdraw' === $action ) {
+			// ✅ Normalisation robuste (évite les variations "Validé", "validated", etc.)
 			$current_status = EntriesWorkflow::normalize_status( (string) $repo->get_entry_status( $entry ) );
+
+			// ✅ Retrait interdit APRES validation admin : le club doit contacter l’UFSC.
+			$locked_statuses = array( 'approved', 'validated', 'valid', 'valide' );
+			if ( in_array( $current_status, $locked_statuses, true ) ) {
+				self::redirect_with_notice( $competition_id, 'error_withdraw_approved' );
+			}
+
 			$withdrawable_statuses = array( 'draft', 'submitted', 'pending', 'rejected' );
 			if ( ! in_array( $current_status, $withdrawable_statuses, true ) ) {
-				if ( 'approved' === $current_status ) {
-					self::redirect_with_notice( $competition_id, 'error_entry_validated' );
-				}
 				self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 			}
 
@@ -364,11 +398,13 @@ class EntryActions {
 			if ( ! $can_withdraw ) {
 				self::redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
+
 			$result = $repo->withdraw( $entry_id, (int) $club_id );
 			if ( ! empty( $result['ok'] ) ) {
 				do_action( 'ufsc_entries_after_withdraw', $entry_id, $entry, $competition, $club_id );
 				self::redirect_with_notice( $competition_id, 'entry_withdrawn' );
 			}
+
 			self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 		}
 
@@ -377,6 +413,7 @@ class EntryActions {
 			do_action( 'ufsc_entries_after_cancel', $entry_id, $entry, $competition, $club_id );
 			self::redirect_with_notice( $competition_id, 'entry_cancelled' );
 		}
+
 		self::redirect_with_notice( $competition_id, 'error_invalid_status' );
 	}
 
@@ -404,19 +441,21 @@ class EntryActions {
 
 		$repo  = new EntryFrontRepository();
 		$entry = $repo->get( $entry_id );
+
 		if ( ! $entry ) {
 			self::redirect_admin_with_notice( 'error_not_found' );
 		}
 
-		$user_id      = get_current_user_id();
-		$competition  = EntriesModule::get_competition( (int) ( $entry->competition_id ?? 0 ) );
+		$user_id     = get_current_user_id();
+		$competition = EntriesModule::get_competition( (int) ( $entry->competition_id ?? 0 ) );
 
 		if ( 'validate' === $action ) {
 			$weight_context = array(
-				'discipline' => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
-				'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+				'discipline'      => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+				'age_reference'   => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
 				'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
 			);
+
 			if ( \UFSC\Competitions\Services\WeightCategoryResolver::requires_weight( $weight_context ) ) {
 				$weight_value = '';
 				foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
@@ -435,6 +474,7 @@ class EntryActions {
 				do_action( 'ufsc_entries_after_validate', $entry_id, $entry, $competition, $entry->club_id ?? 0 );
 				self::redirect_admin_with_notice( 'entry_validated' );
 			}
+
 			self::redirect_admin_with_notice( 'error_invalid_status' );
 		}
 
@@ -443,11 +483,13 @@ class EntryActions {
 			if ( '' === $reason ) {
 				self::redirect_admin_with_notice( 'error_invalid_fields' );
 			}
+
 			$result = $repo->reject( $entry_id, $user_id, $reason );
 			if ( ! empty( $result['ok'] ) ) {
 				do_action( 'ufsc_entries_after_reject', $entry_id, $entry, $competition, $entry->club_id ?? 0, $reason );
 				self::redirect_admin_with_notice( 'entry_rejected' );
 			}
+
 			self::redirect_admin_with_notice( 'error_invalid_status' );
 		}
 
@@ -456,6 +498,7 @@ class EntryActions {
 			do_action( 'ufsc_entries_after_reopen', $entry_id, $entry, $competition, $entry->club_id ?? 0 );
 			self::redirect_admin_with_notice( 'entry_reopened' );
 		}
+
 		self::redirect_admin_with_notice( 'error_invalid_status' );
 	}
 
@@ -580,14 +623,14 @@ class EntryActions {
 			return '';
 		}
 
-		if ( preg_match( '/^\\d{2}\\/\\d{2}\\/\\d{4}$/', $value ) ) {
+		if ( preg_match( '/^\d{2}\/\d{2}\/\d{4}$/', $value ) ) {
 			$parts = explode( '/', $value );
 			if ( 3 === count( $parts ) ) {
 				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
 			}
 		}
 
-		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
 			return $value;
 		}
 
@@ -602,6 +645,7 @@ class EntryActions {
 	private static function debug_log( string $message, array $context = array() ): void {
 		$enabled = ( defined( 'UFSC_LC_DEBUG' ) && UFSC_LC_DEBUG )
 			|| ( defined( 'WP_DEBUG' ) && WP_DEBUG );
+
 		if ( ! $enabled ) {
 			return;
 		}
