@@ -13,23 +13,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EntryFormRenderer {
 
 	public static function render( array $context ): string {
-		$competition          = $context['competition'] ?? null;
-		$club_id              = absint( $context['club_id'] ?? 0 );
-		$entries              = $context['entries'] ?? array();
-		$editing_entry        = $context['editing_entry'] ?? null;
-		$club_label           = (string) ( $context['club_label'] ?? '' );
-		$registration_open    = (bool) ( $context['registration_open'] ?? true );
-		$license_results      = $context['license_results'] ?? array();
-		$selected_license     = $context['selected_license'] ?? null;
-		$license_term         = (string) ( $context['license_term'] ?? '' );
-		$license_number       = (string) ( $context['license_number'] ?? '' );
-		$license_birthdate    = (string) ( $context['license_birthdate'] ?? '' );
-		$license_id           = absint( $context['license_id'] ?? 0 );
-		$return_url           = (string) ( $context['return_url'] ?? '' );
-		$prefill              = is_array( $context['prefill'] ?? null ) ? $context['prefill'] : array();
-		$license_search_available = has_filter( 'ufsc_competitions_front_license_search_results' )
+		$competition               = $context['competition'] ?? null;
+		$club_id                   = absint( $context['club_id'] ?? 0 );
+		$entries                   = $context['entries'] ?? array();
+		$editing_entry             = $context['editing_entry'] ?? null;
+		$club_label                = (string) ( $context['club_label'] ?? '' );
+		$registration_open         = (bool) ( $context['registration_open'] ?? true );
+		$license_results           = $context['license_results'] ?? array();
+		$selected_license          = $context['selected_license'] ?? null;
+		$license_term              = (string) ( $context['license_term'] ?? '' );
+		$license_number            = (string) ( $context['license_number'] ?? '' );
+		$license_birthdate         = (string) ( $context['license_birthdate'] ?? '' );
+		$license_id                = absint( $context['license_id'] ?? 0 );
+		$return_url                = (string) ( $context['return_url'] ?? '' );
+		$prefill                   = is_array( $context['prefill'] ?? null ) ? $context['prefill'] : array();
+		$license_search_available  = has_filter( 'ufsc_competitions_front_license_search_results' )
 			|| has_filter( 'ufsc_competitions_front_license_by_id' );
-		$license_notice = '';
+		$license_notice            = '';
 
 		$repo = ( $context['entry_repo'] ?? null ) instanceof EntryFrontRepository
 			? $context['entry_repo']
@@ -102,9 +102,9 @@ class EntryFormRenderer {
 				$official_notice = '';
 				if ( $club_id && ! empty( $entries ) && ! empty( $competition->event_start_datetime ) ) {
 					$event_start = (string) $competition->event_start_datetime;
-					$event_ts = strtotime( $event_start );
+					$event_ts    = strtotime( $event_start );
 					if ( $event_ts ) {
-						$publish_ts = $event_ts - ( 15 * DAY_IN_SECONDS );
+						$publish_ts   = $event_ts - ( 15 * DAY_IN_SECONDS );
 						$publish_date = function_exists( 'ufsc_lc_format_datetime' )
 							? ufsc_lc_format_datetime( date_i18n( 'Y-m-d H:i:s', $publish_ts ) )
 							: date_i18n( 'Y-m-d H:i:s', $publish_ts );
@@ -131,10 +131,14 @@ class EntryFormRenderer {
 					$license_keys = array(
 						'license_number',
 						'licence_number',
+						'licensee_number', // ✅ keep (some sources expose this key)
 					);
+
 					$license_id_keys = array( 'licensee_id', 'licence_id', 'license_id' );
+
 					$get_license_number = static function( $entry ) use ( $license_keys, $license_id_keys, $club_id ): string {
 						static $license_number_cache = array();
+
 						$license_value = EntryFormRenderer::get_entry_value( $entry, $license_keys );
 						if ( '' !== $license_value ) {
 							return $license_value;
@@ -157,7 +161,12 @@ class EntryFormRenderer {
 						if ( ! array_key_exists( $license_id, $license_number_cache ) ) {
 							$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
 							if ( is_array( $license_data ) ) {
-								$license_number_cache[ $license_id ] = (string) ( $license_data['license_number'] ?? $license_data['licence_number'] ?? '' );
+								$license_number_cache[ $license_id ] = (string) (
+									$license_data['license_number']
+									?? $license_data['licence_number']
+									?? $license_data['licensee_number']
+									?? ''
+								);
 							} else {
 								$license_number_cache[ $license_id ] = '';
 							}
@@ -165,6 +174,7 @@ class EntryFormRenderer {
 
 						return (string) $license_number_cache[ $license_id ];
 					};
+
 					$show_license_column = false;
 					foreach ( $entries as $entry ) {
 						$license_value = $get_license_number( $entry );
@@ -196,41 +206,44 @@ class EntryFormRenderer {
 							<tbody>
 								<?php foreach ( $entries as $entry ) : ?>
 									<?php
-									$entry_id        = absint( $entry->id ?? 0 );
-									$status          = function_exists( 'ufsc_is_entry_eligible' )
+									$entry_id = absint( $entry->id ?? 0 );
+
+									$status = function_exists( 'ufsc_is_entry_eligible' )
 										? (string) ( ufsc_is_entry_eligible( $entry_id, 'front_club' )['status'] ?? '' )
 										: $repo->get_entry_status( $entry );
-									$name            = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
 
+									$name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name' ) );
 									if ( '' === $name ) {
 										$first = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom' ) );
 										$last  = self::get_entry_value( $entry, array( 'last_name', 'lastname', 'nom' ) );
 										$name  = trim( $first . ' ' . $last );
 									}
 
-									$birth_date      = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
-									$birth_year      = self::get_birth_year( $birth_date );
-									$category        = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
-									$weight          = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
-									$weight_class    = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
-									$license_number  = $show_license_column ? $get_license_number( $entry ) : '';
-									$club_name       = $club_label ?: (string) ( $entry->club_name ?? '' );
+									$birth_date     = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+									$birth_year     = self::get_birth_year( $birth_date );
+									$category       = self::get_entry_value( $entry, array( 'category', 'category_name' ) );
+									$weight         = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+									$weight_class   = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category' ) );
+									$license_number = $show_license_column ? $get_license_number( $entry ) : '';
+									$club_name      = $club_label ?: (string) ( $entry->club_name ?? '' );
 
 									$details_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
 									$edit_url    = $details_url ? add_query_arg( 'ufsc_entry_edit', $entry_id, $details_url ) : '';
 									$edit_url    = $edit_url ? $edit_url . '#ufsc-entry-form' : '';
 
-									$post_action     = admin_url( 'admin-post.php' );
-									$delete_nonce    = wp_create_nonce( 'ufsc_competitions_entry_delete' );
-									$submit_nonce    = wp_create_nonce( 'ufsc_entry_submit' );
-									$withdraw_nonce  = wp_create_nonce( 'ufsc_entry_withdraw' );
+									$post_action    = admin_url( 'admin-post.php' );
+									$delete_nonce   = wp_create_nonce( 'ufsc_competitions_entry_delete' );
+									$submit_nonce   = wp_create_nonce( 'ufsc_entry_submit' );
+									$withdraw_nonce = wp_create_nonce( 'ufsc_entry_withdraw' );
 
-									$status_label    = EntriesWorkflow::get_status_label( $status );
-									$status_class    = EntriesWorkflow::get_status_badge_class( $status );
-									$updated_at      = isset( $entry->updated_at ) ? (string) $entry->updated_at : '';
+									$status_label = EntriesWorkflow::get_status_label( $status );
+									$status_class = EntriesWorkflow::get_status_badge_class( $status );
+
+									$updated_at = isset( $entry->updated_at ) ? (string) $entry->updated_at : '';
 									if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
 										$updated_at = ufsc_lc_format_datetime( $updated_at );
 									}
+
 									$rejected_reason = isset( $entry->rejected_reason ) ? (string) $entry->rejected_reason : '';
 
 									$can_withdraw = (bool) apply_filters( 'ufsc_entries_can_withdraw', true, $entry, $competition, $club_id );
@@ -328,9 +341,9 @@ class EntryFormRenderer {
 				</h4>
 
 				<?php
-				$editing_status  = $editing_entry ? $repo->get_entry_status( $editing_entry ) : 'draft';
-				$editing_locked  = $editing_entry && 'draft' !== $editing_status;
-				$timeline_label  = EntriesWorkflow::get_timeline_label( $editing_status );
+				$editing_status = $editing_entry ? $repo->get_entry_status( $editing_entry ) : 'draft';
+				$editing_locked = $editing_entry && 'draft' !== $editing_status;
+				$timeline_label = EntriesWorkflow::get_timeline_label( $editing_status );
 				?>
 
 				<p class="ufsc-competition-entry-timeline">
@@ -364,29 +377,29 @@ class EntryFormRenderer {
 
 						<?php
 						$has_license_results = ! empty( $license_results );
-						$select_form_style = $has_license_results ? '' : 'style="display:none;"';
+						$select_form_style   = $has_license_results ? '' : 'style="display:none;"';
 						?>
 						<form method="get" action="<?php echo esc_url( Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) ) ); ?>#ufsc-inscriptions" class="ufsc-license-select-form" <?php echo $select_form_style; ?>>
-								<input type="hidden" name="ufsc_license_term" value="<?php echo esc_attr( $license_term ); ?>" />
-								<input type="hidden" name="ufsc_license_number" value="<?php echo esc_attr( $license_number ); ?>" />
-								<input type="hidden" name="ufsc_license_birthdate" value="<?php echo esc_attr( $license_birthdate ); ?>" />
-								<?php if ( $editing_entry ) : ?>
-									<input type="hidden" name="ufsc_entry_edit" value="<?php echo esc_attr( (int) ( $editing_entry->id ?? 0 ) ); ?>" />
+							<input type="hidden" name="ufsc_license_term" value="<?php echo esc_attr( $license_term ); ?>" />
+							<input type="hidden" name="ufsc_license_number" value="<?php echo esc_attr( $license_number ); ?>" />
+							<input type="hidden" name="ufsc_license_birthdate" value="<?php echo esc_attr( $license_birthdate ); ?>" />
+							<?php if ( $editing_entry ) : ?>
+								<input type="hidden" name="ufsc_entry_edit" value="<?php echo esc_attr( (int) ( $editing_entry->id ?? 0 ) ); ?>" />
+							<?php endif; ?>
+
+							<select name="ufsc_license_id">
+								<option value=""><?php echo esc_html__( 'Sélectionner un licencié', 'ufsc-licence-competition' ); ?></option>
+								<?php if ( $has_license_results ) : ?>
+									<?php foreach ( $license_results as $license_row ) : ?>
+										<option value="<?php echo esc_attr( (int) ( $license_row['id'] ?? 0 ) ); ?>" <?php selected( (int) $license_id, (int) ( $license_row['id'] ?? 0 ) ); ?>>
+											<?php echo esc_html( (string) ( $license_row['label'] ?? '' ) ); ?>
+										</option>
+									<?php endforeach; ?>
 								<?php endif; ?>
+							</select>
 
-								<select name="ufsc_license_id">
-									<option value=""><?php echo esc_html__( 'Sélectionner un licencié', 'ufsc-licence-competition' ); ?></option>
-									<?php if ( $has_license_results ) : ?>
-										<?php foreach ( $license_results as $license_row ) : ?>
-											<option value="<?php echo esc_attr( (int) ( $license_row['id'] ?? 0 ) ); ?>" <?php selected( (int) $license_id, (int) ( $license_row['id'] ?? 0 ) ); ?>>
-												<?php echo esc_html( (string) ( $license_row['label'] ?? '' ) ); ?>
-											</option>
-										<?php endforeach; ?>
-									<?php endif; ?>
-								</select>
-
-								<button type="submit" class="button"><?php echo esc_html__( 'Pré-remplir', 'ufsc-licence-competition' ); ?></button>
-							</form>
+							<button type="submit" class="button"><?php echo esc_html__( 'Pré-remplir', 'ufsc-licence-competition' ); ?></button>
+						</form>
 					</div>
 				<?php endif; ?>
 
@@ -451,13 +464,15 @@ class EntryFormRenderer {
 					if ( '' === $license_number_value && ! $editing_entry ) {
 						$license_number_value = (string) ( $selected_license['license_number'] ?? '' );
 					}
+
 					$license_number_selected = $club_id && ( $license_id || ! empty( $selected_license ) );
-					$show_license_field = $license_number_selected || '' !== $license_number_value;
+					$show_license_field      = $license_number_selected || '' !== $license_number_value;
 
 					$section_titles = array(
 						'identity' => __( 'Identité compétiteur', 'ufsc-licence-competition' ),
 						'category' => __( 'Données sportives', 'ufsc-licence-competition' ),
 					);
+
 					$section_by_field = array(
 						'first_name'     => 'identity',
 						'last_name'      => 'identity',
@@ -469,6 +484,7 @@ class EntryFormRenderer {
 						'category'       => 'category',
 						'level'          => 'category',
 					);
+
 					$current_section = '';
 					?>
 
@@ -489,9 +505,9 @@ class EntryFormRenderer {
 							? self::get_entry_value( $editing_entry, $field_columns )
 							: (string) ( $prefill[ $field_name ] ?? '' );
 
-						$is_locked_field    = $editing_entry && in_array( $field_name, $locked_fields, true );
-						$is_field_disabled  = ( ! $registration_open ) || $editing_locked || $is_locked_field || $is_readonly;
-						$disabled_attr      = $is_field_disabled ? 'disabled' : '';
+						$is_locked_field   = $editing_entry && in_array( $field_name, $locked_fields, true );
+						$is_field_disabled = ( ! $registration_open ) || $editing_locked || $is_locked_field || $is_readonly;
+						$disabled_attr     = $is_field_disabled ? 'disabled' : '';
 
 						if ( 'license_number' === $field_name && ! $show_license_field ) {
 							continue;
@@ -542,26 +558,26 @@ class EntryFormRenderer {
 								<?php endif; ?>
 							<?php else : ?>
 								<span class="ufsc-field-input">
-								<input
-									type="<?php echo esc_attr( $field_type ); ?>"
-									id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
-									name="<?php echo esc_attr( $field_name ); ?>"
-									value="<?php echo esc_attr( $value ); ?>"
-									<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
-									<?php if ( $field_required ) : ?>required<?php endif; ?>
-									<?php echo esc_attr( $disabled_attr ); ?>
-									<?php echo 'weight' === $field_name ? 'style="max-width:140px;" step="0.1" min="0" inputmode="decimal" pattern="[0-9]+([\\.,][0-9]+)?"' : ''; ?>
-								/>
-								<?php if ( 'weight' === $field_name ) : ?>
-									<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
-								<?php endif; ?>
-								<?php if ( 'category' === $field_name ) : ?>
-									<small class="ufsc-entry-category-status" aria-live="polite"></small>
-								<?php endif; ?>
-								<?php if ( 'license_number' === $field_name && $license_number_selected && '' === $value ) : ?>
-									<small class="description"><?php echo esc_html__( 'Le numéro n’est pas remonté par la base licences.', 'ufsc-licence-competition' ); ?></small>
-								<?php endif; ?>
-							</span>
+									<input
+										type="<?php echo esc_attr( $field_type ); ?>"
+										id="ufsc-entry-<?php echo esc_attr( $field_name ); ?>"
+										name="<?php echo esc_attr( $field_name ); ?>"
+										value="<?php echo esc_attr( $value ); ?>"
+										<?php if ( $field_placeholder ) : ?>placeholder="<?php echo esc_attr( $field_placeholder ); ?>"<?php endif; ?>
+										<?php if ( $field_required ) : ?>required<?php endif; ?>
+										<?php echo esc_attr( $disabled_attr ); ?>
+										<?php echo 'weight' === $field_name ? 'style="max-width:140px;" step="0.1" min="0" inputmode="decimal" pattern="[0-9]+([\\.,][0-9]+)?"' : ''; ?>
+									/>
+									<?php if ( 'weight' === $field_name ) : ?>
+										<span class="ufsc-field-suffix"><?php echo esc_html__( 'kg', 'ufsc-licence-competition' ); ?></span>
+									<?php endif; ?>
+									<?php if ( 'category' === $field_name ) : ?>
+										<small class="ufsc-entry-category-status" aria-live="polite"></small>
+									<?php endif; ?>
+									<?php if ( 'license_number' === $field_name && $license_number_selected && '' === $value ) : ?>
+										<small class="description"><?php echo esc_html__( 'Le numéro n’est pas remonté par la base licences.', 'ufsc-licence-competition' ); ?></small>
+									<?php endif; ?>
+								</span>
 							<?php endif; ?>
 						</div>
 					<?php endforeach; ?>
@@ -622,7 +638,6 @@ class EntryFormRenderer {
 
 			'export_empty'             => array( 'info', __( 'Aucune inscription approuvée à exporter.', 'ufsc-licence-competition' ) ),
 			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
-			'entry_reopened'           => array( 'success', __( 'Inscription réouverte.', 'ufsc-licence-competition' ) ),
 		);
 
 		$messages = apply_filters( 'ufsc_competitions_front_notice_map', $messages );
