@@ -371,10 +371,8 @@ class Entries_Table extends \WP_List_Table {
 			: $value;
 	}
 
-	private function get_column_count(): int {
-		list( $columns ) = $this->get_column_info();
-
-		return is_array( $columns ) ? count( $columns ) : 0;
+	public function get_column_count() {
+		return parent::get_column_count();
 	}
 
 	private function format_birth_year( $birthdate ): string {
