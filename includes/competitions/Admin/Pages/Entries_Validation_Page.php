@@ -28,8 +28,35 @@ class Entries_Validation_Page {
 		$table->prepare_items();
 		$table_output = $this->capture_list_table_output( $table );
 		$items_count = is_countable( $table->items ) ? count( $table->items ) : 0;
+		$output_len = strlen( $table_output );
+		$current_view = isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : '';
+		$legacy_view = isset( $_GET['view'] ) ? sanitize_key( wp_unslash( $_GET['view'] ) ) : '';
+		$competition_id = isset( $_GET['ufsc_competition_id'] ) ? absint( $_GET['ufsc_competition_id'] ) : 0;
+		$legacy_competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$status = isset( $_GET['ufsc_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_status'] ) ) : '';
+		$legacy_status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
+		$discipline = isset( $_GET['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_discipline'] ) ) : '';
+		$legacy_discipline = isset( $_GET['discipline'] ) ? sanitize_key( wp_unslash( $_GET['discipline'] ) ) : '';
+		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$paged = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 0;
 
 		$notice = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
+			error_log(
+				sprintf(
+					'UFSC entries validation page=%s s=%s paged=%d ufsc_view=%s competition_id=%d status=%s discipline=%s items=%d output_len=%d',
+					Entries_Validation_Menu::PAGE_SLUG,
+					$search,
+					(int) $paged,
+					$current_view,
+					(int) ( $competition_id ?: $legacy_competition_id ),
+					$status ?: $legacy_status,
+					$discipline ?: $legacy_discipline,
+					(int) $items_count,
+					(int) $output_len
+				)
+			);
+		}
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ); ?></h1>
@@ -38,10 +65,47 @@ class Entries_Validation_Page {
 				<?php echo $this->render_notice( $notice ); ?>
 			<?php endif; ?>
 
+			<?php $table->views(); ?>
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Entries_Validation_Menu::PAGE_SLUG ); ?>" />
+				<?php if ( $current_view ) : ?>
+					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_view ) : ?>
+					<input type="hidden" name="view" value="<?php echo esc_attr( $legacy_view ); ?>" />
+				<?php endif; ?>
+				<?php if ( $competition_id ) : ?>
+					<input type="hidden" name="ufsc_competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_competition_id ) : ?>
+					<input type="hidden" name="competition_id" value="<?php echo esc_attr( $legacy_competition_id ); ?>" />
+				<?php endif; ?>
+				<?php if ( $status ) : ?>
+					<input type="hidden" name="ufsc_status" value="<?php echo esc_attr( $status ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_status ) : ?>
+					<input type="hidden" name="status" value="<?php echo esc_attr( $legacy_status ); ?>" />
+				<?php endif; ?>
+				<?php if ( $discipline ) : ?>
+					<input type="hidden" name="ufsc_discipline" value="<?php echo esc_attr( $discipline ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_discipline ) : ?>
+					<input type="hidden" name="discipline" value="<?php echo esc_attr( $legacy_discipline ); ?>" />
+				<?php endif; ?>
+				<?php if ( $search ) : ?>
+					<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
+				<?php endif; ?>
+				<?php if ( $paged ) : ?>
+					<input type="hidden" name="paged" value="<?php echo esc_attr( $paged ); ?>" />
+				<?php endif; ?>
 				<?php $table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-entry-validation' ); ?>
-				<?php echo $table_output; ?>
+				<?php
+				if ( '' !== trim( $table_output ) ) {
+					echo $table_output;
+				} else {
+					$table->display();
+				}
+				?>
 			</form>
 			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
 				<!-- UFSC entries debug: display_called=1 items=<?php echo esc_attr( (string) $items_count ); ?> -->
