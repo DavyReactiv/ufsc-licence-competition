@@ -79,7 +79,7 @@ class Entries_Table extends \WP_List_Table {
 
 		$columns = $this->get_columns();
 		$sortable = $this->get_sortable_columns();
-		$hidden = $this->get_hidden_columns();
+		$hidden = (array) $this->get_hidden_columns();
 		$primary = $this->get_primary_column_name();
 
 		$this->_column_headers = array(
@@ -533,7 +533,7 @@ class Entries_Table extends \WP_List_Table {
 		$this->has_logged_state = true;
 	}
 
-	private function maybe_log_headers_initialized( array $columns, array $hidden, array $sortable, string $primary ): void {
+	private function maybe_log_headers_initialized( array $columns, $hidden, array $sortable, string $primary ): void {
 		if ( $this->has_logged_headers ) {
 			return;
 		}
@@ -543,6 +543,8 @@ class Entries_Table extends \WP_List_Table {
 		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
+		$hidden = is_array( $hidden ) ? $hidden : array();
 
 		error_log(
 			sprintf(
