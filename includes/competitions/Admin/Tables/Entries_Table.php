@@ -27,6 +27,7 @@ class Entries_Table extends \WP_List_Table {
 	private $categories = array();
 	private $columns_state = array();
 	private $has_logged_state = false;
+	private $has_logged_headers = false;
 
 	public function __construct() {
 		parent::__construct(
@@ -76,7 +77,19 @@ class Entries_Table extends \WP_List_Table {
 			)
 		);
 
-		$this->get_columns();
+		$columns = $this->get_columns();
+		$sortable = $this->get_sortable_columns();
+		$hidden = $this->get_hidden_columns();
+		$primary = $this->get_primary_column_name();
+
+		$this->_column_headers = array(
+			$columns,
+			$hidden,
+			$sortable,
+			$primary,
+		);
+
+		$this->maybe_log_headers_initialized( $columns, $hidden, $sortable, $primary );
 		$this->maybe_log_columns_state();
 	}
 
@@ -203,6 +216,7 @@ class Entries_Table extends \WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'name':
+			case 'licensee':
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
 				return esc_html( $this->format_fallback( $this->get_item_value( $item, 'license_number' ) ) );
@@ -230,6 +244,10 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
 			case 'updated_at':
 				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
+			case 'actions':
+				return $this->column_actions( $item );
+			case 'cb':
+				return $this->column_cb( $item );
 			default:
 				return esc_html( $this->format_fallback( $this->get_item_value( $item, $column_name ) ) );
 		}
@@ -513,6 +531,29 @@ class Entries_Table extends \WP_List_Table {
 
 		error_log( 'UFSC Entries_Table ' . implode( ' ', $log_parts ) );
 		$this->has_logged_state = true;
+	}
+
+	private function maybe_log_headers_initialized( array $columns, array $hidden, array $sortable, string $primary ): void {
+		if ( $this->has_logged_headers ) {
+			return;
+		}
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		error_log(
+			sprintf(
+				'UFSC Entries_Table headers initialized: columns=%d hidden=%d sortable=%d primary=%s',
+				count( $columns ),
+				count( $hidden ),
+				count( $sortable ),
+				$primary
+			)
+		);
+		$this->has_logged_headers = true;
 	}
 
 	private function get_item_keys( $item ): array {
