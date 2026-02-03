@@ -44,12 +44,24 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function prepare_items() {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_entries_validation_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
+		$competition_id = isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0;
+		if ( ! $competition_id && isset( $_REQUEST['competition_id'] ) ) {
+			$competition_id = absint( $_REQUEST['competition_id'] );
+		}
+		$status = isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '';
+		if ( '' === $status && isset( $_REQUEST['status'] ) ) {
+			$status = sanitize_key( wp_unslash( $_REQUEST['status'] ) );
+		}
+		$discipline = isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '';
+		if ( '' === $discipline && isset( $_REQUEST['discipline'] ) ) {
+			$discipline = sanitize_key( wp_unslash( $_REQUEST['discipline'] ) );
+		}
 
 		$filters = array(
-			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			'competition_id' => $competition_id,
 			'club_id' => isset( $_REQUEST['ufsc_club_id'] ) ? absint( $_REQUEST['ufsc_club_id'] ) : 0,
-			'status' => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
-			'discipline' => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
+			'status' => $status,
+			'discipline' => $discipline,
 			'search' => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
@@ -94,6 +106,16 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		$this->columns_state['primary'] = $primary;
 		$this->maybe_log_columns_state();
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() && current_user_can( 'manage_options' ) ) {
+			$items_count = is_countable( $this->items ) ? count( $this->items ) : 0;
+			if ( 0 === $items_count ) {
+				$filters_dump = wp_json_encode( $filters );
+				if ( is_string( $filters_dump ) ) {
+					error_log( 'UFSC Entries_Validation_Table filters=' . $filters_dump );
+				}
+			}
+		}
 	}
 
 	public function get_columns() {
