@@ -27,7 +27,6 @@ class Entries_Table extends \WP_List_Table {
 	private $categories = array();
 	private $columns_state = array();
 	private $has_logged_state = false;
-	private $has_logged_headers = false;
 
 	public function __construct() {
 		parent::__construct(
@@ -80,7 +79,10 @@ class Entries_Table extends \WP_List_Table {
 		$columns = $this->get_columns();
 		$sortable = $this->get_sortable_columns();
 		$hidden = (array) $this->get_hidden_columns();
-		$primary = $this->get_primary_column_name();
+		$primary = method_exists( $this, 'get_primary_column_name' ) ? $this->get_primary_column_name() : 'licensee';
+		if ( ! isset( $columns[ $primary ] ) ) {
+			$primary = is_array( $columns ) && $columns ? (string) array_key_first( $columns ) : 'licensee';
+		}
 
 		$this->_column_headers = array(
 			$columns,
@@ -89,7 +91,7 @@ class Entries_Table extends \WP_List_Table {
 			$primary,
 		);
 
-		$this->maybe_log_headers_initialized( $columns, $hidden, $sortable, $primary );
+		$this->columns_state['primary'] = $primary;
 		$this->maybe_log_columns_state();
 	}
 
@@ -159,11 +161,12 @@ class Entries_Table extends \WP_List_Table {
 
 	protected function column_licensee( $item ) {
 		$name = $this->format_fallback( $this->format_entry_name( $item ) );
+		$entry_id = (int) $this->get_item_value( $item, 'id' );
 		$edit_url = add_query_arg(
 			array(
 				'page'        => Menu::PAGE_ENTRIES,
 				'ufsc_action' => 'edit',
-				'id'          => $item->id,
+				'id'          => $entry_id,
 			),
 			admin_url( 'admin.php' )
 		);
@@ -172,34 +175,36 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	protected function column_actions( $item ) {
+		$entry_id = (int) $this->get_item_value( $item, 'id' );
+		$deleted_at = $this->get_item_value( $item, 'deleted_at' );
 		$edit_url = add_query_arg(
 			array(
 				'page'        => Menu::PAGE_ENTRIES,
 				'ufsc_action' => 'edit',
-				'id'          => $item->id,
+				'id'          => $entry_id,
 			),
 			admin_url( 'admin.php' )
 		);
 
 		$actions = array();
-		if ( empty( $item->deleted_at ) ) {
+		if ( empty( $deleted_at ) ) {
 			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
 			$actions['trash'] = sprintf(
 				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_entry', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_entry_' . $item->id ) ),
+				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_entry', 'id' => $entry_id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_entry_' . $entry_id ) ),
 				esc_attr__( 'Mettre cette inscription à la corbeille ?', 'ufsc-licence-competition' ),
 				esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
 			);
 		} else {
 			$actions['restore'] = sprintf(
 				'<a href="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_restore_entry', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_restore_entry_' . $item->id ) ),
+				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_restore_entry', 'id' => $entry_id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_restore_entry_' . $entry_id ) ),
 				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
 			);
 			if ( Capabilities::user_can_delete() ) {
 				$actions['delete'] = sprintf(
 					'<a href="%s" class="submitdelete ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_delete_entry', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_delete_entry_' . $item->id ) ),
+					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_delete_entry', 'id' => $entry_id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_delete_entry_' . $entry_id ) ),
 					esc_attr__( 'Supprimer définitivement cette inscription ?', 'ufsc-licence-competition' ),
 					esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
 				);
@@ -210,7 +215,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	public function column_cb( $item ) {
-		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', absint( $item->id ) );
+		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', absint( $this->get_item_value( $item, 'id' ) ) );
 	}
 
 	public function column_default( $item, $column_name ) {
@@ -239,7 +244,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'weight_class':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
 			case 'status':
-				return esc_html( $this->format_status( $item ) );
+				return esc_html( $this->format_fallback( $this->format_status( $item ) ) );
 			case 'updated':
 				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
 			case 'updated_at':
@@ -363,8 +368,8 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $item ): string {
-		$last = isset( $item->licensee_last_name ) ? (string) $item->licensee_last_name : '';
-		$first = isset( $item->licensee_first_name ) ? (string) $item->licensee_first_name : '';
+		$last = (string) $this->get_item_value( $item, 'licensee_last_name' );
+		$first = (string) $this->get_item_value( $item, 'licensee_first_name' );
 		$name = trim( $last . ' ' . $first );
 
 		if ( '' !== $name ) {
@@ -372,12 +377,13 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		foreach ( array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) as $key ) {
-			if ( isset( $item->{$key} ) && '' !== (string) $item->{$key} ) {
-				return (string) $item->{$key};
+			$value = $this->get_item_value( $item, $key );
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return (string) $value;
 			}
 		}
 
-		$licensee_id = $item->licensee_id ?? $item->licence_id ?? 0;
+		$licensee_id = $this->get_item_value_from_keys( $item, array( 'licensee_id', 'licence_id' ) );
 		if ( $licensee_id ) {
 			return sprintf( '#%d', (int) $licensee_id );
 		}
@@ -441,12 +447,13 @@ class Entries_Table extends \WP_List_Table {
 
 	private function get_fallback_columns( bool $with_bulk = true ): array {
 		$columns = array(
-			'licensee' => __( 'Nom', 'ufsc-licence-competition' ),
-			'club'     => __( 'Club', 'ufsc-licence-competition' ),
-			'category' => __( 'Catégorie', 'ufsc-licence-competition' ),
-			'status'   => __( 'Statut', 'ufsc-licence-competition' ),
-			'updated'  => __( 'Mise à jour', 'ufsc-licence-competition' ),
-			'actions'  => __( 'Actions', 'ufsc-licence-competition' ),
+			'licensee'     => __( 'Licencié', 'ufsc-licence-competition' ),
+			'competition'  => __( 'Compétition', 'ufsc-licence-competition' ),
+			'category'     => __( 'Catégorie', 'ufsc-licence-competition' ),
+			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
+			'status'       => __( 'Statut', 'ufsc-licence-competition' ),
+			'updated_at'   => __( 'Mise à jour', 'ufsc-licence-competition' ),
+			'actions'      => __( 'Actions', 'ufsc-licence-competition' ),
 		);
 
 		if ( $with_bulk ) {
@@ -513,11 +520,13 @@ class Entries_Table extends \WP_List_Table {
 		$first_item = $items_count ? $items[0] : null;
 		$item_keys = $first_item ? $this->get_item_keys( $first_item ) : array();
 		$item_keys = array_slice( $item_keys, 0, 20 );
+		$primary = $this->columns_state['primary'] ?? '';
+		$columns_dump = wp_json_encode( $columns );
 
 		$log_parts = array(
+			sprintf( 'columns=%s', is_string( $columns_dump ) ? $columns_dump : 'n/a' ),
+			sprintf( 'primary=%s', $primary ? $primary : 'n/a' ),
 			sprintf( 'items=%d', (int) $items_count ),
-			sprintf( 'columns=%d', (int) ( $this->columns_state['columns_count'] ?? count( $columns ) ) ),
-			sprintf( 'non_empty_labels=%d', (int) ( $this->columns_state['non_empty_labels_count'] ?? $this->count_non_empty_labels( $columns ) ) ),
 			sprintf( 'used_fallback_columns=%s', ! empty( $this->columns_state['used_fallback'] ) ? 'yes' : 'no' ),
 			sprintf( 'item_keys=%s', $item_keys ? implode( ',', $item_keys ) : 'n/a' ),
 		);
@@ -531,31 +540,6 @@ class Entries_Table extends \WP_List_Table {
 
 		error_log( 'UFSC Entries_Table ' . implode( ' ', $log_parts ) );
 		$this->has_logged_state = true;
-	}
-
-	private function maybe_log_headers_initialized( array $columns, $hidden, array $sortable, string $primary ): void {
-		if ( $this->has_logged_headers ) {
-			return;
-		}
-		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
-			return;
-		}
-		if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
-			return;
-		}
-
-		$hidden = is_array( $hidden ) ? $hidden : array();
-
-		error_log(
-			sprintf(
-				'UFSC Entries_Table headers initialized: columns=%d hidden=%d sortable=%d primary=%s',
-				count( $columns ),
-				count( $hidden ),
-				count( $sortable ),
-				$primary
-			)
-		);
-		$this->has_logged_headers = true;
 	}
 
 	private function get_item_keys( $item ): array {
