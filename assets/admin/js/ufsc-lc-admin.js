@@ -35,12 +35,20 @@
 			return;
 		}
 		var settings = options || {};
-		if (!term) {
-			select.innerHTML = buildClubOptions([]);
+		var strings = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings : {};
+		var minLength = settings.minLength || 2;
+		var allowEmpty = settings.allowEmpty !== false;
+		var emptyLabel = strings.noResults || '';
+		var minCharsLabel = strings.minChars || '';
+		var errorLabel = strings.errorLoading || emptyLabel;
+		var trimmed = term ? term.trim() : '';
+
+		if (!trimmed && !allowEmpty) {
+			select.innerHTML = buildClubOptions([], minCharsLabel || emptyLabel);
 			return;
 		}
-		if (term.length < 2) {
-			select.innerHTML = buildClubOptions([]);
+		if (trimmed && trimmed.length < minLength) {
+			select.innerHTML = buildClubOptions([], minCharsLabel || emptyLabel);
 			return;
 		}
 
@@ -52,22 +60,24 @@
 		var nonce = (window.UFSC_LC_Admin && UFSC_LC_Admin.nonces) ? (UFSC_LC_Admin.nonces[nonceKey] || '') : '';
 		var queryParam = action === 'ufsc_lc_search_clubs' ? 'q' : 'term';
 		var nonceParam = action === 'ufsc_lc_search_clubs' ? 'nonce' : '_ajax_nonce';
-		var emptyLabel = (window.UFSC_LC_Admin && UFSC_LC_Admin.strings) ? UFSC_LC_Admin.strings.noResults : '';
 		var query = '?action=' + encodeURIComponent(action)
-			+ '&' + queryParam + '=' + encodeURIComponent(term)
+			+ '&' + queryParam + '=' + encodeURIComponent(trimmed)
 			+ '&' + nonceParam + '=' + encodeURIComponent(nonce);
+		if (!trimmed) {
+			query += '&fallback=1';
+		}
 
 		fetch(url + query)
 			.then(function(response) { return response.json(); })
 			.then(function(response) {
 				if (!response || !response.success) {
-					select.innerHTML = buildClubOptions([], emptyLabel);
+					select.innerHTML = buildClubOptions([], errorLabel);
 					return;
 				}
 				select.innerHTML = buildClubOptions(response.data || [], emptyLabel);
 			})
 			.catch(function() {
-				select.innerHTML = buildClubOptions([], emptyLabel);
+				select.innerHTML = buildClubOptions([], errorLabel);
 			});
 	}
 
@@ -152,9 +162,21 @@
 				debounceTimer = window.setTimeout(function() {
 					fetchClubs(input.value, select, {
 						action: action,
-						nonceKey: nonceKey
+						nonceKey: nonceKey,
+						allowEmpty: true,
+						minLength: 2
 					});
 				}, 250);
+			});
+			input.addEventListener('focus', function() {
+				if (!input.value) {
+					fetchClubs('', select, {
+						action: action,
+						nonceKey: nonceKey,
+						allowEmpty: true,
+						minLength: 2
+					});
+				}
 			});
 		});
 
@@ -282,6 +304,9 @@
 				}
 			},
 			language: {
+				inputTooShort: function() {
+					return strings.minChars || '';
+				},
 				noResults: function() {
 					return strings.noResults || '';
 				}

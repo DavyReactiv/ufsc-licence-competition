@@ -157,7 +157,7 @@ class UFSC_LC_Licence_Documents {
 									<?php endif; ?>
 								<?php endif; ?>
 							</select>
-							<p class="description"><?php esc_html_e( 'Tapez au moins 2 caractères pour filtrer les clubs.', 'ufsc-licence-competition' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Tapez au moins 2 caractères pour filtrer les clubs ou laissez vide pour charger les premiers résultats.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -212,6 +212,22 @@ class UFSC_LC_Licence_Documents {
 						<div class="ufsc-lc-card">
 							<h2><?php esc_html_e( 'Licence trouvée', 'ufsc-licence-competition' ); ?></h2>
 							<?php echo wp_kses_post( $this->render_licence_summary( $item, $search['season_label'] ) ); ?>
+							<?php
+							$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
+								? ufsc_licence_get_pdf_attachment_id( (int) $item->id )
+								: null;
+							$current_pdf_url = $current_attachment_id ? wp_get_attachment_url( $current_attachment_id ) : '';
+							?>
+							<p class="description">
+								<?php if ( $current_attachment_id && $current_pdf_url ) : ?>
+									<?php echo esc_html__( 'PDF actuel :', 'ufsc-licence-competition' ) . ' '; ?>
+									<a href="<?php echo esc_url( $current_pdf_url ); ?>" target="_blank" rel="noopener noreferrer">
+										<?php esc_html_e( 'Voir le PDF', 'ufsc-licence-competition' ); ?>
+									</a>
+								<?php else : ?>
+									<?php esc_html_e( 'PDF actuel : non généré.', 'ufsc-licence-competition' ); ?>
+								<?php endif; ?>
+							</p>
 						</div>
 					<?php else : ?>
 						<h2><?php esc_html_e( 'Plusieurs licences correspondent', 'ufsc-licence-competition' ); ?></h2>
@@ -268,8 +284,27 @@ class UFSC_LC_Licence_Documents {
 							<th scope="row"><label for="licence_pdf"><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></label></th>
 							<td><input name="licence_pdf" type="file" id="licence_pdf" accept="application/pdf" required></td>
 						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Options', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<label for="ufsc_pdf_delete">
+									<input type="checkbox" name="ufsc_pdf_delete" id="ufsc_pdf_delete" value="1">
+									<?php esc_html_e( 'Supprimer le fichier du média après remplacement/détachement (irréversible).', 'ufsc-licence-competition' ); ?>
+								</label>
+							</td>
+						</tr>
 					</table>
-					<?php submit_button( __( 'Associer le PDF', 'ufsc-licence-competition' ) ); ?>
+					<div class="ufsc-lc-form-actions">
+						<button type="submit" class="button button-primary" name="ufsc_pdf_action" value="attach">
+							<?php esc_html_e( 'Associer le PDF', 'ufsc-licence-competition' ); ?>
+						</button>
+						<button type="submit" class="button" name="ufsc_pdf_action" value="replace">
+							<?php esc_html_e( 'Remplacer le PDF', 'ufsc-licence-competition' ); ?>
+						</button>
+						<button type="submit" class="button button-secondary" name="ufsc_pdf_action" value="detach" formnovalidate>
+							<?php esc_html_e( 'Détacher le PDF', 'ufsc-licence-competition' ); ?>
+						</button>
+					</div>
 				</form>
 			<?php endif; ?>
 
@@ -307,20 +342,42 @@ class UFSC_LC_Licence_Documents {
 		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
 
 		$search = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
-		if ( strlen( $search ) < 2 ) {
+		$search = trim( $search );
+		$is_empty = '' === $search;
+		if ( ! $is_empty && strlen( $search ) < 2 ) {
+			UFSC_LC_Logger::log(
+				__( 'Recherche clubs admin: terme trop court.', 'ufsc-licence-competition' ),
+				array( 'search' => $search )
+			);
 			wp_send_json_success( array() );
 		}
 
 		global $wpdb;
 		$table = $this->get_clubs_table();
 		$like  = '%' . $wpdb->esc_like( $search ) . '%';
+		$limit = $is_empty ? 50 : 20;
 
-		$results = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT 20",
-				$like
-			)
-		);
+		if ( $is_empty ) {
+			$results = $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC LIMIT {$limit}" );
+		} else {
+			$results = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT {$limit}",
+					$like
+				)
+			);
+		}
+
+		if ( $wpdb->last_error ) {
+			UFSC_LC_Logger::log(
+				__( 'Recherche clubs admin: erreur SQL.', 'ufsc-licence-competition' ),
+				array(
+					'search' => $search,
+					'error'  => $wpdb->last_error,
+				)
+			);
+			wp_send_json_error( array( 'message' => __( 'Erreur de recherche.', 'ufsc-licence-competition' ) ), 500 );
+		}
 
 		$data = array();
 		foreach ( $results as $club ) {
@@ -331,11 +388,20 @@ class UFSC_LC_Licence_Documents {
 			);
 		}
 
+		UFSC_LC_Logger::log(
+			__( 'Recherche clubs admin: résultats chargés.', 'ufsc-licence-competition' ),
+			array(
+				'search'  => $search,
+				'count'   => count( $data ),
+				'fallback'=> $is_empty,
+			)
+		);
+
 		wp_send_json_success( $data );
 	}
 
 	public function handle_upload() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() && ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -347,6 +413,9 @@ class UFSC_LC_Licence_Documents {
 		$matched_licence_id = isset( $_POST['matched_licence_id'] ) ? absint( $_POST['matched_licence_id'] ) : 0;
 		$licence_id         = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
 		$numero_licence     = isset( $_POST['numero_licence_delegataire'] ) ? sanitize_text_field( wp_unslash( $_POST['numero_licence_delegataire'] ) ) : '';
+		$action             = isset( $_POST['ufsc_pdf_action'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_pdf_action'] ) ) : 'attach';
+		$action             = in_array( $action, array( 'attach', 'replace', 'detach' ), true ) ? $action : 'attach';
+		$delete_old_file    = ! empty( $_POST['ufsc_pdf_delete'] );
 
 		if ( $matched_licence_id ) {
 			$licence = $this->get_licence_record( $matched_licence_id, '' );
@@ -361,6 +430,24 @@ class UFSC_LC_Licence_Documents {
 			$this->redirect_with_message( 'error', __( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
 
+		$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
+			? ufsc_licence_get_pdf_attachment_id( (int) $licence->id )
+			: null;
+
+		if ( 'detach' === $action ) {
+			if ( $current_attachment_id ) {
+				$this->detach_document( (int) $licence->id );
+				$this->sync_pdf_meta( (int) $licence->id, 0 );
+				if ( $delete_old_file ) {
+					wp_delete_attachment( (int) $current_attachment_id, true );
+				}
+				$this->log_pdf_action( 'detach', (int) $licence->id, (int) $current_attachment_id, 0 );
+				$this->redirect_with_message( 'success', __( 'PDF détaché avec succès.', 'ufsc-licence-competition' ) );
+			}
+
+			$this->redirect_with_message( 'warning', __( 'Aucun PDF à détacher.', 'ufsc-licence-competition' ) );
+		}
+
 		if ( empty( $_FILES['licence_pdf']['name'] ) ) {
 			$this->redirect_with_message( 'error', __( 'Aucun fichier PDF fourni.', 'ufsc-licence-competition' ) );
 		}
@@ -368,6 +455,12 @@ class UFSC_LC_Licence_Documents {
 		$check = wp_check_filetype_and_ext( $_FILES['licence_pdf']['tmp_name'], $_FILES['licence_pdf']['name'] );
 		if ( empty( $check['ext'] ) || 'pdf' !== strtolower( $check['ext'] ) ) {
 			$this->redirect_with_message( 'error', __( 'Le fichier doit être un PDF.', 'ufsc-licence-competition' ) );
+		}
+		if ( ! empty( $_FILES['licence_pdf']['size'] ) ) {
+			$max_size = wp_max_upload_size();
+			if ( $max_size && (int) $_FILES['licence_pdf']['size'] > $max_size ) {
+				$this->redirect_with_message( 'error', __( 'Le fichier PDF est trop volumineux.', 'ufsc-licence-competition' ) );
+			}
 		}
 
 		require_once ABSPATH . 'wp-admin/includes/file.php';
@@ -382,9 +475,16 @@ class UFSC_LC_Licence_Documents {
 
 		$source_number = $matched_licence_id ? '' : $numero_licence;
 		$this->upsert_document( (int) $licence->id, $source_number, (int) $attachment_id );
-		$this->update_document_meta( (int) $licence->id, 'pdf_attachment_id', (int) $attachment_id );
+		$this->sync_pdf_meta( (int) $licence->id, (int) $attachment_id );
 		$this->update_document_meta( (int) $licence->id, 'pdf_assigned_at', current_time( 'mysql' ) );
 		$this->update_document_meta( (int) $licence->id, 'pdf_assigned_by', (int) get_current_user_id() );
+
+		$effective_action = ( $current_attachment_id && 'attach' === $action ) ? 'replace' : $action;
+		$this->log_pdf_action( $effective_action, (int) $licence->id, (int) $current_attachment_id, (int) $attachment_id );
+
+		if ( $delete_old_file && $current_attachment_id && (int) $current_attachment_id !== (int) $attachment_id ) {
+			wp_delete_attachment( (int) $current_attachment_id, true );
+		}
 
 		$this->redirect_with_message( 'success', __( 'PDF associé avec succès.', 'ufsc-licence-competition' ) );
 	}
@@ -429,8 +529,10 @@ class UFSC_LC_Licence_Documents {
 			}
 		}
 
-		$document = $this->get_document_by_licence( $licence_id );
-		if ( ! $document || ! $document->attachment_id ) {
+		$attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
+			? ufsc_licence_get_pdf_attachment_id( $licence_id )
+			: null;
+		if ( ! $attachment_id ) {
 			UFSC_LC_Logger::log(
 				__( 'Téléchargement refusé: document indisponible.', 'ufsc-licence-competition' ),
 				array( 'licence_id' => $licence_id )
@@ -438,11 +540,11 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		$file_path = get_attached_file( (int) $document->attachment_id );
+		$file_path = get_attached_file( (int) $attachment_id );
 		if ( ! $file_path || ! file_exists( $file_path ) ) {
 			UFSC_LC_Logger::log(
 				__( 'Téléchargement refusé: fichier introuvable.', 'ufsc-licence-competition' ),
-				array( 'attachment_id' => (int) $document->attachment_id )
+				array( 'attachment_id' => (int) $attachment_id )
 			);
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
@@ -740,6 +842,42 @@ class UFSC_LC_Licence_Documents {
 				"SELECT id, attachment_id FROM {$table} WHERE licence_id = %d AND source = %s",
 				$licence_id,
 				self::SOURCE
+			)
+		);
+	}
+
+	private function detach_document( $licence_id ) {
+		global $wpdb;
+
+		$table = $this->get_documents_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return;
+		}
+
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET attachment_id = NULL, updated_at = %s WHERE licence_id = %d AND source = %s",
+				current_time( 'mysql' ),
+				$licence_id,
+				self::SOURCE
+			)
+		);
+	}
+
+	private function sync_pdf_meta( $licence_id, $attachment_id ) {
+		$attachment_id = absint( $attachment_id );
+		$this->update_document_meta( (int) $licence_id, 'ufsc_licence_pdf_attachment_id', $attachment_id );
+		$this->update_document_meta( (int) $licence_id, 'pdf_attachment_id', $attachment_id );
+	}
+
+	private function log_pdf_action( $action, $licence_id, $old_attachment_id, $new_attachment_id ) {
+		UFSC_LC_Logger::log(
+			__( 'PDF licence mis à jour.', 'ufsc-licence-competition' ),
+			array(
+				'action'            => $action,
+				'licence_id'        => (int) $licence_id,
+				'old_attachment_id' => (int) $old_attachment_id,
+				'new_attachment_id' => (int) $new_attachment_id,
 			)
 		);
 	}

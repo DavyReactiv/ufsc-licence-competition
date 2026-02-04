@@ -176,9 +176,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 			case 'season_end_year':
 				$season_end_year = is_array( $item ) ? ( $item['season_end_year'] ?? '' ) : ( $item->season_end_year ?? '' );
-				return ! empty( $season_end_year )
-					? esc_html( $season_end_year )
-					: esc_html__( '—', 'ufsc-licence-competition' );
+				if ( ! empty( $season_end_year ) ) {
+					return esc_html( $season_end_year );
+				}
+				if ( function_exists( 'ufsc_get_current_season_label' ) ) {
+					return esc_html( ufsc_get_current_season_label() );
+				}
+				return esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'category':
 				$category = is_array( $item ) ? ( $item['categorie_affiche'] ?? '' ) : ( $item->categorie_affiche ?? '' );
@@ -1118,6 +1122,20 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				$params
 			)
 		);
+
+		if ( $this->has_documents_meta_table ) {
+			$meta_table = $this->get_documents_meta_table();
+			$meta_keys  = array( 'ufsc_licence_pdf_attachment_id', 'pdf_attachment_id' );
+			$key_placeholders = implode( ',', array_fill( 0, count( $meta_keys ), '%s' ) );
+			$meta_params = array_merge( $meta_keys, array( 'ASPTT' ), $licence_ids );
+
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$meta_table} SET meta_value = '' WHERE meta_key IN ({$key_placeholders}) AND source = %s AND licence_id IN ({$placeholders})",
+					$meta_params
+				)
+			);
+		}
 
 		return array( 'type' => 'success', 'code' => 'bulk_remove_pdf' );
 	}
