@@ -236,8 +236,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'discipline':
 				return esc_html( $this->format_fallback( $this->get_competition_discipline( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'category':
-				$category_id = $this->get_item_value( $item, 'category_id' );
-				$category_name = $category_id ? $this->get_category_name( $category_id ) : $this->get_item_value_from_keys( $item, array( 'category_name', 'category', 'category_label' ) );
+				$category_name = $this->resolve_category_label( $item );
 				return esc_html( $this->format_fallback( $category_name ) );
 			case 'weight':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
@@ -346,10 +345,49 @@ class Entries_Table extends \WP_List_Table {
 		return '';
 	}
 
+	private function get_competition_season_end_year( $competition_id ): string {
+		foreach ( $this->competitions as $competition ) {
+			if ( (int) $competition->id === (int) $competition_id ) {
+				return isset( $competition->season ) ? (string) $competition->season : '';
+			}
+		}
+
+		return '';
+	}
+
 	private function get_category_name( $category_id ) {
 		foreach ( $this->categories as $category ) {
 			if ( (int) $category->id === (int) $category_id ) {
 				return $category->name;
+			}
+		}
+
+		return '';
+	}
+
+	private function resolve_category_label( $item ): string {
+		$label = $this->get_item_value_from_keys( $item, array( 'category', 'category_name', 'category_label', 'category_title' ) );
+		if ( '' !== $label ) {
+			return $label;
+		}
+
+		$category_id = $this->get_item_value( $item, 'category_id' );
+		if ( $category_id ) {
+			$category_name = $this->get_category_name( $category_id );
+			if ( '' !== $category_name ) {
+				return $category_name;
+			}
+		}
+
+		$birth_date = $this->get_item_value_from_keys( $item, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
+		if ( '' !== $birth_date && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+			$competition_id = $this->get_item_value( $item, 'competition_id' );
+			$season_end_year = $competition_id ? $this->get_competition_season_end_year( $competition_id ) : '';
+			if ( '' !== $season_end_year ) {
+				$computed = ufsc_lc_compute_category_from_birthdate( $birth_date, $season_end_year );
+				if ( '' !== $computed ) {
+					return $computed;
+				}
 			}
 		}
 
