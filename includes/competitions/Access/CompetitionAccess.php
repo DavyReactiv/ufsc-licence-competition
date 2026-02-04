@@ -112,6 +112,8 @@ class CompetitionAccess {
 				return __( 'Accès réservé : impossible d’identifier votre club.', 'ufsc-licence-competition' );
 			case 'not_affiliated':
 				return __( 'Accès réservé aux clubs affiliés UFSC.', 'ufsc-licence-competition' );
+			case 'club_region_missing':
+				return __( 'Votre club n’a pas de région renseignée. Merci de contacter l’administration UFSC pour mise à jour.', 'ufsc-licence-competition' );
 			case 'club_not_allowed':
 				return __( 'Accès réservé : votre club ne fait pas partie des clubs autorisés pour cette compétition.', 'ufsc-licence-competition' );
 			case 'region_mismatch':
@@ -187,6 +189,10 @@ class CompetitionAccess {
 	}
 
 	private function evaluate_access( int $competition_id, array $settings, int $club_id, int $user_id, string $scope ): AccessResult {
+		if ( $this->rules_empty( $competition_id ) ) {
+			return AccessResult::allow( array( 'scope' => $scope, 'legacy' => true ) );
+		}
+
 		$club_id = $club_id ?: $this->resolve_club_id( $user_id );
 
 		if ( $settings['require_logged_in_club'] && ! $user_id ) {
@@ -240,6 +246,9 @@ class CompetitionAccess {
 				}
 				return AccessResult::deny( 'club_not_allowed', $context );
 			case self::MODE_REGIONS:
+				if ( '' === $club_region_norm ) {
+					return AccessResult::deny( 'club_region_missing', $context );
+				}
 				if ( $this->club_matches_region( $club, $settings['allowed_regions'] ) ) {
 					return AccessResult::allow( $context );
 				}
@@ -267,6 +276,9 @@ class CompetitionAccess {
 					)
 				);
 			case self::MODE_REGION_DISCIPLINE:
+				if ( '' === $club_region_norm ) {
+					return AccessResult::deny( 'club_region_missing', $context );
+				}
 				$region_ok = $this->club_matches_region( $club, $settings['allowed_regions'] );
 				$discipline_ok = $this->club_matches_disciplines( $club, $settings['allowed_disciplines'] );
 				if ( $region_ok && $discipline_ok ) {
@@ -605,5 +617,17 @@ class CompetitionAccess {
 		);
 
 		error_log( 'UFSC Competitions access: ' . wp_json_encode( $payload ) );
+	}
+
+	private function rules_empty( int $competition_id ): bool {
+		if ( $competition_id <= 0 ) {
+			return false;
+		}
+
+		if ( ! class_exists( CompetitionMeta::class ) ) {
+			return false;
+		}
+
+		return ! CompetitionMeta::has_rules( $competition_id );
 	}
 }

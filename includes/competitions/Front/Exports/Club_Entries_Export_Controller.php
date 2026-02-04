@@ -2,7 +2,6 @@
 
 namespace UFSC\Competitions\Front\Exports;
 
-use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
@@ -44,8 +43,8 @@ class Club_Entries_Export_Controller {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
-		$club_access = new ClubAccess();
-		$club_id     = (int) $club_access->get_club_id_for_user( get_current_user_id() );
+		$user_id = (int) get_current_user_id();
+		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
 
 		if ( ! $club_id ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );

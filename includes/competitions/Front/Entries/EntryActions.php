@@ -3,8 +3,8 @@
 namespace UFSC\Competitions\Front\Entries;
 
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Access\AccessResult;
 use UFSC\Competitions\Access\CompetitionAccess;
-use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
@@ -78,18 +78,17 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
 
-		$club_access = new ClubAccess();
-		$club_id     = $club_access->get_club_id_for_user( get_current_user_id() );
+		$user_id = (int) get_current_user_id();
+		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
 
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
 		$access = new CompetitionAccess();
-		$access_result = $access->can_register( $competition_id, (int) $club_id, (int) get_current_user_id() );
+		$access_result = $access->can_register( $competition_id, (int) $club_id, $user_id );
 		if ( ! $access_result->allowed ) {
-			$notice = 'registration_closed' === $access_result->reason_code ? 'error_closed' : 'error_forbidden';
-			self::redirect_with_notice( $competition_id, $notice );
+			self::redirect_with_notice( $competition_id, 'access_denied', $access_result );
 		}
 
 		if ( 'create' === $action ) {
@@ -299,17 +298,16 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, 'error_not_found' );
 		}
 
-		$club_access = new ClubAccess();
-		$club_id     = $club_access->get_club_id_for_user( get_current_user_id() );
+		$user_id = (int) get_current_user_id();
+		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
 		$access = new CompetitionAccess();
-		$access_result = $access->can_register( $competition_id, (int) $club_id, (int) get_current_user_id() );
+		$access_result = $access->can_register( $competition_id, (int) $club_id, $user_id );
 		if ( ! $access_result->allowed ) {
-			$notice = 'registration_closed' === $access_result->reason_code ? 'error_closed' : 'error_forbidden';
-			self::redirect_with_notice( $competition_id, $notice );
+			self::redirect_with_notice( $competition_id, 'access_denied', $access_result );
 		}
 
 		if ( 'submit' === $action ) {
@@ -576,7 +574,7 @@ class EntryActions {
 		);
 	}
 
-	private static function redirect_with_notice( int $competition_id, string $notice ): void {
+	private static function redirect_with_notice( int $competition_id, string $notice, ?AccessResult $access_result = null ): void {
 		$url = self::get_return_url_from_request();
 		if ( ! $url ) {
 			$url = $competition_id ? Front::get_competition_details_url( $competition_id ) : '';
@@ -588,7 +586,18 @@ class EntryActions {
 			$url = home_url( '/' );
 		}
 
-		$url  = add_query_arg( 'ufsc_notice', $notice, $url );
+		$args = array(
+			'ufsc_notice' => $notice,
+		);
+		if ( $access_result instanceof AccessResult && ! $access_result->allowed && $access_result->reason_code ) {
+			$args['ufsc_access_reason'] = $access_result->reason_code;
+			$scope = $access_result->context['scope'] ?? 'register';
+			if ( $scope ) {
+				$args['ufsc_access_scope'] = $scope;
+			}
+		}
+
+		$url  = add_query_arg( $args, $url );
 		$url .= '#ufsc-inscriptions';
 
 		wp_safe_redirect( $url );

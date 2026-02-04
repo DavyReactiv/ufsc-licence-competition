@@ -1,6 +1,6 @@
 <?php
 
-use UFSC\Competitions\Front\Access\ClubAccess;
+use UFSC\Competitions\Repositories\ClubRepository;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -26,7 +26,7 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 	 * Resolve current club id with fallback sources.
 	 *
 	 * @param int $user_id Optional user id.
-	 * @return array{club_id:int,source:string}
+	 * @return array{club_id:int,source:string,source_meta_key:string}
 	 */
 	function ufsc_resolve_current_club_id( int $user_id = 0 ): array {
 		$user_id = $user_id > 0 ? $user_id : ( is_user_logged_in() ? (int) get_current_user_id() : 0 );
@@ -34,16 +34,19 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 			return array(
 				'club_id' => 0,
 				'source'  => 'missing_user',
+				'source_meta_key' => '',
 			);
 		}
 
 		$club_id = 0;
 		$source  = 'fallback';
+		$source_meta_key = '';
 
 		$filtered = apply_filters( 'ufsc_competitions_get_club_id_for_user', null, $user_id );
 		if ( is_numeric( $filtered ) && (int) $filtered > 0 ) {
 			$club_id = (int) $filtered;
 			$source  = 'filter';
+			$source_meta_key = 'ufsc_competitions_get_club_id_for_user';
 		}
 
 		if ( ! $club_id ) {
@@ -54,6 +57,7 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 				if ( $meta_id > 0 ) {
 					$club_id = $meta_id;
 					$source  = 'um_meta';
+					$source_meta_key = $key;
 					break;
 				}
 			}
@@ -67,6 +71,7 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 				if ( $meta_id > 0 ) {
 					$club_id = $meta_id;
 					$source  = 'user_meta';
+					$source_meta_key = $key;
 					break;
 				}
 			}
@@ -88,6 +93,7 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 					if ( $candidate_id > 0 ) {
 						$club_id = $candidate_id;
 						$source  = 'claims';
+						$source_meta_key = $key;
 						break;
 					}
 				}
@@ -100,6 +106,7 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 			if ( $fallback_id > 0 ) {
 				$club_id = $fallback_id;
 				$source  = 'fallback';
+				$source_meta_key = 'ufsc_competitions_resolve_club_id';
 			}
 		}
 
@@ -114,10 +121,11 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 					$logged = true;
 					error_log(
 						sprintf(
-							'UFSC club resolution: user_id=%d source=%s club_id=%d',
+							'UFSC club resolution: user_id=%d source=%s club_id=%d meta_key=%s',
 							$user_id,
 							$source,
-							$club_id
+							$club_id,
+							$source_meta_key
 						)
 					);
 				}
@@ -127,6 +135,51 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 		return array(
 			'club_id' => $club_id ? (int) $club_id : 0,
 			'source'  => $source,
+			'source_meta_key' => $source_meta_key,
+		);
+	}
+}
+
+if ( ! function_exists( 'ufsc_current_club_context' ) ) {
+	/**
+	 * Resolve current club context for a user (or current user if omitted).
+	 *
+	 * @param int $user_id Optional user id.
+	 * @return array{club_id:int,club_name:string,region:string,affiliated:bool,source:string,source_meta_key:string}
+	 */
+	function ufsc_current_club_context( int $user_id = 0 ): array {
+		$user_id = $user_id > 0 ? $user_id : ( is_user_logged_in() ? (int) get_current_user_id() : 0 );
+		$resolved = function_exists( 'ufsc_resolve_current_club_id' ) ? ufsc_resolve_current_club_id( $user_id ) : array();
+
+		$club_id = absint( $resolved['club_id'] ?? 0 );
+		$source = (string) ( $resolved['source'] ?? '' );
+		$source_meta_key = (string) ( $resolved['source_meta_key'] ?? '' );
+
+		$club_name = '';
+		$region = '';
+		if ( $club_id && class_exists( ClubRepository::class ) ) {
+			$club_repo = new ClubRepository();
+			$club = $club_repo->get( $club_id );
+			if ( $club ) {
+				$club_name = trim( wp_strip_all_tags( (string) ( $club->nom ?? '' ) ) );
+				$region = trim( wp_strip_all_tags( (string) ( $club->region ?? '' ) ) );
+			}
+		}
+
+		$affiliated = false;
+		if ( $user_id > 0 && $club_id > 0 ) {
+			$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? \UFSC_LC_Settings_Page::get_club_access_capability() : '';
+			$required_capability = apply_filters( 'ufsc_competitions_access_affiliation_capability', $required_capability, $club_id, $user_id );
+			$affiliated = '' === $required_capability ? true : user_can( $user_id, $required_capability );
+		}
+
+		return array(
+			'club_id' => $club_id,
+			'club_name' => $club_name,
+			'region' => $region,
+			'affiliated' => $affiliated,
+			'source' => $source,
+			'source_meta_key' => $source_meta_key,
 		);
 	}
 }

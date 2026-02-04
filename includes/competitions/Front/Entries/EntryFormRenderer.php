@@ -2,6 +2,8 @@
 
 namespace UFSC\Competitions\Front\Entries;
 
+use UFSC\Competitions\Access\AccessResult;
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
@@ -770,6 +772,34 @@ class EntryFormRenderer {
 		$show_notice = (bool) apply_filters( 'ufsc_competitions_front_show_notices', true, $notice_key );
 		if ( ! $show_notice ) {
 			return '';
+		}
+
+		if ( 'access_denied' === $notice_key ) {
+			$reason = isset( $_GET['ufsc_access_reason'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_access_reason'] ) ) : '';
+			$scope = isset( $_GET['ufsc_access_scope'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_access_scope'] ) ) : 'register';
+			if ( $reason ) {
+				$result = AccessResult::deny(
+					$reason,
+					array(
+						'scope' => $scope,
+					)
+				);
+				if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
+					return (string) ufsc_render_access_denied_notice( $result );
+				}
+				if ( class_exists( CompetitionAccess::class ) ) {
+					$access = new CompetitionAccess();
+					return sprintf(
+						'<div class="notice notice-error"><p>%s</p></div>',
+						esc_html( $access->get_denied_message( $result ) )
+					);
+				}
+			}
+
+			return sprintf(
+				'<div class="notice notice-error"><p>%s</p></div>',
+				esc_html__( 'Accès refusé.', 'ufsc-licence-competition' )
+			);
 		}
 
 		$messages = array(

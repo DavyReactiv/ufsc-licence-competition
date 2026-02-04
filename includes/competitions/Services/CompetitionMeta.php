@@ -25,6 +25,20 @@ class CompetitionMeta {
 		return array_intersect_key( $data, self::defaults() );
 	}
 
+	public static function has_rules( int $competition_id ): bool {
+		$competition_id = absint( $competition_id );
+		if ( ! $competition_id ) {
+			return false;
+		}
+
+		$stored = get_option( self::option_key( $competition_id ), null );
+		if ( ! is_array( $stored ) ) {
+			return false;
+		}
+
+		return ! empty( $stored );
+	}
+
 	public static function save( int $competition_id, array $data ): bool {
 		$competition_id = absint( $competition_id );
 		if ( ! $competition_id ) {

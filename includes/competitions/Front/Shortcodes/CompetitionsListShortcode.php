@@ -41,8 +41,9 @@ class CompetitionsListShortcode {
 		}
 
 		if ( (int) $atts['require_club'] === 1 ) {
-			$access = new ClubAccess();
-			if ( ! $access->is_club_user( get_current_user_id() ) ) {
+			$user_id = (int) get_current_user_id();
+			$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+			if ( ! $club_id ) {
 				return $this->render_notice( esc_html__( 'Accès réservé aux clubs affiliés.', 'ufsc-licence-competition' ) );
 			}
 		}

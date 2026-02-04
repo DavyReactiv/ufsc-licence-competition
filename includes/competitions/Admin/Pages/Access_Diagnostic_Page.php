@@ -126,8 +126,9 @@ class Access_Diagnostic_Page {
 	}
 
 	private function render_results( $competition, $club, array $settings, $view_result, $register_result, ClubRepository $club_repo, CompetitionAccess $access ): void {
-		$club_region = $club ? (string) ( $club->region ?? '' ) : '';
-		$club_region = function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $club_region ) : $club_region;
+		$club_region_raw = $club ? (string) ( $club->region ?? '' ) : '';
+		$club_region = function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $club_region_raw ) : $club_region_raw;
+		$club_region_missing = '' === trim( $club_region_raw );
 		$club_disciplines = function_exists( 'ufsc_extract_club_disciplines' ) ? ufsc_extract_club_disciplines( $club ) : array();
 
 		$allowed_regions = $settings['allowed_regions'] ?? array();
@@ -161,14 +162,33 @@ class Access_Diagnostic_Page {
 
 		echo '<hr />';
 		echo '<h2>' . esc_html__( 'Résultats', 'ufsc-licence-competition' ) . '</h2>';
+		if ( $club_region_missing ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Région manquante', 'ufsc-licence-competition' ) . '</p></div>';
+		}
 
 		echo '<h3>' . esc_html__( 'Club', 'ufsc-licence-competition' ) . '</h3>';
 		echo '<table class="widefat striped"><tbody>';
 		echo '<tr><th>' . esc_html__( 'ID', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $club->id ?? '' ) ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $club->nom ?? '' ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Région (canonique)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $club_region ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Région (source)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( '' === $club_region_raw ? '—' : $club_region_raw ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Région (canonique)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( '' === $club_region ? '—' : $club_region ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Source région (champ)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html__( 'region', 'ufsc-licence-competition' ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Disciplines', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $club_disciplines ? implode( ' / ', $club_disciplines ) : '—' ) . '</td></tr>';
 		echo '</tbody></table>';
+
+		$current_context = function_exists( 'ufsc_current_club_context' ) ? ufsc_current_club_context( (int) get_current_user_id() ) : array();
+		if ( $current_context ) {
+			$context_affiliated = ! empty( $current_context['affiliated'] ) ? __( 'Oui', 'ufsc-licence-competition' ) : __( 'Non', 'ufsc-licence-competition' );
+			echo '<h3>' . esc_html__( 'Contexte club (utilisateur connecté)', 'ufsc-licence-competition' ) . '</h3>';
+			echo '<table class="widefat striped"><tbody>';
+			echo '<tr><th>' . esc_html__( 'club_id', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $current_context['club_id'] ?? '' ) ) . '</td></tr>';
+			echo '<tr><th>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $current_context['club_name'] ?? '' ) ) . '</td></tr>';
+			echo '<tr><th>' . esc_html__( 'Région', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $current_context['region'] ?? '' ) ) . '</td></tr>';
+			echo '<tr><th>' . esc_html__( 'Affilié', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $context_affiliated ) . '</td></tr>';
+			echo '<tr><th>' . esc_html__( 'Source', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $current_context['source'] ?? '' ) ) . '</td></tr>';
+			echo '<tr><th>' . esc_html__( 'Meta key source', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $current_context['source_meta_key'] ?? '' ) ) . '</td></tr>';
+			echo '</tbody></table>';
+		}
 
 		echo '<h3>' . esc_html__( 'Règles compétition', 'ufsc-licence-competition' ) . '</h3>';
 		echo '<table class="widefat striped"><tbody>';
