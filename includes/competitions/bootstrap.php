@@ -41,6 +41,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Capabilities.php',
 		$base . '/Entries/EntriesWorkflow.php',
 		$base . '/Entries/EntryEligibility.php',
+		$base . '/Exports/Engaged_Entries_Export_Helper.php',
 		$base . '/Services/CompetitionMeta.php',
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',
@@ -71,6 +72,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Front/Entries/EntryFormRenderer.php',
 		$base . '/Front/Entries/EntriesModule.php',
 		$base . '/Front/Exports/Club_Entries_Export_Controller.php',
+		$base . '/Front/Exports/Engaged_Entries_Export_Controller.php',
 		$base . '/Front/Repositories/EntryFrontRepository.php',
 		$base . '/Front/Repositories/CompetitionReadRepository.php',
 		$base . '/Front/Front.php',
@@ -98,6 +100,7 @@ function load_competitions_admin_dependencies(): void {
 	$admin_files = array(
 		$base . '/Admin/Assets.php',
 		$base . '/Admin/Exports/Entries_Export_Controller.php',
+		$base . '/Admin/Exports/Engaged_Entries_Export_Controller.php',
 		$base . '/Admin/Entries_Validation_Menu.php',
 		$base . '/Admin/Menu.php',
 		$base . '/Admin/Tables/Competitions_Table.php',
@@ -164,6 +167,11 @@ add_action(
 			$controller->register();
 		}
 
+		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Exports\Engaged_Entries_Export_Controller' ) ) {
+			$controller = new \UFSC\Competitions\Admin\Exports\Engaged_Entries_Export_Controller();
+			$controller->register();
+		}
+
 		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
 			\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::register_actions();
 		}
@@ -200,6 +208,10 @@ add_action(
 
 		if ( class_exists( '\UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller' ) ) {
 			( new \UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller() )->register();
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Front\Exports\Engaged_Entries_Export_Controller' ) ) {
+			( new \UFSC\Competitions\Front\Exports\Engaged_Entries_Export_Controller() )->register();
 		}
 
 		// Register admin menu only if class exists

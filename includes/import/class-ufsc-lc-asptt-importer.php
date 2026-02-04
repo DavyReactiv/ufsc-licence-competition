@@ -290,16 +290,15 @@ class UFSC_LC_ASPTT_Import_Service {
 					$existing_id  = 0;
 					$ambiguous_ids = array();
 
-					if ( '' !== $asptt_no ) {
-						$existing_id = $this->find_existing_licence_id_by_asptt_number( $asptt_no, $club_id );
-					}
-					if ( ! $existing_id ) {
-						$composite_map = $this->get_composite_licence_map( $club_id, $data['season_end_year'] );
-						$ambiguous_ids = $this->find_existing_licence_ids_by_composite( $data, $composite_map );
-						if ( count( $ambiguous_ids ) === 1 ) {
-							$existing_id = (int) $ambiguous_ids[0];
-						}
-					}
+					$match = $this->resolve_licence_match(
+						isset( $data['licence_id_source'] ) ? (int) $data['licence_id_source'] : 0,
+						$data['nom'] ?? '',
+						$data['prenom'] ?? '',
+						$data['date_naissance'] ?? '',
+						$data['email'] ?? ''
+					);
+					$existing_id = $match['id'];
+					$ambiguous_ids = $match['ambiguous_ids'];
 
 					if ( ! $existing_id ) {
 						if ( ! empty( $ambiguous_ids ) ) {
@@ -323,13 +322,16 @@ class UFSC_LC_ASPTT_Import_Service {
 							$stats['errors']++;
 							$stats['invalid_rows']++;
 							$stats['rejected_rows']++;
+							$error_message = 'licence_id_missing' === ( $match['resolution'] ?? '' )
+								? __( 'Licence ID invalide.', 'ufsc-licence-competition' )
+								: __( 'Licence introuvable : aucune création effectuée.', 'ufsc-licence-competition' );
 							$this->push_report_error(
 								$report_errors,
 								array(
 									'nom'          => $data['nom'],
 									'prenom'       => $data['prenom'],
 									'asptt_number' => $data['asptt_number'],
-									'error'        => __( 'Licence introuvable : aucune création effectuée.', 'ufsc-licence-competition' ),
+									'error'        => $error_message,
 								),
 								$this->row_index
 							);
@@ -428,7 +430,7 @@ class UFSC_LC_ASPTT_Import_Service {
 					$data['licence_id'] = (int) $licence_result['id'];
 
 					// Update season/category/age_ref on licence.
-					if ( ! $dry_run ) {
+					if ( ! $dry_run && apply_filters( 'ufsc_lc_asptt_update_season_data', false, $data ) ) {
 						$this->update_licence_season_data(
 							(int) $data['licence_id'],
 							$data['season_end_year'],
@@ -753,6 +755,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		$telephone_raw      = sanitize_text_field( $this->get_row_value( $row, 'Téléphone' ) );
 		$activite           = sanitize_text_field( $this->get_row_value( $row, 'Activité' ) );
 		$region             = sanitize_text_field( $this->get_row_value( $row, 'Région' ) );
+		$licence_id_source  = absint( $this->get_row_value( $row, 'Licence ID' ) );
 		$season_end_year     = UFSC_LC_Categories::sanitize_season_end_year( $raw_season_end_year );
 		$season_end_year_override = UFSC_LC_Categories::sanitize_season_end_year( $season_end_year_override );
 
@@ -893,26 +896,46 @@ class UFSC_LC_ASPTT_Import_Service {
 					$stats['clubs_linked']++;
 				}
 
-				$licence_id = 0;
-				if ( ! empty( $licence_map ) && isset( $licence_map[ $asptt_no ] ) ) {
-					$licence_id = (int) $licence_map[ $asptt_no ];
-				} else {
-					$licence_match = $this->find_licence_by_number( $asptt_no );
-					$licence_id    = $licence_match ? (int) $licence_match->id : 0;
-				}
-				$person_resolution = $licence_id ? 'license_number' : 'license_number_new';
-				$licence_action    = $licence_id ? 'update' : 'create';
-				$status            = self::STATUS_LINKED;
+				$match = $this->resolve_licence_match(
+					$licence_id_source,
+					$nom,
+					$prenom,
+					$dob,
+					$email
+				);
+				$licence_id        = $match['id'];
+				$person_resolution = $match['resolution'];
 
-				if ( is_array( $stats ) ) {
-					$stats['licences_linked']++;
-				}
+				if ( $licence_id ) {
+					$licence_action = 'update';
+					$status         = self::STATUS_LINKED;
 
-				if ( $track_licence_actions && is_array( $stats ) ) {
-					if ( 'create' === $licence_action ) {
-						$stats['licences_created']++;
-					} elseif ( 'update' === $licence_action ) {
+					if ( is_array( $stats ) ) {
+						$stats['licences_linked']++;
+					}
+
+					if ( $track_licence_actions && is_array( $stats ) ) {
 						$stats['licences_updated']++;
+					}
+				} elseif ( ! empty( $match['ambiguous_ids'] ) ) {
+					$status = self::STATUS_NEEDS_REVIEW;
+
+					if ( is_array( $stats ) ) {
+						$stats['needs_review']++;
+					}
+
+					$row_errors[] = __( 'Licence ambiguë : plusieurs correspondances trouvées.', 'ufsc-licence-competition' );
+				} else {
+					$status = self::STATUS_LICENCE_MISSING;
+
+					if ( is_array( $stats ) ) {
+						$stats['licence_not_found']++;
+					}
+
+					if ( 'licence_id_missing' === $match['resolution'] ) {
+						$row_errors[] = __( 'Licence ID invalide.', 'ufsc-licence-competition' );
+					} else {
+						$row_errors[] = __( 'Licence introuvable : aucune création effectuée.', 'ufsc-licence-competition' );
 					}
 				}
 
@@ -989,6 +1012,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			'club_id'              => $resolved['club_id'],
 			'club_suggestions'     => $club_suggestions,
 			'status'               => $status,
+			'licence_id_source'    => $licence_id_source,
 			'licence_id'           => $licence_id,
 			'attachment_id'        => 0,
 			'has_error'            => ! empty( $row_errors ),
@@ -1884,6 +1908,185 @@ class UFSC_LC_ASPTT_Import_Service {
 		return implode( '|', array( $club_id, $nom_key, $prenom_key, $dob, $season_end_year ) );
 	}
 
+	private function resolve_licence_match( int $licence_id, string $nom, string $prenom, string $dob, string $email ): array {
+		if ( $licence_id ) {
+			if ( $this->licence_exists( $licence_id ) ) {
+				return array(
+					'id' => $licence_id,
+					'ambiguous_ids' => array(),
+					'resolution' => 'licence_id',
+				);
+			}
+
+			return array(
+				'id' => 0,
+				'ambiguous_ids' => array(),
+				'resolution' => 'licence_id_missing',
+			);
+		}
+
+		$identity_ids = $this->find_existing_licence_ids_by_identity( $nom, $prenom, $dob );
+		if ( count( $identity_ids ) === 1 ) {
+			return array(
+				'id' => (int) $identity_ids[0],
+				'ambiguous_ids' => array(),
+				'resolution' => 'identity',
+			);
+		}
+
+		if ( count( $identity_ids ) > 1 ) {
+			return array(
+				'id' => 0,
+				'ambiguous_ids' => $identity_ids,
+				'resolution' => 'identity',
+			);
+		}
+
+		$email_ids = $this->find_existing_licence_ids_by_email( $email );
+		if ( count( $email_ids ) === 1 ) {
+			return array(
+				'id' => (int) $email_ids[0],
+				'ambiguous_ids' => array(),
+				'resolution' => 'email',
+			);
+		}
+
+		if ( count( $email_ids ) > 1 ) {
+			return array(
+				'id' => 0,
+				'ambiguous_ids' => $email_ids,
+				'resolution' => 'email',
+			);
+		}
+
+		return array(
+			'id' => 0,
+			'ambiguous_ids' => array(),
+			'resolution' => 'none',
+		);
+	}
+
+	private function licence_exists( int $licence_id ): bool {
+		global $wpdb;
+
+		if ( ! $licence_id ) {
+			return false;
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return false;
+		}
+
+		$found = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE id = %d",
+				$licence_id
+			)
+		);
+
+		return (int) $found === $licence_id;
+	}
+
+	private function find_existing_licence_ids_by_identity( string $nom, string $prenom, string $dob ): array {
+		global $wpdb;
+
+		$nom    = trim( $nom );
+		$prenom = trim( $prenom );
+		$dob    = $this->parse_date( $dob );
+
+		if ( '' === $nom || '' === $prenom || '' === $dob ) {
+			return array();
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return array();
+		}
+
+		$columns = $this->get_licence_columns();
+		if ( ! in_array( 'prenom', $columns, true ) || ! in_array( 'date_naissance', $columns, true ) ) {
+			return array();
+		}
+
+		$last_name_columns = array();
+		if ( in_array( 'nom', $columns, true ) ) {
+			$last_name_columns[] = 'nom';
+		}
+		if ( in_array( 'nom_licence', $columns, true ) ) {
+			$last_name_columns[] = 'nom_licence';
+		}
+		if ( empty( $last_name_columns ) ) {
+			return array();
+		}
+
+		$parts = array();
+		foreach ( $last_name_columns as $column ) {
+			$parts[] = "NULLIF({$column}, '')";
+		}
+		$last_name_expr = 'COALESCE(' . implode( ', ', $parts ) . ')';
+
+		$like_nom    = '%' . $wpdb->esc_like( $nom ) . '%';
+		$like_prenom = '%' . $wpdb->esc_like( $prenom ) . '%';
+
+		$sql = $wpdb->prepare(
+			"SELECT id, {$last_name_expr} AS nom_affiche, prenom, date_naissance FROM {$table} WHERE date_naissance = %s AND {$last_name_expr} LIKE %s AND prenom LIKE %s",
+			$dob,
+			$like_nom,
+			$like_prenom
+		);
+
+		$rows = $wpdb->get_results( $sql );
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$normalized_nom    = $this->normalize_name( $nom );
+		$normalized_prenom = $this->normalize_name( $prenom );
+
+		$ids = array();
+		foreach ( $rows as $row ) {
+			if ( $normalized_nom === $this->normalize_name( $row->nom_affiche ?? '' )
+				&& $normalized_prenom === $this->normalize_name( $row->prenom ?? '' )
+				&& $dob === (string) ( $row->date_naissance ?? '' ) ) {
+				$ids[] = (int) $row->id;
+			}
+		}
+
+		return array_values( array_unique( $ids ) );
+	}
+
+	private function find_existing_licence_ids_by_email( string $email ): array {
+		global $wpdb;
+
+		$email = sanitize_email( $email );
+		if ( '' === $email ) {
+			return array();
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return array();
+		}
+
+		$columns = $this->get_licence_columns();
+		if ( ! in_array( 'email', $columns, true ) ) {
+			return array();
+		}
+
+		$rows = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT id FROM {$table} WHERE email = %s",
+				$email
+			)
+		);
+
+		$rows = is_array( $rows ) ? $rows : array();
+		$ids  = array_map( 'absint', $rows );
+
+		return array_values( array_filter( $ids ) );
+	}
+
 	private function sanitize_csv_value( $value ) {
 		$value = (string) $value;
 		if ( '' === $value ) {
@@ -2599,141 +2802,16 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$columns = $this->get_licence_columns();
-		$has_nom = in_array( 'nom', $columns, true );
-		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$asptt_columns = array_values( array_intersect( array( 'numero_licence_asptt', 'asptt_number' ), $columns ) );
-
-		$existing_names = null;
-		$existing_asptt = array();
-		$has_existing_asptt = false;
-		if ( $existing_id && ( $has_nom || $has_nom_licence || ! empty( $asptt_columns ) ) ) {
-			$select_cols = array();
-			if ( $has_nom ) {
-				$select_cols[] = 'nom';
-			}
-			if ( $has_nom_licence ) {
-				$select_cols[] = 'nom_licence';
-			}
-			foreach ( $asptt_columns as $column ) {
-				$select_cols[] = $column;
-			}
-			if ( ! empty( $select_cols ) ) {
-				$existing_names = $wpdb->get_row(
-					$wpdb->prepare(
-						'SELECT ' . implode( ', ', $select_cols ) . " FROM {$table} WHERE id = %d",
-						$existing_id
-					)
-				);
-				if ( $existing_names ) {
-					foreach ( $asptt_columns as $column ) {
-						$existing_asptt[ $column ] = isset( $existing_names->{$column} ) ? trim( (string) $existing_names->{$column} ) : '';
-						if ( '' !== $existing_asptt[ $column ] ) {
-							$has_existing_asptt = true;
-						}
-					}
-				}
-			}
+		if ( empty( $asptt_columns ) ) {
+			return new WP_Error( 'licence_asptt_missing', __( 'Colonne ASPTT indisponible.', 'ufsc-licence-competition' ) );
 		}
 
 		$fields  = array();
 		$formats = array();
-
-		$should_set_license_number = true;
-		if ( in_array( $license_column, $asptt_columns, true ) && $has_existing_asptt ) {
-			$should_set_license_number = false;
-		}
-		if ( $should_set_license_number ) {
-			$fields[ $license_column ] = $license_number;
-			$formats[]                 = '%s';
-		}
-
-		if ( in_array( 'club_id', $columns, true ) && ! empty( $data['club_id'] ) ) {
-			$fields['club_id'] = (int) $data['club_id'];
-			$formats[]         = '%d';
-		}
-
-		$nom_value        = trim( (string) $data['nom'] );
-		$existing_nom     = $existing_names->nom ?? '';
-		$existing_nom     = is_string( $existing_nom ) ? trim( $existing_nom ) : '';
-		$existing_nom_licence = $existing_names->nom_licence ?? '';
-		$existing_nom_licence = is_string( $existing_nom_licence ) ? trim( $existing_nom_licence ) : '';
-
-		if ( $has_nom && '' === $existing_nom && '' !== $existing_nom_licence ) {
-			$fields['nom'] = $existing_nom_licence;
-			$formats[]     = '%s';
-		}
-
-		if ( $has_nom_licence && '' === $existing_nom_licence && '' !== $existing_nom ) {
-			$fields['nom_licence'] = $existing_nom;
-			$formats[]             = '%s';
-		}
-
-		if ( '' !== $nom_value ) {
-			if ( $has_nom && '' === $existing_nom && ! isset( $fields['nom'] ) ) {
-				$fields['nom'] = $nom_value;
-				$formats[]     = '%s';
-			}
-
-			if ( $has_nom_licence && '' === $existing_nom_licence && ! isset( $fields['nom_licence'] ) ) {
-				$fields['nom_licence'] = $nom_value;
-				$formats[]             = '%s';
-			}
-		}
-
-		if ( in_array( 'prenom', $columns, true ) && '' !== $data['prenom'] ) {
-			$fields['prenom'] = $data['prenom'];
-			$formats[]        = '%s';
-		}
-
-		$dob = $this->parse_date( $data['date_naissance'] );
-		if ( in_array( 'date_naissance', $columns, true ) && '' !== $dob ) {
-			$fields['date_naissance'] = $dob;
-			$formats[]                = '%s';
-		}
-
-		if ( in_array( 'sexe', $columns, true ) && '' !== $data['genre'] ) {
-			$fields['sexe'] = $data['genre'];
-			$formats[]      = '%s';
-		}
-
-		if ( in_array( 'email', $columns, true ) && '' !== $data['email'] ) {
-			$fields['email'] = $data['email'];
-			$formats[]       = '%s';
-		}
-
-		if ( in_array( 'adresse', $columns, true ) && '' !== $data['adresse'] ) {
-			$fields['adresse'] = $data['adresse'];
-			$formats[]         = '%s';
-		}
-
-		if ( in_array( 'ville', $columns, true ) && '' !== $data['ville'] ) {
-			$fields['ville'] = $data['ville'];
-			$formats[]       = '%s';
-		}
-
-		if ( in_array( 'code_postal', $columns, true ) && '' !== $data['code_postal'] ) {
-			$fields['code_postal'] = $data['code_postal'];
-			$formats[]             = '%s';
-		}
-
-		if ( in_array( 'telephone', $columns, true ) && '' !== $data['telephone'] ) {
-			$fields['telephone'] = $data['telephone'];
-			$formats[]           = '%s';
-		}
-
-		if ( in_array( 'activite', $columns, true ) && '' !== $data['activite'] ) {
-			$fields['activite'] = $data['activite'];
-			$formats[]          = '%s';
-		}
-
-		if ( in_array( 'region', $columns, true ) && '' !== $data['region'] ) {
-			$fields['region'] = $data['region'];
-			$formats[]        = '%s';
-		}
-
-		if ( in_array( 'import_batch_id', $columns, true ) && ! empty( $data['import_batch_id'] ) ) {
-			$fields['import_batch_id'] = $data['import_batch_id'];
-			$formats[]                 = '%s';
+		foreach ( $asptt_columns as $column ) {
+			$fields[ $column ] = $license_number;
+			$formats[] = '%s';
 		}
 
 		$existing = null;
