@@ -2,7 +2,7 @@
 
 namespace UFSC\Competitions\Front\Shortcodes;
 
-use UFSC\Competitions\Front\Access\ClubAccess;
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 
@@ -26,22 +26,6 @@ class CompetitionDetailsShortcode {
 			'ufsc_competition'
 		);
 
-		$require_login = (int) $atts['require_login'] === 1;
-		if ( ! is_user_logged_in() ) {
-			if ( $require_login ) {
-				return $this->render_notice( esc_html__( 'Vous devez être connecté pour accéder à cette compétition.', 'ufsc-licence-competition' ) );
-			}
-
-			return '';
-		}
-
-		if ( (int) $atts['require_club'] === 1 ) {
-			$access = new ClubAccess();
-			if ( ! $access->is_club_user( get_current_user_id() ) ) {
-				return $this->render_notice( esc_html__( 'Accès réservé aux clubs affiliés.', 'ufsc-licence-competition' ) );
-			}
-		}
-
 		$id = absint( $atts['id'] );
 		if ( ! $id ) {
 			$request_id = Front::get_competition_id_from_request();
@@ -57,6 +41,15 @@ class CompetitionDetailsShortcode {
 
 		if ( ! $competition ) {
 			return $this->render_notice( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		$access = new CompetitionAccess();
+		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
+		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$view_result = $access->can_view_competition( (int) $competition->id, $club_id, $user_id );
+
+		if ( ! $view_result->allowed ) {
+			return $this->render_notice( $access->get_denied_message( $view_result ) );
 		}
 
 		ob_start();
@@ -186,7 +179,16 @@ class CompetitionDetailsShortcode {
 					<a href="mailto:secretaire@ufsc-france.org">secretaire@ufsc-france.org</a>
 					<?php echo esc_html__( 'ou via le formulaire de contact.', 'ufsc-licence-competition' ); ?>
 				</p>
-				<?php do_action( 'ufsc_competitions_front_registration_box', $competition ); ?>
+				<?php
+				$register_result = $access->can_register( (int) $competition->id, $club_id, $user_id );
+				if ( $register_result->allowed ) :
+					do_action( 'ufsc_competitions_front_registration_box', $competition );
+				else :
+					?>
+					<p class="ufsc-competition-entries-locked">
+						<?php echo esc_html( $access->get_denied_message( $register_result ) ); ?>
+					</p>
+				<?php endif; ?>
 			</div>
 		</div>
 		<?php

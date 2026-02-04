@@ -126,6 +126,45 @@ class ClubRepository {
 	}
 
 	/**
+	 * Return distinct regions for select inputs.
+	 *
+	 * @param int $limit
+	 * @return array<int,string>
+	 */
+	public function list_regions( $limit = 2000 ): array {
+		global $wpdb;
+
+		if ( ! $this->table_exists() ) {
+			return array();
+		}
+
+		$table = $this->table_name();
+		$limit = max( 1, (int) $limit );
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT DISTINCT region FROM {$table} WHERE region IS NOT NULL AND region != '' ORDER BY region ASC LIMIT %d",
+				$limit
+			)
+		);
+
+		if ( empty( $rows ) || ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$out = array();
+		foreach ( $rows as $row ) {
+			$region = trim( wp_strip_all_tags( (string) ( $row->region ?? '' ) ) );
+			if ( '' === $region ) {
+				continue;
+			}
+			$out[] = $region;
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	/**
 	 * Optional helper: builds a "Nom (Région)" label from a club row.
 	 *
 	 * @param object $club

@@ -39,6 +39,8 @@ function load_competitions_core_dependencies(): void {
 	$core_files = array(
 		$base . '/Db.php',
 		$base . '/Capabilities.php',
+		$base . '/Access/AccessResult.php',
+		$base . '/Access/CompetitionAccess.php',
 		$base . '/Entries/EntriesWorkflow.php',
 		$base . '/Entries/EntryEligibility.php',
 		$base . '/Exports/Engaged_Entries_Export_Helper.php',
@@ -68,6 +70,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/TimingProfileRepository.php',
 		// Front repositories and handlers required for admin-post actions.
 		$base . '/Front/Access/ClubAccess.php',
+		$base . '/Front/Access/ClubAccessHelpers.php',
 		$base . '/Front/Entries/EntryActions.php',
 		$base . '/Front/Entries/EntryFormRenderer.php',
 		$base . '/Front/Entries/EntriesModule.php',

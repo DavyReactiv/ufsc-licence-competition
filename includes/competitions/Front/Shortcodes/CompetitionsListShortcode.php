@@ -2,7 +2,7 @@
 
 namespace UFSC\Competitions\Front\Shortcodes;
 
-use UFSC\Competitions\Front\Access\ClubAccess;
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 
@@ -147,8 +147,21 @@ class CompetitionsListShortcode {
 			);
 		}
 
+		$access = new CompetitionAccess();
+		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
+		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+
 		$rows = '';
 		foreach ( $items as $item ) {
+			$access_result = $access->can_view_competition( (int) ( $item->id ?? 0 ), $club_id, $user_id );
+			$restricted_badge = '';
+			if ( ! $access_result->allowed ) {
+				$restricted_badge = sprintf(
+					' <span class="ufsc-badge ufsc-badge-closed">%s</span>',
+					esc_html__( 'Accès restreint', 'ufsc-licence-competition' )
+				);
+			}
+
 			$detail_url = Front::get_competition_details_url( (int) ( $item->id ?? 0 ) );
 			$detail_url = apply_filters( 'ufsc_competitions_front_competition_url', $detail_url, $item );
 
@@ -163,7 +176,7 @@ class CompetitionsListShortcode {
 					<td data-label="%s"><a class="button" href="%s">%s</a></td>
 				</tr>',
 				esc_attr__( 'Nom', 'ufsc-licence-competition' ),
-				esc_html( (string) ( $item->name ?? '' ) ),
+				esc_html( (string) ( $item->name ?? '' ) ) . $restricted_badge,
 				esc_attr__( 'Discipline', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->discipline ?? '' ) ),
 				esc_attr__( 'Type', 'ufsc-licence-competition' ),

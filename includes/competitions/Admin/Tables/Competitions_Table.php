@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
@@ -47,6 +48,7 @@ class Competitions_Table extends \WP_List_Table {
 			'cb'         => '<input type="checkbox" />',
 			'name'       => __( 'Nom', 'ufsc-licence-competition' ),
 			'entries'    => __( 'Inscrits', 'ufsc-licence-competition' ),
+			'access'     => __( 'Accès', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
 			'type'       => __( 'Type', 'ufsc-licence-competition' ),
 			'season'     => __( 'Saison', 'ufsc-licence-competition' ),
@@ -54,6 +56,18 @@ class Competitions_Table extends \WP_List_Table {
 			'event'      => __( 'Début', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Maj', 'ufsc-licence-competition' ),
 		);
+	}
+
+	public function column_access( $item ) {
+		$competition_id = (int) ( $item->id ?? 0 );
+		if ( ! $competition_id ) {
+			return '—';
+		}
+
+		$access = new CompetitionAccess();
+		$summary = $access->get_access_summary( $competition_id );
+
+		return $summary ? esc_html( $summary ) : '—';
 	}
 
 	public function column_entries( $item ) {

@@ -64,6 +64,14 @@ class CompetitionMeta {
 			'organizer_phone'         => '',
 			'organizer_email'         => '',
 			'club_notes'              => '',
+			'access_mode'             => 'affiliated',
+			'allowed_regions'         => array(),
+			'allowed_disciplines'     => array(),
+			'allowed_club_ids'        => array(),
+			'public_read'             => false,
+			'require_affiliated'      => true,
+			'require_logged_in_club'  => true,
+			'require_valid_license'   => false,
 		);
 	}
 
@@ -106,8 +114,83 @@ class CompetitionMeta {
 		if ( isset( $data['club_notes'] ) ) {
 			$out['club_notes'] = sanitize_textarea_field( (string) $data['club_notes'] );
 		}
+		if ( isset( $data['access_mode'] ) ) {
+			$out['access_mode'] = sanitize_key( (string) $data['access_mode'] );
+		}
+		if ( isset( $data['allowed_regions'] ) ) {
+			$out['allowed_regions'] = self::sanitize_string_array( $data['allowed_regions'] );
+		}
+		if ( isset( $data['allowed_disciplines'] ) ) {
+			$out['allowed_disciplines'] = self::sanitize_key_array( $data['allowed_disciplines'] );
+		}
+		if ( isset( $data['allowed_club_ids'] ) ) {
+			$out['allowed_club_ids'] = self::sanitize_int_array( $data['allowed_club_ids'] );
+		}
+		if ( isset( $data['public_read'] ) ) {
+			$out['public_read'] = (bool) $data['public_read'];
+		}
+		if ( isset( $data['require_affiliated'] ) ) {
+			$out['require_affiliated'] = (bool) $data['require_affiliated'];
+		}
+		if ( isset( $data['require_logged_in_club'] ) ) {
+			$out['require_logged_in_club'] = (bool) $data['require_logged_in_club'];
+		}
+		if ( isset( $data['require_valid_license'] ) ) {
+			$out['require_valid_license'] = (bool) $data['require_valid_license'];
+		}
 
 		return $out;
+	}
+
+	private static function sanitize_string_array( $values ): array {
+		if ( ! is_array( $values ) ) {
+			$values = array( $values );
+		}
+
+		$out = array();
+		foreach ( $values as $value ) {
+			$value = is_scalar( $value ) ? (string) $value : '';
+			$value = trim( $value );
+			if ( '' === $value ) {
+				continue;
+			}
+			$out[] = sanitize_text_field( $value );
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	private static function sanitize_key_array( $values ): array {
+		if ( ! is_array( $values ) ) {
+			$values = array( $values );
+		}
+
+		$out = array();
+		foreach ( $values as $value ) {
+			$value = sanitize_key( (string) $value );
+			if ( '' === $value ) {
+				continue;
+			}
+			$out[] = $value;
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	private static function sanitize_int_array( $values ): array {
+		if ( ! is_array( $values ) ) {
+			$values = array( $values );
+		}
+
+		$out = array();
+		foreach ( $values as $value ) {
+			$id = absint( $value );
+			if ( $id > 0 ) {
+				$out[] = $id;
+			}
+		}
+
+		return array_values( array_unique( $out ) );
 	}
 
 	private static function sanitize_datetime( string $value ): string {
