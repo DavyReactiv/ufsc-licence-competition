@@ -916,6 +916,7 @@ class UFSC_LC_ASPTT_Importer {
 			'Note'                   => __( 'Note', 'ufsc-licence-competition' ),
 			'Région'                 => __( 'Région', 'ufsc-licence-competition' ),
 			'genre'                  => __( 'Genre', 'ufsc-licence-competition' ),
+			'Licence ID'             => __( 'Licence ID', 'ufsc-licence-competition' ),
 		);
 	}
 

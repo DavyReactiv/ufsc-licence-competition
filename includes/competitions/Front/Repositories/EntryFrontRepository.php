@@ -79,6 +79,115 @@ class EntryFrontRepository {
 		return $rows;
 	}
 
+	public function list_by_competition( int $competition_id, array $filters = array(), int $limit = 0, int $offset = 0 ): array {
+		global $wpdb;
+
+		$competition_id = absint( $competition_id );
+		if ( ! $competition_id ) {
+			return array();
+		}
+
+		if ( class_exists( EntryRepository::class ) ) {
+			$details_repo = new EntryRepository();
+			if ( method_exists( $details_repo, 'list_with_details' ) ) {
+				$details_filters = array(
+					'competition_id' => $competition_id,
+					'view'           => 'all',
+				);
+				if ( ! empty( $filters['status'] ) ) {
+					$details_filters['status'] = (string) $filters['status'];
+				}
+
+				$rows = $details_repo->list_with_details( $details_filters, $limit, $offset );
+				if ( is_array( $rows ) ) {
+					$rows = $this->normalize_entries_for_display( $rows );
+					$this->maybe_log_entry_columns( $rows );
+					return $rows;
+				}
+			}
+		}
+
+		$table = Db::entries_table();
+		$where = array( 'competition_id = %d' );
+		$params = array( $competition_id );
+
+		if ( $this->has_column( 'deleted_at' ) ) {
+			$where[] = 'deleted_at IS NULL';
+		}
+
+		if ( ! empty( $filters['status'] ) && $this->has_column( 'status' ) ) {
+			$where[] = 'status = %s';
+			$params[] = (string) $filters['status'];
+		}
+
+		$limit_sql = '';
+		if ( $limit > 0 ) {
+			$offset = max( 0, $offset );
+			$limit_sql = $wpdb->prepare( 'LIMIT %d OFFSET %d', $limit, $offset );
+		}
+
+		$sql = $wpdb->prepare(
+			"SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . " ORDER BY created_at DESC {$limit_sql}",
+			$params
+		);
+
+		$rows = $wpdb->get_results( $sql );
+		$this->maybe_log_db_error( __METHOD__ . ':list_by_competition' );
+
+		$rows = is_array( $rows ) ? $rows : array();
+		$rows = $this->normalize_entries_for_display( $rows );
+		$this->maybe_log_entry_columns( $rows );
+
+		return $rows;
+	}
+
+	public function count_by_competition( int $competition_id, array $filters = array() ): int {
+		global $wpdb;
+
+		$competition_id = absint( $competition_id );
+		if ( ! $competition_id ) {
+			return 0;
+		}
+
+		if ( class_exists( EntryRepository::class ) ) {
+			$details_repo = new EntryRepository();
+			if ( method_exists( $details_repo, 'count_with_details' ) ) {
+				$details_filters = array(
+					'competition_id' => $competition_id,
+					'view'           => 'all',
+				);
+				if ( ! empty( $filters['status'] ) ) {
+					$details_filters['status'] = (string) $filters['status'];
+				}
+
+				return (int) $details_repo->count_with_details( $details_filters );
+			}
+		}
+
+		$table = Db::entries_table();
+		$where = array( 'competition_id = %d' );
+		$params = array( $competition_id );
+
+		if ( $this->has_column( 'deleted_at' ) ) {
+			$where[] = 'deleted_at IS NULL';
+		}
+
+		if ( ! empty( $filters['status'] ) && $this->has_column( 'status' ) ) {
+			$where[] = 'status = %s';
+			$params[] = (string) $filters['status'];
+		}
+
+		$sql = $wpdb->prepare(
+			"SELECT COUNT(*) FROM {$table} WHERE " . implode( ' AND ', $where ),
+			$params
+		);
+
+		$count = (int) $wpdb->get_var( $sql );
+		$this->maybe_log_db_error( __METHOD__ . ':count_by_competition' );
+
+		return $count;
+	}
+
 	public function get( int $entry_id ) {
 		global $wpdb;
 

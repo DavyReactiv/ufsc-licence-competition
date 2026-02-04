@@ -343,6 +343,23 @@ class Competitions_Table extends \WP_List_Table {
 				esc_url( $entries_pdf_url ),
 				esc_html__( 'Exporter la liste des inscriptions (PDF)', 'ufsc-licence-competition' )
 			);
+
+			$engaged_csv_url = wp_nonce_url(
+				add_query_arg(
+					array(
+						'action'         => 'ufsc_competitions_export_engaged_csv_admin',
+						'competition_id' => $id,
+						'status'         => 'approved',
+					),
+					admin_url( 'admin-post.php' )
+				),
+				'ufsc_competitions_export_engaged_csv_admin_' . $id
+			);
+			$actions['export_engaged_csv'] = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( $engaged_csv_url ),
+				esc_html__( 'Exporter CSV engagés', 'ufsc-licence-competition' )
+			);
 		}
 
 		$title = sprintf(

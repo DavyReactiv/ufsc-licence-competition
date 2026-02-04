@@ -42,10 +42,6 @@ class LicenseBridge {
 	}
 
 	public function search( string $term, int $club_id, string $license_number = '', string $birthdate = '' ): array {
-		if ( ! $club_id ) {
-			return array();
-		}
-
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_licences';
@@ -54,10 +50,10 @@ class LicenseBridge {
 		}
 
 		// Resolve schema differences across installs.
-		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
-		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
-		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
-		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
+		$license_columns   = $this->resolve_available_columns( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number', 'asptt_number' ) );
+		$last_name_columns = $this->resolve_available_columns( $table, array( 'nom', 'nom_licence', 'last_name' ) );
+		$first_name_columns = $this->resolve_available_columns( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
+		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate', 'date_of_birth' ) );
 		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
 
 		$term           = sanitize_text_field( $term );
@@ -71,8 +67,26 @@ class LicenseBridge {
 			return array();
 		}
 
-		$where  = array( 'club_id = %d' );
-		$params = array( $club_id );
+		$this->debug_log(
+			'license_search_params',
+			array(
+				'term' => $term,
+				'license_number' => $license_number,
+				'birthdate' => $birthdate,
+				'club_id' => $club_id,
+			)
+		);
+
+		$where  = array();
+		$params = array();
+
+		if ( $this->has_column( $table, 'club_id' ) && $club_id ) {
+			$where[] = 'club_id = %d';
+			$params[] = $club_id;
+		}
+
+		$last_name_expr  = $this->build_coalesce_expression( $last_name_columns );
+		$first_name_expr = $this->build_coalesce_expression( $first_name_columns );
 
 		// Free text term: search in last/first name (if present) + license column (if present)
 		if ( '' !== $term ) {
@@ -82,39 +96,41 @@ class LicenseBridge {
 
 			$term_parts = array_values( array_filter( array_map( 'trim', explode( ' ', $normalized_term ) ) ) );
 
-			if ( $last_name_column && $first_name_column && count( $term_parts ) >= 2 ) {
+			if ( "''" !== $last_name_expr && "''" !== $first_name_expr && count( $term_parts ) >= 2 ) {
 				$part_a = '%' . $wpdb->esc_like( $term_parts[0] ) . '%';
 				$part_b = '%' . $wpdb->esc_like( $term_parts[1] ) . '%';
-				$clause[] = "(LOWER({$last_name_column}) LIKE %s AND LOWER({$first_name_column}) LIKE %s)";
+				$clause[] = "(LOWER({$last_name_expr}) LIKE %s AND LOWER({$first_name_expr}) LIKE %s)";
 				$params[] = $part_a;
 				$params[] = $part_b;
-				$clause[] = "(LOWER({$last_name_column}) LIKE %s AND LOWER({$first_name_column}) LIKE %s)";
+				$clause[] = "(LOWER({$last_name_expr}) LIKE %s AND LOWER({$first_name_expr}) LIKE %s)";
 				$params[] = $part_b;
 				$params[] = $part_a;
 			}
 
-			if ( $last_name_column ) {
-				$clause[] = "{$last_name_column} LIKE %s";
+			if ( "''" !== $last_name_expr ) {
+				$clause[] = "{$last_name_expr} LIKE %s";
 				$params[] = $like;
 				if ( $normalized_like ) {
-					$clause[] = "LOWER({$last_name_column}) LIKE %s";
+					$clause[] = "LOWER({$last_name_expr}) LIKE %s";
 					$params[] = $normalized_like;
 				}
 			}
-			if ( $first_name_column ) {
-				$clause[] = "{$first_name_column} LIKE %s";
+			if ( "''" !== $first_name_expr ) {
+				$clause[] = "{$first_name_expr} LIKE %s";
 				$params[] = $like;
 				if ( $normalized_like ) {
-					$clause[] = "LOWER({$first_name_column}) LIKE %s";
+					$clause[] = "LOWER({$first_name_expr}) LIKE %s";
 					$params[] = $normalized_like;
 				}
 			}
-			if ( $license_column ) {
-				$clause[] = "{$license_column} LIKE %s";
-				$params[] = $like;
-				if ( $normalized_like ) {
-					$clause[] = "LOWER({$license_column}) LIKE %s";
-					$params[] = $normalized_like;
+			if ( ! empty( $license_columns ) ) {
+				foreach ( $license_columns as $license_column ) {
+					$clause[] = "{$license_column} LIKE %s";
+					$params[] = $like;
+					if ( $normalized_like ) {
+						$clause[] = "LOWER({$license_column}) LIKE %s";
+						$params[] = $normalized_like;
+					}
 				}
 			}
 
@@ -127,38 +143,58 @@ class LicenseBridge {
 		}
 
 		// Dedicated license number term (only if column exists)
-		if ( '' !== $license_number && $license_column ) {
+		if ( '' !== $license_number && ! empty( $license_columns ) ) {
 			$number_like = '%' . $wpdb->esc_like( $license_number ) . '%';
-			$where[]     = "{$license_column} LIKE %s";
-			$params[]    = $number_like;
-			if ( '' !== $normalized_number ) {
-				$where[]  = "LOWER({$license_column}) LIKE %s";
-				$params[] = '%' . $wpdb->esc_like( $normalized_number ) . '%';
+			$number_clause = array();
+			foreach ( $license_columns as $license_column ) {
+				$number_clause[] = "{$license_column} LIKE %s";
+				$params[] = $number_like;
+				if ( '' !== $normalized_number ) {
+					$number_clause[] = "LOWER({$license_column}) LIKE %s";
+					$params[] = '%' . $wpdb->esc_like( $normalized_number ) . '%';
+				}
 			}
+			$where[] = '(' . implode( ' OR ', $number_clause ) . ')';
 		}
 
 		if ( '' !== $normalized_birthdate && $birthdate_column ) {
-			$where[]  = "{$birthdate_column} LIKE %s";
-			$params[] = $normalized_birthdate . '%';
+			$birthdate_clause = array( "{$birthdate_column} = %s" );
+			$params[] = $normalized_birthdate;
+
+			$birthdate_alt = $this->format_birthdate_for_storage( $normalized_birthdate );
+			if ( '' !== $birthdate_alt && $birthdate_alt !== $normalized_birthdate ) {
+				$birthdate_clause[] = "{$birthdate_column} = %s";
+				$params[] = $birthdate_alt;
+			}
+
+			$where[] = '(' . implode( ' OR ', $birthdate_clause ) . ')';
 		}
 
-		$where_sql = 'WHERE ' . implode( ' AND ', $where );
+		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
 		// Select columns as normalized aliases expected by the competitions module.
 		$select_columns   = array( 'id' );
-		$select_columns[] = $last_name_column ? "{$last_name_column} AS last_name" : "'' AS last_name";
-		$select_columns[] = $first_name_column ? "{$first_name_column} AS first_name" : "'' AS first_name";
+		$select_columns[] = "''" !== $last_name_expr ? "{$last_name_expr} AS last_name" : "'' AS last_name";
+		$select_columns[] = "''" !== $first_name_expr ? "{$first_name_expr} AS first_name" : "'' AS first_name";
 		$select_columns[] = $birthdate_column ? "{$birthdate_column} AS birthdate" : "'' AS birthdate";
 		$select_columns[] = $sex_column ? "{$sex_column} AS sex" : "'' AS sex";
-		$select_columns[] = $license_column ? "{$license_column} AS license_number" : "'' AS license_number";
+		$select_columns[] = ! empty( $license_columns ) ? "{$license_columns[0]} AS license_number" : "'' AS license_number";
 
 		$select = implode( ', ', $select_columns );
 
 		// Dynamic ordering depending on available columns (stable & safe: names are whitelisted + verified existing).
-		$order_last  = $last_name_column ? $last_name_column : 'id';
-		$order_first = $first_name_column ? $first_name_column : $order_last;
+		$order_last  = ! empty( $last_name_columns ) ? $last_name_columns[0] : 'id';
+		$order_first = ! empty( $first_name_columns ) ? $first_name_columns[0] : $order_last;
 
 		$sql  = "SELECT {$select} FROM {$table} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
+		$this->debug_log(
+			'license_search_sql',
+			array(
+				'sql' => $sql,
+				'params_count' => count( $params ),
+			)
+		);
+
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
 		if ( ! is_array( $rows ) ) {
 			return array();
@@ -188,6 +224,13 @@ class LicenseBridge {
 				'license_number' => sanitize_text_field( $row['license_number'] ?? '' ),
 			);
 		}
+
+		$this->debug_log(
+			'license_search_results',
+			array(
+				'count' => count( $items ),
+			)
+		);
 
 		return $items;
 	}
@@ -289,6 +332,40 @@ class LicenseBridge {
 		return '';
 	}
 
+	private function resolve_available_columns( string $table, array $candidates ): array {
+		$columns = array();
+		foreach ( $candidates as $candidate ) {
+			if ( $this->has_column( $table, (string) $candidate ) ) {
+				$columns[] = (string) $candidate;
+			}
+		}
+		return $columns;
+	}
+
+	private function build_coalesce_expression( array $columns ): string {
+		if ( empty( $columns ) ) {
+			return "''";
+		}
+
+		$parts = array();
+		foreach ( $columns as $column ) {
+			$parts[] = 'NULLIF(' . $column . ", '')";
+		}
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function format_birthdate_for_storage( string $normalized ): string {
+		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $normalized ) ) {
+			$date = date_create( $normalized );
+			if ( $date ) {
+				return $date->format( 'd/m/Y' );
+			}
+		}
+
+		return '';
+	}
+
 	private function normalize_search( string $value ): string {
 		$value = remove_accents( $value );
 		$value = preg_replace( '/\s+/', ' ', $value );
@@ -326,5 +403,18 @@ class LicenseBridge {
 		}
 
 		return '';
+	}
+
+	private function debug_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC Competitions LicenseBridge: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 }

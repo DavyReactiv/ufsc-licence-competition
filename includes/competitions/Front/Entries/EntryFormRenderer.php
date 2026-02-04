@@ -125,6 +125,154 @@ class EntryFormRenderer {
 					<p class="ufsc-competition-official-list"><?php echo esc_html( $official_notice ); ?></p>
 				<?php endif; ?>
 
+				<?php
+				$engaged_status = isset( $_GET['ufsc_engaged_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_engaged_status'] ) ) : 'approved';
+				if ( ! in_array( $engaged_status, array( 'approved', 'submitted' ), true ) ) {
+					$engaged_status = 'approved';
+				}
+
+				$engaged_view     = isset( $_GET['ufsc_engaged_view'] ) ? absint( $_GET['ufsc_engaged_view'] ) : 0;
+				$engaged_page     = isset( $_GET['ufsc_engaged_page'] ) ? max( 1, absint( $_GET['ufsc_engaged_page'] ) ) : 1;
+				$engaged_per_page = 20;
+				$engaged_total    = 0;
+				$engaged_entries  = array();
+
+				if ( $engaged_view ) {
+					$engaged_total = $repo->count_by_competition(
+						(int) ( $competition->id ?? 0 ),
+						array(
+							'status' => $engaged_status,
+						)
+					);
+					$engaged_entries = $repo->list_by_competition(
+						(int) ( $competition->id ?? 0 ),
+						array(
+							'status' => $engaged_status,
+						),
+						$engaged_per_page,
+						( $engaged_page - 1 ) * $engaged_per_page
+					);
+				}
+
+				$engaged_base_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
+				$engaged_base_url = $engaged_base_url ? $engaged_base_url : $return_url;
+				$engaged_list_url = add_query_arg(
+					array(
+						'ufsc_engaged_view'   => 1,
+						'ufsc_engaged_status' => $engaged_status,
+					),
+					$engaged_base_url
+				);
+				$engaged_list_url .= '#ufsc-engaged-list';
+
+				$engaged_hide_url = $engaged_base_url . '#ufsc-engaged-list';
+
+				$engaged_export_url = wp_nonce_url(
+					add_query_arg(
+						array(
+							'action'         => 'ufsc_competitions_export_engaged_csv',
+							'competition_id' => (int) ( $competition->id ?? 0 ),
+							'status'         => $engaged_status,
+						),
+						admin_url( 'admin-post.php' )
+					),
+					'ufsc_competitions_export_engaged_csv_' . (int) ( $competition->id ?? 0 )
+				);
+				?>
+
+				<div class="ufsc-competition-engaged-actions" id="ufsc-engaged-list">
+					<?php if ( ! $engaged_view ) : ?>
+						<a class="button" href="<?php echo esc_url( $engaged_list_url ); ?>">
+							<?php echo esc_html__( 'Consulter la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
+						</a>
+					<?php else : ?>
+						<a class="button" href="<?php echo esc_url( $engaged_hide_url ); ?>">
+							<?php echo esc_html__( 'Masquer la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
+						</a>
+					<?php endif; ?>
+
+					<a class="button" href="<?php echo esc_url( $engaged_export_url ); ?>">
+						<?php echo esc_html__( 'Télécharger CSV des engagés', 'ufsc-licence-competition' ); ?>
+					</a>
+				</div>
+
+				<?php if ( $engaged_view ) : ?>
+					<div class="ufsc-competition-engaged-table">
+						<h4><?php echo esc_html__( 'Licenciés engagés', 'ufsc-licence-competition' ); ?></h4>
+						<?php if ( empty( $engaged_entries ) ) : ?>
+							<p><?php echo esc_html__( 'Aucun licencié engagé trouvé.', 'ufsc-licence-competition' ); ?></p>
+						<?php else : ?>
+							<table>
+								<thead>
+									<tr>
+										<th><?php echo esc_html__( 'Nom / Prénom', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Club', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $engaged_entries as $entry ) : ?>
+										<?php
+										$engaged_name = self::get_entry_value( $entry, array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+										if ( '' === $engaged_name ) {
+											$engaged_first = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom', 'licensee_first_name' ) );
+											$engaged_last  = self::get_entry_value( $entry, array( 'last_name', 'lastname', 'nom', 'licensee_last_name' ) );
+											$engaged_name  = trim( $engaged_first . ' ' . $engaged_last );
+										}
+
+										$engaged_birthdate    = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
+										$engaged_category     = self::resolve_category_label( $entry, $competition );
+										$engaged_weight       = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+										$engaged_weight_class = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
+										$engaged_club         = (string) ( $entry->club_name ?? $club_label );
+										$engaged_status_raw   = (string) $repo->get_entry_status( $entry );
+										$engaged_status_norm  = EntriesWorkflow::normalize_status( $engaged_status_raw );
+										$engaged_status_label = EntriesWorkflow::get_status_label( $engaged_status_norm );
+										?>
+										<tr>
+											<td><?php echo esc_html( self::format_display_value( $engaged_name ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_club ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_birthdate ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_category ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_weight ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_weight_class ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_status_label ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+
+							<?php
+							$total_pages = $engaged_total ? (int) ceil( $engaged_total / $engaged_per_page ) : 1;
+							if ( $total_pages > 1 ) :
+								?>
+								<nav class="ufsc-competition-engaged-pagination">
+									<?php for ( $page = 1; $page <= $total_pages; $page++ ) : ?>
+										<?php
+										$page_url = add_query_arg(
+											array(
+												'ufsc_engaged_view'   => 1,
+												'ufsc_engaged_status' => $engaged_status,
+												'ufsc_engaged_page'   => $page,
+											),
+											$engaged_base_url
+										);
+										$page_url .= '#ufsc-engaged-list';
+										?>
+										<a class="<?php echo $page === $engaged_page ? 'is-active' : ''; ?>" href="<?php echo esc_url( $page_url ); ?>">
+											<?php echo esc_html( (string) $page ); ?>
+										</a>
+									<?php endfor; ?>
+								</nav>
+							<?php endif; ?>
+						<?php endif; ?>
+					</div>
+				<?php endif; ?>
+
 				<?php if ( empty( $entries ) ) : ?>
 					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
 				<?php else : ?>
@@ -232,7 +380,7 @@ class EntryFormRenderer {
 
 									$birth_date     = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
 									$birth_year     = self::get_birth_year( $birth_date );
-									$category       = self::resolve_category_label( $entry );
+									$category       = self::resolve_category_label( $entry, $competition );
 									$weight         = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 									$weight_class   = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
 									$license_number = $show_license_column ? $get_license_number( $entry ) : '';
@@ -291,7 +439,7 @@ class EntryFormRenderer {
 										<td>
 											<?php if ( 'approved' === $status || 'validated' === $status || 'valid' === $status || 'valide' === $status ) : ?>
 												<span class="ufsc-entry-action-disabled">
-													<?php echo esc_html__( 'Inscription validée — veuillez contacter l’administration UFSC par email', 'ufsc-licence-competition' ); ?>
+													<?php echo esc_html__( 'Inscription validée — pour toute modification, contactez l’administration UFSC.', 'ufsc-licence-competition' ); ?>
 												</span>
 											<?php elseif ( $registration_open ) : ?>
 												<?php if ( 'draft' === $status ) : ?>
@@ -646,7 +794,7 @@ class EntryFormRenderer {
 			'error_closed'             => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
 			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
-			'error_withdraw_approved'  => array( 'error', __( 'Inscription validée — veuillez contacter l’administration UFSC par email', 'ufsc-licence-competition' ) ),
+			'error_withdraw_approved'  => array( 'error', __( 'Inscription validée — pour toute modification, contactez l’administration UFSC.', 'ufsc-licence-competition' ) ),
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
 			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),
@@ -690,25 +838,40 @@ class EntryFormRenderer {
 		return '';
 	}
 
-	private static function resolve_category_label( $entry ): string {
+	private static function resolve_category_label( $entry, $competition = null ): string {
 		$label = self::get_entry_value( $entry, array( 'category', 'category_name', 'category_label', 'category_title' ) );
 		if ( '' !== $label ) {
 			return $label;
 		}
 
 		$category_id = absint( $entry->category_id ?? 0 );
-		if ( ! $category_id || ! class_exists( CategoryRepository::class ) ) {
-			return '';
+		if ( $category_id && class_exists( CategoryRepository::class ) ) {
+			static $cache = array();
+			if ( ! array_key_exists( $category_id, $cache ) ) {
+				$repo = new CategoryRepository();
+				$category = $repo->get( $category_id, true );
+				$cache[ $category_id ] = $category ? (string) ( $category->name ?? '' ) : '';
+			}
+
+			return (string) $cache[ $category_id ];
 		}
 
-		static $cache = array();
-		if ( ! array_key_exists( $category_id, $cache ) ) {
-			$repo = new CategoryRepository();
-			$category = $repo->get( $category_id, true );
-			$cache[ $category_id ] = $category ? (string) ( $category->name ?? '' ) : '';
+		$birth_date = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
+		if ( '' !== $birth_date && function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
+			$season_end_year = '';
+			if ( is_object( $competition ) && isset( $competition->season ) ) {
+				$season_end_year = (string) $competition->season;
+			}
+
+			if ( '' !== $season_end_year ) {
+				$computed = ufsc_lc_compute_category_from_birthdate( $birth_date, $season_end_year );
+				if ( '' !== $computed ) {
+					return $computed;
+				}
+			}
 		}
 
-		return (string) $cache[ $category_id ];
+		return '';
 	}
 
 	private static function format_display_value( $value ): string {
