@@ -257,6 +257,28 @@ class Competitions_Page {
 		$club_select  = $this->club_repository ? $this->club_repository->list_for_select() : array();
 		$disciplines  = class_exists( DisciplineRegistry::class ) ? DisciplineRegistry::get_disciplines() : array();
 		$show_all_clubs_mode = (bool) apply_filters( 'ufsc_competitions_access_show_all_clubs_mode', true );
+		$preview_mode_label = __( 'Clubs affiliés', 'ufsc-licence-competition' );
+		switch ( $access_mode ) {
+			case 'all_clubs':
+				$preview_mode_label = __( 'Tous les clubs', 'ufsc-licence-competition' );
+				break;
+			case 'regions':
+				$preview_mode_label = __( 'Régions', 'ufsc-licence-competition' );
+				break;
+			case 'clubs':
+				$preview_mode_label = __( 'Clubs sélectionnés', 'ufsc-licence-competition' );
+				break;
+			case 'disciplines':
+				$preview_mode_label = __( 'Disciplines', 'ufsc-licence-competition' );
+				break;
+			case 'region_discipline':
+				$preview_mode_label = __( 'Région + discipline', 'ufsc-licence-competition' );
+				break;
+		}
+		$preview_regions_count = count( array_filter( $allowed_regions ) );
+		$preview_clubs_count = count( array_filter( $allowed_club_ids ) );
+		$preview_affiliation_label = $require_affiliated ? __( 'Oui', 'ufsc-licence-competition' ) : __( 'Non', 'ufsc-licence-competition' );
+		$clubs_mode_empty_warning = ( 'clubs' === $access_mode && empty( $allowed_club_ids ) );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -529,6 +551,33 @@ class Competitions_Page {
 								</label>
 								<p class="description"><?php esc_html_e( 'Appliqué avant la création ou la validation d’une inscription.', 'ufsc-licence-competition' ); ?></p>
 							</td>
+						</tr>
+					</tbody>
+				</table>
+
+				<h2><?php esc_html_e( 'Aperçu accès', 'ufsc-licence-competition' ); ?></h2>
+				<?php if ( $clubs_mode_empty_warning ) : ?>
+					<div class="notice notice-warning inline">
+						<p><?php esc_html_e( 'Mode “clubs sélectionnés” sans club : accès refusé pour tous (hors administrateurs).', 'ufsc-licence-competition' ); ?></p>
+					</div>
+				<?php endif; ?>
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Mode', 'ufsc-licence-competition' ); ?></th>
+							<td><?php echo esc_html( $preview_mode_label ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Nombre de régions sélectionnées', 'ufsc-licence-competition' ); ?></th>
+							<td><?php echo esc_html( (string) $preview_regions_count ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Nombre de clubs sélectionnés', 'ufsc-licence-competition' ); ?></th>
+							<td><?php echo esc_html( (string) $preview_clubs_count ); ?></td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Condition affiliation', 'ufsc-licence-competition' ); ?></th>
+							<td><?php echo esc_html( $preview_affiliation_label ); ?></td>
 						</tr>
 					</tbody>
 				</table>
