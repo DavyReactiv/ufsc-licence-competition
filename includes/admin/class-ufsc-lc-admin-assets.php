@@ -127,6 +127,8 @@ class UFSC_LC_Admin_Assets {
 						'selectClub'       => __( 'Sélectionner un club', 'ufsc-licence-competition' ),
 						'searchPlaceholder'=> __( 'Rechercher un club…', 'ufsc-licence-competition' ),
 						'noResults'        => __( 'Aucun club trouvé', 'ufsc-licence-competition' ),
+						'minChars'         => __( 'Tapez au moins 2 caractères.', 'ufsc-licence-competition' ),
+						'errorLoading'     => __( 'Erreur technique, veuillez réessayer.', 'ufsc-licence-competition' ),
 						'errorDefault'     => __( 'Une erreur est survenue.', 'ufsc-licence-competition' ),
 						'selectFirst'      => __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' ),
 						'saving'           => __( 'Enregistrement…', 'ufsc-licence-competition' ),

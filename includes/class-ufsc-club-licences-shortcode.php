@@ -256,6 +256,10 @@ class UFSC_LC_Club_Licences_Shortcode {
 							$nom_affiche = function_exists( 'ufsc_lc_get_nom_affiche' ) ? ufsc_lc_get_nom_affiche( $item ) : ( $item->nom_affiche ?? '' );
 							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
+							$pdf_attachment_id = ! empty( $item->attachment_id ) ? (int) $item->attachment_id : 0;
+							if ( ! $pdf_attachment_id && function_exists( 'ufsc_licence_get_pdf_attachment_id' ) ) {
+								$pdf_attachment_id = (int) ufsc_licence_get_pdf_attachment_id( $item->id );
+							}
 							?>
 							<tr>
 								<td><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
@@ -265,8 +269,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( ! empty( $item->asptt_number ) ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td>
-									<?php if ( ! empty( $item->attachment_id ) ) : ?>
+									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">
+											<span class="ufsc-licence-badge"><?php esc_html_e( 'Généré', 'ufsc-licence-competition' ); ?></span>
 											<a class="button button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'view', $item->id ) ); ?>">
 												<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 												<?php esc_html_e( 'Voir', 'ufsc-licence-competition' ); ?>
@@ -377,12 +382,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 
-		$document = $this->get_document_by_licence( $licence_id );
-		if ( ! $document || ! $document->attachment_id ) {
+		$attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
+			? ufsc_licence_get_pdf_attachment_id( $licence_id )
+			: null;
+		if ( ! $attachment_id ) {
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ) );
 		}
 
-		$file_path = get_attached_file( (int) $document->attachment_id );
+		$file_path = get_attached_file( (int) $attachment_id );
 		if ( ! $file_path || ! file_exists( $file_path ) ) {
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ) );
 		}
