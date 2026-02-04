@@ -88,6 +88,123 @@ function ufsc_lc_normalize_search( $value ) {
 	return $value;
 }
 
+function ufsc_normalize_token( $value ): string {
+	$value = trim( (string) $value );
+	if ( '' === $value ) {
+		return '';
+	}
+
+	$value = remove_accents( $value );
+	$value = preg_replace( '/[-_\/]+/', ' ', $value );
+	$value = preg_replace( '/\s+/', ' ', $value );
+	$value = trim( $value );
+
+	if ( function_exists( 'mb_strtoupper' ) ) {
+		$value = mb_strtoupper( $value );
+	} else {
+		$value = strtoupper( $value );
+	}
+
+	return $value;
+}
+
+function ufsc_normalize_region( $value ): string {
+	$normalized = ufsc_normalize_token( $value );
+	if ( '' === $normalized ) {
+		return '';
+	}
+
+	$aliases = array(
+		'PACA CORSE' => 'PACA CORSE',
+		'AUVERGNE RHONE ALPES' => 'AUVERGNE-RHONE-ALPES',
+	);
+
+	$aliases = apply_filters( 'ufsc_competitions_region_aliases', $aliases );
+
+	return isset( $aliases[ $normalized ] ) ? $aliases[ $normalized ] : $normalized;
+}
+
+function ufsc_normalize_discipline( $value ): string {
+	return ufsc_normalize_token( $value );
+}
+
+function ufsc_extract_club_disciplines( $club ): array {
+	if ( ! is_object( $club ) ) {
+		return array();
+	}
+
+	$raw = '';
+	if ( isset( $club->discipline ) ) {
+		$raw = (string) $club->discipline;
+	} elseif ( isset( $club->disciplines ) ) {
+		$raw = (string) $club->disciplines;
+	}
+
+	$raw = trim( $raw );
+	if ( '' === $raw ) {
+		return array();
+	}
+
+	$parts = array_map( 'trim', preg_split( '/[;,]/', $raw ) );
+	$parts = array_filter( $parts );
+
+	$disciplines = array();
+	foreach ( $parts as $part ) {
+		$normalized = ufsc_normalize_discipline( $part );
+		if ( '' !== $normalized ) {
+			$disciplines[] = $normalized;
+		}
+	}
+
+	return array_values( array_unique( $disciplines ) );
+}
+
+function ufsc_get_competitions_list_url(): string {
+	$url = (string) apply_filters( 'ufsc_competitions_front_list_url', '' );
+	if ( '' !== $url ) {
+		return $url;
+	}
+
+	$referer = wp_get_referer();
+	if ( $referer ) {
+		return $referer;
+	}
+
+	return home_url( '/' );
+}
+
+function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResult $result, string $list_url = '' ): string {
+	$message = __( 'Accès refusé.', 'ufsc-licence-competition' );
+	if ( class_exists( '\UFSC\Competitions\Access\CompetitionAccess' ) ) {
+		$access = new \UFSC\Competitions\Access\CompetitionAccess();
+		$message = $access->get_denied_message( $result );
+	}
+
+	$extra = '';
+	if ( 'not_allowed_by_rule' === $result->reason_code ) {
+		$extra = __( 'Contactez l’administration UFSC si vous pensez qu’il s’agit d’une erreur.', 'ufsc-licence-competition' );
+	}
+
+	$list_url = $list_url ? $list_url : ufsc_get_competitions_list_url();
+
+	$button = '';
+	if ( $list_url ) {
+		$button = sprintf(
+			'<a class="button" href="%s">%s</a>',
+			esc_url( $list_url ),
+			esc_html__( 'Retour à la liste', 'ufsc-licence-competition' )
+		);
+	}
+
+	return sprintf(
+		'<div class="notice notice-warning ufsc-access-denied"><h3>%s</h3><p>%s</p>%s%s</div>',
+		esc_html__( 'Accès réservé', 'ufsc-licence-competition' ),
+		esc_html( $message ),
+		$extra ? '<p>' . esc_html( $extra ) . '</p>' : '',
+		$button ? '<p>' . $button . '</p>' : ''
+	);
+}
+
 function ufsc_lc_table_exists( $table_name ) {
 	global $wpdb;
 

@@ -27,6 +27,7 @@ class Menu {
 	public const PAGE_SETTINGS     = 'ufsc-competitions-settings';
 	public const PAGE_LOGS         = 'ufsc-competitions-logs';
 	public const PAGE_GUIDE        = 'ufsc-competitions-guide';
+	public const PAGE_ACCESS_DIAGNOSTIC = 'ufsc-competitions-access-diagnostic';
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
@@ -126,9 +127,20 @@ class Menu {
 			__( 'Guide', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Guide_Page'
 		);
+
+		$diagnostic_hook = $this->add_submenu_safe(
+			$cap,
+			self::PAGE_ACCESS_DIAGNOSTIC,
+			__( 'Diagnostic Accès', 'ufsc-licence-competition' ),
+			__( 'Diagnostic Accès', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Access_Diagnostic_Page'
+		);
+		if ( $diagnostic_hook && class_exists( 'UFSC_LC_Admin_Assets' ) ) {
+			\UFSC_LC_Admin_Assets::register_page( $diagnostic_hook );
+		}
 	}
 
-	private function add_submenu_safe( string $cap, string $slug, string $page_title, string $menu_title, string $page_class ): void {
+	private function add_submenu_safe( string $cap, string $slug, string $page_title, string $menu_title, string $page_class ): string {
 		$callback = function() use ( $page_class ) {
 			if ( class_exists( $page_class ) ) {
 				$obj = new $page_class();
@@ -162,6 +174,8 @@ class Menu {
 			$assets = new Assets();
 			$assets->register( $hook_suffix, self::PAGE_COMPETITIONS === $slug, $slug );
 		}
+
+		return $hook_suffix ? (string) $hook_suffix : '';
 	}
 
 	public function register_page_actions(): void {

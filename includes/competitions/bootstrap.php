@@ -121,6 +121,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Timing_Profiles_Page.php',
 		$base . '/Admin/Pages/Settings_Page.php',
 		$base . '/Admin/Pages/CompetitionLogs_Page.php',
+		$base . '/Admin/Pages/Access_Diagnostic_Page.php',
 		$base . '/Admin/Pages/Guide_Page.php',
 		$base . '/Admin/Pages/Quality_Page.php',
 		$base . '/Admin/Pages/Print_Page.php',

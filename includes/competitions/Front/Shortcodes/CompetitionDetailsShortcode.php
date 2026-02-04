@@ -49,6 +49,9 @@ class CompetitionDetailsShortcode {
 		$view_result = $access->can_view_competition( (int) $competition->id, $club_id, $user_id );
 
 		if ( ! $view_result->allowed ) {
+			if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
+				return (string) ufsc_render_access_denied_notice( $view_result );
+			}
 			return $this->render_notice( $access->get_denied_message( $view_result ) );
 		}
 
@@ -185,9 +188,15 @@ class CompetitionDetailsShortcode {
 					do_action( 'ufsc_competitions_front_registration_box', $competition );
 				else :
 					?>
-					<p class="ufsc-competition-entries-locked">
-						<?php echo esc_html( $access->get_denied_message( $register_result ) ); ?>
-					</p>
+					<div class="ufsc-competition-entries-locked">
+						<?php
+						if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
+							echo wp_kses_post( ufsc_render_access_denied_notice( $register_result ) );
+						} else {
+							echo esc_html( $access->get_denied_message( $register_result ) );
+						}
+						?>
+					</div>
 				<?php endif; ?>
 			</div>
 		</div>

@@ -2,6 +2,7 @@
 
 namespace UFSC\Competitions\Front\Exports;
 
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Exports\Engaged_Entries_Export_Helper;
 use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
@@ -60,6 +61,12 @@ class Engaged_Entries_Export_Controller {
 		$competition      = $competition_repo->get( $competition_id );
 		if ( ! $competition ) {
 			$this->redirect_with_notice( $competition_id, 'error_not_found' );
+		}
+
+		$access = new CompetitionAccess();
+		$view_result = $access->can_view_competition( $competition_id, $club_id, get_current_user_id() );
+		if ( ! $view_result->allowed ) {
+			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
 		$entry_repo = new EntryFrontRepository();
