@@ -7,6 +7,7 @@ use UFSC\Competitions\Admin\Exports\Entries_Export_Controller;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\ClubRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
+use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -243,6 +244,19 @@ class Competitions_Page {
 		$organizer_phone         = (string) ( $event_meta['organizer_phone'] ?? '' );
 		$organizer_email         = (string) ( $event_meta['organizer_email'] ?? '' );
 		$club_notes              = (string) ( $event_meta['club_notes'] ?? '' );
+		$access_mode             = (string) ( $event_meta['access_mode'] ?? 'affiliated' );
+		$allowed_regions          = is_array( $event_meta['allowed_regions'] ?? null ) ? $event_meta['allowed_regions'] : array();
+		$allowed_disciplines      = is_array( $event_meta['allowed_disciplines'] ?? null ) ? $event_meta['allowed_disciplines'] : array();
+		$allowed_club_ids         = is_array( $event_meta['allowed_club_ids'] ?? null ) ? $event_meta['allowed_club_ids'] : array();
+		$public_read              = ! empty( $event_meta['public_read'] );
+		$require_affiliated       = isset( $event_meta['require_affiliated'] ) ? (bool) $event_meta['require_affiliated'] : true;
+		$require_logged_in_club   = isset( $event_meta['require_logged_in_club'] ) ? (bool) $event_meta['require_logged_in_club'] : true;
+		$require_valid_license    = ! empty( $event_meta['require_valid_license'] );
+
+		$club_regions = $this->club_repository ? $this->club_repository->list_regions() : array();
+		$club_select  = $this->club_repository ? $this->club_repository->list_for_select() : array();
+		$disciplines  = class_exists( DisciplineRegistry::class ) ? DisciplineRegistry::get_disciplines() : array();
+		$show_all_clubs_mode = (bool) apply_filters( 'ufsc_competitions_access_show_all_clubs_mode', true );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -415,6 +429,110 @@ class Competitions_Page {
 					</tbody>
 				</table>
 
+				<h2><?php esc_html_e( 'Accès & éligibilité', 'ufsc-licence-competition' ); ?></h2>
+				<p class="description">
+					<?php esc_html_e( 'Définissez qui peut voir la compétition et qui peut s’inscrire. Les administrateurs UFSC conservent toujours l’accès total.', 'ufsc-licence-competition' ); ?>
+				</p>
+				<table class="form-table" role="presentation">
+					<tbody>
+						<tr>
+							<th scope="row"><label for="access_mode"><?php esc_html_e( 'Mode d’accès clubs', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<select name="access_mode" id="access_mode">
+									<option value="affiliated" <?php selected( $access_mode, 'affiliated' ); ?>>
+										<?php esc_html_e( 'Tous les clubs affiliés', 'ufsc-licence-competition' ); ?>
+									</option>
+									<?php if ( $show_all_clubs_mode ) : ?>
+										<option value="all_clubs" <?php selected( $access_mode, 'all_clubs' ); ?>>
+											<?php esc_html_e( 'Tous les clubs (même non affiliés)', 'ufsc-licence-competition' ); ?>
+										</option>
+									<?php endif; ?>
+									<option value="clubs" <?php selected( $access_mode, 'clubs' ); ?>>
+										<?php esc_html_e( 'Seulement certains clubs', 'ufsc-licence-competition' ); ?>
+									</option>
+									<option value="regions" <?php selected( $access_mode, 'regions' ); ?>>
+										<?php esc_html_e( 'Par région', 'ufsc-licence-competition' ); ?>
+									</option>
+									<option value="disciplines" <?php selected( $access_mode, 'disciplines' ); ?>>
+										<?php esc_html_e( 'Par discipline', 'ufsc-licence-competition' ); ?>
+									</option>
+									<option value="region_discipline" <?php selected( $access_mode, 'region_discipline' ); ?>>
+										<?php esc_html_e( 'Par région + discipline (AND)', 'ufsc-licence-competition' ); ?>
+									</option>
+								</select>
+								<p class="description"><?php esc_html_e( 'Appliqué aux inscriptions et à la lecture lorsque l’accès public n’est pas activé.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Régions autorisées', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<select name="allowed_regions[]" multiple="multiple" class="regular-text" size="6">
+									<?php foreach ( $club_regions as $region ) : ?>
+										<option value="<?php echo esc_attr( $region ); ?>" <?php selected( in_array( $region, $allowed_regions, true ) ); ?>>
+											<?php echo esc_html( $region ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'Utilisé lorsque le mode d’accès est basé sur les régions.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Disciplines autorisées', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<select name="allowed_disciplines[]" multiple="multiple" class="regular-text" size="6">
+									<?php foreach ( $disciplines as $discipline_key => $discipline_label ) : ?>
+										<option value="<?php echo esc_attr( $discipline_key ); ?>" <?php selected( in_array( $discipline_key, $allowed_disciplines, true ) ); ?>>
+											<?php echo esc_html( $discipline_label ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'Utilisé lorsque le mode d’accès est basé sur les disciplines.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Clubs autorisés', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<select name="allowed_club_ids[]" multiple="multiple" class="regular-text" size="8">
+									<?php foreach ( $club_select as $club_id => $club_label ) : ?>
+										<option value="<?php echo esc_attr( (int) $club_id ); ?>" <?php selected( in_array( (int) $club_id, $allowed_club_ids, true ) ); ?>>
+											<?php echo esc_html( $club_label ); ?>
+										</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'Utilisé lorsque le mode d’accès est “certains clubs”.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Options lecture', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<label>
+									<input type="checkbox" name="public_read" value="1" <?php checked( $public_read ); ?> />
+									<?php esc_html_e( 'Accès public (lecture seule)', 'ufsc-licence-competition' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'Tout le monde peut voir le détail, mais les inscriptions suivent les règles ci-dessus.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Conditions inscriptions', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<label>
+									<input type="checkbox" name="require_logged_in_club" value="1" <?php checked( $require_logged_in_club ); ?> />
+									<?php esc_html_e( 'Exiger un club connecté', 'ufsc-licence-competition' ); ?>
+								</label><br />
+								<label>
+									<input type="checkbox" name="require_affiliated" value="1" <?php checked( $require_affiliated ); ?> />
+									<?php esc_html_e( 'Exiger un club affilié', 'ufsc-licence-competition' ); ?>
+								</label><br />
+								<label>
+									<input type="checkbox" name="require_valid_license" value="1" <?php checked( $require_valid_license ); ?> />
+									<?php esc_html_e( 'Exiger une licence valide', 'ufsc-licence-competition' ); ?>
+								</label>
+								<p class="description"><?php esc_html_e( 'Appliqué avant la création ou la validation d’une inscription.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+					</tbody>
+				</table>
+
 				<?php submit_button( $is_edit ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer', 'ufsc-licence-competition' ) ); ?>
 			</form>
 		</div>
@@ -565,6 +683,14 @@ class Competitions_Page {
 					'organizer_phone'       => isset( $_POST['organizer_phone'] ) ? wp_unslash( $_POST['organizer_phone'] ) : '',
 					'organizer_email'       => isset( $_POST['organizer_email'] ) ? wp_unslash( $_POST['organizer_email'] ) : '',
 					'club_notes'            => isset( $_POST['club_notes'] ) ? wp_unslash( $_POST['club_notes'] ) : '',
+					'access_mode'           => isset( $_POST['access_mode'] ) ? wp_unslash( $_POST['access_mode'] ) : '',
+					'allowed_regions'       => isset( $_POST['allowed_regions'] ) ? wp_unslash( $_POST['allowed_regions'] ) : array(),
+					'allowed_disciplines'   => isset( $_POST['allowed_disciplines'] ) ? wp_unslash( $_POST['allowed_disciplines'] ) : array(),
+					'allowed_club_ids'      => isset( $_POST['allowed_club_ids'] ) ? wp_unslash( $_POST['allowed_club_ids'] ) : array(),
+					'public_read'           => isset( $_POST['public_read'] ),
+					'require_affiliated'    => isset( $_POST['require_affiliated'] ),
+					'require_logged_in_club' => isset( $_POST['require_logged_in_club'] ),
+					'require_valid_license' => isset( $_POST['require_valid_license'] ),
 				)
 			);
 		}

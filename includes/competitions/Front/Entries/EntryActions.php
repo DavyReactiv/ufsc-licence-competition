@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Front\Entries;
 
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
@@ -84,6 +85,13 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
+		$access = new CompetitionAccess();
+		$access_result = $access->can_register( $competition_id, (int) $club_id, (int) get_current_user_id() );
+		if ( ! $access_result->allowed ) {
+			$notice = 'registration_closed' === $access_result->reason_code ? 'error_closed' : 'error_forbidden';
+			self::redirect_with_notice( $competition_id, $notice );
+		}
+
 		if ( 'create' === $action ) {
 			self::verify_nonce_or_redirect( 'ufsc_competitions_entry_create', $competition_id );
 		} elseif ( 'update' === $action ) {
@@ -118,10 +126,6 @@ class EntryActions {
 			if ( 'draft' !== $status ) {
 				self::redirect_with_notice( $competition_id, 'error_locked' );
 			}
-		}
-
-		if ( ! EntriesModule::is_registration_open( $competition, (int) $club_id ) ) {
-			self::redirect_with_notice( $competition_id, 'error_closed' );
 		}
 
 		if ( 'delete' === $action ) {
@@ -301,6 +305,13 @@ class EntryActions {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 
+		$access = new CompetitionAccess();
+		$access_result = $access->can_register( $competition_id, (int) $club_id, (int) get_current_user_id() );
+		if ( ! $access_result->allowed ) {
+			$notice = 'registration_closed' === $access_result->reason_code ? 'error_closed' : 'error_forbidden';
+			self::redirect_with_notice( $competition_id, $notice );
+		}
+
 		if ( 'submit' === $action ) {
 			self::verify_nonce_or_redirect( 'ufsc_entry_submit', $competition_id );
 		} elseif ( 'withdraw' === $action ) {
@@ -323,10 +334,6 @@ class EntryActions {
 
 		if ( absint( $entry->competition_id ?? 0 ) !== absint( $competition_id ) ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
-		}
-
-		if ( ! EntriesModule::is_registration_open( $competition, (int) $club_id ) ) {
-			self::redirect_with_notice( $competition_id, 'error_closed' );
 		}
 
 		if ( 'submit' === $action ) {

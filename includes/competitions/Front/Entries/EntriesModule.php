@@ -2,6 +2,7 @@
 
 namespace UFSC\Competitions\Front\Entries;
 
+use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Access\ClubAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
@@ -57,13 +58,15 @@ class EntriesModule {
 			return;
 		}
 
-		if ( ! is_user_logged_in() ) {
-			echo wp_kses_post( '<p>' . esc_html__( 'Vous devez être connecté pour vous inscrire.', 'ufsc-licence-competition' ) . '</p>' );
+		$access = new CompetitionAccess();
+		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
+		$register_result = $access->can_register( (int) ( $competition->id ?? 0 ), 0, $user_id );
+		if ( ! $register_result->allowed ) {
+			echo wp_kses_post( '<p>' . esc_html( $access->get_denied_message( $register_result ) ) . '</p>' );
 			return;
 		}
 
-		$club_access = new ClubAccess();
-		$club_id = $club_access->get_club_id_for_user( get_current_user_id() );
+		$club_id = (int) ( $register_result->context['club_id'] ?? 0 );
 
 		$entries = array();
 		$editing_entry = null;
