@@ -62,7 +62,11 @@ class EntriesModule {
 		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
 		$register_result = $access->can_register( (int) ( $competition->id ?? 0 ), 0, $user_id );
 		if ( ! $register_result->allowed ) {
-			echo wp_kses_post( '<p>' . esc_html( $access->get_denied_message( $register_result ) ) . '</p>' );
+			if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
+				echo wp_kses_post( ufsc_render_access_denied_notice( $register_result ) );
+			} else {
+				echo wp_kses_post( '<p>' . esc_html( $access->get_denied_message( $register_result ) ) . '</p>' );
+			}
 			return;
 		}
 

@@ -17,6 +17,12 @@ class ClubAccess {
 			return null;
 		}
 
+		if ( function_exists( 'ufsc_resolve_current_club_id' ) ) {
+			$resolved = ufsc_resolve_current_club_id( $user_id );
+			$club_id  = absint( $resolved['club_id'] ?? 0 );
+			return $club_id ? $club_id : null;
+		}
+
 		$filtered = apply_filters( 'ufsc_competitions_get_club_id_for_user', null, $user_id );
 		if ( is_numeric( $filtered ) && (int) $filtered > 0 ) {
 			return (int) $filtered;

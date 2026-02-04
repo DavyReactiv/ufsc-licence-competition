@@ -71,6 +71,33 @@ class CompetitionAccess {
 		return $result;
 	}
 
+	public function can_view_competition_for_club( int $competition_id, int $club_id, int $user_id = 0 ): AccessResult {
+		$user_id = $this->resolve_user_id( $user_id );
+		$settings = $this->get_settings( $competition_id );
+
+		return $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'view' );
+	}
+
+	public function can_register_for_club( int $competition_id, int $club_id, int $user_id = 0 ): AccessResult {
+		$user_id = $this->resolve_user_id( $user_id );
+		$settings = $this->get_settings( $competition_id );
+		$result = $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'register' );
+
+		if ( ! $result->allowed ) {
+			return $result;
+		}
+
+		if ( ! $this->is_registration_open( $competition_id, $result->context['club_id'] ?? 0 ) ) {
+			return AccessResult::deny( 'registration_closed', array( 'scope' => 'register' ) );
+		}
+
+		if ( $settings['require_valid_license'] && ! $this->has_valid_license( $competition_id, $result->context['club_id'] ?? 0, $user_id ) ) {
+			return AccessResult::deny( 'invalid_license', array( 'scope' => 'register' ) );
+		}
+
+		return $result;
+	}
+
 	public function get_denied_message( AccessResult $result ): string {
 		$scope = $result->context['scope'] ?? '';
 
@@ -81,6 +108,8 @@ class CompetitionAccess {
 					: __( 'Vous devez être connecté pour accéder à cette compétition.', 'ufsc-licence-competition' );
 			case 'not_club':
 				return __( 'Accès réservé : aucun club associé à votre compte.', 'ufsc-licence-competition' );
+			case 'club_not_resolved':
+				return __( 'Accès réservé : impossible d’identifier votre club.', 'ufsc-licence-competition' );
 			case 'not_affiliated':
 				return __( 'Accès réservé aux clubs affiliés UFSC.', 'ufsc-licence-competition' );
 			case 'club_not_allowed':
@@ -109,9 +138,15 @@ class CompetitionAccess {
 				return __( 'Les inscriptions sont fermées pour cette compétition.', 'ufsc-licence-competition' );
 			case 'invalid_license':
 				return __( 'Accès réservé : une licence valide est requise pour s’inscrire.', 'ufsc-licence-competition' );
+			case 'not_allowed_by_rule':
+				return __( 'Accès réservé : vous ne remplissez pas les conditions définies pour cette compétition.', 'ufsc-licence-competition' );
 			default:
 				return __( 'Accès refusé.', 'ufsc-licence-competition' );
 		}
+	}
+
+	public function get_access_settings( int $competition_id ): array {
+		return $this->get_settings( $competition_id );
 	}
 
 	public function get_access_summary( int $competition_id ): string {
@@ -173,7 +208,7 @@ class CompetitionAccess {
 		);
 
 		if ( $requires_club && ! $club_id ) {
-			return AccessResult::deny( 'not_club', array( 'scope' => $scope ) );
+			return AccessResult::deny( 'club_not_resolved', array( 'scope' => $scope ) );
 		}
 
 		$club_repo = new ClubRepository();
@@ -186,10 +221,14 @@ class CompetitionAccess {
 			return AccessResult::deny( 'not_affiliated', array( 'scope' => $scope, 'club_id' => $club_id ) );
 		}
 
+		$club_region_raw = $club ? (string) ( $club->region ?? '' ) : '';
+		$club_region_norm = $this->normalize_region_value( $club_region_raw );
+
 		$context = array(
 			'scope' => $scope,
 			'club_id' => $club_id,
-			'club_region' => $club ? (string) ( $club->region ?? '' ) : '',
+			'club_region' => $club_region_raw,
+			'club_region_normalized' => $club_region_norm,
 		);
 
 		switch ( $mode ) {
@@ -262,8 +301,8 @@ class CompetitionAccess {
 			$access_mode = self::MODE_AFFILIATED;
 		}
 
-		$allowed_regions = $this->normalize_string_list( $meta['allowed_regions'] ?? array() );
-		$allowed_disciplines = $this->normalize_string_list( $meta['allowed_disciplines'] ?? array(), true );
+		$allowed_regions = $this->normalize_region_list( $meta['allowed_regions'] ?? array() );
+		$allowed_disciplines = $this->normalize_discipline_list( $meta['allowed_disciplines'] ?? array() );
 		$allowed_club_ids = $this->normalize_int_list( $meta['allowed_club_ids'] ?? array() );
 
 		return array(
@@ -334,13 +373,13 @@ class CompetitionAccess {
 			return false;
 		}
 
-		$club_region = strtolower( trim( (string) ( $club->region ?? '' ) ) );
+		$club_region = $this->normalize_region_value( (string) ( $club->region ?? '' ) );
 		if ( '' === $club_region ) {
 			return false;
 		}
 
 		foreach ( $allowed_regions as $region ) {
-			if ( strtolower( $region ) === $club_region ) {
+			if ( $region === $club_region ) {
 				return true;
 			}
 		}
@@ -370,6 +409,10 @@ class CompetitionAccess {
 			return array();
 		}
 
+		if ( function_exists( 'ufsc_extract_club_disciplines' ) ) {
+			return ufsc_extract_club_disciplines( $club );
+		}
+
 		$raw = '';
 		if ( isset( $club->discipline ) ) {
 			$raw = (string) $club->discipline;
@@ -387,7 +430,7 @@ class CompetitionAccess {
 
 		$disciplines = array();
 		foreach ( $parts as $part ) {
-			$key = sanitize_key( $part );
+			$key = $this->normalize_discipline_value( (string) $part );
 			if ( '' !== $key ) {
 				$disciplines[] = $key;
 			}
@@ -409,6 +452,62 @@ class CompetitionAccess {
 				continue;
 			}
 			$clean = $use_keys ? sanitize_key( $value ) : sanitize_text_field( $value );
+			if ( '' !== $clean ) {
+				$out[] = $clean;
+			}
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	private function normalize_region_value( string $value ): string {
+		if ( function_exists( 'ufsc_normalize_region' ) ) {
+			return ufsc_normalize_region( $value );
+		}
+
+		$value = trim( $value );
+		return '' !== $value ? strtoupper( $value ) : '';
+	}
+
+	private function normalize_discipline_value( string $value ): string {
+		if ( function_exists( 'ufsc_normalize_discipline' ) ) {
+			return ufsc_normalize_discipline( $value );
+		}
+
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		return sanitize_key( $value );
+	}
+
+	private function normalize_region_list( $values ): array {
+		if ( ! is_array( $values ) ) {
+			$values = array( $values );
+		}
+
+		$out = array();
+		foreach ( $values as $value ) {
+			$value = is_scalar( $value ) ? (string) $value : '';
+			$clean = $this->normalize_region_value( $value );
+			if ( '' !== $clean ) {
+				$out[] = $clean;
+			}
+		}
+
+		return array_values( array_unique( $out ) );
+	}
+
+	private function normalize_discipline_list( $values ): array {
+		if ( ! is_array( $values ) ) {
+			$values = array( $values );
+		}
+
+		$out = array();
+		foreach ( $values as $value ) {
+			$value = is_scalar( $value ) ? (string) $value : '';
+			$clean = $this->normalize_discipline_value( $value );
 			if ( '' !== $clean ) {
 				$out[] = $clean;
 			}
@@ -487,22 +586,22 @@ class CompetitionAccess {
 			return;
 		}
 
+		static $logged = false;
+		if ( $logged ) {
+			return;
+		}
+		$logged = true;
+
+		$normalized_region = $result->context['club_region_normalized'] ?? $this->normalize_region_value( (string) ( $result->context['club_region'] ?? '' ) );
+
 		$payload = array(
 			'scope' => $scope,
 			'competition_id' => $competition_id,
-			'user_id' => $user_id,
-			'club_id' => $club_id,
+			'club_id' => $result->context['club_id'] ?? $club_id,
+			'normalized_region' => $normalized_region,
 			'access_mode' => $settings['access_mode'] ?? '',
-			'public_read' => $settings['public_read'] ?? false,
-			'allowed_regions' => $settings['allowed_regions'] ?? array(),
-			'allowed_disciplines' => $settings['allowed_disciplines'] ?? array(),
-			'allowed_club_ids' => $settings['allowed_club_ids'] ?? array(),
-			'require_affiliated' => $settings['require_affiliated'] ?? false,
-			'require_logged_in_club' => $settings['require_logged_in_club'] ?? false,
-			'require_valid_license' => $settings['require_valid_license'] ?? false,
-			'result_allowed' => $result->allowed,
+			'allowed' => $result->allowed,
 			'reason_code' => $result->reason_code,
-			'context' => $result->context,
 		);
 
 		error_log( 'UFSC Competitions access: ' . wp_json_encode( $payload ) );
