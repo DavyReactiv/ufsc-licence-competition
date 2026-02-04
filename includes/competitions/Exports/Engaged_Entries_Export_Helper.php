@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Exports;
 
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CategoryRepository;
+use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,6 +14,22 @@ class Engaged_Entries_Export_Helper {
 
 	public static function get_csv_columns(): array {
 		return array(
+			'competition_id' => array(
+				'label' => __( 'ID compétition', 'ufsc-licence-competition' ),
+				'key'   => 'competition_id',
+			),
+			'competition_name' => array(
+				'label' => __( 'Compétition', 'ufsc-licence-competition' ),
+				'key'   => 'competition_name',
+			),
+			'discipline' => array(
+				'label' => __( 'Discipline', 'ufsc-licence-competition' ),
+				'key'   => 'discipline',
+			),
+			'club' => array(
+				'label' => __( 'Club', 'ufsc-licence-competition' ),
+				'key'   => 'club',
+			),
 			'last_name' => array(
 				'label' => __( 'Nom', 'ufsc-licence-competition' ),
 				'key'   => 'last_name',
@@ -22,12 +39,12 @@ class Engaged_Entries_Export_Helper {
 				'key'   => 'first_name',
 			),
 			'birthdate' => array(
-				'label' => __( 'Date naissance', 'ufsc-licence-competition' ),
+				'label' => __( 'Date de naissance', 'ufsc-licence-competition' ),
 				'key'   => 'birthdate',
 			),
-			'club' => array(
-				'label' => __( 'Club', 'ufsc-licence-competition' ),
-				'key'   => 'club',
+			'birth_year' => array(
+				'label' => __( 'Année', 'ufsc-licence-competition' ),
+				'key'   => 'birth_year',
 			),
 			'category' => array(
 				'label' => __( 'Catégorie', 'ufsc-licence-competition' ),
@@ -38,37 +55,62 @@ class Engaged_Entries_Export_Helper {
 				'key'   => 'weight',
 			),
 			'weight_class' => array(
-				'label' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
+				'label' => __( 'Catégorie de poids', 'ufsc-licence-competition' ),
 				'key'   => 'weight_class',
 			),
 			'status' => array(
 				'label' => __( 'Statut', 'ufsc-licence-competition' ),
 				'key'   => 'status',
 			),
+			'updated_at' => array(
+				'label' => __( 'Dernière mise à jour', 'ufsc-licence-competition' ),
+				'key'   => 'updated_at',
+			),
 		);
 	}
 
 	public static function build_csv_row( array $columns, $entry, $competition ): array {
-		$last_name = self::get_entry_value( $entry, array( 'last_name', 'lastname', 'nom', 'licensee_last_name' ) );
-		$first_name = self::get_entry_value( $entry, array( 'first_name', 'firstname', 'prenom', 'licensee_first_name' ) );
-		$birthdate = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
-		$club = (string) ( $entry->club_name ?? '' );
+		$competition_id = (int) ( $competition->id ?? 0 );
+		$competition_name = (string) ( $competition->name ?? '' );
+		$discipline = (string) ( $competition->discipline ?? '' );
+		if ( class_exists( DisciplineRegistry::class ) && '' !== $discipline ) {
+			$discipline = DisciplineRegistry::get_label( $discipline );
+		}
+		$club = (string) ( $entry->club_name ?? $entry->club ?? '' );
+		$last_name = self::get_entry_value(
+			$entry,
+			array( 'fighter_lastname', 'fighter_last_name', 'last_name', 'lastname', 'nom', 'licensee_last_name' )
+		);
+		$first_name = self::get_entry_value(
+			$entry,
+			array( 'fighter_firstname', 'fighter_first_name', 'first_name', 'firstname', 'prenom', 'licensee_first_name' )
+		);
+		$birthdate_raw = self::get_entry_value( $entry, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'licensee_birthdate' ) );
+		$birthdate = self::normalize_birthdate( $birthdate_raw );
+		$birth_year = self::get_birth_year( $birthdate_raw );
 		$category = self::resolve_category_label( $entry, $competition );
 		$weight = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 		$weight_class = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
-		$status_raw = isset( $entry->status ) ? (string) $entry->status : '';
+		$status_raw = self::get_entry_value( $entry, array( 'status', 'entry_status' ) );
 		$status_norm = EntriesWorkflow::normalize_status( $status_raw );
 		$status_label = EntriesWorkflow::get_status_label( $status_norm );
+		$updated_at_raw = self::get_entry_value( $entry, array( 'updated_at', 'updated', 'created_at' ) );
+		$updated_at = self::format_datetime_for_csv( $updated_at_raw );
 
 		$row = array(
+			'competition_id'   => $competition_id,
+			'competition_name' => $competition_name,
+			'discipline'       => $discipline,
+			'club'             => $club,
 			'last_name'    => $last_name,
 			'first_name'   => $first_name,
 			'birthdate'    => $birthdate,
-			'club'         => $club,
+			'birth_year'   => $birth_year,
 			'category'     => $category,
 			'weight'       => $weight,
 			'weight_class' => $weight_class,
 			'status'       => $status_label,
+			'updated_at'   => $updated_at,
 		);
 
 		$out = array();
@@ -143,6 +185,59 @@ class Engaged_Entries_Export_Helper {
 		}
 
 		return '';
+	}
+
+	private static function normalize_birthdate( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $value, $matches ) ) {
+			return sprintf( '%04d-%02d-%02d', (int) $matches[3], (int) $matches[2], (int) $matches[1] );
+		}
+
+		if ( preg_match( '/^(\\d{4})-(\\d{2})-(\\d{2})$/', $value, $matches ) ) {
+			return sprintf( '%04d-%02d-%02d', (int) $matches[1], (int) $matches[2], (int) $matches[3] );
+		}
+
+		$date = date_create( $value );
+		if ( $date ) {
+			return $date->format( 'Y-m-d' );
+		}
+
+		return $value;
+	}
+
+	private static function get_birth_year( string $birthdate ): string {
+		$birthdate = trim( $birthdate );
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
+		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
+		}
+
+		$date = date_create( $birthdate );
+		if ( $date ) {
+			return $date->format( 'Y' );
+		}
+
+		return '';
+	}
+
+	private static function format_datetime_for_csv( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$date = date_create( $value );
+		if ( $date ) {
+			return $date->format( 'Y-m-d H:i:s' );
+		}
+
+		return $value;
 	}
 
 	private static function get_entry_value( $entry, array $keys ): string {

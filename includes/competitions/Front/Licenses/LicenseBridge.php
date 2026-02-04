@@ -60,10 +60,21 @@ class LicenseBridge {
 		$license_number = sanitize_text_field( $license_number );
 		$birthdate      = sanitize_text_field( $birthdate );
 		$normalized_term = $this->normalize_search( $term );
+		$compact_term = $this->normalize_search_compact( $term );
 		$normalized_number = $this->normalize_search( $license_number );
 		$normalized_birthdate = $this->normalize_birthdate( $birthdate );
+		$term_parts = array();
 
 		if ( '' === $term && '' === $license_number && '' === $normalized_birthdate ) {
+			$this->debug_log(
+				'license_search_empty_filters',
+				array(
+					'club_scoped' => (bool) $club_id,
+					'has_term' => false,
+					'has_number' => false,
+					'has_birthdate' => false,
+				)
+			);
 			return array();
 		}
 
@@ -87,11 +98,16 @@ class LicenseBridge {
 
 		$last_name_expr  = $this->build_coalesce_expression( $last_name_columns );
 		$first_name_expr = $this->build_coalesce_expression( $first_name_columns );
+		$normalized_last_expr = "''" !== $last_name_expr ? $this->build_normalized_expression( $last_name_expr ) : "''";
+		$normalized_first_expr = "''" !== $first_name_expr ? $this->build_normalized_expression( $first_name_expr ) : "''";
+		$compact_last_expr = "''" !== $last_name_expr ? $this->build_compact_expression( $last_name_expr ) : "''";
+		$compact_first_expr = "''" !== $first_name_expr ? $this->build_compact_expression( $first_name_expr ) : "''";
 
 		// Free text term: search in last/first name (if present) + license column (if present)
 		if ( '' !== $term ) {
 			$like   = '%' . $wpdb->esc_like( $term ) . '%';
 			$normalized_like = '' !== $normalized_term ? '%' . $wpdb->esc_like( $normalized_term ) . '%' : '';
+			$compact_like = '' !== $compact_term ? '%' . $wpdb->esc_like( $compact_term ) . '%' : '';
 			$clause = array();
 
 			$term_parts = array_values( array_filter( array_map( 'trim', explode( ' ', $normalized_term ) ) ) );
@@ -113,6 +129,14 @@ class LicenseBridge {
 				if ( $normalized_like ) {
 					$clause[] = "LOWER({$last_name_expr}) LIKE %s";
 					$params[] = $normalized_like;
+					if ( "''" !== $normalized_last_expr ) {
+						$clause[] = "{$normalized_last_expr} LIKE %s";
+						$params[] = $normalized_like;
+					}
+				}
+				if ( $compact_like && "''" !== $compact_last_expr ) {
+					$clause[] = "{$compact_last_expr} LIKE %s";
+					$params[] = $compact_like;
 				}
 			}
 			if ( "''" !== $first_name_expr ) {
@@ -121,6 +145,14 @@ class LicenseBridge {
 				if ( $normalized_like ) {
 					$clause[] = "LOWER({$first_name_expr}) LIKE %s";
 					$params[] = $normalized_like;
+					if ( "''" !== $normalized_first_expr ) {
+						$clause[] = "{$normalized_first_expr} LIKE %s";
+						$params[] = $normalized_like;
+					}
+				}
+				if ( $compact_like && "''" !== $compact_first_expr ) {
+					$clause[] = "{$compact_first_expr} LIKE %s";
+					$params[] = $compact_like;
 				}
 			}
 			if ( ! empty( $license_columns ) ) {
@@ -136,6 +168,18 @@ class LicenseBridge {
 
 			// If we cannot search anything, exit safely.
 			if ( empty( $clause ) ) {
+				$this->debug_log(
+					'license_search_no_searchable_columns',
+					array(
+						'club_scoped' => (bool) $club_id,
+						'has_term' => true,
+						'has_number' => '' !== $license_number,
+						'has_birthdate' => '' !== $normalized_birthdate,
+						'has_last_name_columns' => ! empty( $last_name_columns ),
+						'has_first_name_columns' => ! empty( $first_name_columns ),
+						'license_columns_count' => count( $license_columns ),
+					)
+				);
 				return array();
 			}
 
@@ -225,10 +269,32 @@ class LicenseBridge {
 			);
 		}
 
+		if ( empty( $items ) ) {
+			$this->debug_log(
+				'license_search_zero_results',
+				array(
+					'club_scoped' => (bool) $club_id,
+					'has_term' => '' !== $term,
+					'has_number' => '' !== $license_number,
+					'has_birthdate' => '' !== $normalized_birthdate,
+					'term_tokens_count' => count( $term_parts ),
+					'has_last_name_columns' => ! empty( $last_name_columns ),
+					'has_first_name_columns' => ! empty( $first_name_columns ),
+					'license_columns_count' => count( $license_columns ),
+					'birthdate_filter_applied' => '' !== $normalized_birthdate,
+				)
+			);
+		}
+
 		$this->debug_log(
 			'license_search_results',
 			array(
 				'count' => count( $items ),
+				'has_term' => '' !== $term,
+				'has_number' => '' !== $license_number,
+				'has_birthdate' => '' !== $normalized_birthdate,
+				'club_scoped' => (bool) $club_id,
+				'term_tokens_count' => count( $term_parts ),
 			)
 		);
 
@@ -368,7 +434,23 @@ class LicenseBridge {
 
 	private function normalize_search( string $value ): string {
 		$value = remove_accents( $value );
+		$value = str_replace( array( '’', '\'', '-' ), ' ', $value );
+		$value = preg_replace( '/[^\\p{L}\\p{N}\\s]+/u', ' ', $value );
 		$value = preg_replace( '/\s+/', ' ', $value );
+		$value = trim( $value );
+
+		if ( function_exists( 'mb_strtolower' ) ) {
+			$value = mb_strtolower( $value );
+		} else {
+			$value = strtolower( $value );
+		}
+
+		return $value;
+	}
+
+	private function normalize_search_compact( string $value ): string {
+		$value = remove_accents( $value );
+		$value = preg_replace( '/[^\\p{L}\\p{N}]+/u', '', $value );
 		$value = trim( $value );
 
 		if ( function_exists( 'mb_strtolower' ) ) {
@@ -392,6 +474,12 @@ class LicenseBridge {
 				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
 			}
 		}
+		if ( preg_match( '/^\\d{2}-\\d{2}-\\d{4}$/', $value ) ) {
+			$parts = explode( '-', $value );
+			if ( 3 === count( $parts ) ) {
+				$value = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
+			}
+		}
 
 		if ( preg_match( '/^\\d{4}-\\d{2}-\\d{2}$/', $value ) ) {
 			return $value;
@@ -403,6 +491,16 @@ class LicenseBridge {
 		}
 
 		return '';
+	}
+
+	private function build_normalized_expression( string $expression ): string {
+		$replaced = "REPLACE(REPLACE(REPLACE({$expression}, '-', ' '), \"'\", ' '), '’', ' ')";
+		return "LOWER({$replaced})";
+	}
+
+	private function build_compact_expression( string $expression ): string {
+		$replaced = "REPLACE(REPLACE(REPLACE({$expression}, '-', ''), \"'\", ''), '’', '')";
+		return "LOWER({$replaced})";
 	}
 
 	private function debug_log( string $message, array $context = array() ): void {
