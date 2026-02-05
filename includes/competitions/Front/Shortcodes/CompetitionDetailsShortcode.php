@@ -216,13 +216,7 @@ class CompetitionDetailsShortcode {
 				else :
 					?>
 					<div class="ufsc-competition-entries-locked">
-						<?php
-						if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
-							echo wp_kses_post( ufsc_render_access_denied_notice( $register_result ) );
-						} else {
-							echo esc_html( $access->get_denied_message( $register_result ) );
-						}
-						?>
+						<?php echo wp_kses_post( $this->render_restricted_notice( $register_result ) ); ?>
 					</div>
 				<?php endif; ?>
 			</div>
@@ -235,6 +229,35 @@ class CompetitionDetailsShortcode {
 		return sprintf(
 			'<div class="notice notice-warning"><p>%s</p></div>',
 			esc_html( $message )
+		);
+	}
+
+	private function render_restricted_notice( $access_result ): string {
+		$message = __( 'Accès restreint : vous pouvez consulter les informations de l’événement, mais les inscriptions sont réservées aux clubs autorisés.', 'ufsc-licence-competition' );
+		$list_url = function_exists( 'ufsc_get_competitions_list_url' ) ? ufsc_get_competitions_list_url() : '';
+
+		$buttons = array();
+		if ( $list_url ) {
+			$buttons[] = sprintf(
+				'<a class="button" href="%s">%s</a>',
+				esc_url( $list_url ),
+				esc_html__( 'Retour à la liste', 'ufsc-licence-competition' )
+			);
+		}
+
+		$reason_code = is_object( $access_result ) ? (string) ( $access_result->reason_code ?? '' ) : '';
+		if ( 'club_region_missing' === $reason_code ) {
+			$buttons[] = sprintf(
+				'<a class="button" href="%s">%s</a>',
+				esc_url( 'mailto:secretariat@ufsc-france.org' ),
+				esc_html__( 'Contacter l’administration UFSC', 'ufsc-licence-competition' )
+			);
+		}
+
+		return sprintf(
+			'<div class="notice notice-warning ufsc-access-restricted"><p>%s</p>%s</div>',
+			esc_html( $message ),
+			$buttons ? '<p>' . implode( ' ', $buttons ) . '</p>' : ''
 		);
 	}
 }

@@ -23,7 +23,13 @@ class AccessResult {
 	public $can_view_engaged_list;
 
 	/** @var bool */
+	public $can_view_engaged;
+
+	/** @var bool */
 	public $can_register;
+
+	/** @var bool */
+	public $can_export_engaged;
 
 	public function __construct( bool $allowed, string $reason_code = '', array $context = array(), array $capabilities = array() ) {
 		$this->allowed = $allowed;
@@ -44,7 +50,9 @@ class AccessResult {
 		$defaults = array(
 			'can_view_details' => $this->allowed,
 			'can_view_engaged_list' => $this->allowed,
+			'can_view_engaged' => $this->allowed,
 			'can_register' => $this->allowed,
+			'can_export_engaged' => $this->allowed,
 		);
 
 		foreach ( $defaults as $key => $value ) {

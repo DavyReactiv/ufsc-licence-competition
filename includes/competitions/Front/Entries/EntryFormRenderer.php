@@ -130,6 +130,7 @@ class EntryFormRenderer {
 
 				<?php
 				$can_view_engaged_list = $access_result ? (bool) $access_result->can_view_engaged_list : true;
+				$can_export_engaged = $access_result ? (bool) $access_result->can_export_engaged : true;
 
 				$engaged_status = isset( $_GET['ufsc_engaged_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_engaged_status'] ) ) : 'approved';
 				if ( ! in_array( $engaged_status, array( 'approved', 'submitted' ), true ) ) {
@@ -197,9 +198,11 @@ class EntryFormRenderer {
 							</a>
 						<?php endif; ?>
 
-						<a class="button" href="<?php echo esc_url( $engaged_export_url ); ?>">
-							<?php echo esc_html__( 'Télécharger CSV des engagés', 'ufsc-licence-competition' ); ?>
-						</a>
+						<?php if ( $can_export_engaged ) : ?>
+							<a class="button" href="<?php echo esc_url( $engaged_export_url ); ?>">
+								<?php echo esc_html__( 'Télécharger CSV des engagés', 'ufsc-licence-competition' ); ?>
+							</a>
+						<?php endif; ?>
 					</div>
 				<?php elseif ( $access_result && function_exists( 'ufsc_render_access_denied_notice' ) ) : ?>
 					<?php echo wp_kses_post( ufsc_render_access_denied_notice( $access_result ) ); ?>
