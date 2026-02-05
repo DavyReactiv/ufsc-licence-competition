@@ -19,7 +19,9 @@ class CategoryRepository {
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
 
-		$where_deleted = $include_deleted ? '' : 'AND deleted_at IS NULL';
+		$where_deleted = $include_deleted || ! Db::has_table_column( Db::categories_table(), 'deleted_at' )
+			? ''
+			: 'AND deleted_at IS NULL';
 
 		return $wpdb->get_row(
 			$wpdb->prepare(
@@ -32,7 +34,9 @@ class CategoryRepository {
 	public function get_by_competition_and_name( $competition_id, $name, $include_deleted = true ) {
 		global $wpdb;
 
-		$where_deleted = $include_deleted ? '' : 'AND deleted_at IS NULL';
+		$where_deleted = $include_deleted || ! Db::has_table_column( Db::categories_table(), 'deleted_at' )
+			? ''
+			: 'AND deleted_at IS NULL';
 
 		return $wpdb->get_row(
 			$wpdb->prepare(
@@ -158,11 +162,14 @@ class CategoryRepository {
 
 		$where = array( '1=1' );
 		$view  = $filters['view'] ?? 'all';
+		$has_deleted_at = Db::has_table_column( Db::categories_table(), 'deleted_at' );
 
-		if ( 'trash' === $view ) {
-			$where[] = 'deleted_at IS NOT NULL';
-		} else {
-			$where[] = 'deleted_at IS NULL';
+		if ( $has_deleted_at ) {
+			if ( 'trash' === $view ) {
+				$where[] = 'deleted_at IS NOT NULL';
+			} else {
+				$where[] = 'deleted_at IS NULL';
+			}
 		}
 
 		if ( ! empty( $filters['competition_id'] ) ) {

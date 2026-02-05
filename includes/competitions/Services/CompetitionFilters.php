@@ -80,6 +80,7 @@ class CompetitionFilters {
 			'open'   => __( 'Ouvert', 'ufsc-licence-competition' ),
 			'closed' => __( 'Fermé', 'ufsc-licence-competition' ),
 			'draft'  => __( 'Brouillon', 'ufsc-licence-competition' ),
+			'archived' => __( 'Archivé', 'ufsc-licence-competition' ),
 		);
 
 		return apply_filters( 'ufsc_competitions_status_choices', $choices );

@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\TimingProfileRepository;
+use UFSC\Competitions\Services\CompetitionFilters;
 use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -42,6 +43,7 @@ class Timing_Profiles_Page {
 		}
 
 		$disciplines = DisciplineRegistry::get_disciplines();
+		$type_choices = CompetitionFilters::get_type_choices();
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Timing Profiles', 'ufsc-licence-competition' ); ?></h1>
@@ -69,6 +71,29 @@ class Timing_Profiles_Page {
 										<?php echo esc_html( $label ); ?>
 									</option>
 								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_timing_competition_type"><?php esc_html_e( 'Type de compétition', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="competition_type" id="ufsc_timing_competition_type">
+								<option value=""><?php esc_html_e( 'Tous', 'ufsc-licence-competition' ); ?></option>
+								<?php foreach ( $type_choices as $key => $label ) : ?>
+									<option value="<?php echo esc_attr( $key ); ?>" <?php selected( (string) ( $editing->competition_type ?? '' ), (string) $key ); ?>>
+										<?php echo esc_html( $label ); ?>
+									</option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_timing_surface_type"><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="surface_type" id="ufsc_timing_surface_type">
+								<option value=""><?php esc_html_e( 'Toutes', 'ufsc-licence-competition' ); ?></option>
+								<option value="tatami" <?php selected( (string) ( $editing->surface_type ?? '' ), 'tatami' ); ?>><?php esc_html_e( 'Tatami', 'ufsc-licence-competition' ); ?></option>
+								<option value="ring" <?php selected( (string) ( $editing->surface_type ?? '' ), 'ring' ); ?>><?php esc_html_e( 'Ring', 'ufsc-licence-competition' ); ?></option>
 							</select>
 						</td>
 					</tr>
@@ -119,6 +144,8 @@ class Timing_Profiles_Page {
 						<tr>
 							<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Âge', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Niveau', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Timing', 'ufsc-licence-competition' ); ?></th>
@@ -129,6 +156,10 @@ class Timing_Profiles_Page {
 						<?php foreach ( $profiles as $profile ) : ?>
 							<?php
 							$discipline_label = $profile->discipline ? ( DisciplineRegistry::get_label( $profile->discipline ) ) : __( 'Toutes', 'ufsc-licence-competition' );
+							$type_label = $profile->competition_type ? CompetitionFilters::get_type_label( (string) $profile->competition_type ) : __( 'Tous', 'ufsc-licence-competition' );
+							$surface_label = $profile->surface_type
+								? ( 'ring' === $profile->surface_type ? __( 'Ring', 'ufsc-licence-competition' ) : __( 'Tatami', 'ufsc-licence-competition' ) )
+								: __( 'Toutes', 'ufsc-licence-competition' );
 							$age_label = trim( (string) ( $profile->age_min ?? '' ) . ' - ' . (string) ( $profile->age_max ?? '' ) );
 							$timing_label = sprintf(
 								__( '%1$d x %2$d min, pause %3$d min, inter-combats %4$d min', 'ufsc-licence-competition' ),
@@ -141,6 +172,8 @@ class Timing_Profiles_Page {
 							<tr>
 								<td><?php echo esc_html( $profile->name ?? '' ); ?></td>
 								<td><?php echo esc_html( $discipline_label ); ?></td>
+								<td><?php echo esc_html( $type_label ); ?></td>
+								<td><?php echo esc_html( $surface_label ); ?></td>
 								<td><?php echo esc_html( $age_label ); ?></td>
 								<td><?php echo esc_html( $profile->level ?? '—' ); ?></td>
 								<td><?php echo esc_html( $timing_label ); ?></td>
@@ -177,6 +210,8 @@ class Timing_Profiles_Page {
 		$data = array(
 			'name' => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
 			'discipline' => isset( $_POST['discipline'] ) ? sanitize_key( wp_unslash( $_POST['discipline'] ) ) : '',
+			'competition_type' => isset( $_POST['competition_type'] ) ? sanitize_key( wp_unslash( $_POST['competition_type'] ) ) : '',
+			'surface_type' => isset( $_POST['surface_type'] ) ? sanitize_key( wp_unslash( $_POST['surface_type'] ) ) : '',
 			'age_min' => isset( $_POST['age_min'] ) ? absint( $_POST['age_min'] ) : '',
 			'age_max' => isset( $_POST['age_max'] ) ? absint( $_POST['age_max'] ) : '',
 			'level' => isset( $_POST['level'] ) ? sanitize_text_field( wp_unslash( $_POST['level'] ) ) : '',

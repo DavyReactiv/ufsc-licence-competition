@@ -57,6 +57,22 @@ class Categories_Table extends \WP_List_Table {
 
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
 
+		if ( 0 === $total_items && defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() ) {
+			error_log(
+				sprintf(
+					'UFSC Competitions: aucune catégorie trouvée. Filtres: %s',
+					wp_json_encode(
+						array(
+							'view' => $filters['view'] ?? '',
+							'competition_id' => (int) ( $filters['competition_id'] ?? 0 ),
+							'discipline' => (string) ( $filters['discipline'] ?? '' ),
+							'search' => (string) ( $filters['search'] ?? '' ),
+						)
+					)
+				)
+			);
+		}
+
 		$this->set_pagination_args(
 			array(
 				'total_items' => $total_items,
