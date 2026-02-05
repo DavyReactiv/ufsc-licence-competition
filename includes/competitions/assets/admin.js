@@ -146,6 +146,89 @@ document.addEventListener('submit', (event) => {
   }
 })();
 
+/* UFSC Competitions - admin media uploader */
+(() => {
+  "use strict";
+
+  function initMediaField() {
+    if (typeof window.wp === "undefined" || typeof window.wp.media === "undefined") {
+      return;
+    }
+
+    const field = document.querySelector(".ufsc-competition-photo-field");
+    if (!field) {
+      return;
+    }
+
+    const input = field.querySelector("#ufsc_photo_evenement_id");
+    const preview = field.querySelector("[data-ufsc-photo-preview]");
+    const selectBtn = field.querySelector("[data-ufsc-photo-select]");
+    const removeBtn = field.querySelector("[data-ufsc-photo-remove]");
+
+    if (!input || !preview || !selectBtn || !removeBtn) {
+      return;
+    }
+
+    let frame;
+
+    function setPreview(url) {
+      preview.innerHTML = url
+        ? `<img src="${url}" alt="" />`
+        : "";
+    }
+
+    function toggleRemove(show) {
+      removeBtn.style.display = show ? "" : "none";
+    }
+
+    selectBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+
+      if (frame) {
+        frame.open();
+        return;
+      }
+
+      frame = window.wp.media({
+        title: "Choisir une photo",
+        library: { type: "image" },
+        button: { text: "Utiliser cette photo" },
+        multiple: false,
+      });
+
+      frame.on("select", () => {
+        const selection = frame.state().get("selection");
+        const attachment = selection && selection.first ? selection.first().toJSON() : null;
+        if (!attachment || !attachment.id) {
+          return;
+        }
+        input.value = String(attachment.id);
+        const url =
+          (attachment.sizes && attachment.sizes.medium && attachment.sizes.medium.url) ||
+          attachment.url ||
+          "";
+        setPreview(url);
+        toggleRemove(true);
+      });
+
+      frame.open();
+    });
+
+    removeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      input.value = "";
+      setPreview("");
+      toggleRemove(false);
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initMediaField);
+  } else {
+    initMediaField();
+  }
+})();
+
 /* UFSC Competitions - admin pointers (guarded) */
 (() => {
   "use strict";

@@ -24,18 +24,20 @@ class CompetitionAccess {
 		$user_id = $this->resolve_user_id( $user_id );
 
 		if ( $this->is_admin_bypass( $user_id ) ) {
-			return AccessResult::allow( array( 'scope' => 'view', 'admin' => true ) );
+			return $this->apply_capabilities( AccessResult::allow( array( 'scope' => 'view', 'admin' => true ) ), 'view' );
 		}
 
 		$settings = $this->get_settings( $competition_id );
 
 		if ( $settings['public_read'] ) {
 			$result = AccessResult::allow( array( 'scope' => 'view', 'public_read' => true ) );
+			$result = $this->apply_capabilities( $result, 'view' );
 			$this->debug_log( 'view', $competition_id, $user_id, $club_id, $settings, $result );
 			return $result;
 		}
 
 		$result = $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'view' );
+		$result = $this->apply_capabilities( $result, 'view', $this->allow_details_on_denied( $result, $settings ) );
 		$this->debug_log( 'view', $competition_id, $user_id, $club_id, $settings, $result );
 
 		return $result;
@@ -45,28 +47,32 @@ class CompetitionAccess {
 		$user_id = $this->resolve_user_id( $user_id );
 
 		if ( $this->is_admin_bypass( $user_id ) ) {
-			return AccessResult::allow( array( 'scope' => 'register', 'admin' => true ) );
+			return $this->apply_capabilities( AccessResult::allow( array( 'scope' => 'register', 'admin' => true ) ), 'register' );
 		}
 
 		$settings = $this->get_settings( $competition_id );
 		$result = $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'register' );
 		if ( ! $result->allowed ) {
+			$result = $this->apply_capabilities( $result, 'register' );
 			$this->debug_log( 'register', $competition_id, $user_id, $club_id, $settings, $result );
 			return $result;
 		}
 
 		if ( ! $this->is_registration_open( $competition_id, $result->context['club_id'] ?? 0 ) ) {
 			$result = AccessResult::deny( 'registration_closed', array( 'scope' => 'register' ) );
+			$result = $this->apply_capabilities( $result, 'register' );
 			$this->debug_log( 'register', $competition_id, $user_id, $club_id, $settings, $result );
 			return $result;
 		}
 
 		if ( $settings['require_valid_license'] && ! $this->has_valid_license( $competition_id, $result->context['club_id'] ?? 0, $user_id ) ) {
 			$result = AccessResult::deny( 'invalid_license', array( 'scope' => 'register' ) );
+			$result = $this->apply_capabilities( $result, 'register' );
 			$this->debug_log( 'register', $competition_id, $user_id, $club_id, $settings, $result );
 			return $result;
 		}
 
+		$result = $this->apply_capabilities( $result, 'register' );
 		$this->debug_log( 'register', $competition_id, $user_id, $club_id, $settings, $result );
 		return $result;
 	}
@@ -75,7 +81,8 @@ class CompetitionAccess {
 		$user_id = $this->resolve_user_id( $user_id );
 		$settings = $this->get_settings( $competition_id );
 
-		return $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'view' );
+		$result = $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'view' );
+		return $this->apply_capabilities( $result, 'view', $this->allow_details_on_denied( $result, $settings ) );
 	}
 
 	public function can_register_for_club( int $competition_id, int $club_id, int $user_id = 0 ): AccessResult {
@@ -84,18 +91,26 @@ class CompetitionAccess {
 		$result = $this->evaluate_access( $competition_id, $settings, $club_id, $user_id, 'register' );
 
 		if ( ! $result->allowed ) {
-			return $result;
+			return $this->apply_capabilities( $result, 'register' );
 		}
 
 		if ( ! $this->is_registration_open( $competition_id, $result->context['club_id'] ?? 0 ) ) {
-			return AccessResult::deny( 'registration_closed', array( 'scope' => 'register' ) );
+			$result = AccessResult::deny( 'registration_closed', array( 'scope' => 'register' ) );
+			return $this->apply_capabilities( $result, 'register' );
 		}
 
 		if ( $settings['require_valid_license'] && ! $this->has_valid_license( $competition_id, $result->context['club_id'] ?? 0, $user_id ) ) {
-			return AccessResult::deny( 'invalid_license', array( 'scope' => 'register' ) );
+			$result = AccessResult::deny( 'invalid_license', array( 'scope' => 'register' ) );
+			return $this->apply_capabilities( $result, 'register' );
 		}
 
-		return $result;
+		return $this->apply_capabilities( $result, 'register' );
+	}
+
+	public function can_view_engaged_list( int $competition_id, int $club_id = 0, int $user_id = 0 ): AccessResult {
+		$result = $this->can_register( $competition_id, $club_id, $user_id );
+		$result->context['scope'] = 'engaged_list';
+		return $this->apply_capabilities( $result, 'engaged_list' );
 	}
 
 	public function get_denied_message( AccessResult $result ): string {
@@ -327,6 +342,36 @@ class CompetitionAccess {
 			'require_logged_in_club' => isset( $meta['require_logged_in_club'] ) ? (bool) $meta['require_logged_in_club'] : true,
 			'require_valid_license' => ! empty( $meta['require_valid_license'] ),
 		);
+	}
+
+	private function allow_details_on_denied( AccessResult $result, array $settings ): bool {
+		if ( $result->allowed ) {
+			return true;
+		}
+
+		$club_id = isset( $result->context['club_id'] ) ? absint( $result->context['club_id'] ) : 0;
+		if ( ! $club_id ) {
+			return false;
+		}
+
+		$allowed_reasons = array(
+			'club_not_allowed',
+			'region_mismatch',
+			'discipline_mismatch',
+			'club_region_missing',
+		);
+
+		$allow = in_array( $result->reason_code, $allowed_reasons, true );
+		return (bool) apply_filters( 'ufsc_competitions_access_allow_details_on_denied', $allow, $result, $settings );
+	}
+
+	private function apply_capabilities( AccessResult $result, string $scope, bool $allow_details_override = false ): AccessResult {
+		$allowed = (bool) $result->allowed;
+		$result->can_view_details = $allowed || $allow_details_override;
+		$result->can_register = $allowed && 'register' === $scope;
+		$result->can_view_engaged_list = $allowed && in_array( $scope, array( 'register', 'engaged_list' ), true );
+
+		return $result;
 	}
 
 	private function resolve_user_id( int $user_id ): int {

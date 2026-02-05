@@ -30,6 +30,7 @@ class EntryFormRenderer {
 		$license_id                = absint( $context['license_id'] ?? 0 );
 		$return_url                = (string) ( $context['return_url'] ?? '' );
 		$prefill                   = is_array( $context['prefill'] ?? null ) ? $context['prefill'] : array();
+		$access_result             = ( $context['access_result'] ?? null ) instanceof AccessResult ? $context['access_result'] : null;
 		$license_search_available  = has_filter( 'ufsc_competitions_front_license_search_results' )
 			|| has_filter( 'ufsc_competitions_front_license_by_id' );
 		$license_notice            = '';
@@ -128,12 +129,14 @@ class EntryFormRenderer {
 				<?php endif; ?>
 
 				<?php
+				$can_view_engaged_list = $access_result ? (bool) $access_result->can_view_engaged_list : true;
+
 				$engaged_status = isset( $_GET['ufsc_engaged_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_engaged_status'] ) ) : 'approved';
 				if ( ! in_array( $engaged_status, array( 'approved', 'submitted' ), true ) ) {
 					$engaged_status = 'approved';
 				}
 
-				$engaged_view     = isset( $_GET['ufsc_engaged_view'] ) ? absint( $_GET['ufsc_engaged_view'] ) : 0;
+				$engaged_view     = $can_view_engaged_list && isset( $_GET['ufsc_engaged_view'] ) ? absint( $_GET['ufsc_engaged_view'] ) : 0;
 				$engaged_page     = isset( $_GET['ufsc_engaged_page'] ) ? max( 1, absint( $_GET['ufsc_engaged_page'] ) ) : 1;
 				$engaged_per_page = 20;
 				$engaged_total    = 0;
@@ -182,21 +185,25 @@ class EntryFormRenderer {
 				);
 				?>
 
-				<div class="ufsc-competition-engaged-actions" id="ufsc-engaged-list">
-					<?php if ( ! $engaged_view ) : ?>
-						<a class="button" href="<?php echo esc_url( $engaged_list_url ); ?>">
-							<?php echo esc_html__( 'Consulter la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
-						</a>
-					<?php else : ?>
-						<a class="button" href="<?php echo esc_url( $engaged_hide_url ); ?>">
-							<?php echo esc_html__( 'Masquer la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
-						</a>
-					<?php endif; ?>
+				<?php if ( $can_view_engaged_list ) : ?>
+					<div class="ufsc-competition-engaged-actions" id="ufsc-engaged-list">
+						<?php if ( ! $engaged_view ) : ?>
+							<a class="button" href="<?php echo esc_url( $engaged_list_url ); ?>">
+								<?php echo esc_html__( 'Consulter la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
+							</a>
+						<?php else : ?>
+							<a class="button" href="<?php echo esc_url( $engaged_hide_url ); ?>">
+								<?php echo esc_html__( 'Masquer la liste des licenciés engagés', 'ufsc-licence-competition' ); ?>
+							</a>
+						<?php endif; ?>
 
-					<a class="button" href="<?php echo esc_url( $engaged_export_url ); ?>">
-						<?php echo esc_html__( 'Télécharger CSV des engagés', 'ufsc-licence-competition' ); ?>
-					</a>
-				</div>
+						<a class="button" href="<?php echo esc_url( $engaged_export_url ); ?>">
+							<?php echo esc_html__( 'Télécharger CSV des engagés', 'ufsc-licence-competition' ); ?>
+						</a>
+					</div>
+				<?php elseif ( $access_result && function_exists( 'ufsc_render_access_denied_notice' ) ) : ?>
+					<?php echo wp_kses_post( ufsc_render_access_denied_notice( $access_result ) ); ?>
+				<?php endif; ?>
 
 				<?php if ( $engaged_view ) : ?>
 					<div class="ufsc-competition-engaged-table">

@@ -48,7 +48,7 @@ class CompetitionDetailsShortcode {
 		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
 		$view_result = $access->can_view_competition( (int) $competition->id, $club_id, $user_id );
 
-		if ( ! $view_result->allowed ) {
+		if ( ! $view_result->can_view_details ) {
 			if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
 				return (string) ufsc_render_access_denied_notice( $view_result );
 			}
@@ -57,6 +57,11 @@ class CompetitionDetailsShortcode {
 
 		ob_start();
 		$info_rows = array();
+		$photo_html = '';
+		$photo_id = absint( $competition->photo_evenement_id ?? 0 );
+		if ( $photo_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_id ) ) {
+			$photo_html = wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'ufsc-competition-photo' ) );
+		}
 
 		if ( ! empty( $competition->lieu_name ) ) {
 			$info_rows[ __( 'Lieu', 'ufsc-licence-competition' ) ] = (string) $competition->lieu_name;
@@ -141,6 +146,11 @@ class CompetitionDetailsShortcode {
 		$club_notes = (string) ( $competition->club_notes ?? '' );
 		?>
 		<div class="ufsc-competition-details">
+			<?php if ( $photo_html ) : ?>
+				<div class="ufsc-competition-photo-wrapper">
+					<?php echo wp_kses_post( $photo_html ); ?>
+				</div>
+			<?php endif; ?>
 			<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
 			<ul class="ufsc-competition-main">
 				<li><strong><?php echo esc_html__( 'Discipline', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->discipline ?? '' ) ); ?></li>

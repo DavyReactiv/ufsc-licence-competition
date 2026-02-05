@@ -68,6 +68,7 @@ class CompetitionMeta {
 		return array(
 			'lieu_name'               => '',
 			'lieu_address'            => '',
+			'photo_evenement_id'      => 0,
 			'weighin_start'           => '',
 			'weighin_end'             => '',
 			'briefing_time'           => '',
@@ -97,6 +98,14 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['lieu_address'] ) ) {
 			$out['lieu_address'] = sanitize_textarea_field( (string) $data['lieu_address'] );
+		}
+		if ( isset( $data['photo_evenement_id'] ) ) {
+			$photo_id = absint( $data['photo_evenement_id'] );
+			if ( $photo_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_id ) ) {
+				$out['photo_evenement_id'] = $photo_id;
+			} else {
+				$out['photo_evenement_id'] = 0;
+			}
 		}
 		if ( isset( $data['weighin_start'] ) ) {
 			$out['weighin_start'] = self::sanitize_datetime( (string) $data['weighin_start'] );

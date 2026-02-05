@@ -234,6 +234,7 @@ class Competitions_Page {
 
 		$lieu_name              = (string) ( $event_meta['lieu_name'] ?? '' );
 		$lieu_address           = (string) ( $event_meta['lieu_address'] ?? '' );
+		$photo_evenement_id     = absint( $event_meta['photo_evenement_id'] ?? 0 );
 		$weighin_start           = (string) ( $event_meta['weighin_start'] ?? '' );
 		$weighin_end             = (string) ( $event_meta['weighin_end'] ?? '' );
 		$briefing_time           = (string) ( $event_meta['briefing_time'] ?? '' );
@@ -252,6 +253,21 @@ class Competitions_Page {
 		$require_affiliated       = isset( $event_meta['require_affiliated'] ) ? (bool) $event_meta['require_affiliated'] : true;
 		$require_logged_in_club   = isset( $event_meta['require_logged_in_club'] ) ? (bool) $event_meta['require_logged_in_club'] : true;
 		$require_valid_license    = ! empty( $event_meta['require_valid_license'] );
+		$photo_evenement_url      = '';
+		if ( $photo_evenement_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_evenement_id ) ) {
+			$photo_evenement_url = function_exists( 'wp_get_attachment_image_url' )
+				? (string) wp_get_attachment_image_url( $photo_evenement_id, 'medium' )
+				: '';
+		}
+		if ( function_exists( 'ufsc_normalize_region' ) ) {
+			$allowed_regions = array_values(
+				array_unique(
+					array_filter(
+						array_map( 'ufsc_normalize_region', $allowed_regions )
+					)
+				)
+			);
+		}
 
 		$club_regions = $this->club_repository ? $this->club_repository->list_regions() : array();
 		$club_select  = $this->club_repository ? $this->club_repository->list_for_select() : array();
@@ -376,6 +392,26 @@ class Competitions_Page {
 							<td>
 								<textarea name="lieu_address" id="lieu_address" class="large-text" rows="3"><?php echo esc_textarea( $lieu_address ); ?></textarea>
 								<p class="description"><?php esc_html_e( 'Optionnel – affichée aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Photo événement', 'ufsc-licence-competition' ); ?></th>
+							<td>
+								<div class="ufsc-competition-photo-field">
+									<input type="hidden" name="photo_evenement_id" id="ufsc_photo_evenement_id" value="<?php echo esc_attr( $photo_evenement_id ); ?>" />
+									<div class="ufsc-competition-photo-preview" data-ufsc-photo-preview>
+										<?php if ( $photo_evenement_url ) : ?>
+											<img src="<?php echo esc_url( $photo_evenement_url ); ?>" alt="" />
+										<?php endif; ?>
+									</div>
+									<p>
+										<button type="button" class="button ufsc-photo-select" data-ufsc-photo-select><?php esc_html_e( 'Choisir une photo', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-photo-remove" data-ufsc-photo-remove <?php echo $photo_evenement_id ? '' : 'style="display:none;"'; ?>>
+											<?php esc_html_e( 'Supprimer la photo', 'ufsc-licence-competition' ); ?>
+										</button>
+									</p>
+									<p class="description"><?php esc_html_e( 'Optionnel – image uniquement (JPEG/PNG/WebP). Les PDF sont refusés.', 'ufsc-licence-competition' ); ?></p>
+								</div>
 							</td>
 						</tr>
 						<tr>
@@ -722,6 +758,7 @@ class Competitions_Page {
 				array(
 					'lieu_name'             => isset( $_POST['lieu_name'] ) ? wp_unslash( $_POST['lieu_name'] ) : '',
 					'lieu_address'          => isset( $_POST['lieu_address'] ) ? wp_unslash( $_POST['lieu_address'] ) : '',
+					'photo_evenement_id'    => isset( $_POST['photo_evenement_id'] ) ? absint( wp_unslash( $_POST['photo_evenement_id'] ) ) : 0,
 					'weighin_start'         => isset( $_POST['weighin_start'] ) ? wp_unslash( $_POST['weighin_start'] ) : '',
 					'weighin_end'           => isset( $_POST['weighin_end'] ) ? wp_unslash( $_POST['weighin_end'] ) : '',
 					'briefing_time'         => isset( $_POST['briefing_time'] ) ? wp_unslash( $_POST['briefing_time'] ) : '',

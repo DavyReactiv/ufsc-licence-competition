@@ -53,6 +53,10 @@ class Assets {
 				);
 			}
 
+			if ( 'ufsc-competitions' === $page_slug && function_exists( 'wp_enqueue_media' ) ) {
+				wp_enqueue_media();
+			}
+
 			if ( 'ufsc-competitions-entries' === $page_slug ) {
 				$entry_css_file = plugin_dir_path( __DIR__ ) . 'assets/admin-entries.css';
 				$entry_css_url  = UFSC_LC_URL . 'includes/competitions/assets/admin-entries.css';

@@ -129,6 +129,7 @@ class EntriesModule {
 				'editing_entry' => $editing_entry,
 				'club_label' => $club_label,
 				'registration_open' => $registration_open,
+				'access_result' => $register_result,
 				'license_results' => $license_results,
 				'selected_license' => $selected_license,
 				'license_term' => $license_term,
