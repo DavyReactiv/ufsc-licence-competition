@@ -185,6 +185,7 @@ class Menu {
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Access_Diagnostic_Page',
 		);
 
 		foreach ( $page_classes as $page_class ) {
