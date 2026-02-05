@@ -64,7 +64,7 @@ class Engaged_Entries_Export_Controller {
 
 		$access = new CompetitionAccess();
 		$view_result = $access->can_view_engaged_list( $competition_id, $club_id, get_current_user_id() );
-		if ( ! $view_result->can_view_engaged_list ) {
+		if ( ! $view_result->can_export_engaged ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
 

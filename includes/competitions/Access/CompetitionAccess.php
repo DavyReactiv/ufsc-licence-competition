@@ -354,14 +354,13 @@ class CompetitionAccess {
 			return false;
 		}
 
-		$allowed_reasons = array(
-			'club_not_allowed',
-			'region_mismatch',
-			'discipline_mismatch',
-			'club_region_missing',
+		$blocked_reasons = array(
+			'not_logged_in',
+			'club_not_resolved',
+			'not_club',
 		);
 
-		$allow = in_array( $result->reason_code, $allowed_reasons, true );
+		$allow = ! in_array( $result->reason_code, $blocked_reasons, true );
 		return (bool) apply_filters( 'ufsc_competitions_access_allow_details_on_denied', $allow, $result, $settings );
 	}
 
@@ -369,7 +368,10 @@ class CompetitionAccess {
 		$allowed = (bool) $result->allowed;
 		$result->can_view_details = $allowed || $allow_details_override;
 		$result->can_register = $allowed && 'register' === $scope;
-		$result->can_view_engaged_list = $allowed && in_array( $scope, array( 'register', 'engaged_list' ), true );
+		$can_view_engaged = $allowed && in_array( $scope, array( 'register', 'engaged_list' ), true );
+		$result->can_view_engaged_list = $can_view_engaged;
+		$result->can_view_engaged = $can_view_engaged;
+		$result->can_export_engaged = $allowed && in_array( $scope, array( 'register', 'engaged_list' ), true );
 
 		return $result;
 	}

@@ -200,9 +200,9 @@ class CompetitionsListShortcode {
 
 		$rows = '';
 		foreach ( $items as $item ) {
-			$access_result = $access->can_view_competition( (int) ( $item->id ?? 0 ), $club_id, $user_id );
+			$access_result = $access->can_register( (int) ( $item->id ?? 0 ), $club_id, $user_id );
 			$restricted_badge = '';
-			if ( ! $access_result->allowed ) {
+			if ( ! $access_result->can_register ) {
 				$restricted_badge = sprintf(
 					' <span class="ufsc-badge ufsc-badge-closed">%s</span>',
 					esc_html__( 'Accès restreint', 'ufsc-licence-competition' )
