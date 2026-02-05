@@ -82,6 +82,12 @@ class TimingProfileRepository {
 		$discipline = isset( $data['discipline'] ) ? sanitize_text_field( (string) $data['discipline'] ) : '';
 		$discipline = '' !== $discipline ? $discipline : null;
 
+		$competition_type = isset( $data['competition_type'] ) ? sanitize_text_field( (string) $data['competition_type'] ) : '';
+		$competition_type = '' !== $competition_type ? $competition_type : null;
+
+		$surface_type = isset( $data['surface_type'] ) ? sanitize_key( (string) $data['surface_type'] ) : '';
+		$surface_type = in_array( $surface_type, array( 'tatami', 'ring' ), true ) ? $surface_type : null;
+
 		$age_min = isset( $data['age_min'] ) && '' !== $data['age_min'] ? absint( $data['age_min'] ) : null;
 		$age_max = isset( $data['age_max'] ) && '' !== $data['age_max'] ? absint( $data['age_max'] ) : null;
 		$level = isset( $data['level'] ) ? sanitize_text_field( (string) $data['level'] ) : '';
@@ -97,6 +103,8 @@ class TimingProfileRepository {
 		return array(
 			'name' => $name,
 			'discipline' => $discipline,
+			'competition_type' => $competition_type,
+			'surface_type' => $surface_type,
 			'age_min' => $age_min,
 			'age_max' => $age_max,
 			'level' => $level,
@@ -109,10 +117,10 @@ class TimingProfileRepository {
 	}
 
 	private function get_insert_format(): array {
-		return array( '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s' );
+		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s' );
 	}
 
 	private function get_update_format(): array {
-		return array( '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s' );
+		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s' );
 	}
 }

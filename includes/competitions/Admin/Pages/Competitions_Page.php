@@ -6,6 +6,7 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Admin\Exports\Entries_Export_Controller;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\ClubRepository;
+use UFSC\Competitions\Services\CompetitionFilters;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
 
@@ -319,12 +320,52 @@ class Competitions_Page {
 
 						<tr>
 							<th scope="row"><label for="discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="discipline" id="discipline" type="text" class="regular-text" value="<?php echo esc_attr( $discipline ); ?>" /></td>
+							<td>
+								<?php
+								$discipline_choices = class_exists( DisciplineRegistry::class ) ? DisciplineRegistry::get_disciplines() : array();
+								$discipline_key = $discipline ? DisciplineRegistry::normalize( $discipline ) : '';
+								$discipline_selected = ( $discipline_key && isset( $discipline_choices[ $discipline_key ] ) ) ? $discipline_key : $discipline;
+								?>
+								<select name="discipline" id="discipline" class="regular-text">
+									<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+									<?php foreach ( $discipline_choices as $value => $label ) : ?>
+										<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline_selected, $value ); ?>>
+											<?php echo esc_html( $label ); ?>
+										</option>
+									<?php endforeach; ?>
+									<?php if ( $discipline && ! isset( $discipline_choices[ $discipline_selected ] ) ) : ?>
+										<option value="<?php echo esc_attr( $discipline ); ?>" selected>
+											<?php echo esc_html( sprintf( __( 'Valeur existante : %s', 'ufsc-licence-competition' ), $discipline ) ); ?>
+										</option>
+									<?php endif; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'La discipline est utilisée pour les filtres, les catégories et le timing.', 'ufsc-licence-competition' ); ?></p>
+							</td>
 						</tr>
 
 						<tr>
 							<th scope="row"><label for="type"><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="type" id="type" type="text" class="regular-text" value="<?php echo esc_attr( $type ); ?>" /></td>
+							<td>
+								<?php
+								$type_choices = CompetitionFilters::get_type_choices();
+								$type_key = $type ? CompetitionFilters::normalize_type_key( $type ) : '';
+								$type_selected = ( $type_key && isset( $type_choices[ $type_key ] ) ) ? $type_key : $type;
+								?>
+								<select name="type" id="type" class="regular-text">
+									<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+									<?php foreach ( $type_choices as $value => $label ) : ?>
+										<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $type_selected, $value ); ?>>
+											<?php echo esc_html( $label ); ?>
+										</option>
+									<?php endforeach; ?>
+									<?php if ( $type && ! isset( $type_choices[ $type_selected ] ) ) : ?>
+										<option value="<?php echo esc_attr( $type ); ?>" selected>
+											<?php echo esc_html( sprintf( __( 'Valeur existante : %s', 'ufsc-licence-competition' ), $type ) ); ?>
+										</option>
+									<?php endif; ?>
+								</select>
+								<p class="description"><?php esc_html_e( 'Le type alimente les filtres et le profil de timing.', 'ufsc-licence-competition' ); ?></p>
+							</td>
 						</tr>
 
 						<tr>
@@ -740,11 +781,14 @@ class Competitions_Page {
 			$this->redirect_notice( 'invalid' );
 		}
 
+		$raw_discipline = isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '';
+		$raw_type = isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '';
+
 		$data = array(
 			'id'                  => isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0,
 			'name'                => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
-			'discipline'           => isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '',
-			'type'                => isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '',
+			'discipline'           => $this->normalize_discipline_value( $raw_discipline ),
+			'type'                => $this->normalize_type_value( $raw_type ),
 			'season'              => isset( $_POST['season'] ) ? sanitize_text_field( wp_unslash( $_POST['season'] ) ) : '',
 			'status'              => isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : '',
 			'event_start_datetime' => isset( $_POST['event_start_datetime'] ) ? sanitize_text_field( wp_unslash( $_POST['event_start_datetime'] ) ) : '',
@@ -859,6 +903,38 @@ class Competitions_Page {
 			)
 		);
 		exit;
+	}
+
+	private function normalize_discipline_value( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( class_exists( DisciplineRegistry::class ) ) {
+			$normalized = DisciplineRegistry::normalize( $value );
+			$choices = DisciplineRegistry::get_disciplines();
+			if ( $normalized && isset( $choices[ $normalized ] ) ) {
+				return $normalized;
+			}
+		}
+
+		return $value;
+	}
+
+	private function normalize_type_value( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$normalized = CompetitionFilters::normalize_type_key( $value );
+		$choices = CompetitionFilters::get_type_choices();
+		if ( $normalized && isset( $choices[ $normalized ] ) ) {
+			return $normalized;
+		}
+
+		return $value;
 	}
 
 	public function handle_archive() {

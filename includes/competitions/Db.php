@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.14';
+	const DB_VERSION = '1.15';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.14';
+	const UFSC_COMP_DB_VERSION = '1.15';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -172,10 +172,15 @@ class Db {
 			sex varchar(10) NULL,
 			level varchar(50) NULL,
 			format varchar(50) NULL,
+			created_by bigint(20) unsigned NULL,
+			updated_by bigint(20) unsigned NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
+			deleted_at datetime NULL,
+			deleted_by bigint(20) unsigned NULL,
 			PRIMARY KEY (id),
-			KEY idx_competition_id (competition_id)
+			KEY idx_competition_id (competition_id),
+			KEY idx_deleted_at (deleted_at)
 		) {$charset_collate};";
 
 		dbDelta( $categories_sql );
@@ -219,6 +224,8 @@ class Db {
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			name varchar(190) NOT NULL,
 			discipline varchar(190) NULL,
+			competition_type varchar(100) NULL,
+			surface_type varchar(20) NULL,
 			age_min smallint(5) unsigned NULL,
 			age_max smallint(5) unsigned NULL,
 			level varchar(50) NULL,
@@ -231,6 +238,8 @@ class Db {
 			updated_at datetime NOT NULL,
 			PRIMARY KEY (id),
 			KEY idx_discipline (discipline),
+			KEY idx_competition_type (competition_type),
+			KEY idx_surface_type (surface_type),
 			KEY idx_age_min (age_min),
 			KEY idx_age_max (age_max)
 		) {$charset_collate};";

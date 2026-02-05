@@ -233,7 +233,8 @@ class CompetitionDetailsShortcode {
 	}
 
 	private function render_restricted_notice( $access_result ): string {
-		$message = __( 'Accès restreint : vous pouvez consulter les informations de l’événement, mais les inscriptions sont réservées aux clubs autorisés.', 'ufsc-licence-competition' );
+		$message = __( 'Inscriptions non disponibles pour votre club.', 'ufsc-licence-competition' );
+		$reason_message = '';
 		$list_url = function_exists( 'ufsc_get_competitions_list_url' ) ? ufsc_get_competitions_list_url() : '';
 
 		$buttons = array();
@@ -246,6 +247,31 @@ class CompetitionDetailsShortcode {
 		}
 
 		$reason_code = is_object( $access_result ) ? (string) ( $access_result->reason_code ?? '' ) : '';
+		switch ( $reason_code ) {
+			case 'club_not_allowed':
+			case 'not_affiliated':
+			case 'not_allowed_by_rule':
+				$reason_message = __( 'Votre club n’est pas éligible pour cette compétition.', 'ufsc-licence-competition' );
+				break;
+			case 'region_mismatch':
+				$reason_message = __( 'Compétition réservée à certaines régions.', 'ufsc-licence-competition' );
+				break;
+			case 'club_region_missing':
+				$reason_message = __( 'Votre région club n’est pas renseignée.', 'ufsc-licence-competition' );
+				break;
+			case 'discipline_mismatch':
+				$reason_message = __( 'Compétition réservée à certaines disciplines.', 'ufsc-licence-competition' );
+				break;
+			case 'registration_closed':
+				$reason_message = __( 'Les inscriptions sont actuellement closes.', 'ufsc-licence-competition' );
+				break;
+			case 'invalid_license':
+				$reason_message = __( 'Une licence valide est requise pour s’inscrire.', 'ufsc-licence-competition' );
+				break;
+			default:
+				break;
+		}
+
 		if ( 'club_region_missing' === $reason_code ) {
 			$buttons[] = sprintf(
 				'<a class="button" href="%s">%s</a>',
@@ -255,8 +281,9 @@ class CompetitionDetailsShortcode {
 		}
 
 		return sprintf(
-			'<div class="notice notice-warning ufsc-access-restricted"><p>%s</p>%s</div>',
+			'<div class="notice notice-warning ufsc-access-restricted"><p>%s</p>%s%s</div>',
 			esc_html( $message ),
+			$reason_message ? '<p>' . esc_html( $reason_message ) . '</p>' : '',
 			$buttons ? '<p>' . implode( ' ', $buttons ) . '</p>' : ''
 		);
 	}
