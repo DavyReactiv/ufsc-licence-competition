@@ -44,6 +44,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Entries/EntriesWorkflow.php',
 		$base . '/Entries/EntryEligibility.php',
 		$base . '/Exports/Engaged_Entries_Export_Helper.php',
+		$base . '/Services/CompetitionFilters.php',
 		$base . '/Services/CompetitionMeta.php',
 		$base . '/Services/DisciplineRegistry.php',
 		$base . '/Services/CategoryPresetRegistry.php',

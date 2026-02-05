@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Front\Repositories;
 
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\RepositoryHelpers;
+use UFSC\Competitions\Services\CompetitionFilters;
 use UFSC\Competitions\Services\CompetitionMeta;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -88,17 +89,22 @@ class CompetitionReadRepository {
 
 		$where = array();
 
-		$view = isset( $filters['view'] ) ? (string) $filters['view'] : 'open';
-		if ( ! in_array( $view, array( 'open', 'all' ), true ) ) {
-			$view = 'open';
-		}
-
 		$where[] = 'deleted_at IS NULL';
 
-		if ( 'open' === $view ) {
-			$where[] = $wpdb->prepare( 'status = %s', 'open' );
+		$status_filter = isset( $filters['status'] ) ? sanitize_key( (string) $filters['status'] ) : '';
+		if ( '' !== $status_filter ) {
+			$where[] = $wpdb->prepare( 'status = %s', $status_filter );
 		} else {
-			$where[] = $wpdb->prepare( 'status != %s', 'archived' );
+			$view = isset( $filters['view'] ) ? (string) $filters['view'] : 'open';
+			if ( ! in_array( $view, array( 'open', 'all' ), true ) ) {
+				$view = 'open';
+			}
+
+			if ( 'open' === $view ) {
+				$where[] = $wpdb->prepare( 'status = %s', 'open' );
+			} else {
+				$where[] = $wpdb->prepare( 'status != %s', 'archived' );
+			}
 		}
 
 		if ( isset( $filters['discipline'] ) && '' !== (string) $filters['discipline'] ) {
@@ -108,7 +114,14 @@ class CompetitionReadRepository {
 
 		if ( isset( $filters['type'] ) && '' !== (string) $filters['type'] ) {
 			$type = sanitize_text_field( (string) $filters['type'] );
-			$where[] = $wpdb->prepare( 'type = %s', $type );
+			$variants = CompetitionFilters::get_type_variants( $type );
+			if ( 1 === count( $variants ) ) {
+				$where[] = $wpdb->prepare( 'type = %s', $variants[0] );
+			} elseif ( $variants ) {
+				$placeholders = implode( ', ', array_fill( 0, count( $variants ), '%s' ) );
+				$args = array_merge( array( "type IN ({$placeholders})" ), $variants );
+				$where[] = call_user_func_array( array( $wpdb, 'prepare' ), $args );
+			}
 		}
 
 		if ( isset( $filters['season'] ) && '' !== (string) $filters['season'] ) {
