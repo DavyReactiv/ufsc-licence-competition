@@ -2,6 +2,7 @@
 
 namespace UFSC\Competitions\Admin\Exports;
 
+use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -73,19 +74,20 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_pdf_download(): void {
-		if ( ! Capabilities::user_can_validate_entries() ) {
+		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_validate_entries() : current_user_can( 'manage_options' );
+		if ( ! $can_manage ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		if ( ! $competition_id ) {
-			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+			$this->redirect_with_notice( 'not_found' );
 		}
 
 		$competition_repo = new CompetitionRepository();
 		$competition = $competition_repo->get( $competition_id, true );
 		if ( ! $competition ) {
-			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+			$this->redirect_with_notice( 'not_found' );
 		}
 
 		$mode = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( $_GET['mode'] ) ) : 'plateau';
@@ -99,10 +101,74 @@ class Entries_Export_Controller {
 
 		do_action( 'ufsc_competitions_plateau_pdf_before', $competition, $mode );
 
+		$filters = $this->get_requested_filters();
+		$entries = $this->get_plateau_entries( $competition_id, $filters );
+
+		if ( function_exists( 'ufsc_comp_log' ) ) {
+			ufsc_comp_log(
+				'pdf_export_request',
+				array(
+					'competition_id' => $competition_id,
+					'mode' => $mode,
+					'entries_count' => count( $entries ),
+					'filters' => $filters,
+				)
+			);
+		}
+
+		if ( empty( $entries ) ) {
+			if ( function_exists( 'ufsc_comp_log' ) ) {
+				ufsc_comp_log(
+					'pdf_export_empty',
+					array(
+						'competition_id' => $competition_id,
+						'mode' => $mode,
+					)
+				);
+			}
+			$this->redirect_with_notice( 'pdf_no_entries' );
+		}
+
+		if ( ! class_exists( '\UFSC\Competitions\Services\Plateau_Pdf_Renderer' ) ) {
+			if ( function_exists( 'ufsc_comp_log' ) ) {
+				ufsc_comp_log(
+					'pdf_export_missing_renderer',
+					array(
+						'competition_id' => $competition_id,
+						'mode' => $mode,
+					)
+				);
+			}
+			$this->redirect_with_notice( 'pdf_generation_failed' );
+		}
+
 		$renderer = new \UFSC\Competitions\Services\Plateau_Pdf_Renderer();
-		$pdf = $renderer->render_pdf( $competition, $this->get_plateau_entries( $competition_id, $this->get_requested_filters() ), $mode );
+		$pdf = $renderer->render_pdf( $competition, $entries, $mode );
 		if ( empty( $pdf ) ) {
-			wp_die( esc_html__( 'PDF indisponible.', 'ufsc-licence-competition' ) );
+			if ( function_exists( 'ufsc_comp_log' ) ) {
+				ufsc_comp_log(
+					'pdf_export_failed',
+					array(
+						'competition_id' => $competition_id,
+						'mode' => $mode,
+						'entries_count' => count( $entries ),
+						'pdf_length' => is_string( $pdf ) ? strlen( $pdf ) : 0,
+					)
+				);
+			}
+			$this->redirect_with_notice( 'pdf_generation_failed' );
+		}
+
+		if ( function_exists( 'ufsc_comp_log' ) ) {
+			ufsc_comp_log(
+				'pdf_export_ready',
+				array(
+					'competition_id' => $competition_id,
+					'mode' => $mode,
+					'entries_count' => count( $entries ),
+					'pdf_length' => strlen( $pdf ),
+				)
+			);
 		}
 
 		$filename = sprintf( 'plateau-competition-%d.pdf', $competition_id );
@@ -114,6 +180,14 @@ class Entries_Export_Controller {
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 		header( 'Content-Length: ' . strlen( $pdf ) );
 		echo $pdf; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		exit;
+	}
+
+	private function redirect_with_notice( string $notice ): void {
+		$referer = wp_get_referer();
+		$url = $referer ? $referer : add_query_arg( 'page', Menu::MENU_SLUG, admin_url( 'admin.php' ) );
+		$url = add_query_arg( 'ufsc_notice', sanitize_key( $notice ), $url );
+		wp_safe_redirect( $url );
 		exit;
 	}
 
