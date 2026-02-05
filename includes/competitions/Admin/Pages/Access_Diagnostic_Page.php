@@ -127,11 +127,12 @@ class Access_Diagnostic_Page {
 
 	private function render_results( $competition, $club, array $settings, $view_result, $register_result, ClubRepository $club_repo, CompetitionAccess $access ): void {
 		$club_region_raw = $club ? (string) ( $club->region ?? '' ) : '';
-		$club_region = function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $club_region_raw ) : $club_region_raw;
+		$club_region = function_exists( 'ufsc_normalize_region_key' ) ? ufsc_normalize_region_key( $club_region_raw ) : $club_region_raw;
 		$club_region_missing = '' === trim( $club_region_raw );
 		$club_disciplines = function_exists( 'ufsc_extract_club_disciplines' ) ? ufsc_extract_club_disciplines( $club ) : array();
 
-		$allowed_regions = $settings['allowed_regions'] ?? array();
+		$allowed_regions = $settings['allowed_regions_labels'] ?? array();
+		$allowed_regions_keys = $settings['allowed_regions_keys'] ?? array();
 		$allowed_disciplines = $settings['allowed_disciplines'] ?? array();
 		$allowed_clubs = $settings['allowed_club_ids'] ?? array();
 
@@ -171,7 +172,7 @@ class Access_Diagnostic_Page {
 		echo '<tr><th>' . esc_html__( 'ID', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $club->id ?? '' ) ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $club->nom ?? '' ) ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Région (source)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( '' === $club_region_raw ? '—' : $club_region_raw ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Région (canonique)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( '' === $club_region ? '—' : $club_region ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Région (clé)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( '' === $club_region ? '—' : $club_region ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Source région (champ)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html__( 'region', 'ufsc-licence-competition' ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Disciplines', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $club_disciplines ? implode( ' / ', $club_disciplines ) : '—' ) . '</td></tr>';
 		echo '</tbody></table>';
@@ -193,7 +194,8 @@ class Access_Diagnostic_Page {
 		echo '<h3>' . esc_html__( 'Règles compétition', 'ufsc-licence-competition' ) . '</h3>';
 		echo '<table class="widefat striped"><tbody>';
 		echo '<tr><th>' . esc_html__( 'Mode', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( (string) ( $settings['access_mode'] ?? '' ) ) . '</td></tr>';
-		echo '<tr><th>' . esc_html__( 'Régions autorisées', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $allowed_regions ? implode( ' / ', $allowed_regions ) : '—' ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Régions autorisées (labels)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $allowed_regions ? implode( ' / ', $allowed_regions ) : '—' ) . '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Régions autorisées (clés)', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $allowed_regions_keys ? implode( ' / ', $allowed_regions_keys ) : '—' ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Disciplines autorisées', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $allowed_disciplines_labels ? implode( ' / ', $allowed_disciplines_labels ) : '—' ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Clubs autorisés', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $allowed_club_labels ? implode( ' / ', $allowed_club_labels ) : '—' ) . '</td></tr>';
 		echo '<tr><th>' . esc_html__( 'Affiliation requise', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( ! empty( $settings['require_affiliated'] ) ? __( 'Oui', 'ufsc-licence-competition' ) : __( 'Non', 'ufsc-licence-competition' ) ) . '</td></tr>';

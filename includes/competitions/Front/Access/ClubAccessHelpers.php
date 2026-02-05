@@ -42,11 +42,18 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 		$source  = 'fallback';
 		$source_meta_key = '';
 
-		$filtered = apply_filters( 'ufsc_competitions_get_club_id_for_user', null, $user_id );
-		if ( is_numeric( $filtered ) && (int) $filtered > 0 ) {
-			$club_id = (int) $filtered;
-			$source  = 'filter';
-			$source_meta_key = 'ufsc_competitions_get_club_id_for_user';
+		if ( ! $club_id ) {
+			$user_meta_keys = array( 'ufsc_club_id', 'club_id' );
+			foreach ( $user_meta_keys as $key ) {
+				$meta = get_user_meta( $user_id, $key, true );
+				$meta_id = absint( $meta );
+				if ( $meta_id > 0 ) {
+					$club_id = $meta_id;
+					$source  = 'user_meta';
+					$source_meta_key = $key;
+					break;
+				}
+			}
 		}
 
 		if ( ! $club_id ) {
@@ -64,15 +71,30 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 		}
 
 		if ( ! $club_id ) {
-			$user_meta_keys = array( 'ufsc_club_id', 'club_id' );
-			foreach ( $user_meta_keys as $key ) {
-				$meta = get_user_meta( $user_id, $key, true );
-				$meta_id = absint( $meta );
-				if ( $meta_id > 0 ) {
-					$club_id = $meta_id;
-					$source  = 'user_meta';
-					$source_meta_key = $key;
-					break;
+			$user = get_user_by( 'id', $user_id );
+			$user_roles = $user ? (array) $user->roles : array();
+			$club_roles = apply_filters( 'ufsc_competitions_club_roles', array( 'club', 'ufsc_club' ), $user_id );
+			if ( array_intersect( $user_roles, $club_roles ) ) {
+				$role_club_id = apply_filters( 'ufsc_competitions_resolve_role_club_id', 0, $user_id, $user_roles );
+				$role_club_id = absint( $role_club_id );
+				if ( $role_club_id > 0 ) {
+					$club_id = $role_club_id;
+					$source = 'role';
+					$source_meta_key = 'ufsc_competitions_resolve_role_club_id';
+				}
+			}
+		}
+
+		if ( ! $club_id ) {
+			$user = get_user_by( 'id', $user_id );
+			$email = $user ? (string) $user->user_email : '';
+			if ( '' !== $email ) {
+				$email_club_id = apply_filters( 'ufsc_competitions_resolve_club_id_by_email', 0, $email, $user_id );
+				$email_club_id = absint( $email_club_id );
+				if ( $email_club_id > 0 ) {
+					$club_id = $email_club_id;
+					$source = 'email';
+					$source_meta_key = 'ufsc_competitions_resolve_club_id_by_email';
 				}
 			}
 		}
@@ -97,6 +119,15 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 						break;
 					}
 				}
+			}
+		}
+
+		if ( ! $club_id ) {
+			$filtered = apply_filters( 'ufsc_competitions_get_club_id_for_user', null, $user_id );
+			if ( is_numeric( $filtered ) && (int) $filtered > 0 ) {
+				$club_id = (int) $filtered;
+				$source  = 'filter';
+				$source_meta_key = 'ufsc_competitions_get_club_id_for_user';
 			}
 		}
 
@@ -162,7 +193,16 @@ if ( ! function_exists( 'ufsc_current_club_context' ) ) {
 			$club = $club_repo->get( $club_id );
 			if ( $club ) {
 				$club_name = trim( wp_strip_all_tags( (string) ( $club->nom ?? '' ) ) );
-				$region = trim( wp_strip_all_tags( (string) ( $club->region ?? '' ) ) );
+				$region_fields = array( 'region', 'ufsc_region', 'club_region', 'region_name' );
+				foreach ( $region_fields as $field ) {
+					if ( isset( $club->{$field} ) ) {
+						$value = trim( wp_strip_all_tags( (string) $club->{$field} ) );
+						if ( '' !== $value ) {
+							$region = $value;
+							break;
+						}
+					}
+				}
 			}
 		}
 

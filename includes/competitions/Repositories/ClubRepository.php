@@ -160,20 +160,22 @@ class ClubRepository {
 				continue;
 			}
 
-			$region = function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $region_raw ) : strtoupper( $region_raw );
-			$region = trim( $region );
-			if ( '' === $region ) {
+			$region_key = function_exists( 'ufsc_normalize_region_key' )
+				? ufsc_normalize_region_key( $region_raw )
+				: ( function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $region_raw ) : strtoupper( $region_raw ) );
+			$region_key = trim( $region_key );
+			if ( '' === $region_key ) {
 				continue;
 			}
 
-			if ( isset( $out[ $region ] ) ) {
-				if ( $out[ $region ] !== $region_raw ) {
-					$duplicates[ $region ] = true;
+			if ( isset( $out[ $region_key ] ) ) {
+				if ( $out[ $region_key ] !== $region_raw ) {
+					$duplicates[ $region_key ] = true;
 				}
 				continue;
 			}
 
-			$out[ $region ] = $region;
+			$out[ $region_key ] = $region_raw;
 		}
 
 		if ( ! empty( $duplicates ) && defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) ) {

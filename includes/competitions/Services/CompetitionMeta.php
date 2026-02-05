@@ -81,6 +81,7 @@ class CompetitionMeta {
 			'club_notes'              => '',
 			'access_mode'             => 'affiliated',
 			'allowed_regions'         => array(),
+			'allowed_regions_keys'    => array(),
 			'allowed_disciplines'     => array(),
 			'allowed_club_ids'        => array(),
 			'public_read'             => false,
@@ -142,6 +143,9 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['allowed_regions'] ) ) {
 			$out['allowed_regions'] = self::sanitize_string_array( $data['allowed_regions'] );
+		}
+		if ( isset( $data['allowed_regions_keys'] ) ) {
+			$out['allowed_regions_keys'] = self::sanitize_string_array( $data['allowed_regions_keys'] );
 		}
 		if ( isset( $data['allowed_disciplines'] ) ) {
 			$out['allowed_disciplines'] = self::sanitize_key_array( $data['allowed_disciplines'] );
