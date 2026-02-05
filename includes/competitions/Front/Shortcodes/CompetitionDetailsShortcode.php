@@ -253,6 +253,10 @@ class CompetitionDetailsShortcode {
 			case 'not_allowed_by_rule':
 				$reason_message = __( 'Votre club n’est pas éligible pour cette compétition.', 'ufsc-licence-competition' );
 				break;
+			case 'club_not_linked':
+			case 'club_not_resolved':
+				$reason_message = __( 'Votre compte n’est pas rattaché à un club UFSC.', 'ufsc-licence-competition' );
+				break;
 			case 'region_mismatch':
 				$reason_message = __( 'Compétition réservée à certaines régions.', 'ufsc-licence-competition' );
 				break;

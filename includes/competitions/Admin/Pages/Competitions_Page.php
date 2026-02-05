@@ -260,18 +260,56 @@ class Competitions_Page {
 				? (string) wp_get_attachment_image_url( $photo_evenement_id, 'medium' )
 				: '';
 		}
-		if ( function_exists( 'ufsc_normalize_region' ) ) {
-			$allowed_regions = array_values(
-				array_unique(
-					array_filter(
-						array_map( 'ufsc_normalize_region', $allowed_regions )
-					)
-				)
-			);
+		$allowed_regions_map = array();
+		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+			foreach ( $allowed_regions as $region_label ) {
+				$key = ufsc_normalize_region_key( $region_label );
+				if ( '' === $key ) {
+					continue;
+				}
+				if ( ! isset( $allowed_regions_map[ $key ] ) ) {
+					$allowed_regions_map[ $key ] = (string) $region_label;
+				}
+			}
+		} else {
+			foreach ( $allowed_regions as $region_label ) {
+				$label = trim( (string) $region_label );
+				if ( '' !== $label ) {
+					$allowed_regions_map[ $label ] = $label;
+				}
+			}
 		}
+
+		$allowed_regions = array_values( $allowed_regions_map );
+		$allowed_region_keys = array_keys( $allowed_regions_map );
 
 		$club_regions = $this->club_repository ? $this->club_repository->list_regions() : array();
 		$club_select  = $this->club_repository ? $this->club_repository->list_for_select() : array();
+		$regions_for_select = array();
+		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+			foreach ( $club_regions as $region ) {
+				$key = ufsc_normalize_region_key( $region );
+				if ( '' === $key ) {
+					continue;
+				}
+				if ( ! isset( $regions_for_select[ $key ] ) ) {
+					$regions_for_select[ $key ] = (string) $region;
+				}
+			}
+		} else {
+			foreach ( $club_regions as $region ) {
+				$label = trim( (string) $region );
+				if ( '' !== $label && ! isset( $regions_for_select[ $label ] ) ) {
+					$regions_for_select[ $label ] = $label;
+				}
+			}
+		}
+
+		foreach ( $allowed_regions_map as $key => $label ) {
+			if ( ! isset( $regions_for_select[ $key ] ) ) {
+				$regions_for_select[ $key ] = $label;
+			}
+		}
 		$disciplines  = class_exists( DisciplineRegistry::class ) ? DisciplineRegistry::get_disciplines() : array();
 		$show_all_clubs_mode = (bool) apply_filters( 'ufsc_competitions_access_show_all_clubs_mode', true );
 		$preview_mode_label = __( 'Clubs affiliés', 'ufsc-licence-competition' );
@@ -566,9 +604,10 @@ class Competitions_Page {
 							<th scope="row"><?php esc_html_e( 'Régions autorisées', 'ufsc-licence-competition' ); ?></th>
 							<td>
 								<select name="allowed_regions[]" multiple="multiple" class="regular-text" size="6">
-									<?php foreach ( $club_regions as $region ) : ?>
-										<option value="<?php echo esc_attr( $region ); ?>" <?php selected( in_array( $region, $allowed_regions, true ) ); ?>>
-											<?php echo esc_html( $region ); ?>
+									<?php foreach ( $regions_for_select as $region_key => $region_label ) : ?>
+										<?php $selected = in_array( $region_key, $allowed_region_keys, true ); ?>
+										<option value="<?php echo esc_attr( $region_label ); ?>" <?php selected( $selected ); ?>>
+											<?php echo esc_html( $region_label ); ?>
 										</option>
 									<?php endforeach; ?>
 								</select>
@@ -795,6 +834,17 @@ class Competitions_Page {
 			'event_end_datetime'   => isset( $_POST['event_end_datetime'] ) ? sanitize_text_field( wp_unslash( $_POST['event_end_datetime'] ) ) : '',
 		);
 
+		$allowed_regions = isset( $_POST['allowed_regions'] ) ? wp_unslash( $_POST['allowed_regions'] ) : array();
+		$allowed_regions_keys = array();
+		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+			foreach ( (array) $allowed_regions as $region_label ) {
+				$key = ufsc_normalize_region_key( $region_label );
+				if ( '' !== $key && ! in_array( $key, $allowed_regions_keys, true ) ) {
+					$allowed_regions_keys[] = $key;
+				}
+			}
+		}
+
 		$saved_id = $this->repository->save( $data );
 		if ( $saved_id ) {
 			CompetitionMeta::save(
@@ -814,7 +864,8 @@ class Competitions_Page {
 					'organizer_email'       => isset( $_POST['organizer_email'] ) ? wp_unslash( $_POST['organizer_email'] ) : '',
 					'club_notes'            => isset( $_POST['club_notes'] ) ? wp_unslash( $_POST['club_notes'] ) : '',
 					'access_mode'           => isset( $_POST['access_mode'] ) ? wp_unslash( $_POST['access_mode'] ) : '',
-					'allowed_regions'       => isset( $_POST['allowed_regions'] ) ? wp_unslash( $_POST['allowed_regions'] ) : array(),
+					'allowed_regions'       => $allowed_regions,
+					'allowed_regions_keys'  => $allowed_regions_keys,
 					'allowed_disciplines'   => isset( $_POST['allowed_disciplines'] ) ? wp_unslash( $_POST['allowed_disciplines'] ) : array(),
 					'allowed_club_ids'      => isset( $_POST['allowed_club_ids'] ) ? wp_unslash( $_POST['allowed_club_ids'] ) : array(),
 					'public_read'           => isset( $_POST['public_read'] ),

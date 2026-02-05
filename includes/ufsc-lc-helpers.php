@@ -124,6 +124,30 @@ function ufsc_normalize_region( $value ): string {
 	return isset( $aliases[ $normalized ] ) ? $aliases[ $normalized ] : $normalized;
 }
 
+function ufsc_normalize_region_key( $label ): string {
+	$value = trim( (string) $label );
+	if ( '' === $value ) {
+		return '';
+	}
+
+	$value = remove_accents( $value );
+	$value = preg_replace( "/['’`]+/", '', $value );
+	$value = preg_replace( '/[-_]+/', ' ', $value );
+	$value = preg_replace( '/\s+/', ' ', $value );
+	$value = trim( $value );
+
+	if ( function_exists( 'mb_strtolower' ) ) {
+		$value = mb_strtolower( $value );
+	} else {
+		$value = strtolower( $value );
+	}
+
+	$value = preg_replace( '/\s+ufsc$/', '', $value );
+	$value = trim( $value );
+
+	return $value;
+}
+
 function ufsc_normalize_discipline( $value ): string {
 	return ufsc_normalize_token( $value );
 }
@@ -177,6 +201,7 @@ function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResul
 	$messages = array(
 		'not_logged_in' => __( 'Connexion requise pour accéder à cette compétition.', 'ufsc-licence-competition' ),
 		'not_club' => __( 'Aucun club associé à votre compte.', 'ufsc-licence-competition' ),
+		'club_not_linked' => __( 'Impossible d’identifier votre club.', 'ufsc-licence-competition' ),
 		'club_not_resolved' => __( 'Impossible d’identifier votre club.', 'ufsc-licence-competition' ),
 		'not_affiliated' => __( 'Accès réservé aux clubs affiliés UFSC.', 'ufsc-licence-competition' ),
 		'club_region_missing' => __( 'Votre club n’a pas de région renseignée.', 'ufsc-licence-competition' ),
