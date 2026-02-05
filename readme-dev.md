@@ -35,6 +35,8 @@ discipline="k1" (optionnel)
 
 type="gala|selection" (optionnel)
 
+status="open|closed|draft" (optionnel)
+
 per_page="10" (défaut : 10)
 
 show_filters="1|0" (défaut : 1)
@@ -50,6 +52,8 @@ ufsc_season
 ufsc_discipline
 
 ufsc_type
+
+ufsc_status
 
 s (recherche texte)
 
@@ -194,6 +198,12 @@ Détail : [ufsc_competition] + ?competition_id=ID
 Legacy : ?ufsc_competition_id=ID
 
 Avec rewrite : /competitions/competition/{id}/ route vers la page détail (avec competition_id)
+
+Mini-checklist front compétitions (UX)
+- Vérifier l’affichage des filtres (Saison, Discipline, Type, Statut, Recherche) et le bouton “Réinitialiser”.
+- Confirmer la persistance des filtres via querystring et la compatibilité des paramètres legacy.
+- Contrôler l’affichage des libellés (discipline/type/statut) dans la liste et la fiche détail.
+- Confirmer l’affichage du bloc “Règlement & obligations” et l’ouverture des liens en nouvel onglet.
 
 ### Front Entries (Inscriptions) — Checklist de tests manuels
 

@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Front\Shortcodes;
 use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
+use UFSC\Competitions\Services\CompetitionFilters;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -22,6 +23,7 @@ class CompetitionsListShortcode {
 				'season'        => '',
 				'discipline'    => '',
 				'type'          => '',
+				'status'        => '',
 				'per_page'      => 10,
 				'show_filters'  => 1,
 				'require_login' => 1,
@@ -55,24 +57,19 @@ class CompetitionsListShortcode {
 			'season'     => sanitize_text_field( (string) $atts['season'] ),
 			'discipline' => sanitize_text_field( (string) $atts['discipline'] ),
 			'type'       => sanitize_text_field( (string) $atts['type'] ),
+			'status'     => sanitize_text_field( (string) $atts['status'] ),
 			's'          => '',
 		);
 
 		$show_filters = (int) $atts['show_filters'] === 1;
 		if ( $show_filters ) {
-			if ( isset( $_GET['ufsc_season'] ) ) {
-				$filters['season'] = sanitize_text_field( wp_unslash( $_GET['ufsc_season'] ) );
-			}
-			if ( isset( $_GET['ufsc_discipline'] ) ) {
-				$filters['discipline'] = sanitize_text_field( wp_unslash( $_GET['ufsc_discipline'] ) );
-			}
-			if ( isset( $_GET['ufsc_type'] ) ) {
-				$filters['type'] = sanitize_text_field( wp_unslash( $_GET['ufsc_type'] ) );
-			}
-			if ( isset( $_GET['s'] ) ) {
-				$filters['s'] = sanitize_text_field( wp_unslash( $_GET['s'] ) );
-			}
+			$filters['season'] = $this->get_query_value( array( 'ufsc_season', 'season' ), $filters['season'] );
+			$filters['discipline'] = $this->get_query_value( array( 'ufsc_discipline', 'discipline' ), $filters['discipline'] );
+			$filters['type'] = $this->get_query_value( array( 'ufsc_type', 'type' ), $filters['type'] );
+			$filters['status'] = $this->get_query_value( array( 'ufsc_status', 'status' ), $filters['status'] );
+			$filters['s'] = $this->get_query_value( array( 's' ), $filters['s'] );
 		}
+		$filters['status'] = sanitize_key( (string) $filters['status'] );
 
 		$per_page = max( 1, (int) $atts['per_page'] );
 		$current_page = isset( $_GET['ufsc_page'] ) ? max( 1, absint( wp_unslash( $_GET['ufsc_page'] ) ) ) : 1;
@@ -85,7 +82,15 @@ class CompetitionsListShortcode {
 		$output = '';
 
 		if ( $show_filters ) {
-			$output .= $this->render_filters_form( $filters );
+			$output .= $this->render_filters_form(
+				$filters,
+				array(
+					'seasons'     => CompetitionFilters::get_seasons(),
+					'disciplines' => CompetitionFilters::get_disciplines(),
+					'types'       => CompetitionFilters::get_type_choices(),
+					'statuses'    => CompetitionFilters::get_status_choices(),
+				)
+			);
 		}
 
 		$output .= $this->render_table( $items );
@@ -94,49 +99,90 @@ class CompetitionsListShortcode {
 		return $output;
 	}
 
-	private function render_filters_form( array $filters ): string {
+	private function render_filters_form( array $filters, array $choices ): string {
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
 		if ( '' === $request_uri ) {
 			$request_uri = home_url( '/' );
 		}
 		$action = esc_url( remove_query_arg( array( 'ufsc_page' ), $request_uri ) );
+		$reset_url = esc_url(
+			remove_query_arg(
+				array( 'ufsc_page', 'ufsc_season', 'season', 'ufsc_discipline', 'discipline', 'ufsc_type', 'type', 'ufsc_status', 'status', 's' ),
+				$request_uri
+			)
+		);
+
+		$season = (string) ( $filters['season'] ?? '' );
+		$discipline = (string) ( $filters['discipline'] ?? '' );
+		$type = CompetitionFilters::normalize_type_key( (string) ( $filters['type'] ?? '' ) );
+		$status = (string) ( $filters['status'] ?? '' );
+		$search = (string) ( $filters['s'] ?? '' );
+
+		$season_options = $this->render_select_options(
+			$choices['seasons'] ?? array(),
+			$season,
+			esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' )
+		);
+		$discipline_options = $this->render_select_options(
+			$choices['disciplines'] ?? array(),
+			$discipline,
+			esc_html__( 'Toutes les disciplines', 'ufsc-licence-competition' )
+		);
+		$type_options = $this->render_select_options(
+			$choices['types'] ?? array(),
+			$type,
+			esc_html__( 'Tous les types', 'ufsc-licence-competition' )
+		);
+		$status_options = $this->render_select_options(
+			$choices['statuses'] ?? array(),
+			$status,
+			esc_html__( 'Tous les statuts', 'ufsc-licence-competition' )
+		);
 
 		return sprintf(
 			'<form class="ufsc-competitions-filters" method="get" action="%s">
 				<div class="ufsc-competitions-filters__row">
-					<label>
-						<span class="screen-reader-text">%s</span>
-						<input type="text" name="ufsc_season" value="%s" placeholder="%s" />
+					<label class="ufsc-competitions-filter">
+						<span>%s</span>
+						<select name="ufsc_season">%s</select>
 					</label>
-					<label>
-						<span class="screen-reader-text">%s</span>
-						<input type="text" name="ufsc_discipline" value="%s" placeholder="%s" />
+					<label class="ufsc-competitions-filter">
+						<span>%s</span>
+						<select name="ufsc_discipline">%s</select>
 					</label>
-					<label>
-						<span class="screen-reader-text">%s</span>
-						<input type="text" name="ufsc_type" value="%s" placeholder="%s" />
+					<label class="ufsc-competitions-filter">
+						<span>%s</span>
+						<select name="ufsc_type">%s</select>
 					</label>
-					<label>
-						<span class="screen-reader-text">%s</span>
+					<label class="ufsc-competitions-filter">
+						<span>%s</span>
+						<select name="ufsc_status">%s</select>
+					</label>
+					<label class="ufsc-competitions-filter ufsc-competitions-filter--search">
+						<span>%s</span>
 						<input type="search" name="s" value="%s" placeholder="%s" />
 					</label>
-					<button type="submit" class="button">%s</button>
+					<div class="ufsc-competitions-filter-actions">
+						<button type="submit" class="button button-primary">%s</button>
+						<a class="button button-secondary" href="%s">%s</a>
+					</div>
 				</div>
 			</form>',
 			$action,
 			esc_html__( 'Saison', 'ufsc-licence-competition' ),
-			esc_attr( $filters['season'] ?? '' ),
-			esc_attr__( 'Saison', 'ufsc-licence-competition' ),
+			$season_options,
 			esc_html__( 'Discipline', 'ufsc-licence-competition' ),
-			esc_attr( $filters['discipline'] ?? '' ),
-			esc_attr__( 'Discipline', 'ufsc-licence-competition' ),
+			$discipline_options,
 			esc_html__( 'Type', 'ufsc-licence-competition' ),
-			esc_attr( $filters['type'] ?? '' ),
-			esc_attr__( 'Type', 'ufsc-licence-competition' ),
+			$type_options,
+			esc_html__( 'Statut', 'ufsc-licence-competition' ),
+			$status_options,
 			esc_html__( 'Recherche', 'ufsc-licence-competition' ),
-			esc_attr( $filters['s'] ?? '' ),
+			esc_attr( $search ),
 			esc_attr__( 'Rechercher...', 'ufsc-licence-competition' ),
-			esc_html__( 'Filtrer', 'ufsc-licence-competition' )
+			esc_html__( 'Filtrer', 'ufsc-licence-competition' ),
+			$reset_url,
+			esc_html__( 'Réinitialiser', 'ufsc-licence-competition' )
 		);
 	}
 
@@ -179,13 +225,13 @@ class CompetitionsListShortcode {
 				esc_attr__( 'Nom', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->name ?? '' ) ) . $restricted_badge,
 				esc_attr__( 'Discipline', 'ufsc-licence-competition' ),
-				esc_html( (string) ( $item->discipline ?? '' ) ),
+				esc_html( CompetitionFilters::get_discipline_label( (string) ( $item->discipline ?? '' ) ) ),
 				esc_attr__( 'Type', 'ufsc-licence-competition' ),
-				esc_html( (string) ( $item->type ?? '' ) ),
+				esc_html( CompetitionFilters::get_type_label( (string) ( $item->type ?? '' ) ) ),
 				esc_attr__( 'Saison', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->season ?? '' ) ),
 				esc_attr__( 'Statut', 'ufsc-licence-competition' ),
-				esc_html( (string) ( $item->status ?? '' ) ),
+				esc_html( CompetitionFilters::get_status_label( (string) ( $item->status ?? '' ) ) ),
 				esc_attr__( 'Début', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->event_start_datetime ?? '' ) ),
 				esc_attr__( 'Voir', 'ufsc-licence-competition' ),
@@ -257,5 +303,36 @@ class CompetitionsListShortcode {
 			'<div class="notice notice-warning"><p>%s</p></div>',
 			esc_html( $message )
 		);
+	}
+
+	private function get_query_value( array $keys, string $default ): string {
+		foreach ( $keys as $key ) {
+			if ( isset( $_GET[ $key ] ) ) {
+				return sanitize_text_field( wp_unslash( $_GET[ $key ] ) );
+			}
+		}
+
+		return $default;
+	}
+
+	private function render_select_options( array $choices, string $selected, string $placeholder ): string {
+		$options = sprintf(
+			'<option value="">%s</option>',
+			esc_html( $placeholder )
+		);
+
+		foreach ( $choices as $value => $label ) {
+			if ( is_int( $value ) ) {
+				$value = $label;
+			}
+			$options .= sprintf(
+				'<option value="%s"%s>%s</option>',
+				esc_attr( (string) $value ),
+				selected( $selected, (string) $value, false ),
+				esc_html( (string) $label )
+			);
+		}
+
+		return $options;
 	}
 }
