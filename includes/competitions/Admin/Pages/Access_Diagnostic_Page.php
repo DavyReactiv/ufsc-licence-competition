@@ -18,22 +18,38 @@ class Access_Diagnostic_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		$competition_id = 0;
-		$club_id = 0;
-		$submitted = false;
+		$competition_id = isset( $_REQUEST['competition_id'] ) ? absint( wp_unslash( $_REQUEST['competition_id'] ) ) : 0;
+		$club_id = isset( $_REQUEST['club_id'] ) ? absint( wp_unslash( $_REQUEST['club_id'] ) ) : 0;
+		$submitted = isset( $_REQUEST['ufsc_access_diag_submit'] );
 		$errors = array();
+		$warnings = array();
 
-		if ( isset( $_POST['ufsc_access_diagnostic_submit'] ) ) {
-			check_admin_referer( 'ufsc_competitions_access_diagnostic' );
-			$submitted = true;
-			$competition_id = isset( $_POST['competition_id'] ) ? absint( wp_unslash( $_POST['competition_id'] ) ) : 0;
-			$club_id = isset( $_POST['club_id'] ) ? absint( wp_unslash( $_POST['club_id'] ) ) : 0;
+		if ( $submitted ) {
+			if ( ! wp_verify_nonce( isset( $_REQUEST['ufsc_access_diag_nonce'] ) ? wp_unslash( $_REQUEST['ufsc_access_diag_nonce'] ) : '', 'ufsc_access_diag' ) ) {
+				$errors[] = __( 'Nonce expiré. Merci de recharger la page.', 'ufsc-licence-competition' );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( '[UFSC][ACCESS_DIAG] nonce failed' );
+				}
+			}
+
+			$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_manage() : current_user_can( 'manage_options' );
+			if ( ! $can_manage ) {
+				$errors[] = __( 'Accès refusé.', 'ufsc-licence-competition' );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( '[UFSC][ACCESS_DIAG] capability check failed' );
+				}
+			}
 
 			if ( ! $competition_id ) {
-				$errors[] = __( 'Veuillez sélectionner une compétition.', 'ufsc-licence-competition' );
+				$warnings[] = __( 'Veuillez sélectionner une compétition.', 'ufsc-licence-competition' );
 			}
 			if ( ! $club_id ) {
-				$errors[] = __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' );
+				$warnings[] = __( 'Veuillez sélectionner un club.', 'ufsc-licence-competition' );
+			}
+
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( '[UFSC][ACCESS_DIAG] submit received' );
+				error_log( '[UFSC][ACCESS_DIAG] ids received competition_id=' . $competition_id . ' club_id=' . $club_id );
 			}
 		}
 
@@ -49,19 +65,24 @@ class Access_Diagnostic_Page {
 		$view_result = null;
 		$register_result = null;
 
-		if ( $submitted && empty( $errors ) ) {
+		if ( $submitted && empty( $errors ) && empty( $warnings ) ) {
 			if ( ! $selected_competition ) {
-				$errors[] = __( 'Compétition introuvable.', 'ufsc-licence-competition' );
+				$warnings[] = __( 'Compétition introuvable.', 'ufsc-licence-competition' );
 			}
 			if ( ! $selected_club ) {
-				$errors[] = __( 'Club introuvable.', 'ufsc-licence-competition' );
+				$warnings[] = __( 'Club introuvable.', 'ufsc-licence-competition' );
 			}
 
-			if ( empty( $errors ) ) {
+			if ( empty( $warnings ) ) {
 				$settings = $access->get_access_settings( $competition_id );
 				$user_id = (int) get_current_user_id();
 				$view_result = $access->can_view_competition_for_club( $competition_id, $club_id, $user_id );
 				$register_result = $access->can_register_for_club( $competition_id, $club_id, $user_id );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					$view_reason = $view_result ? (string) $view_result->reason_code : 'none';
+					$register_reason = $register_result ? (string) $register_result->reason_code : 'none';
+					error_log( '[UFSC][ACCESS_DIAG] result view=' . ( $view_result && $view_result->allowed ? '1' : '0' ) . ' register=' . ( $register_result && $register_result->allowed ? '1' : '0' ) . ' reason_view=' . $view_reason . ' reason_register=' . $register_reason );
+				}
 			}
 		}
 
@@ -74,10 +95,18 @@ class Access_Diagnostic_Page {
 			}
 		}
 
+		if ( $warnings ) {
+			foreach ( $warnings as $warning ) {
+				echo '<div class="notice notice-warning"><p>' . esc_html( $warning ) . '</p></div>';
+			}
+		}
+
 		$this->render_form( $competitions, $competition_id, $selected_club );
 
-		if ( $submitted && empty( $errors ) && $selected_competition && $selected_club ) {
+		if ( $submitted && empty( $errors ) && empty( $warnings ) && $selected_competition && $selected_club ) {
 			$this->render_results( $selected_competition, $selected_club, $settings, $view_result, $register_result, $club_repo, $access );
+		} elseif ( $submitted && empty( $errors ) && empty( $warnings ) ) {
+			echo '<div class="notice notice-warning"><p>' . esc_html__( 'Aucun résultat à afficher.', 'ufsc-licence-competition' ) . '</p></div>';
 		}
 
 		echo '</div>';
@@ -87,7 +116,7 @@ class Access_Diagnostic_Page {
 		$club_label = $selected_club ? ( new ClubRepository() )->get_region_label( $selected_club ) : '';
 
 		echo '<form method="post" class="ufsc-access-diagnostic-form">';
-		wp_nonce_field( 'ufsc_competitions_access_diagnostic' );
+		wp_nonce_field( 'ufsc_access_diag', 'ufsc_access_diag_nonce' );
 		echo '<table class="form-table" role="presentation"><tbody>';
 		echo '<tr><th scope="row"><label for="ufsc_access_competition">' . esc_html__( 'Compétition', 'ufsc-licence-competition' ) . '</label></th><td>';
 		echo '<select name="competition_id" id="ufsc_access_competition" class="regular-text">';
@@ -121,7 +150,7 @@ class Access_Diagnostic_Page {
 		echo '</td></tr>';
 		echo '</tbody></table>';
 
-		submit_button( __( 'Tester', 'ufsc-licence-competition' ), 'primary', 'ufsc_access_diagnostic_submit' );
+		submit_button( __( 'Tester', 'ufsc-licence-competition' ), 'primary', 'ufsc_access_diag_submit', false, array( 'value' => '1' ) );
 		echo '</form>';
 	}
 
