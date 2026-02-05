@@ -174,14 +174,25 @@ function ufsc_get_competitions_list_url(): string {
 }
 
 function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResult $result, string $list_url = '' ): string {
-	$message = __( 'Accès refusé.', 'ufsc-licence-competition' );
-	if ( class_exists( '\UFSC\Competitions\Access\CompetitionAccess' ) ) {
-		$access = new \UFSC\Competitions\Access\CompetitionAccess();
-		$message = $access->get_denied_message( $result );
-	}
+	$messages = array(
+		'not_logged_in' => __( 'Connexion requise pour accéder à cette compétition.', 'ufsc-licence-competition' ),
+		'not_club' => __( 'Aucun club associé à votre compte.', 'ufsc-licence-competition' ),
+		'club_not_resolved' => __( 'Impossible d’identifier votre club.', 'ufsc-licence-competition' ),
+		'not_affiliated' => __( 'Accès réservé aux clubs affiliés UFSC.', 'ufsc-licence-competition' ),
+		'club_region_missing' => __( 'Votre club n’a pas de région renseignée.', 'ufsc-licence-competition' ),
+		'club_not_allowed' => __( 'Votre club n’est pas autorisé pour cette compétition.', 'ufsc-licence-competition' ),
+		'region_mismatch' => __( 'Région non autorisée pour cette compétition.', 'ufsc-licence-competition' ),
+		'discipline_mismatch' => __( 'Discipline non autorisée pour cette compétition.', 'ufsc-licence-competition' ),
+		'registration_closed' => __( 'Les inscriptions sont fermées pour cette compétition.', 'ufsc-licence-competition' ),
+		'invalid_license' => __( 'Une licence valide est requise pour s’inscrire.', 'ufsc-licence-competition' ),
+		'not_allowed_by_rule' => __( 'Conditions d’accès non remplies.', 'ufsc-licence-competition' ),
+	);
+
+	$reason_code = $result->reason_code ? (string) $result->reason_code : '';
+	$message = $messages[ $reason_code ] ?? __( 'Accès refusé.', 'ufsc-licence-competition' );
 
 	$extra = '';
-	if ( 'not_allowed_by_rule' === $result->reason_code ) {
+	if ( 'not_allowed_by_rule' === $reason_code ) {
 		$extra = __( 'Contactez l’administration UFSC si vous pensez qu’il s’agit d’une erreur.', 'ufsc-licence-competition' );
 	}
 
@@ -196,12 +207,29 @@ function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResul
 		);
 	}
 
+	$contact_button = '';
+	if ( 'club_region_missing' === $reason_code ) {
+		$contact_button = sprintf(
+			'<a class="button" href="%s">%s</a>',
+			esc_url( 'mailto:secretariat@ufsc-france.org' ),
+			esc_html__( 'Contacter l’administration UFSC', 'ufsc-licence-competition' )
+		);
+	}
+
+	$buttons = array();
+	if ( $button ) {
+		$buttons[] = $button;
+	}
+	if ( $contact_button ) {
+		$buttons[] = $contact_button;
+	}
+
 	return sprintf(
 		'<div class="notice notice-warning ufsc-access-denied"><h3>%s</h3><p>%s</p>%s%s</div>',
 		esc_html__( 'Accès réservé', 'ufsc-licence-competition' ),
 		esc_html( $message ),
 		$extra ? '<p>' . esc_html( $extra ) . '</p>' : '',
-		$button ? '<p>' . $button . '</p>' : ''
+		$buttons ? '<p>' . implode( ' ', $buttons ) . '</p>' : ''
 	);
 }
 

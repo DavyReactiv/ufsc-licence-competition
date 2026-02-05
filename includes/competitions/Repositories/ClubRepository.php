@@ -153,15 +153,43 @@ class ClubRepository {
 		}
 
 		$out = array();
+		$duplicates = array();
 		foreach ( $rows as $row ) {
-			$region = trim( wp_strip_all_tags( (string) ( $row->region ?? '' ) ) );
+			$region_raw = trim( wp_strip_all_tags( (string) ( $row->region ?? '' ) ) );
+			if ( '' === $region_raw ) {
+				continue;
+			}
+
+			$region = function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $region_raw ) : strtoupper( $region_raw );
+			$region = trim( $region );
 			if ( '' === $region ) {
 				continue;
 			}
-			$out[] = $region;
+
+			if ( isset( $out[ $region ] ) ) {
+				if ( $out[ $region ] !== $region_raw ) {
+					$duplicates[ $region ] = true;
+				}
+				continue;
+			}
+
+			$out[ $region ] = $region;
 		}
 
-		return array_values( array_unique( $out ) );
+		if ( ! empty( $duplicates ) && defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) ) {
+			static $logged = false;
+			if ( ! $logged ) {
+				$logged = true;
+				error_log(
+					sprintf(
+						'UFSC Competitions: doublons détectés dans les régions (%d).',
+						count( $duplicates )
+					)
+				);
+			}
+		}
+
+		return array_values( $out );
 	}
 
 	/**

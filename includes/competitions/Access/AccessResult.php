@@ -16,17 +16,40 @@ class AccessResult {
 	/** @var array */
 	public $context;
 
-	public function __construct( bool $allowed, string $reason_code = '', array $context = array() ) {
+	/** @var bool */
+	public $can_view_details;
+
+	/** @var bool */
+	public $can_view_engaged_list;
+
+	/** @var bool */
+	public $can_register;
+
+	public function __construct( bool $allowed, string $reason_code = '', array $context = array(), array $capabilities = array() ) {
 		$this->allowed = $allowed;
 		$this->reason_code = $reason_code;
 		$this->context = $context;
+		$this->apply_capabilities( $capabilities );
 	}
 
-	public static function allow( array $context = array() ): self {
-		return new self( true, '', $context );
+	public static function allow( array $context = array(), array $capabilities = array() ): self {
+		return new self( true, '', $context, $capabilities );
 	}
 
-	public static function deny( string $reason_code, array $context = array() ): self {
-		return new self( false, $reason_code, $context );
+	public static function deny( string $reason_code, array $context = array(), array $capabilities = array() ): self {
+		return new self( false, $reason_code, $context, $capabilities );
+	}
+
+	private function apply_capabilities( array $capabilities ): void {
+		$defaults = array(
+			'can_view_details' => $this->allowed,
+			'can_view_engaged_list' => $this->allowed,
+			'can_register' => $this->allowed,
+		);
+
+		foreach ( $defaults as $key => $value ) {
+			$override = array_key_exists( $key, $capabilities ) ? (bool) $capabilities[ $key ] : $value;
+			$this->{$key} = $override;
+		}
 	}
 }

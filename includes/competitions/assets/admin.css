@@ -206,6 +206,14 @@
 .ufsc-competitions-admin .ufsc-badge--info { background: #cff4fc; color: #055160; }
 .ufsc-competitions-admin .ufsc-badge--muted { background: #f6f7f7; color: #50575e; }
 
+.ufsc-competition-photo-field img {
+	max-width: 240px;
+	height: auto;
+	display: block;
+	margin-bottom: 8px;
+	border-radius: 4px;
+}
+
 @media print {
 	#adminmenuwrap,
 	#adminmenuback,
