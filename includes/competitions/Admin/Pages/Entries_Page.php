@@ -153,8 +153,12 @@ class Entries_Page {
 		check_admin_referer( 'ufsc_competitions_save_entry' );
 
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
-		if ( $id && method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
-			$this->repository->assert_entry_in_scope( $id );
+		if ( $id ) {
+			if ( class_exists( 'UFSC_Scope' ) ) {
+				UFSC_Scope::enforce_object_scope( $id, 'entry' );
+			} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
+				$this->repository->assert_entry_in_scope( $id );
+			}
 		}
 		$data = array(
 			'competition_id' => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
@@ -177,7 +181,9 @@ class Entries_Page {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'error_required', $id );
 		}
 
-		if ( method_exists( $this->competition_repository, 'assert_competition_in_scope' ) ) {
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $data['competition_id'], 'competition' );
+		} elseif ( method_exists( $this->competition_repository, 'assert_competition_in_scope' ) ) {
 			$this->competition_repository->assert_competition_in_scope( (int) $data['competition_id'] );
 		}
 
@@ -533,7 +539,9 @@ class Entries_Page {
 			$this->redirect_with_notice( $page_slug, 'not_found' );
 		}
 
-		if ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( $id, 'entry' );
+		} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 			$this->repository->assert_entry_in_scope( $id );
 		}
 

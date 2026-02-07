@@ -20,7 +20,7 @@ class Settings_Page {
 	}
 
 	public function render() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -119,7 +119,7 @@ class Settings_Page {
 	}
 
 	public function handle_save() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -150,7 +150,7 @@ class Settings_Page {
 	}
 
 	public function handle_save_log_settings() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -169,7 +169,7 @@ class Settings_Page {
 	}
 
 	public function handle_load_presets() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

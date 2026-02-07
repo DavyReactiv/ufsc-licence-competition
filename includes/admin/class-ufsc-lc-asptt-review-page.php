@@ -80,7 +80,7 @@ class UFSC_LC_ASPTT_Review_Page {
 	}
 
 	public function handle_delete() {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_delete() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -96,6 +96,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		if ( ! $document || 'ASPTT' !== $document->source ) {
 			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
 		}
+		$this->enforce_document_scope( $document );
 
 		$this->delete_document_data( (int) $document->document_id, (int) $document->licence_id, $document->source );
 
@@ -123,8 +124,13 @@ class UFSC_LC_ASPTT_Review_Page {
 		if ( ! $document ) {
 			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
 		}
+		$this->enforce_document_scope( $document );
 		if ( $licence_id && (int) $document->licence_id !== $licence_id ) {
 			$this->redirect_with_notice( 'error', __( 'Licence invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( $club_id, 'club' );
 		}
 
 		$match = $this->find_matching_licence_id( $club_id, ufsc_lc_get_nom_affiche( $document ), $document->prenom, $document->date_naissance, $document->sexe );
@@ -156,6 +162,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		if ( ! $document || empty( $document->asptt_club_note ) ) {
 			$this->redirect_with_notice( 'warning', __( 'Aucun alias à enregistrer.', 'ufsc-licence-competition' ) );
 		}
+		$this->enforce_document_scope( $document );
 
 		$this->service->save_alias( (int) $document->club_id, $document->asptt_club_note );
 		$this->redirect_with_notice( 'success', __( 'Alias enregistré.', 'ufsc-licence-competition' ) );
@@ -178,6 +185,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		if ( ! $document ) {
 			$this->redirect_with_notice( 'error', __( 'Document introuvable.', 'ufsc-licence-competition' ) );
 		}
+		$this->enforce_document_scope( $document );
 
 		$message = '';
 
@@ -263,6 +271,7 @@ class UFSC_LC_ASPTT_Review_Page {
 				$failed++;
 				continue;
 			}
+			$this->enforce_document_scope( $document );
 
 			switch ( $action ) {
 				case 'approve':
@@ -443,7 +452,7 @@ class UFSC_LC_ASPTT_Review_Page {
 	}
 
 	public function ajax_search_clubs() {
-		if ( ! current_user_can( 'manage_options' ) && ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -529,21 +538,33 @@ class UFSC_LC_ASPTT_Review_Page {
 		$table      = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
-		$where = '';
+		$scope = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
+		$region_column = ( $scope && $this->column_exists( $table, 'region' ) ) ? 'region' : '';
+
+		$where_parts = array();
 		$params = array();
 		if ( '' !== $search ) {
 			$like = '%' . $wpdb->esc_like( $search ) . '%';
 			if ( $has_postal ) {
-				$where = 'WHERE nom LIKE %s OR code_postal LIKE %s';
+				$where_parts[] = '(nom LIKE %s OR code_postal LIKE %s)';
 				$params[] = $like;
 				$params[] = $like;
 			} else {
-				$where = 'WHERE nom LIKE %s';
+				$where_parts[] = 'nom LIKE %s';
 				$params[] = $like;
 			}
 		}
+		if ( $scope && '' !== $region_column ) {
+			$where_parts[] = "{$region_column} = %s";
+			$params[] = $scope;
+		}
 
-		$sql     = "SELECT {$select_fields} FROM {$table} {$where} ORDER BY nom ASC LIMIT 50";
+		$where_sql = '';
+		if ( ! empty( $where_parts ) ) {
+			$where_sql = 'WHERE ' . implode( ' AND ', $where_parts );
+		}
+
+		$sql     = "SELECT {$select_fields} FROM {$table} {$where_sql} ORDER BY nom ASC LIMIT 50";
 		$results = empty( $params ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
 
 		$data = array();
@@ -559,6 +580,10 @@ class UFSC_LC_ASPTT_Review_Page {
 
 	private function get_club_for_select_by_id( $club_id ) {
 		global $wpdb;
+
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $club_id, 'club' );
+		}
 
 		$table      = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
@@ -622,6 +647,20 @@ class UFSC_LC_ASPTT_Review_Page {
 			WHERE docs.id = %d";
 
 		return $wpdb->get_row( $wpdb->prepare( $sql, $document_id ) );
+	}
+
+	private function enforce_document_scope( $document ): void {
+		if ( ! $document || ! class_exists( 'UFSC_Scope' ) ) {
+			return;
+		}
+
+		if ( ! empty( $document->licence_id ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $document->licence_id, 'licence' );
+		}
+
+		if ( ! empty( $document->club_id ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $document->club_id, 'club' );
+		}
 	}
 
 	private function get_document_meta_value( $licence_id, $source, $meta_key ) {

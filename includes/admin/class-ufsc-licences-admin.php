@@ -44,14 +44,16 @@ class UFSC_LC_Licences_Admin {
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Licences', 'ufsc-licence-competition' ); ?></h1>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-export-form" style="display:inline-block; margin-left: 8px;">
-				<?php wp_nonce_field( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' ); ?>
-				<input type="hidden" name="action" value="ufsc_lc_export_csv">
-				<?php foreach ( $list_table->get_filter_query_args() as $key => $value ) : ?>
-					<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( $value ); ?>">
-				<?php endforeach; ?>
-				<?php submit_button( __( 'Exporter CSV (filtres actifs)', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
-			</form>
+			<?php if ( UFSC_LC_Capabilities::user_can_export() ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-export-form" style="display:inline-block; margin-left: 8px;">
+					<?php wp_nonce_field( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' ); ?>
+					<input type="hidden" name="action" value="ufsc_lc_export_csv">
+					<?php foreach ( $list_table->get_filter_query_args() as $key => $value ) : ?>
+						<input type="hidden" name="<?php echo esc_attr( $key ); ?>" value="<?php echo esc_attr( $value ); ?>">
+					<?php endforeach; ?>
+					<?php submit_button( __( 'Exporter CSV (filtres actifs)', 'ufsc-licence-competition' ), 'secondary', 'submit', false ); ?>
+				</form>
+			<?php endif; ?>
 			<hr class="wp-header-end">
 			<?php $list_table->views(); ?>
 			<form method="get">
@@ -139,6 +141,9 @@ class UFSC_LC_Licences_Admin {
 		}
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
 		$filters = $list_table->get_sanitized_filters();
+		if ( function_exists( 'ufsc_lc_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_lc_apply_scope_to_query_args( $filters );
+		}
 		$exporter = new UFSC_LC_Exporter();
 		$exporter->stream_licences_csv( $filters );
 	}
@@ -161,8 +166,12 @@ class UFSC_LC_Licences_Admin {
 			$this->redirect_to_list_page( 'error', 'asptt_invalid' );
 		}
 
-		$repository = new UFSC_LC_Licence_Repository();
-		$repository->assert_licence_in_scope( $licence_id );
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( $licence_id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( $licence_id );
+		}
 
 		if ( '' !== $asptt_number && strlen( $asptt_number ) > 40 ) {
 			$this->redirect_to_edit_page( $licence_id, 'error', 'asptt_too_long' );

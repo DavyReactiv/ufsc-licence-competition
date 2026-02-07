@@ -61,10 +61,6 @@ function ufsc_lc_assert_object_in_scope( $object_region ): void {
 }
 
 function ufsc_lc_apply_scope_to_query_args( array $args ): array {
-	if ( isset( $args['scope_region'] ) ) {
-		return $args;
-	}
-
 	$scope = ufsc_lc_get_user_scope_region();
 	if ( null === $scope || '' === $scope ) {
 		return $args;
@@ -73,4 +69,98 @@ function ufsc_lc_apply_scope_to_query_args( array $args ): array {
 	$args['scope_region'] = $scope;
 
 	return $args;
+}
+
+function ufsc_lc_apply_scope_to_sql( array &$where, array &$params, string $club_alias = 'c' ): void {
+	if ( ! class_exists( 'UFSC_LC_Licence_Repository' ) ) {
+		return;
+	}
+
+	$repository = new UFSC_LC_Licence_Repository();
+	$repository->apply_scope_filter( $where, $params, $club_alias );
+}
+
+if ( ! class_exists( 'UFSC_Scope' ) ) {
+	class UFSC_Scope {
+		public static function user_has_all_regions( int $user_id = 0 ): bool {
+			return ufsc_lc_user_has_all_regions( $user_id );
+		}
+
+		public static function get_user_scope_region( int $user_id = 0 ): ?string {
+			return ufsc_lc_get_user_scope_region( $user_id );
+		}
+
+		public static function apply_scope_to_args( array $args ): array {
+			return ufsc_lc_apply_scope_to_query_args( $args );
+		}
+
+		public static function apply_scope_to_sql( array &$where, array &$params, string $club_alias = 'c' ): void {
+			ufsc_lc_apply_scope_to_sql( $where, $params, $club_alias );
+		}
+
+		public static function enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {
+			$object_id = absint( $object_id );
+			if ( ! $object_id ) {
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
+
+			switch ( $object_type ) {
+				case 'club':
+					self::enforce_club_scope( $object_id );
+					break;
+				case 'entry':
+					self::enforce_entry_scope( $object_id );
+					break;
+				case 'competition':
+					self::enforce_competition_scope( $object_id );
+					break;
+				case 'licence':
+				default:
+					self::enforce_licence_scope( $object_id );
+					break;
+			}
+		}
+
+		public static function enforce_licence_scope( int $licence_id ): void {
+			if ( ! class_exists( 'UFSC_LC_Licence_Repository' ) ) {
+				return;
+			}
+
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( $licence_id );
+		}
+
+		public static function enforce_club_scope( int $club_id ): void {
+			if ( ! class_exists( 'UFSC_LC_Licence_Repository' ) ) {
+				return;
+			}
+
+			$repository = new UFSC_LC_Licence_Repository();
+			if ( method_exists( $repository, 'assert_club_in_scope' ) ) {
+				$repository->assert_club_in_scope( $club_id );
+				return;
+			}
+
+			$region = method_exists( $repository, 'get_club_region' ) ? $repository->get_club_region( $club_id ) : null;
+			ufsc_lc_assert_object_in_scope( $region );
+		}
+
+		public static function enforce_entry_scope( int $entry_id ): void {
+			if ( class_exists( '\UFSC\Competitions\Repositories\EntryRepository' ) ) {
+				$repo = new \UFSC\Competitions\Repositories\EntryRepository();
+				if ( method_exists( $repo, 'assert_entry_in_scope' ) ) {
+					$repo->assert_entry_in_scope( $entry_id );
+				}
+			}
+		}
+
+		public static function enforce_competition_scope( int $competition_id ): void {
+			if ( class_exists( '\UFSC\Competitions\Repositories\CompetitionRepository' ) ) {
+				$repo = new \UFSC\Competitions\Repositories\CompetitionRepository();
+				if ( method_exists( $repo, 'assert_competition_in_scope' ) ) {
+					$repo->assert_competition_in_scope( $competition_id );
+				}
+			}
+		}
+	}
 }

@@ -55,10 +55,6 @@ function ufsc_competitions_assert_object_in_scope( $object_region ): void {
 }
 
 function ufsc_competitions_apply_scope_to_query_args( array $args ): array {
-	if ( isset( $args['scope_region'] ) ) {
-		return $args;
-	}
-
 	$scope = ufsc_competitions_get_user_scope_region();
 	if ( null === $scope || '' === $scope ) {
 		return $args;
@@ -67,4 +63,8 @@ function ufsc_competitions_apply_scope_to_query_args( array $args ): array {
 	$args['scope_region'] = $scope;
 
 	return $args;
+}
+
+function ufsc_competitions_apply_scope_to_args( array $args ): array {
+	return ufsc_competitions_apply_scope_to_query_args( $args );
 }

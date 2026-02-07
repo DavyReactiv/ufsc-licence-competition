@@ -228,7 +228,7 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 				esc_html__( 'Restaurer', 'ufsc-licence-competition' )
 			);
 
-			if ( current_user_can( 'manage_options' ) ) {
+			if ( UFSC_LC_Capabilities::user_can_delete() ) {
 				$delete_url = add_query_arg(
 					array(
 						'action'       => 'ufsc_lc_asptt_delete',

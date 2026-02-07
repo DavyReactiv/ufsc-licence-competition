@@ -74,7 +74,7 @@ class UFSC_LC_Licence_Documents {
 		$hook_suffix = add_menu_page(
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::get_manage_capability(),
+			UFSC_LC_Capabilities::get_manage_read_capability(),
 			UFSC_LC_Plugin::PARENT_SLUG,
 			array( $this, 'render_admin_page' ),
 			'dashicons-media-document',
@@ -84,10 +84,11 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function render_admin_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_manage_read() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
+		$can_edit = UFSC_LC_Capabilities::user_can_edit();
 		$status = isset( $_GET['ufsc_status'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_status'] ) ) : '';
 		$message = isset( $_GET['ufsc_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_message'] ) ) : '';
 		$search  = $this->get_search_filters();
@@ -194,6 +195,10 @@ class UFSC_LC_Licence_Documents {
 				<?php submit_button( __( 'Rechercher les licences', 'ufsc-licence-competition' ), 'secondary' ); ?>
 			</form>
 
+			<?php if ( ! $can_edit ) : ?>
+				<div class="notice notice-info"><p><?php esc_html_e( 'Votre compte dispose d’un accès en lecture seule. L’association de PDF est réservée aux profils ayant les droits de modification.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
+
 			<?php if ( ! empty( $search_notice ) && isset( $search_notice['type'], $search_notice['message'] ) ) : ?>
 				<?php $class = 'notice notice-' . esc_attr( $search_notice['type'] ) . ' is-dismissible'; ?>
 				<div class="<?php echo esc_attr( $class ); ?>"><p><?php echo esc_html( $search_notice['message'] ); ?></p></div>
@@ -203,139 +208,200 @@ class UFSC_LC_Licence_Documents {
 				<?php if ( $search['search_without_club'] ) : ?>
 					<div class="notice notice-warning is-dismissible"><p><?php esc_html_e( 'Recherche élargie sans club : vérifiez attentivement la licence avant association.', 'ufsc-licence-competition' ); ?></p></div>
 				<?php endif; ?>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="ufsc-lc-document-associate">
-					<?php wp_nonce_field( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' ); ?>
-					<input type="hidden" name="action" value="ufsc_lc_upload_licence_pdf">
-					<?php if ( 1 === count( $search_results ) ) : ?>
-						<?php $item = $search_results[0]; ?>
-						<input type="hidden" name="matched_licence_id" value="<?php echo esc_attr( $item->id ); ?>">
-						<div class="ufsc-lc-card">
-							<h2><?php esc_html_e( 'Licence trouvée', 'ufsc-licence-competition' ); ?></h2>
-							<?php echo wp_kses_post( $this->render_licence_summary( $item, $search['season_label'] ) ); ?>
-							<?php
-							$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-								? ufsc_licence_get_pdf_attachment_id( (int) $item->id )
-								: null;
-							$current_pdf_url = $current_attachment_id ? wp_get_attachment_url( $current_attachment_id ) : '';
-							?>
-							<p class="description">
-								<?php if ( $current_attachment_id && $current_pdf_url ) : ?>
-									<?php echo esc_html__( 'PDF actuel :', 'ufsc-licence-competition' ) . ' '; ?>
-									<a href="<?php echo esc_url( $current_pdf_url ); ?>" target="_blank" rel="noopener noreferrer">
-										<?php esc_html_e( 'Voir le PDF', 'ufsc-licence-competition' ); ?>
-									</a>
-								<?php else : ?>
-									<?php esc_html_e( 'PDF actuel : non généré.', 'ufsc-licence-competition' ); ?>
-								<?php endif; ?>
-							</p>
-						</div>
-					<?php else : ?>
-						<h2><?php esc_html_e( 'Plusieurs licences correspondent', 'ufsc-licence-competition' ); ?></h2>
-						<table class="widefat striped ufsc-lc-results-table">
-							<thead>
-								<tr>
-									<th><?php esc_html_e( 'Sélection', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'N° licence', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
-									<th><?php echo esc_html( $search['season_label'] ); ?></th>
-									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( $search_results as $item ) : ?>
-									<?php
-									$nom_affiche = ufsc_lc_get_nom_affiche( $item );
-									$birthdate   = ufsc_lc_format_birthdate( $item->date_naissance ?? '' );
-									$category    = $item->categorie_affiche ?? ( $item->category_value ?? '' );
-									if ( '' === $category && '' !== $birthdate ) {
-										$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $item->season_value ?? '' );
-										if ( null === $season_end_year ) {
-											$season_end_year = $this->get_default_season_end_year();
-										}
-										$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
-										$category = isset( $computed['category'] ) ? (string) $computed['category'] : '';
-									} elseif ( '' === $birthdate ) {
-										$category = '';
-									}
-									?>
+				<?php if ( $can_edit ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="ufsc-lc-document-associate">
+						<?php wp_nonce_field( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' ); ?>
+						<input type="hidden" name="action" value="ufsc_lc_upload_licence_pdf">
+						<?php if ( 1 === count( $search_results ) ) : ?>
+							<?php $item = $search_results[0]; ?>
+							<input type="hidden" name="matched_licence_id" value="<?php echo esc_attr( $item->id ); ?>">
+							<div class="ufsc-lc-card">
+								<h2><?php esc_html_e( 'Licence trouvée', 'ufsc-licence-competition' ); ?></h2>
+								<?php echo wp_kses_post( $this->render_licence_summary( $item, $search['season_label'] ) ); ?>
+								<?php
+								$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
+									? ufsc_licence_get_pdf_attachment_id( (int) $item->id )
+									: null;
+								$current_pdf_url = $current_attachment_id ? wp_get_attachment_url( $current_attachment_id ) : '';
+								?>
+								<p class="description">
+									<?php if ( $current_attachment_id && $current_pdf_url ) : ?>
+										<?php echo esc_html__( 'PDF actuel :', 'ufsc-licence-competition' ) . ' '; ?>
+										<a href="<?php echo esc_url( $current_pdf_url ); ?>" target="_blank" rel="noopener noreferrer">
+											<?php esc_html_e( 'Voir le PDF', 'ufsc-licence-competition' ); ?>
+										</a>
+									<?php else : ?>
+										<?php esc_html_e( 'PDF actuel : non généré.', 'ufsc-licence-competition' ); ?>
+									<?php endif; ?>
+								</p>
+							</div>
+						<?php else : ?>
+							<h2><?php esc_html_e( 'Plusieurs licences correspondent', 'ufsc-licence-competition' ); ?></h2>
+							<table class="widefat striped ufsc-lc-results-table">
+								<thead>
 									<tr>
-										<td><input type="radio" name="matched_licence_id" value="<?php echo esc_attr( $item->id ); ?>" required></td>
-										<td><?php echo esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $item->prenom ? $item->prenom : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $item->season_value ? $item->season_value : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-										<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
+										<th><?php esc_html_e( 'Sélection', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'N° licence', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html( $search['season_label'] ); ?></th>
+										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
 									</tr>
-								<?php endforeach; ?>
-							</tbody>
+								</thead>
+								<tbody>
+									<?php foreach ( $search_results as $item ) : ?>
+										<?php
+										$nom_affiche = ufsc_lc_get_nom_affiche( $item );
+										$birthdate   = ufsc_lc_format_birthdate( $item->date_naissance ?? '' );
+										$category    = $item->categorie_affiche ?? ( $item->category_value ?? '' );
+										if ( '' === $category && '' !== $birthdate ) {
+											$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $item->season_value ?? '' );
+											if ( null === $season_end_year ) {
+												$season_end_year = $this->get_default_season_end_year();
+											}
+											$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
+											$category = isset( $computed['category'] ) ? (string) $computed['category'] : '';
+										} elseif ( '' === $birthdate ) {
+											$category = '';
+										}
+										?>
+										<tr>
+											<td><input type="radio" name="matched_licence_id" value="<?php echo esc_attr( $item->id ); ?>" required></td>
+											<td><?php echo esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->prenom ? $item->prenom : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->season_value ? $item->season_value : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php endif; ?>
+						<table class="form-table" role="presentation">
+							<tr>
+								<th scope="row"><label for="licence_pdf"><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></label></th>
+								<td><input name="licence_pdf" type="file" id="licence_pdf" accept="application/pdf" required></td>
+							</tr>
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Options', 'ufsc-licence-competition' ); ?></th>
+								<td>
+									<label for="ufsc_pdf_delete">
+										<input type="checkbox" name="ufsc_pdf_delete" id="ufsc_pdf_delete" value="1">
+										<?php esc_html_e( 'Supprimer le fichier du média après remplacement/détachement (irréversible).', 'ufsc-licence-competition' ); ?>
+									</label>
+								</td>
+							</tr>
 						</table>
-					<?php endif; ?>
-					<table class="form-table" role="presentation">
-						<tr>
-							<th scope="row"><label for="licence_pdf"><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="licence_pdf" type="file" id="licence_pdf" accept="application/pdf" required></td>
-						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Options', 'ufsc-licence-competition' ); ?></th>
-							<td>
-								<label for="ufsc_pdf_delete">
-									<input type="checkbox" name="ufsc_pdf_delete" id="ufsc_pdf_delete" value="1">
-									<?php esc_html_e( 'Supprimer le fichier du média après remplacement/détachement (irréversible).', 'ufsc-licence-competition' ); ?>
-								</label>
-							</td>
-						</tr>
-					</table>
-					<div class="ufsc-lc-form-actions">
-						<button type="submit" class="button button-primary" name="ufsc_pdf_action" value="attach">
-							<?php esc_html_e( 'Associer le PDF', 'ufsc-licence-competition' ); ?>
-						</button>
-						<button type="submit" class="button" name="ufsc_pdf_action" value="replace">
-							<?php esc_html_e( 'Remplacer le PDF', 'ufsc-licence-competition' ); ?>
-						</button>
-						<button type="submit" class="button button-secondary" name="ufsc_pdf_action" value="detach" formnovalidate>
-							<?php esc_html_e( 'Détacher le PDF', 'ufsc-licence-competition' ); ?>
-						</button>
+						<div class="ufsc-lc-form-actions">
+							<button type="submit" class="button button-primary" name="ufsc_pdf_action" value="attach">
+								<?php esc_html_e( 'Associer le PDF', 'ufsc-licence-competition' ); ?>
+							</button>
+							<button type="submit" class="button" name="ufsc_pdf_action" value="replace">
+								<?php esc_html_e( 'Remplacer le PDF', 'ufsc-licence-competition' ); ?>
+							</button>
+							<button type="submit" class="button button-secondary" name="ufsc_pdf_action" value="detach" formnovalidate>
+								<?php esc_html_e( 'Détacher le PDF', 'ufsc-licence-competition' ); ?>
+							</button>
+						</div>
+					</form>
+				<?php else : ?>
+					<div class="ufsc-lc-readonly-results">
+						<?php if ( 1 === count( $search_results ) ) : ?>
+							<?php $item = $search_results[0]; ?>
+							<div class="ufsc-lc-card">
+								<h2><?php esc_html_e( 'Licence trouvée', 'ufsc-licence-competition' ); ?></h2>
+								<?php echo wp_kses_post( $this->render_licence_summary( $item, $search['season_label'] ) ); ?>
+							</div>
+						<?php else : ?>
+							<h2><?php esc_html_e( 'Plusieurs licences correspondent', 'ufsc-licence-competition' ); ?></h2>
+							<table class="widefat striped ufsc-lc-results-table">
+								<thead>
+									<tr>
+										<th><?php esc_html_e( 'N° licence', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html( $search['season_label'] ); ?></th>
+										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $search_results as $item ) : ?>
+										<?php
+										$nom_affiche = ufsc_lc_get_nom_affiche( $item );
+										$birthdate   = ufsc_lc_format_birthdate( $item->date_naissance ?? '' );
+										$category    = $item->categorie_affiche ?? ( $item->category_value ?? '' );
+										if ( '' === $category && '' !== $birthdate ) {
+											$season_end_year = UFSC_LC_Categories::sanitize_season_end_year( $item->season_value ?? '' );
+											if ( null === $season_end_year ) {
+												$season_end_year = $this->get_default_season_end_year();
+											}
+											$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
+											$category = isset( $computed['category'] ) ? (string) $computed['category'] : '';
+										} elseif ( '' === $birthdate ) {
+											$category = '';
+										}
+										?>
+										<tr>
+											<td><?php echo esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->prenom ? $item->prenom : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->season_value ? $item->season_value : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php endif; ?>
 					</div>
-				</form>
+				<?php endif; ?>
 			<?php endif; ?>
 
-			<details class="ufsc-lc-advanced-mode">
-				<summary><?php esc_html_e( 'Mode avancé : association directe', 'ufsc-licence-competition' ); ?></summary>
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
-					<?php wp_nonce_field( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' ); ?>
-					<input type="hidden" name="action" value="ufsc_lc_upload_licence_pdf">
-					<table class="form-table" role="presentation">
-						<tr>
-							<th scope="row"><label for="licence_id"><?php esc_html_e( 'Licence ID', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="licence_id" type="number" id="licence_id" class="regular-text" min="1"></td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="numero_licence_delegataire"><?php esc_html_e( 'Numéro licence délégataire (optionnel)', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="numero_licence_delegataire" type="text" id="numero_licence_delegataire" class="regular-text"></td>
-						</tr>
-						<tr>
-							<th scope="row"><label for="licence_pdf_advanced"><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></label></th>
-							<td><input name="licence_pdf" type="file" id="licence_pdf_advanced" accept="application/pdf" required></td>
-						</tr>
-					</table>
-					<?php submit_button( __( 'Uploader et associer', 'ufsc-licence-competition' ) ); ?>
-				</form>
-			</details>
+			<?php if ( $can_edit ) : ?>
+				<details class="ufsc-lc-advanced-mode">
+					<summary><?php esc_html_e( 'Mode avancé : association directe', 'ufsc-licence-competition' ); ?></summary>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
+						<?php wp_nonce_field( 'ufsc_lc_upload_licence_pdf', 'ufsc_lc_upload_nonce' ); ?>
+						<input type="hidden" name="action" value="ufsc_lc_upload_licence_pdf">
+						<table class="form-table" role="presentation">
+							<tr>
+								<th scope="row"><label for="licence_id"><?php esc_html_e( 'Licence ID', 'ufsc-licence-competition' ); ?></label></th>
+								<td><input name="licence_id" type="number" id="licence_id" class="regular-text" min="1"></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="numero_licence_delegataire"><?php esc_html_e( 'Numéro licence délégataire (optionnel)', 'ufsc-licence-competition' ); ?></label></th>
+								<td><input name="numero_licence_delegataire" type="text" id="numero_licence_delegataire" class="regular-text"></td>
+							</tr>
+							<tr>
+								<th scope="row"><label for="licence_pdf_advanced"><?php esc_html_e( 'PDF nominatif', 'ufsc-licence-competition' ); ?></label></th>
+								<td><input name="licence_pdf" type="file" id="licence_pdf_advanced" accept="application/pdf" required></td>
+							</tr>
+						</table>
+						<?php submit_button( __( 'Uploader et associer', 'ufsc-licence-competition' ) ); ?>
+					</form>
+				</details>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
 
 	public function ajax_search_clubs() {
-		if ( ! current_user_can( 'manage_options' ) && ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
@@ -357,16 +423,28 @@ class UFSC_LC_Licence_Documents {
 		$like  = '%' . $wpdb->esc_like( $search ) . '%';
 		$limit = $is_empty ? 50 : 20;
 
-		if ( $is_empty ) {
-			$results = $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC LIMIT {$limit}" );
-		} else {
-			$results = $wpdb->get_results(
-				$wpdb->prepare(
-					"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT {$limit}",
-					$like
-				)
-			);
+		$scope = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
+		$repository = class_exists( 'UFSC_LC_Licence_Repository' ) ? new UFSC_LC_Licence_Repository() : null;
+		$region_column = $repository ? $repository->get_club_region_column() : '';
+
+		$where_parts = array();
+		$params = array();
+		if ( ! $is_empty ) {
+			$where_parts[] = 'nom LIKE %s';
+			$params[] = $like;
 		}
+		if ( $scope && '' !== $region_column ) {
+			$where_parts[] = "{$region_column} = %s";
+			$params[] = $scope;
+		}
+
+		$where_sql = '';
+		if ( ! empty( $where_parts ) ) {
+			$where_sql = 'WHERE ' . implode( ' AND ', $where_parts );
+		}
+
+		$sql = "SELECT id, nom FROM {$table} {$where_sql} ORDER BY nom ASC LIMIT {$limit}";
+		$results = empty( $params ) ? $wpdb->get_results( $sql ) : $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
 
 		if ( $wpdb->last_error ) {
 			UFSC_LC_Logger::log(
@@ -401,7 +479,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function handle_upload() {
-		if ( ! UFSC_LC_Capabilities::user_can_edit() && ! current_user_can( 'manage_options' ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -430,8 +508,12 @@ class UFSC_LC_Licence_Documents {
 			$this->redirect_with_message( 'error', __( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		$repository = new UFSC_LC_Licence_Repository();
-		$repository->assert_licence_in_scope( (int) $licence->id );
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( (int) $licence->id );
+		}
 
 		$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
 			? ufsc_licence_get_pdf_attachment_id( (int) $licence->id )
@@ -518,8 +600,12 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		$repository = new UFSC_LC_Licence_Repository();
-		$repository->assert_licence_in_scope( (int) $licence->id );
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( (int) $licence->id );
+		}
 
 		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
 			$club = $this->get_club_by_id( (int) $licence->club_id );
@@ -595,6 +681,10 @@ class UFSC_LC_Licence_Documents {
 
 		if ( ! $club_id ) {
 			return null;
+		}
+
+		if ( class_exists( 'UFSC_Scope' ) ) {
+			UFSC_Scope::enforce_object_scope( (int) $club_id, 'club' );
 		}
 
 		$table = $this->get_clubs_table();
