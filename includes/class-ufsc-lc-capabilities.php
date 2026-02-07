@@ -12,6 +12,7 @@ class UFSC_LC_Capabilities {
 	const DELETE_CAPABILITY = 'ufsc_licence_delete';
 	const SCOPE_ALL_REGIONS_CAPABILITY = 'ufsc_scope_all_regions';
 	const MANAGE_CAPABILITY = 'ufsc_lc_manage';
+	const MANAGE_READ_CAPABILITY = 'ufsc_manage_read';
 	const IMPORT_CAPABILITY = 'ufsc_lc_import';
 	const EXPORT_CAPABILITY = 'ufsc_lc_export';
 	const LEGACY_CAPABILITY = 'ufsc_manage_licences';
@@ -27,6 +28,7 @@ class UFSC_LC_Capabilities {
 			$role->add_cap( self::VALIDATE_CAPABILITY );
 			$role->add_cap( self::DELETE_CAPABILITY );
 			$role->add_cap( self::MANAGE_CAPABILITY );
+			$role->add_cap( self::MANAGE_READ_CAPABILITY );
 			$role->add_cap( self::IMPORT_CAPABILITY );
 			$role->add_cap( self::EXPORT_CAPABILITY );
 			$role->add_cap( self::COMPETITIONS_CAPABILITY );
@@ -50,6 +52,7 @@ class UFSC_LC_Capabilities {
 					self::EDIT_CAPABILITY => true,
 					self::EXPORT_CAPABILITY => true,
 					self::VALIDATE_CAPABILITY => true,
+					self::MANAGE_READ_CAPABILITY => true,
 					'ufsc_competition_read' => true,
 					'ufsc_competition_create' => true,
 					'ufsc_competition_edit' => true,
@@ -70,6 +73,7 @@ class UFSC_LC_Capabilities {
 			$role->remove_cap( self::VALIDATE_CAPABILITY );
 			$role->remove_cap( self::DELETE_CAPABILITY );
 			$role->remove_cap( self::MANAGE_CAPABILITY );
+			$role->remove_cap( self::MANAGE_READ_CAPABILITY );
 			$role->remove_cap( self::IMPORT_CAPABILITY );
 			$role->remove_cap( self::EXPORT_CAPABILITY );
 			$role->remove_cap( self::LEGACY_CAPABILITY );
@@ -126,7 +130,16 @@ class UFSC_LC_Capabilities {
 			return true;
 		}
 
-		return current_user_can( 'manage_options' );
+		return false;
+	}
+
+	public static function user_can_manage_read() {
+		$capability = self::get_manage_read_capability();
+		if ( $capability && current_user_can( $capability ) ) {
+			return true;
+		}
+
+		return self::user_can_manage();
 	}
 
 	public static function user_can_manage_competitions() {
@@ -170,7 +183,7 @@ class UFSC_LC_Capabilities {
 			return true;
 		}
 
-		return current_user_can( 'manage_options' );
+		return false;
 	}
 
 	public static function get_read_capability() {
@@ -191,6 +204,10 @@ class UFSC_LC_Capabilities {
 		}
 
 		return self::EDIT_CAPABILITY;
+	}
+
+	public static function get_manage_read_capability() {
+		return self::MANAGE_READ_CAPABILITY;
 	}
 
 	public static function get_import_capability() {

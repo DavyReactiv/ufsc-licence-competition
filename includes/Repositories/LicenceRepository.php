@@ -99,6 +99,33 @@ class UFSC_LC_Licence_Repository {
 		return '' !== $value ? $value : null;
 	}
 
+	public function get_club_region( int $club_id ): ?string {
+		global $wpdb;
+
+		$club_id = absint( $club_id );
+		if ( ! $club_id ) {
+			return null;
+		}
+
+		$clubs_table   = $this->get_clubs_table();
+		$region_column = $this->get_club_region_column();
+
+		if ( '' === $clubs_table || '' === $region_column ) {
+			return null;
+		}
+
+		$value = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT {$region_column} FROM {$clubs_table} WHERE id = %d",
+				$club_id
+			)
+		);
+
+		$value = is_string( $value ) ? sanitize_key( $value ) : '';
+
+		return '' !== $value ? $value : null;
+	}
+
 	public function assert_licence_in_scope( int $licence_id ): void {
 		$scope = ufsc_lc_get_user_scope_region();
 		if ( null === $scope || '' === $scope ) {
@@ -106,6 +133,18 @@ class UFSC_LC_Licence_Repository {
 		}
 
 		$region = $this->get_licence_region( $licence_id );
+		if ( null === $region || $region !== $scope ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+	}
+
+	public function assert_club_in_scope( int $club_id ): void {
+		$scope = ufsc_lc_get_user_scope_region();
+		if ( null === $scope || '' === $scope ) {
+			return;
+		}
+
+		$region = $this->get_club_region( $club_id );
 		if ( null === $region || $region !== $scope ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}

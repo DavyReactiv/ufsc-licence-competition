@@ -77,8 +77,7 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_pdf_download(): void {
-		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_export() : current_user_can( 'manage_options' );
-		if ( ! $can_manage ) {
+		if ( ! Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 

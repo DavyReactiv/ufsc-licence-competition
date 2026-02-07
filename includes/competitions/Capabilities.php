@@ -46,11 +46,11 @@ class Capabilities {
 			return \UFSC_LC_Capabilities::user_can_manage();
 		}
 
-		return current_user_can( self::EDIT_CAPABILITY ) || current_user_can( 'manage_options' );
+		return current_user_can( self::EDIT_CAPABILITY );
 	}
 
 	public static function user_can_delete() {
-		return current_user_can( self::DELETE_CAPABILITY ) || current_user_can( 'manage_options' );
+		return current_user_can( self::DELETE_CAPABILITY );
 	}
 
 	public static function get_read_capability(): string {

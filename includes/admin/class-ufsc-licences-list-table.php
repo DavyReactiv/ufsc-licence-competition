@@ -109,6 +109,10 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function get_bulk_actions() {
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
+			return array();
+		}
+
 		$actions = array(
 			'ufsc_lc_mark_review'            => __( 'Marquer à vérifier', 'ufsc-licence-competition' ),
 			'ufsc_lc_remove_pdf'             => __( 'Supprimer association PDF', 'ufsc-licence-competition' ),
