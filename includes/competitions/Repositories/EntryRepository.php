@@ -51,6 +51,28 @@ class EntryRepository {
 		return $rows[0] ?? null;
 	}
 
+	public function assert_entry_in_scope( int $entry_id ): void {
+		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
+			? ufsc_competitions_get_user_scope_region()
+			: '';
+		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
+		if ( '' === $scope_region ) {
+			return;
+		}
+
+		$filters = array(
+			'entry_id' => $entry_id,
+			'view' => 'all',
+			'scope_region' => $scope_region,
+			'include_deleted' => true,
+		);
+
+		$rows = $this->list_with_details( $filters, 1, 0 );
+		if ( empty( $rows ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+	}
+
 	public function get_by_competition_licensee( $competition_id, $licensee_id ) {
 		global $wpdb;
 
@@ -386,6 +408,20 @@ class EntryRepository {
 			$where[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
 		}
 
+		if ( ! empty( $filters['scope_region'] ) ) {
+			$scope_region = sanitize_key( (string) $filters['scope_region'] );
+			$clubs_table = $this->get_clubs_table();
+			$region_column = $this->get_club_region_column();
+			if ( '' !== $scope_region && $clubs_table && $region_column ) {
+				$where[] = $wpdb->prepare(
+					"club_id IN (SELECT id FROM {$clubs_table} WHERE {$region_column} = %s)",
+					$scope_region
+				);
+			} elseif ( '' !== $scope_region ) {
+				$where[] = '1=0';
+			}
+		}
+
 		return 'WHERE ' . implode( ' AND ', $where );
 	}
 
@@ -484,11 +520,15 @@ class EntryRepository {
 		$licence_columns = $licences_table ? Db::get_table_columns( $licences_table ) : array();
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );
 		$license_club_column = false;
+		$club_join_expr = "{$entries_alias}.club_id";
 
 		if ( $licences_table && $licence_columns ) {
 			$joins[] = "LEFT JOIN {$licences_table} l ON l.id = {$licensee_expr}";
 
 			$license_club_column = in_array( 'club_id', $licence_columns, true );
+			if ( $license_club_column ) {
+				$club_join_expr = "COALESCE({$entries_alias}.club_id, l.club_id)";
+			}
 
 			if ( ! $count ) {
 				$last_name_columns = array();
@@ -541,22 +581,32 @@ class EntryRepository {
 		}
 
 		$clubs_table = $this->get_clubs_table();
-		if ( $clubs_table && ! $count ) {
-			$club_join_expr = "{$entries_alias}.club_id";
-			if ( $licences_table && $licence_columns && $license_club_column ) {
-				$club_join_expr = "COALESCE({$entries_alias}.club_id, l.club_id)";
-			}
+		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$region_column = $this->get_club_region_column();
+		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region ) );
+
+		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
-			$select .= ', c.nom AS club_name';
-			$club_columns = Db::get_table_columns( $clubs_table );
-			if ( is_array( $club_columns ) ) {
-				if ( in_array( 'ville', $club_columns, true ) ) {
-					$select .= ', c.ville AS club_city';
-				} elseif ( in_array( 'city', $club_columns, true ) ) {
-					$select .= ', c.city AS club_city';
-				} else {
-					$select .= ', NULL AS club_city';
+			if ( ! $count ) {
+				$select .= ', c.nom AS club_name';
+				$club_columns = Db::get_table_columns( $clubs_table );
+				if ( is_array( $club_columns ) ) {
+					if ( in_array( 'ville', $club_columns, true ) ) {
+						$select .= ', c.ville AS club_city';
+					} elseif ( in_array( 'city', $club_columns, true ) ) {
+						$select .= ', c.city AS club_city';
+					} else {
+						$select .= ', NULL AS club_city';
+					}
 				}
+			}
+		}
+
+		if ( '' !== $scope_region ) {
+			if ( $region_column ) {
+				$where[] = $wpdb->prepare( "c.{$region_column} = %s", $scope_region );
+			} else {
+				$where[] = '1=0';
 			}
 		}
 
@@ -674,6 +724,15 @@ class EntryRepository {
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
 		return ( $exists === $table ) ? $table : '';
+	}
+
+	private function get_club_region_column(): string {
+		$clubs_table = $this->get_clubs_table();
+		if ( '' === $clubs_table ) {
+			return '';
+		}
+
+		return Db::has_table_column( $clubs_table, 'region' ) ? 'region' : '';
 	}
 
 	private function get_status_variants( string $status ): array {

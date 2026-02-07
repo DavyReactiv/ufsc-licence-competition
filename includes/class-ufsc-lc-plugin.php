@@ -6,6 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/ufsc-lc-helpers.php';
 require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
+require_once __DIR__ . '/Security/Scope.php';
 require_once __DIR__ . '/class-ufsc-lc-categories.php';
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
 require_once __DIR__ . '/class-ufsc-asptt-importer.php';
@@ -14,6 +15,7 @@ require_once __DIR__ . '/class-ufsc-licence-indexes.php';
 require_once __DIR__ . '/class-ufsc-lc-licence-migrations.php';
 require_once __DIR__ . '/class-ufsc-lc-logger.php';
 require_once __DIR__ . '/ea11y-fix.php';
+require_once __DIR__ . '/Repositories/LicenceRepository.php';
 require_once __DIR__ . '/export/class-ufsc-lc-exporter.php';
 require_once __DIR__ . '/import/class-ufsc-lc-asptt-importer.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-admin-assets.php';

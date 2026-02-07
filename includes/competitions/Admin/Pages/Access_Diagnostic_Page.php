@@ -166,7 +166,11 @@ class Access_Diagnostic_Page {
 		}
 
 		$competition_repo = new CompetitionReadRepository();
-		$competitions = $competition_repo->list( array( 'view' => 'all' ), 200, 0 );
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$competitions = $competition_repo->list( $competition_filters, 200, 0 );
 
 		$club_repo = new ClubRepository();
 		$selected_club = $result_payload['club'] ?? ( $club_id ? $club_repo->get( $club_id ) : null );

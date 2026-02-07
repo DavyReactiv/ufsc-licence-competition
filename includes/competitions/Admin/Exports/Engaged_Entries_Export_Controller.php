@@ -24,7 +24,7 @@ class Engaged_Entries_Export_Controller {
 	}
 
 	public function handle_export(): void {
-		if ( ! Capabilities::user_can_validate_entries() ) {
+		if ( ! Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -45,6 +45,9 @@ class Engaged_Entries_Export_Controller {
 		$competition      = $competition_repo->get( $competition_id, true );
 		if ( ! $competition ) {
 			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+		if ( method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
 		}
 
 		$entry_repo = new EntryFrontRepository();

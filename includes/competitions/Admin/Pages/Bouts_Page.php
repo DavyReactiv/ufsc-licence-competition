@@ -182,7 +182,11 @@ class Bouts_Page {
 			'scheduled_at'    => $this->format_datetime_local( $item->scheduled_at ?? '' ),
 		);
 
-		$competitions = $this->competitions->list( array( 'view' => 'all' ), 200, 0 );
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 		$categories = $this->categories->list( array( 'view' => 'all' ), 500, 0 );
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer le combat', 'ufsc-licence-competition' );
 		?>

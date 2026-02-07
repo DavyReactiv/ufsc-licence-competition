@@ -60,8 +60,7 @@ class Competitions_Page {
 	 * Standard public render() expected by admin menu callbacks.
 	 */
 	public function render() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_read() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -80,11 +79,18 @@ class Competitions_Page {
 		$this->render_notice( $notice );
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
+			if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
+
 			$item = null;
 
 			if ( 'edit' === $action ) {
 				if ( ! $id ) {
 					$this->redirect_notice( 'invalid' );
+				}
+				if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+					$this->repository->assert_competition_in_scope( $id );
 				}
 				$item = $this->repository->get( $id, true );
 				if ( ! $item ) {
@@ -708,8 +714,7 @@ class Competitions_Page {
 	 * Bulk actions: admin-post handler with nonce + capability.
 	 */
 	public function handle_bulk_actions() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -746,11 +751,17 @@ class Competitions_Page {
 		}
 
 		foreach ( $ids as $id ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			if ( 'trash' === $action && method_exists( $this->repository, 'trash' ) ) {
 				$this->repository->trash( $id );
 			} elseif ( 'restore' === $action && method_exists( $this->repository, 'restore' ) ) {
 				$this->repository->restore( $id );
 			} elseif ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
+				if ( ! \UFSC\Competitions\Capabilities::user_can_delete() ) {
+					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+				}
 				$this->repository->delete( $id );
 			} elseif ( 'archive' === $action && method_exists( $this->repository, 'archive' ) ) {
 				$this->repository->archive( $id );
@@ -775,8 +786,7 @@ class Competitions_Page {
 	 * AJAX: get club snapshot.
 	 */
 	public function ajax_get_club() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_send_json_error( 'forbidden', 403 );
 		}
 
@@ -796,6 +806,17 @@ class Competitions_Page {
 			wp_send_json_error( 'not_found', 404 );
 		}
 
+		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
+			? ufsc_competitions_get_user_scope_region()
+			: '';
+		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
+		if ( '' !== $scope_region ) {
+			$club_region = isset( $club->region ) ? sanitize_key( (string) $club->region ) : '';
+			if ( '' === $club_region || $club_region !== $scope_region ) {
+				wp_send_json_error( 'forbidden', 403 );
+			}
+		}
+
 		wp_send_json_success(
 			array(
 				'id'     => (int) ( $club->id ?? 0 ),
@@ -809,8 +830,11 @@ class Competitions_Page {
 	 * Handlers (admin-post)
 	 */
 	public function handle_save() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		$competition_id = isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0;
+		$can_save = $competition_id
+			? \UFSC\Competitions\Capabilities::user_can_edit()
+			: \UFSC\Competitions\Capabilities::user_can_create();
+		if ( ! $can_save ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -823,8 +847,12 @@ class Competitions_Page {
 		$raw_discipline = isset( $_POST['discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['discipline'] ) ) : '';
 		$raw_type = isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '';
 
+		if ( $competition_id && method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+			$this->repository->assert_competition_in_scope( $competition_id );
+		}
+
 		$data = array(
-			'id'                  => isset( $_POST['id'] ) ? absint( wp_unslash( $_POST['id'] ) ) : 0,
+			'id'                  => $competition_id,
 			'name'                => isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '',
 			'discipline'           => $this->normalize_discipline_value( $raw_discipline ),
 			'type'                => $this->normalize_type_value( $raw_type ),
@@ -843,6 +871,13 @@ class Competitions_Page {
 					$allowed_regions_keys[] = $key;
 				}
 			}
+		}
+		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
+			? ufsc_competitions_get_user_scope_region()
+			: '';
+		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
+		if ( '' !== $scope_region && ! empty( $allowed_regions_keys ) && ! in_array( $scope_region, $allowed_regions_keys, true ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$saved_id = $this->repository->save( $data );
@@ -889,8 +924,7 @@ class Competitions_Page {
 	}
 
 	public function handle_trash() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -898,6 +932,9 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_trash_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'trash' ) ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			$this->repository->trash( $id );
 		}
 
@@ -905,8 +942,7 @@ class Competitions_Page {
 	}
 
 	public function handle_restore() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -914,6 +950,9 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_restore_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'restore' ) ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			$this->repository->restore( $id );
 		}
 
@@ -931,8 +970,7 @@ class Competitions_Page {
 	}
 
 	public function handle_delete() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_delete() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -940,6 +978,9 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_delete_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'delete' ) ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			$this->repository->delete( $id );
 		}
 
@@ -989,8 +1030,7 @@ class Competitions_Page {
 	}
 
 	public function handle_archive() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -998,6 +1038,9 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_archive_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'archive' ) ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			$this->repository->archive( $id );
 		}
 
@@ -1015,8 +1058,7 @@ class Competitions_Page {
 	}
 
 	public function handle_unarchive() {
-		$cap = \UFSC_LC_Capabilities::get_manage_capability();
-		if ( ! current_user_can( $cap ) ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -1024,6 +1066,9 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_unarchive_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'unarchive' ) ) {
+			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
+				$this->repository->assert_competition_in_scope( $id );
+			}
 			$this->repository->unarchive( $id );
 		}
 

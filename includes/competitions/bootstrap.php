@@ -39,6 +39,7 @@ function load_competitions_core_dependencies(): void {
 	$core_files = array(
 		$base . '/Db.php',
 		$base . '/Capabilities.php',
+		$base . '/Security/Scope.php',
 		$base . '/Helpers/Logger.php',
 		$base . '/Access/AccessResult.php',
 		$base . '/Access/CompetitionAccess.php',

@@ -58,8 +58,16 @@ class Entries_Table extends \WP_List_Table {
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		}
+
 		$this->filters = $filters;
-		$this->competitions = $this->competition_repository->list( array( 'view' => 'all' ), 100, 0 );
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$this->competitions = $this->competition_repository->list( $competition_filters, 100, 0 );
 		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
 
 		if ( $filters['discipline'] && ! $filters['competition_id'] ) {

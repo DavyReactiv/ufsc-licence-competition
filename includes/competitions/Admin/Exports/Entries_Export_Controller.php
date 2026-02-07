@@ -20,7 +20,7 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_csv_export(): void {
-		if ( ! Capabilities::user_can_validate_entries() ) {
+		if ( ! Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -35,6 +35,9 @@ class Entries_Export_Controller {
 		$competition = $competition_repo->get( $competition_id, true );
 		if ( ! $competition ) {
 			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+		if ( method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
 		}
 
 		$filters = $this->get_requested_filters();
@@ -74,7 +77,7 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_pdf_download(): void {
-		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_validate_entries() : current_user_can( 'manage_options' );
+		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_export() : current_user_can( 'manage_options' );
 		if ( ! $can_manage ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -88,6 +91,9 @@ class Entries_Export_Controller {
 		$competition = $competition_repo->get( $competition_id, true );
 		if ( ! $competition ) {
 			$this->redirect_with_notice( 'not_found' );
+		}
+		if ( method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
 		}
 
 		$mode = isset( $_GET['mode'] ) ? sanitize_key( wp_unslash( $_GET['mode'] ) ) : 'plateau';
@@ -287,6 +293,10 @@ class Entries_Export_Controller {
 			$requested_filters['category']
 		);
 
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		}
+
 		$repository = new EntryRepository();
 		$entries = $repository->list_with_details( $filters, 2000, 0 );
 
@@ -390,7 +400,7 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_entries_pdf_export(): void {
-		if ( ! Capabilities::user_can_validate_entries() ) {
+		if ( ! Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -405,6 +415,9 @@ class Entries_Export_Controller {
 		$competition = $competition_repo->get( $competition_id, true );
 		if ( ! $competition ) {
 			wp_die( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
+		}
+		if ( method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
 		}
 
 		$filters = $this->get_requested_filters();
@@ -426,7 +439,7 @@ class Entries_Export_Controller {
 	}
 
 	public function handle_entries_export_download(): void {
-		if ( ! Capabilities::user_can_validate_entries() ) {
+		if ( ! Capabilities::user_can_export() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -439,6 +452,11 @@ class Entries_Export_Controller {
 		}
 
 		check_admin_referer( 'ufsc_competitions_download_entries_export_' . $export_id );
+
+		$competition_repo = new CompetitionRepository();
+		if ( method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
+		}
 
 		$history = $this->get_exports_history( $competition_id );
 		foreach ( $history as $export ) {

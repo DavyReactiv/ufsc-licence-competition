@@ -35,7 +35,11 @@ class Print_Page {
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		$type = isset( $_GET['print_type'] ) ? sanitize_key( wp_unslash( $_GET['print_type'] ) ) : 'entries';
 
-		$competitions = $this->competitions->list( array( 'view' => 'all' ), 200, 0 );
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -60,7 +64,12 @@ class Print_Page {
 			</form>
 
 			<?php if ( $competition_id ) : ?>
-				<?php $competition = $this->competitions->get( $competition_id, true ); ?>
+				<?php
+				if ( method_exists( $this->competitions, 'assert_competition_in_scope' ) ) {
+					$this->competitions->assert_competition_in_scope( $competition_id );
+				}
+				$competition = $this->competitions->get( $competition_id, true );
+				?>
 				<?php if ( $competition ) : ?>
 					<div class="ufsc-print-area">
 						<?php
@@ -84,7 +93,11 @@ class Print_Page {
 							}
 							echo '</tbody></table>';
 						} else {
-							$entries = $this->entries->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
+							$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
+							if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+								$entry_filters = ufsc_competitions_apply_scope_to_query_args( $entry_filters );
+							}
+							$entries = $this->entries->list( $entry_filters, 500, 0 );
 							$categories = $this->categories->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
 							$category_map = array();
 							foreach ( $categories as $category ) {
