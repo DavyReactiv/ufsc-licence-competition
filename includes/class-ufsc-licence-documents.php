@@ -401,7 +401,7 @@ class UFSC_LC_Licence_Documents {
 	}
 
 	public function handle_upload() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() && ! current_user_can( 'manage_options' ) ) {
+		if ( ! UFSC_LC_Capabilities::user_can_edit() && ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -429,6 +429,9 @@ class UFSC_LC_Licence_Documents {
 		if ( ! $licence ) {
 			$this->redirect_with_message( 'error', __( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
+
+		$repository = new UFSC_LC_Licence_Repository();
+		$repository->assert_licence_in_scope( (int) $licence->id );
 
 		$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
 			? ufsc_licence_get_pdf_attachment_id( (int) $licence->id )
@@ -515,7 +518,10 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		$repository = new UFSC_LC_Licence_Repository();
+		$repository->assert_licence_in_scope( (int) $licence->id );
+
+		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
 			$club = $this->get_club_by_id( (int) $licence->club_id );
 			if ( ! $club || (int) $club->responsable_id !== (int) get_current_user_id() ) {
 				UFSC_LC_Logger::log(
@@ -717,6 +723,9 @@ class UFSC_LC_Licence_Documents {
 		if ( empty( $where ) ) {
 			$where[] = '1=0';
 		}
+
+		$repository = new UFSC_LC_Licence_Repository();
+		$repository->apply_scope_filter( $where, $params, 'c' );
 
 		$category_column = $this->get_category_column();
 		$category_sql    = $category_column ? "l.{$category_column} AS category_value" : "'' AS category_value";

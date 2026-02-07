@@ -34,8 +34,15 @@ class Guide_Page {
 		}
 
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		if ( $competition_id && method_exists( $this->competitions, 'assert_competition_in_scope' ) ) {
+			$this->competitions->assert_competition_in_scope( $competition_id );
+		}
 		$competition = $competition_id ? $this->competitions->get( $competition_id, true ) : null;
-		$competitions = $this->competitions->list( array( 'view' => 'all' ), 200, 0 );
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 
 		$stats = $competition ? $this->get_competition_stats( $competition_id ) : array();
 		$preset_label = $competition ? $this->get_preset_label( $competition->discipline ) : '';
@@ -148,9 +155,14 @@ class Guide_Page {
 	}
 
 	private function get_competition_stats( $competition_id ) {
+		$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$entry_filters = ufsc_competitions_apply_scope_to_query_args( $entry_filters );
+		}
+
 		return array(
 			'categories' => $this->categories->count( array( 'view' => 'all', 'competition_id' => $competition_id ) ),
-			'entries'    => $this->entries->count( array( 'view' => 'all', 'competition_id' => $competition_id ) ),
+			'entries'    => $this->entries->count( $entry_filters ),
 			'fights'     => $this->fights->count( array( 'view' => 'all', 'competition_id' => $competition_id ) ),
 		);
 	}

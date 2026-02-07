@@ -26,6 +26,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_legacy_category_column = false;
 	private $has_nom = false;
 	private $has_nom_licence = false;
+	private $repository;
 
 	// ✅ Compatibility: dynamic season column (saison|season) + explicit season_end_year.
 	private $has_season_column = false;
@@ -48,6 +49,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				'ajax'     => false,
 			)
 		);
+
+		$this->repository = new UFSC_LC_Licence_Repository();
 
 		$this->has_created_at            = $this->has_column( $this->get_licences_table(), 'created_at' );
 		$this->has_licence_number        = $this->has_column( $this->get_licences_table(), 'numero_licence_delegataire' );
@@ -218,7 +221,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		$actions = array();
-		if ( UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( UFSC_LC_Capabilities::user_can_edit() ) {
 			$actions['edit_asptt'] = sprintf(
 				'<a href="%s">%s</a>',
 				esc_url( $this->get_edit_asptt_url( (int) $licence_id ) ),
@@ -726,6 +729,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			}
 		}
 
+		$this->repository->apply_scope_filter( $where, $params, 'c' );
+
 		$where_sql = '';
 		if ( ! empty( $where ) ) {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
@@ -953,6 +958,8 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			}
 		}
 
+		$this->repository->apply_scope_filter( $where, $params, 'c' );
+
 		$where_sql = '';
 		if ( ! empty( $where ) ) {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
@@ -1001,7 +1008,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -1011,6 +1018,12 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		if ( empty( $licence_ids ) ) {
 			return;
 		}
+
+		$scoped_ids = $this->repository->filter_licence_ids_in_scope( $licence_ids );
+		if ( count( $scoped_ids ) !== count( $licence_ids ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$licence_ids = $scoped_ids;
 
 		$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : '';
 		if ( ! wp_verify_nonce( $nonce, 'bulk-' . $this->_args['plural'] ) ) {

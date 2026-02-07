@@ -20,7 +20,7 @@ class UFSC_LC_Licences_Admin {
 			UFSC_LC_Plugin::PARENT_SLUG,
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::get_manage_capability(),
+			UFSC_LC_Capabilities::get_read_capability(),
 			'ufsc-lc-licences',
 			array( $this, 'render_page' )
 		);
@@ -29,7 +29,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function render_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -161,6 +161,9 @@ class UFSC_LC_Licences_Admin {
 			$this->redirect_to_list_page( 'error', 'asptt_invalid' );
 		}
 
+		$repository = new UFSC_LC_Licence_Repository();
+		$repository->assert_licence_in_scope( $licence_id );
+
 		if ( '' !== $asptt_number && strlen( $asptt_number ) > 40 ) {
 			$this->redirect_to_edit_page( $licence_id, 'error', 'asptt_too_long' );
 		}
@@ -210,6 +213,10 @@ class UFSC_LC_Licences_Admin {
 			<?php
 			return;
 		}
+
+		$repository = new UFSC_LC_Licence_Repository();
+		$repository->assert_licence_in_scope( $licence_id );
+
 		$licence = $this->get_licence_context( $licence_id );
 		$asptt_number = $this->get_licence_asptt_number( $licence_id );
 		$back_url = admin_url( 'admin.php?page=ufsc-lc-licences' );
@@ -243,7 +250,7 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	private function current_user_can_edit_asptt() {
-		return UFSC_LC_Capabilities::user_can_manage();
+		return UFSC_LC_Capabilities::user_can_edit();
 	}
 
 	private function get_licence_context( $licence_id ) {

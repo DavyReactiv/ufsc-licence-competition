@@ -62,19 +62,28 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$table  = Db::competitions_table();
-		$where  = $this->build_where( $filters ); // prepared fragment or empty
+		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$filters_no_scope = $filters;
+		unset( $filters_no_scope['scope_region'] );
+		$where  = $this->build_where( $filters_no_scope ); // prepared fragment or empty
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
 
-		$order_by = $this->build_order_by( $filters );
+		$order_by = $this->build_order_by( $filters_no_scope );
 
-		$sql = $wpdb->prepare(
-			"SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d",
-			$limit,
-			$offset
-		);
-
-		$rows = $wpdb->get_results( $sql );
+		if ( '' !== $scope_region ) {
+			$sql = "SELECT * FROM {$table} {$where} ORDER BY {$order_by}";
+			$rows = $wpdb->get_results( $sql );
+			$rows = $this->filter_competitions_by_scope( $rows, $scope_region );
+			$rows = array_slice( $rows, $offset, $limit );
+		} else {
+			$sql = $wpdb->prepare(
+				"SELECT * FROM {$table} {$where} ORDER BY {$order_by} LIMIT %d OFFSET %d",
+				$limit,
+				$offset
+			);
+			$rows = $wpdb->get_results( $sql );
+		}
 
 		$this->maybe_log_db_error( __METHOD__ . ':list' );
 
@@ -85,14 +94,111 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$table = Db::competitions_table();
-		$where = $this->build_where( $filters );
+		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$filters_no_scope = $filters;
+		unset( $filters_no_scope['scope_region'] );
+		$where = $this->build_where( $filters_no_scope );
 
-		$sql = "SELECT COUNT(1) FROM {$table} {$where}";
-		$val = $wpdb->get_var( $sql );
+		if ( '' !== $scope_region ) {
+			$sql = "SELECT * FROM {$table} {$where}";
+			$rows = $wpdb->get_results( $sql );
+			$rows = $this->filter_competitions_by_scope( $rows, $scope_region );
+			$val = is_array( $rows ) ? count( $rows ) : 0;
+		} else {
+			$sql = "SELECT COUNT(1) FROM {$table} {$where}";
+			$val = $wpdb->get_var( $sql );
+		}
 
 		$this->maybe_log_db_error( __METHOD__ . ':count' );
 
 		return (int) $val;
+	}
+
+	public function assert_competition_in_scope( int $competition_id ): void {
+		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
+			? ufsc_competitions_get_user_scope_region()
+			: '';
+		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
+		if ( '' === $scope_region ) {
+			return;
+		}
+
+		if ( ! $this->competition_matches_scope( $competition_id, $scope_region ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+	}
+
+	private function filter_competitions_by_scope( $rows, string $scope_region ): array {
+		if ( ! is_array( $rows ) || '' === $scope_region ) {
+			return is_array( $rows ) ? $rows : array();
+		}
+
+		$filtered = array();
+		foreach ( $rows as $row ) {
+			$competition_id = (int) ( $row->id ?? 0 );
+			if ( ! $competition_id ) {
+				continue;
+			}
+
+			if ( $this->competition_matches_scope( $competition_id, $scope_region ) ) {
+				$filtered[] = $row;
+			}
+		}
+
+		return $filtered;
+	}
+
+	private function competition_matches_scope( int $competition_id, string $scope_region ): bool {
+		if ( '' === $scope_region ) {
+			return true;
+		}
+
+		if ( ! class_exists( '\UFSC\Competitions\Services\CompetitionMeta' ) ) {
+			return true;
+		}
+
+		$meta = \UFSC\Competitions\Services\CompetitionMeta::get( $competition_id );
+		$allowed_keys = isset( $meta['allowed_regions_keys'] ) && is_array( $meta['allowed_regions_keys'] )
+			? $meta['allowed_regions_keys']
+			: array();
+		$allowed_labels = isset( $meta['allowed_regions'] ) && is_array( $meta['allowed_regions'] )
+			? $meta['allowed_regions']
+			: array();
+
+		if ( empty( $allowed_keys ) && empty( $allowed_labels ) ) {
+			return true;
+		}
+
+		$scope_key = $this->normalize_region_key( $scope_region );
+		foreach ( $allowed_keys as $key ) {
+			if ( $scope_key === $this->normalize_region_key( (string) $key ) ) {
+				return true;
+			}
+		}
+
+		foreach ( $allowed_labels as $label ) {
+			if ( $scope_key === $this->normalize_region_key( (string) $label ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function normalize_region_key( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+
+		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+			$normalized = ufsc_normalize_region_key( $value );
+			if ( is_string( $normalized ) && '' !== $normalized ) {
+				return $normalized;
+			}
+		}
+
+		return sanitize_key( $value );
 	}
 
 	/**

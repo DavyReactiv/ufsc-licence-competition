@@ -58,7 +58,15 @@ class Fights_Table extends \WP_List_Table {
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 		);
 
-		$this->competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		}
+
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$this->competitions = $this->competition_repository->list( $competition_filters, 200, 0 );
 		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
 
 		if ( $filters['discipline'] && ! $filters['competition_id'] ) {
