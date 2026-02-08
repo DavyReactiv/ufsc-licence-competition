@@ -27,7 +27,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( $this->legacy_enabled ) {
 			$this->register_shortcode( 'ufsc_club_licences_asptt' );
 			$this->register_shortcode( 'ufsc_licences' );
-			add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
+			if ( apply_filters( 'ufsc_lc_enable_legacy_admin_post', false ) ) {
+				add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
+			}
 		}
 	}
 
@@ -394,6 +396,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ) );
 		}
 
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
 		header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );

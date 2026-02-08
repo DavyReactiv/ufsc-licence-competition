@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Ensure the EA11y (pojo-accessibility) stats table exists to avoid SQL errors.
  */
+if ( ! function_exists( 'ufsc_lc_maybe_create_ea11y_table' ) ) {
 function ufsc_lc_maybe_create_ea11y_table(): void {
 	global $wpdb;
 
@@ -60,6 +61,7 @@ function ufsc_lc_maybe_create_ea11y_table(): void {
 	) {$charset_collate};";
 
 	dbDelta( $sql );
+}
 }
 
 add_action( 'init', 'ufsc_lc_maybe_create_ea11y_table', 5 );

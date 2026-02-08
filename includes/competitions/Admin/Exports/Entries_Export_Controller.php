@@ -179,6 +179,9 @@ class Entries_Export_Controller {
 		$filename = sprintf( 'plateau-competition-%d.pdf', $competition_id );
 		$filename = sanitize_file_name( $filename );
 
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
 		$this->prepare_export_headers();
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
@@ -516,6 +519,9 @@ class Entries_Export_Controller {
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
 		$this->prepare_export_headers();
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );

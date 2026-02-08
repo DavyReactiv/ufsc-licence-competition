@@ -171,13 +171,20 @@ class UFSC_LC_Plugin {
 		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
 		$importer->create_tables();
 
+		$allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', false );
 		$migrations = new UFSC_LC_Licence_Migrations();
-		$migrations->ensure_licence_columns();
-		$migrations->backfill_categories();
-		$migrations->backfill_nom_columns();
-
 		$indexes = new UFSC_LC_Licence_Indexes();
-		$indexes->ensure_indexes();
+
+		if ( $allow_master_alter ) {
+			$migrations->ensure_licence_columns();
+			$migrations->backfill_categories();
+			$migrations->backfill_nom_columns();
+			$indexes->ensure_indexes();
+		} else {
+			$missing_columns = method_exists( $migrations, 'get_missing_master_columns' ) ? $migrations->get_missing_master_columns() : array();
+			$missing_indexes = method_exists( $indexes, 'get_missing_master_indexes' ) ? $indexes->get_missing_master_indexes() : array();
+			$this->register_master_tables_notice( $missing_columns, $missing_indexes );
+		}
 
 		if ( class_exists( '\\UFSC\\Competitions\\Db' ) ) {
 			\UFSC\Competitions\Db::create_tables();
@@ -185,6 +192,43 @@ class UFSC_LC_Plugin {
 				\UFSC\Competitions\Db::maybe_upgrade();
 			}
 		}
+	}
+
+	private function register_master_tables_notice( array $missing_columns, array $missing_indexes ): void {
+		if ( ! is_admin() || ! UFSC_LC_Capabilities::user_can_manage() ) {
+			return;
+		}
+
+		if ( empty( $missing_columns ) && empty( $missing_indexes ) ) {
+			return;
+		}
+
+		add_action(
+			'admin_notices',
+			function() use ( $missing_columns, $missing_indexes ) {
+				$parts = array();
+				if ( $missing_columns ) {
+					$parts[] = sprintf(
+						/* translators: %s: columns list */
+						__( 'Colonnes manquantes dans ufsc_licences : %s.', 'ufsc-licence-competition' ),
+						implode( ', ', array_map( 'esc_html', $missing_columns ) )
+					);
+				}
+				if ( $missing_indexes ) {
+					$parts[] = sprintf(
+						/* translators: %s: indexes list */
+						__( 'Indexes manquants dans ufsc_licences : %s.', 'ufsc-licence-competition' ),
+						implode( ', ', array_map( 'esc_html', $missing_indexes ) )
+					);
+				}
+				$parts[] = __( 'Ces modifications doivent être gérées par le plugin maître (UFSC Gestion).', 'ufsc-licence-competition' );
+
+				printf(
+					'<div class="notice notice-warning"><p>%s</p></div>',
+					implode( ' ', array_map( 'wp_kses_post', $parts ) )
+				);
+			}
+		);
 	}
 
 	public function recreate_tables_and_indexes() {
