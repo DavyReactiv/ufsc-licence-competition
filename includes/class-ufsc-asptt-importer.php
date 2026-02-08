@@ -1546,6 +1546,9 @@ class UFSC_LC_ASPTT_Importer {
 				<li><?php echo esc_html( sprintf( __( 'Total lignes: %d', 'ufsc-licence-competition' ), isset( $stats['total'] ) ? (int) $stats['total'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Valides: %d', 'ufsc-licence-competition' ), isset( $stats['valid_rows'] ) ? (int) $stats['valid_rows'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Invalides: %d', 'ufsc-licence-competition' ), isset( $stats['invalid_rows'] ) ? (int) $stats['invalid_rows'] : 0 ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Ignorées: %d', 'ufsc-licence-competition' ), isset( $stats['ignored_rows'] ) ? (int) $stats['ignored_rows'] : 0 ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Clubs traités: %d', 'ufsc-licence-competition' ), isset( $stats['clubs_processed'] ) ? (int) $stats['clubs_processed'] : 0 ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Clubs ignorés: %d', 'ufsc-licence-competition' ), isset( $stats['clubs_skipped'] ) ? (int) $stats['clubs_skipped'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Créées: %d', 'ufsc-licence-competition' ), isset( $stats['licences_created'] ) ? (int) $stats['licences_created'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Mises à jour: %d', 'ufsc-licence-competition' ), isset( $stats['licences_updated'] ) ? (int) $stats['licences_updated'] : 0 ) ); ?></li>
 				<li><?php echo esc_html( sprintf( __( 'Ignorées: %d', 'ufsc-licence-competition' ), isset( $stats['licences_skipped'] ) ? (int) $stats['licences_skipped'] : 0 ) ); ?></li>
