@@ -971,6 +971,8 @@ if ( headers_sent() ) {
 				self::SOURCE
 			)
 		);
+
+		$this->bump_licence_caches( $licence_id );
 	}
 
 	private function sync_pdf_meta( $licence_id, $attachment_id ) {
@@ -1023,6 +1025,20 @@ if ( headers_sent() ) {
 			$data['imported_at'] = current_time( 'mysql' );
 			$wpdb->insert( $table, $data, $formats );
 		}
+
+		$this->bump_licence_caches( $licence_id );
+	}
+
+	private function bump_licence_caches( $licence_id ): void {
+		if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+			return;
+		}
+
+		$licence = $this->get_licence_record( (int) $licence_id, '' );
+		if ( $licence && isset( $licence->club_id ) ) {
+			ufsc_lc_bump_cache_version( 'club', (int) $licence->club_id );
+		}
+		ufsc_lc_bump_cache_version( 'status', 0 );
 	}
 
 	private function update_document_meta( $licence_id, $meta_key, $meta_value ) {

@@ -43,6 +43,15 @@ class UFSC_LC_Status_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
+		$screen_id = '';
+		if ( function_exists( 'get_current_screen' ) ) {
+			$screen = get_current_screen();
+			$screen_id = $screen ? (string) $screen->id : '';
+			if ( $screen && false === strpos( $screen->id, 'ufsc-lc-status' ) ) {
+				return;
+			}
+		}
+
 		global $wpdb;
 
 		$licences_table  = $wpdb->prefix . 'ufsc_licences';
@@ -51,41 +60,74 @@ class UFSC_LC_Status_Page {
 		$aliases_table   = $wpdb->prefix . 'ufsc_asptt_aliases';
 		$season_column   = $this->get_season_column( $licences_table );
 
-		$tables = array(
-			'licences'  => $this->table_exists( $licences_table ),
-			'clubs'     => $this->table_exists( $clubs_table ),
-			'documents' => $this->table_exists( $docs_table ),
-			'aliases'   => $this->table_exists( $aliases_table ),
-		);
-
-		$counts = array(
-			'licences'  => $tables['licences'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$licences_table}" ) : null,
-			'clubs'     => $tables['clubs'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clubs_table}" ) : null,
-			'documents' => $tables['documents'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$docs_table}" ) : null,
-		);
-
-		$last_import = null;
-		if ( $tables['documents'] ) {
-			if ( $this->has_column( $docs_table, 'imported_at' ) ) {
-				$last_import = $wpdb->get_var( "SELECT MAX(imported_at) FROM {$docs_table}" );
-			} else {
-				$last_import = $wpdb->get_var( "SELECT MAX(updated_at) FROM {$docs_table}" );
-			}
+		$cache_key = '';
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
+			$cache_key = ufsc_lc_build_cache_key(
+				'ufsc_lc_status',
+				array(
+					'version' => ufsc_lc_get_cache_version( 'status', 0 ),
+				)
+			);
 		}
 
-		$season_counts = array();
-		if ( $tables['licences'] && $season_column ) {
-			$results = $wpdb->get_results(
-				"SELECT {$season_column} AS saison, COUNT(*) AS total
-				FROM {$licences_table}
-				WHERE {$season_column} IS NOT NULL AND {$season_column} != ''
-				GROUP BY {$season_column}
-				ORDER BY {$season_column} DESC"
+		$cache_hit = false;
+		$cached = $cache_key ? get_transient( $cache_key ) : false;
+		if ( is_array( $cached ) ) {
+			$cache_hit    = true;
+			$tables        = $cached['tables'];
+			$counts        = $cached['counts'];
+			$last_import   = $cached['last_import'];
+			$season_counts = $cached['season_counts'];
+		} else {
+			$tables = array(
+				'licences'  => $this->table_exists( $licences_table ),
+				'clubs'     => $this->table_exists( $clubs_table ),
+				'documents' => $this->table_exists( $docs_table ),
+				'aliases'   => $this->table_exists( $aliases_table ),
 			);
-			foreach ( $results as $row ) {
-				$season_counts[] = array(
-					'saison' => (string) $row->saison,
-					'total'  => (int) $row->total,
+
+			$counts = array(
+				'licences'  => $tables['licences'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$licences_table}" ) : null,
+				'clubs'     => $tables['clubs'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clubs_table}" ) : null,
+				'documents' => $tables['documents'] ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$docs_table}" ) : null,
+			);
+
+			$last_import = null;
+			if ( $tables['documents'] ) {
+				if ( $this->has_column( $docs_table, 'imported_at' ) ) {
+					$last_import = $wpdb->get_var( "SELECT MAX(imported_at) FROM {$docs_table}" );
+				} else {
+					$last_import = $wpdb->get_var( "SELECT MAX(updated_at) FROM {$docs_table}" );
+				}
+			}
+
+			$season_counts = array();
+			if ( $tables['licences'] && $season_column ) {
+				$results = $wpdb->get_results(
+					"SELECT {$season_column} AS saison, COUNT(*) AS total
+					FROM {$licences_table}
+					WHERE {$season_column} IS NOT NULL AND {$season_column} != ''
+					GROUP BY {$season_column}
+					ORDER BY {$season_column} DESC"
+				);
+				foreach ( $results as $row ) {
+					$season_counts[] = array(
+						'saison' => (string) $row->saison,
+						'total'  => (int) $row->total,
+					);
+				}
+			}
+
+			if ( $cache_key ) {
+				set_transient(
+					$cache_key,
+					array(
+						'tables'        => $tables,
+						'counts'        => $counts,
+						'last_import'   => $last_import,
+						'season_counts' => $season_counts,
+					),
+					MINUTE_IN_SECONDS
 				);
 			}
 		}
@@ -189,6 +231,16 @@ class UFSC_LC_Status_Page {
 			</form>
 		</div>
 		<?php
+
+		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
+			ufsc_lc_log_query_count(
+				'admin: status page',
+				array(
+					'screen' => $screen_id,
+					'cache'  => $cache_hit ? 'hit' : 'miss',
+				)
+			);
+		}
 	}
 
 	public function handle_rebuild_indexes() {

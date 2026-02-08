@@ -205,6 +205,127 @@ if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_lc_get_cache_version' ) ) {
+	function ufsc_lc_get_cache_version( string $bucket, int $id = 0 ): string {
+		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$cached = wp_cache_get( $key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			return (string) $cached;
+		}
+
+		$version = get_option( $key, '' );
+		if ( '' === $version ) {
+			$version = (string) time();
+			add_option( $key, $version, '', false );
+		}
+
+		wp_cache_set( $key, $version, 'ufsc_licence_competition' );
+
+		return (string) $version;
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_build_cache_key' ) ) {
+	function ufsc_lc_build_cache_key( string $prefix, array $parts ): string {
+		$normalize = static function ( $value ) use ( &$normalize ) {
+			if ( is_array( $value ) ) {
+				$normalized = array();
+				foreach ( $value as $key => $item ) {
+					$normalized[ (string) $key ] = $normalize( $item );
+				}
+				ksort( $normalized );
+				return $normalized;
+			}
+
+			if ( is_bool( $value ) ) {
+				return $value ? 1 : 0;
+			}
+
+			if ( is_scalar( $value ) || null === $value ) {
+				return (string) $value;
+			}
+
+			return '';
+		};
+
+		$normalized = $normalize( $parts );
+		$payload    = wp_json_encode( $normalized );
+
+		return $prefix . '_' . md5( (string) $payload );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_get_scope_cache_key' ) ) {
+	function ufsc_lc_get_scope_cache_key(): string {
+		if ( function_exists( 'ufsc_lc_get_user_scope_region' ) ) {
+			$scope = ufsc_lc_get_user_scope_region();
+			if ( null !== $scope && '' !== $scope ) {
+				return (string) $scope;
+			}
+		}
+
+		return 'all';
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+	function ufsc_lc_bump_cache_version( string $bucket, int $id = 0 ): void {
+		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$version = (string) time();
+		update_option( $key, $version, false );
+		wp_cache_set( $key, $version, 'ufsc_licence_competition' );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_log_query_count' ) ) {
+	function ufsc_lc_log_query_count( string $context, array $data = array(), int $threshold_queries = 200, float $threshold_time = 1.5 ): void {
+		static $logged = array();
+
+		if ( ! defined( 'UFSC_LC_DEBUG_QUERIES' ) || ! UFSC_LC_DEBUG_QUERIES ) {
+			return;
+		}
+
+		if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
+			return;
+		}
+
+		$log_key_parts = array(
+			'context' => $context,
+			'screen'  => $data['screen'] ?? '',
+			'club_id' => $data['club_id'] ?? '',
+			'cache'   => $data['cache'] ?? '',
+		);
+		$log_key = ufsc_lc_build_cache_key( 'ufsc_lc_log', $log_key_parts );
+		if ( isset( $logged[ $log_key ] ) ) {
+			return;
+		}
+
+		global $wpdb;
+		if ( ! isset( $wpdb->num_queries ) ) {
+			return;
+		}
+
+		$num_queries = (int) $wpdb->num_queries;
+		$elapsed = function_exists( 'timer_stop' ) ? (float) timer_stop( 0 ) : 0.0;
+		if ( $num_queries < $threshold_queries && $elapsed < $threshold_time ) {
+			return;
+		}
+
+		$logged[ $log_key ] = true;
+		error_log(
+			sprintf(
+				'UFSC LC query count high (%d, %.3fs) on %s. screen=%s club_id=%s cache=%s',
+				$num_queries,
+				$elapsed,
+				$context,
+				(string) ( $data['screen'] ?? '' ),
+				(string) ( $data['club_id'] ?? '' ),
+				(string) ( $data['cache'] ?? '' )
+			)
+		);
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_get_competitions_list_url' ) ) {
 	function ufsc_lc_get_competitions_list_url(): string {
 		$url = (string) apply_filters( 'ufsc_competitions_front_list_url', '' );

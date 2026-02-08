@@ -582,6 +582,11 @@ class UFSC_LC_ASPTT_Import_Service {
 		$hash_storage = $hash_table_available ? 'table' : 'option';
 		$hash_notice  = $this->hash_table_notice;
 
+		if ( ! $dry_run && function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+			ufsc_lc_bump_cache_version( 'club_all', 0 );
+			ufsc_lc_bump_cache_version( 'status', 0 );
+		}
+
 		return array(
 			'inserted'          => $inserted,
 			'created_documents' => array_values( array_unique( $created_documents ) ),

@@ -10,6 +10,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private $legacy_enabled = false;
 	private $licence_columns = null;
 	private $documents_columns = null;
+	private $stats_cache_hit = null;
+	private $distinct_cache_hit = null;
 
 	public function __construct( $legacy_enabled = false ) {
 		$this->legacy_enabled = (bool) $legacy_enabled;
@@ -62,6 +64,23 @@ class UFSC_LC_Club_Licences_Shortcode {
 		wp_enqueue_style( 'dashicons' );
 
 		$filters = $this->get_filters();
+		$render_key = '';
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) ) {
+			$scope_key = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
+			$render_key = ufsc_lc_build_cache_key(
+				'ufsc_lc_shortcode_render',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'filters' => $this->get_filters_cache_parts( $filters ),
+				)
+			);
+		}
+
+		static $rendered = array();
+		if ( $render_key && isset( $rendered[ $render_key ] ) ) {
+			return $rendered[ $render_key ];
+		}
 
 		$stats   = $this->get_stats( $club_id, $filters );
 		$results = $this->get_licences( $club_id, $filters );
@@ -331,7 +350,31 @@ class UFSC_LC_Club_Licences_Shortcode {
 			})();
 		</script>
 		<?php
-		return ob_get_clean();
+		$html = ob_get_clean();
+		if ( $render_key ) {
+			$rendered[ $render_key ] = $html;
+		}
+
+		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
+			$cache_parts = array();
+			if ( null !== $this->stats_cache_hit ) {
+				$cache_parts[] = 'stats:' . ( $this->stats_cache_hit ? 'hit' : 'miss' );
+			}
+			if ( null !== $this->distinct_cache_hit ) {
+				$cache_parts[] = 'distinct:' . ( $this->distinct_cache_hit ? 'hit' : 'miss' );
+			}
+			$cache_status = $cache_parts ? implode( ',', $cache_parts ) : '';
+
+			ufsc_lc_log_query_count(
+				'shortcode: club licences',
+				array(
+					'club_id' => (int) $club_id,
+					'cache'   => $cache_status,
+				)
+			);
+		}
+
+		return $html;
 	}
 
 	public function handle_download() {
@@ -459,6 +502,20 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return $filters;
 	}
 
+	private function get_filters_cache_parts( array $filters ): array {
+		return array(
+			'q'           => $filters['q'] ?? '',
+			'statut'      => $filters['statut'] ?? '',
+			'categorie'   => $filters['categorie'] ?? '',
+			'competition' => $filters['competition'] ?? '',
+			'pdf'         => $filters['pdf'] ?? '',
+			'orderby'     => $filters['orderby'] ?? '',
+			'order'       => $filters['order'] ?? '',
+			'paged'       => $filters['paged'] ?? 1,
+			'per_page'    => $filters['per_page'] ?? 0,
+		);
+	}
+
 	private function get_stats( $club_id, $filters ) {
 		global $wpdb;
 
@@ -472,6 +529,38 @@ class UFSC_LC_Club_Licences_Shortcode {
 				'without_asptt' => 0,
 			);
 		}
+
+		$cache_key = '';
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
+			$global_version = ufsc_lc_get_cache_version( 'club_all', 0 );
+			$club_version   = ufsc_lc_get_cache_version( 'club', (int) $club_id );
+			$scope_key      = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
+			$cache_key      = ufsc_lc_build_cache_key(
+				'ufsc_lc_stats',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'version' => array(
+						'global' => $global_version,
+						'club'   => $club_version,
+					),
+					'filters' => array(
+						'q'           => $filters['q'] ?? '',
+						'statut'      => $filters['statut'] ?? '',
+						'categorie'   => $filters['categorie'] ?? '',
+						'competition' => $filters['competition'] ?? '',
+						'pdf'         => $filters['pdf'] ?? '',
+					),
+				)
+			);
+
+			$cached = get_transient( $cache_key );
+			if ( is_array( $cached ) ) {
+				$this->stats_cache_hit = true;
+				return $cached;
+			}
+		}
+		$this->stats_cache_hit = $cache_key ? false : null;
 
 		$documents_table = $this->get_documents_table();
 		$columns         = $this->get_licence_columns();
@@ -571,13 +660,19 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$with_pdf   = isset( $row['with_pdf'] ) ? (int) $row['with_pdf'] : 0;
 		$with_asptt = isset( $row['with_asptt'] ) ? (int) $row['with_asptt'] : 0;
 
-		return array(
+		$data = array(
 			'total'         => $total,
 			'with_pdf'      => $with_pdf,
 			'without_pdf'   => max( 0, $total - $with_pdf ),
 			'with_asptt'    => $with_asptt,
 			'without_asptt' => max( 0, $total - $with_asptt ),
 		);
+
+		if ( $cache_key ) {
+			set_transient( $cache_key, $data, MINUTE_IN_SECONDS );
+		}
+
+		return $data;
 	}
 
 	private function get_licences( $club_id, $filters ) {
@@ -947,58 +1042,115 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_distinct_values( $column, $club_id ) {
-		global $wpdb;
-
 		$allowed = array( 'statut', 'categorie', 'competition' );
 		if ( ! in_array( $column, $allowed, true ) ) {
 			return array();
 		}
 
+		$grouped = $this->get_distinct_values_grouped( $club_id );
+		return $grouped[ $column ] ?? array();
+	}
+
+	private function get_distinct_values_grouped( $club_id ): array {
+		static $memo = array();
+
+		$scope_key = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
+		$cache_key = '';
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
+			$global_version = ufsc_lc_get_cache_version( 'club_all', 0 );
+			$club_version   = ufsc_lc_get_cache_version( 'club', (int) $club_id );
+			$cache_key      = ufsc_lc_build_cache_key(
+				'ufsc_lc_distinct_grouped',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'version' => array(
+						'global' => $global_version,
+						'club'   => $club_version,
+					),
+				)
+			);
+		}
+
+		if ( $cache_key && isset( $memo[ $cache_key ] ) ) {
+			$this->distinct_cache_hit = true;
+			return $memo[ $cache_key ];
+		}
+
+		if ( $cache_key ) {
+			$cached = get_transient( $cache_key );
+			if ( is_array( $cached ) ) {
+				$this->distinct_cache_hit = true;
+				$memo[ $cache_key ] = $cached;
+				return $cached;
+			}
+		}
+
+		global $wpdb;
 		$table   = $this->get_licences_table();
 		$columns = $this->get_licence_columns();
 
-		if ( 'categorie' === $column ) {
-			$category_columns = $this->get_category_columns();
-			if ( empty( $category_columns ) ) {
-				return array();
-			}
+		$selects = array();
+		$params  = array();
 
-			if ( 1 === count( $category_columns ) ) {
-				$column = $category_columns[0];
-			} else {
-				$select = 'COALESCE(' . implode(
-					', ',
-					array_map(
-						static function ( $col ) {
-							return "NULLIF({$col}, '')";
-						},
-						$category_columns
-					)
-				) . ')';
-
-				$results = $wpdb->get_col(
-					$wpdb->prepare(
-						"SELECT DISTINCT category FROM (SELECT {$select} AS category FROM {$table} WHERE club_id = %d) t WHERE category IS NOT NULL AND category != '' ORDER BY category ASC",
-						$club_id
-					)
-				);
-
-				return array_filter( array_map( 'strval', $results ) );
-			}
+		if ( in_array( 'statut', $columns, true ) ) {
+			$selects[] = "SELECT 'statut' AS type, l.statut AS value FROM {$table} l WHERE l.club_id = %d AND l.statut IS NOT NULL AND l.statut != ''";
+			$params[]  = $club_id;
 		}
 
-		if ( ! $column || ! in_array( $column, $columns, true ) ) {
-			return array();
+		if ( in_array( 'competition', $columns, true ) ) {
+			$selects[] = "SELECT 'competition' AS type, l.competition AS value FROM {$table} l WHERE l.club_id = %d AND l.competition IS NOT NULL AND l.competition != ''";
+			$params[]  = $club_id;
 		}
 
-		$results = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT DISTINCT {$column} FROM {$table} WHERE club_id = %d AND {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC",
-				$club_id
-			)
+		$category_columns = $this->get_category_columns();
+		if ( ! empty( $category_columns ) ) {
+			$parts = array_map(
+				static function ( $column ) {
+					return "NULLIF(l.{$column}, '')";
+				},
+				$category_columns
+			);
+			$category_expr = 'COALESCE(' . implode( ', ', $parts ) . ')';
+			$selects[] = "SELECT 'categorie' AS type, {$category_expr} AS value FROM {$table} l WHERE l.club_id = %d AND {$category_expr} IS NOT NULL AND {$category_expr} != ''";
+			$params[]  = $club_id;
+		}
+
+		$grouped = array(
+			'statut'      => array(),
+			'categorie'   => array(),
+			'competition' => array(),
 		);
 
-		return array_filter( array_map( 'strval', $results ) );
+		if ( ! empty( $selects ) ) {
+			$sql     = implode( ' UNION ALL ', $selects );
+			$rows    = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+			$rows    = is_array( $rows ) ? $rows : array();
+			foreach ( $rows as $row ) {
+				$type  = isset( $row['type'] ) ? (string) $row['type'] : '';
+				$value = isset( $row['value'] ) ? trim( (string) $row['value'] ) : '';
+				if ( '' === $type || '' === $value || ! isset( $grouped[ $type ] ) ) {
+					continue;
+				}
+				$grouped[ $type ][] = $value;
+			}
+		}
+
+		foreach ( $grouped as $type => $values ) {
+			$values = array_values( array_unique( $values ) );
+			sort( $values, SORT_NATURAL | SORT_FLAG_CASE );
+			$grouped[ $type ] = $values;
+		}
+
+		if ( $cache_key ) {
+			set_transient( $cache_key, $grouped, 2 * MINUTE_IN_SECONDS );
+			$memo[ $cache_key ] = $grouped;
+			$this->distinct_cache_hit = false;
+		} else {
+			$this->distinct_cache_hit = null;
+		}
+
+		return $grouped;
 	}
 
 	private function get_category_columns() {
