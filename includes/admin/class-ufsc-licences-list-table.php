@@ -186,8 +186,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				if ( ! empty( $season_end_year ) ) {
 					return esc_html( $season_end_year );
 				}
-				if ( function_exists( 'ufsc_get_current_season_label' ) ) {
-					return esc_html( ufsc_get_current_season_label() );
+				if ( function_exists( 'ufsc_lc_get_current_season_label' ) ) {
+					return esc_html( ufsc_lc_get_current_season_label() );
 				}
 				return esc_html__( '—', 'ufsc-licence-competition' );
 

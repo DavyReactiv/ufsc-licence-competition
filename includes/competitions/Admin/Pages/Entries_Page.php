@@ -154,8 +154,8 @@ class Entries_Page {
 
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		if ( $id ) {
-			if ( class_exists( 'UFSC_Scope' ) ) {
-				UFSC_Scope::enforce_object_scope( $id, 'entry' );
+			if ( class_exists( 'UFSC_LC_Scope' ) ) {
+				UFSC_LC_Scope::enforce_object_scope( $id, 'entry' );
 			} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 				$this->repository->assert_entry_in_scope( $id );
 			}
@@ -181,8 +181,8 @@ class Entries_Page {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'error_required', $id );
 		}
 
-		if ( class_exists( 'UFSC_Scope' ) ) {
-			UFSC_Scope::enforce_object_scope( (int) $data['competition_id'], 'competition' );
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( (int) $data['competition_id'], 'competition' );
 		} elseif ( method_exists( $this->competition_repository, 'assert_competition_in_scope' ) ) {
 			$this->competition_repository->assert_competition_in_scope( (int) $data['competition_id'] );
 		}
@@ -296,8 +296,8 @@ class Entries_Page {
 			$params[] = $normalized_birthdate;
 		}
 
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 		if ( '' !== $scope_region ) {
@@ -390,8 +390,8 @@ class Entries_Page {
 		$sex_select     = $sex_column ? "l.{$sex_column} AS sex," : "'' AS sex,";
 		$weight_select  = $weight_column ? "l.{$weight_column} AS weight_kg," : "NULL AS weight_kg,";
 
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 
@@ -539,8 +539,8 @@ class Entries_Page {
 			$this->redirect_with_notice( $page_slug, 'not_found' );
 		}
 
-		if ( class_exists( 'UFSC_Scope' ) ) {
-			UFSC_Scope::enforce_object_scope( $id, 'entry' );
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( $id, 'entry' );
 		} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 			$this->repository->assert_entry_in_scope( $id );
 		}
@@ -577,8 +577,8 @@ class Entries_Page {
 		);
 
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $this->competition_repository->list( $competition_filters, 200, 0 );
 		$categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );

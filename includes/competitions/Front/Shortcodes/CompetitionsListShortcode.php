@@ -44,7 +44,7 @@ class CompetitionsListShortcode {
 
 		if ( (int) $atts['require_club'] === 1 ) {
 			$user_id = (int) get_current_user_id();
-			$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+			$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 			if ( ! $club_id ) {
 				return $this->render_notice( esc_html__( 'Accès réservé aux clubs affiliés.', 'ufsc-licence-competition' ) );
 			}
@@ -196,7 +196,7 @@ class CompetitionsListShortcode {
 
 		$access = new CompetitionAccess();
 		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
-		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 
 		$rows = '';
 		foreach ( $items as $item ) {

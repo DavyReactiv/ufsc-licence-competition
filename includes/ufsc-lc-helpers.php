@@ -96,8 +96,8 @@ function ufsc_lc_normalize_search( $value ) {
 }
 }
 
-if ( ! function_exists( 'ufsc_normalize_token' ) ) {
-function ufsc_normalize_token( $value ): string {
+if ( ! function_exists( 'ufsc_lc_normalize_token' ) ) {
+function ufsc_lc_normalize_token( $value ): string {
 	$value = trim( (string) $value );
 	if ( '' === $value ) {
 		return '';
@@ -118,9 +118,9 @@ function ufsc_normalize_token( $value ): string {
 }
 }
 
-if ( ! function_exists( 'ufsc_normalize_region' ) ) {
-function ufsc_normalize_region( $value ): string {
-	$normalized = ufsc_normalize_token( $value );
+if ( ! function_exists( 'ufsc_lc_normalize_region' ) ) {
+function ufsc_lc_normalize_region( $value ): string {
+	$normalized = ufsc_lc_normalize_token( $value );
 	if ( '' === $normalized ) {
 		return '';
 	}
@@ -136,8 +136,8 @@ function ufsc_normalize_region( $value ): string {
 }
 }
 
-if ( ! function_exists( 'ufsc_normalize_region_key' ) ) {
-function ufsc_normalize_region_key( $label ): string {
+if ( ! function_exists( 'ufsc_lc_normalize_region_key' ) ) {
+function ufsc_lc_normalize_region_key( $label ): string {
 	$value = trim( (string) $label );
 	if ( '' === $value ) {
 		return '';
@@ -162,14 +162,14 @@ function ufsc_normalize_region_key( $label ): string {
 }
 }
 
-if ( ! function_exists( 'ufsc_normalize_discipline' ) ) {
-function ufsc_normalize_discipline( $value ): string {
-	return ufsc_normalize_token( $value );
+if ( ! function_exists( 'ufsc_lc_normalize_discipline' ) ) {
+function ufsc_lc_normalize_discipline( $value ): string {
+	return ufsc_lc_normalize_token( $value );
 }
 }
 
-if ( ! function_exists( 'ufsc_extract_club_disciplines' ) ) {
-function ufsc_extract_club_disciplines( $club ): array {
+if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
+function ufsc_lc_extract_club_disciplines( $club ): array {
 	if ( ! is_object( $club ) ) {
 		return array();
 	}
@@ -191,7 +191,7 @@ function ufsc_extract_club_disciplines( $club ): array {
 
 	$disciplines = array();
 	foreach ( $parts as $part ) {
-		$normalized = ufsc_normalize_discipline( $part );
+		$normalized = ufsc_lc_normalize_discipline( $part );
 		if ( '' !== $normalized ) {
 			$disciplines[] = $normalized;
 		}
@@ -201,8 +201,8 @@ function ufsc_extract_club_disciplines( $club ): array {
 }
 }
 
-if ( ! function_exists( 'ufsc_get_competitions_list_url' ) ) {
-function ufsc_get_competitions_list_url(): string {
+if ( ! function_exists( 'ufsc_lc_get_competitions_list_url' ) ) {
+function ufsc_lc_get_competitions_list_url(): string {
 	$url = (string) apply_filters( 'ufsc_competitions_front_list_url', '' );
 	if ( '' !== $url ) {
 		return $url;
@@ -217,8 +217,8 @@ function ufsc_get_competitions_list_url(): string {
 }
 }
 
-if ( ! function_exists( 'ufsc_render_access_denied_notice' ) ) {
-function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResult $result, string $list_url = '' ): string {
+if ( ! function_exists( 'ufsc_lc_render_access_denied_notice' ) ) {
+function ufsc_lc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResult $result, string $list_url = '' ): string {
 	$messages = array(
 		'not_logged_in' => __( 'Connexion requise pour accéder à cette compétition.', 'ufsc-licence-competition' ),
 		'not_club' => __( 'Aucun club associé à votre compte.', 'ufsc-licence-competition' ),
@@ -242,7 +242,7 @@ function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResul
 		$extra = __( 'Contactez l’administration UFSC si vous pensez qu’il s’agit d’une erreur.', 'ufsc-licence-competition' );
 	}
 
-	$list_url = $list_url ? $list_url : ufsc_get_competitions_list_url();
+	$list_url = $list_url ? $list_url : ufsc_lc_get_competitions_list_url();
 
 	$button = '';
 	if ( $list_url ) {
@@ -293,8 +293,12 @@ function ufsc_lc_table_exists( $table_name ) {
 }
 }
 
-if ( ! function_exists( 'ufsc_get_current_season_end_year' ) ) {
-function ufsc_get_current_season_end_year() {
+if ( ! function_exists( 'ufsc_lc_get_current_season_end_year' ) ) {
+function ufsc_lc_get_current_season_end_year() {
+	if ( function_exists( 'ufsc_get_current_season_end_year' ) ) {
+		return ufsc_get_current_season_end_year();
+	}
+
 	$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
 	$now      = new DateTimeImmutable( 'now', $timezone );
 	$year     = (int) $now->format( 'Y' );
@@ -307,17 +311,21 @@ function ufsc_get_current_season_end_year() {
 }
 }
 
-if ( ! function_exists( 'ufsc_get_current_season_label' ) ) {
-function ufsc_get_current_season_label() {
-	$end_year = ufsc_get_current_season_end_year();
+if ( ! function_exists( 'ufsc_lc_get_current_season_label' ) ) {
+function ufsc_lc_get_current_season_label() {
+	if ( function_exists( 'ufsc_get_current_season_label' ) ) {
+		return ufsc_get_current_season_label();
+	}
+
+	$end_year = ufsc_lc_get_current_season_end_year();
 	$start_year = $end_year - 1;
 
 	return sprintf( '%d-%d', $start_year, $end_year );
 }
 }
 
-if ( ! function_exists( 'ufsc_licence_get_pdf_attachment_id' ) ) {
-function ufsc_licence_get_pdf_attachment_id( $licence_id ) {
+if ( ! function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
+function ufsc_lc_licence_get_pdf_attachment_id( $licence_id ) {
 	$licence_id = absint( $licence_id );
 	if ( ! $licence_id ) {
 		return null;
@@ -393,9 +401,9 @@ function ufsc_licence_get_pdf_attachment_id( $licence_id ) {
 }
 }
 
-if ( ! function_exists( 'ufsc_licence_get_pdf_url' ) ) {
-function ufsc_licence_get_pdf_url( $licence_id ) {
-	$attachment_id = ufsc_licence_get_pdf_attachment_id( $licence_id );
+if ( ! function_exists( 'ufsc_lc_licence_get_pdf_url' ) ) {
+function ufsc_lc_licence_get_pdf_url( $licence_id ) {
+	$attachment_id = ufsc_lc_licence_get_pdf_attachment_id( $licence_id );
 	if ( ! $attachment_id ) {
 		return null;
 	}
@@ -405,8 +413,8 @@ function ufsc_licence_get_pdf_url( $licence_id ) {
 }
 }
 
-if ( ! function_exists( 'ufsc_licence_has_pdf' ) ) {
-function ufsc_licence_has_pdf( $licence_id ) {
-	return null !== ufsc_licence_get_pdf_attachment_id( $licence_id );
+if ( ! function_exists( 'ufsc_lc_licence_has_pdf' ) ) {
+function ufsc_lc_licence_has_pdf( $licence_id ) {
+	return null !== ufsc_lc_licence_get_pdf_attachment_id( $licence_id );
 }
 }

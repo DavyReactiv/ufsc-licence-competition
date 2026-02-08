@@ -46,12 +46,12 @@ class CompetitionDetailsShortcode {
 
 		$access = new CompetitionAccess();
 		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
-		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 		$view_result = $access->can_view_competition( (int) $competition->id, $club_id, $user_id );
 
 		if ( ! $view_result->can_view_details ) {
-			if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
-				return (string) ufsc_render_access_denied_notice( $view_result );
+			if ( function_exists( 'ufsc_lc_render_access_denied_notice' ) ) {
+				return (string) ufsc_lc_render_access_denied_notice( $view_result );
 			}
 			return $this->render_notice( $access->get_denied_message( $view_result ) );
 		}
@@ -235,7 +235,7 @@ class CompetitionDetailsShortcode {
 	private function render_restricted_notice( $access_result ): string {
 		$message = __( 'Inscriptions non disponibles pour votre club.', 'ufsc-licence-competition' );
 		$reason_message = '';
-		$list_url = function_exists( 'ufsc_get_competitions_list_url' ) ? ufsc_get_competitions_list_url() : '';
+		$list_url = function_exists( 'ufsc_lc_get_competitions_list_url' ) ? ufsc_lc_get_competitions_list_url() : '';
 
 		$buttons = array();
 		if ( $list_url ) {

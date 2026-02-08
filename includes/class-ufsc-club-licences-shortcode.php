@@ -259,8 +259,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
 							$pdf_attachment_id = ! empty( $item->attachment_id ) ? (int) $item->attachment_id : 0;
-							if ( ! $pdf_attachment_id && function_exists( 'ufsc_licence_get_pdf_attachment_id' ) ) {
-								$pdf_attachment_id = (int) ufsc_licence_get_pdf_attachment_id( $item->id );
+							if ( ! $pdf_attachment_id && function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
+								$pdf_attachment_id = (int) ufsc_lc_licence_get_pdf_attachment_id( $item->id );
 							}
 							?>
 							<tr>
@@ -384,8 +384,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 
-		$attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-			? ufsc_licence_get_pdf_attachment_id( $licence_id )
+		$attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
+			? ufsc_lc_licence_get_pdf_attachment_id( $licence_id )
 			: null;
 		if ( ! $attachment_id ) {
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ) );

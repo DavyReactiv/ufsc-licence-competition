@@ -4,8 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'ufsc_competitions_user_has_all_regions' ) ) {
-function ufsc_competitions_user_has_all_regions( int $user_id = 0 ): bool {
+if ( ! function_exists( 'ufsc_lc_competitions_user_has_all_regions' ) ) {
+function ufsc_lc_competitions_user_has_all_regions( int $user_id = 0 ): bool {
 	$user_id = $user_id > 0 ? $user_id : get_current_user_id();
 	if ( $user_id <= 0 ) {
 		return false;
@@ -19,14 +19,14 @@ function ufsc_competitions_user_has_all_regions( int $user_id = 0 ): bool {
 }
 }
 
-if ( ! function_exists( 'ufsc_competitions_get_user_scope_region' ) ) {
-function ufsc_competitions_get_user_scope_region( int $user_id = 0 ): ?string {
+if ( ! function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ) {
+function ufsc_lc_competitions_get_user_scope_region( int $user_id = 0 ): ?string {
 	$user_id = $user_id > 0 ? $user_id : get_current_user_id();
 	if ( $user_id <= 0 ) {
 		return null;
 	}
 
-	if ( ufsc_competitions_user_has_all_regions( $user_id ) ) {
+	if ( ufsc_lc_competitions_user_has_all_regions( $user_id ) ) {
 		return null;
 	}
 
@@ -45,9 +45,9 @@ function ufsc_competitions_get_user_scope_region( int $user_id = 0 ): ?string {
 }
 }
 
-if ( ! function_exists( 'ufsc_competitions_assert_object_in_scope' ) ) {
-function ufsc_competitions_assert_object_in_scope( $object_region ): void {
-	$scope = ufsc_competitions_get_user_scope_region();
+if ( ! function_exists( 'ufsc_lc_competitions_assert_object_in_scope' ) ) {
+function ufsc_lc_competitions_assert_object_in_scope( $object_region ): void {
+	$scope = ufsc_lc_competitions_get_user_scope_region();
 	if ( null === $scope || '' === $scope ) {
 		return;
 	}
@@ -60,9 +60,9 @@ function ufsc_competitions_assert_object_in_scope( $object_region ): void {
 }
 }
 
-if ( ! function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-function ufsc_competitions_apply_scope_to_query_args( array $args ): array {
-	$scope = ufsc_competitions_get_user_scope_region();
+if ( ! function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+function ufsc_lc_competitions_apply_scope_to_query_args( array $args ): array {
+	$scope = ufsc_lc_competitions_get_user_scope_region();
 	if ( null === $scope || '' === $scope ) {
 		return $args;
 	}
@@ -73,8 +73,8 @@ function ufsc_competitions_apply_scope_to_query_args( array $args ): array {
 }
 }
 
-if ( ! function_exists( 'ufsc_competitions_apply_scope_to_args' ) ) {
-function ufsc_competitions_apply_scope_to_args( array $args ): array {
-	return ufsc_competitions_apply_scope_to_query_args( $args );
+if ( ! function_exists( 'ufsc_lc_competitions_apply_scope_to_args' ) ) {
+function ufsc_lc_competitions_apply_scope_to_args( array $args ): array {
+	return ufsc_lc_competitions_apply_scope_to_query_args( $args );
 }
 }

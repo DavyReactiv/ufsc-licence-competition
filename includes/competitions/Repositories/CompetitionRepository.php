@@ -115,8 +115,8 @@ class CompetitionRepository {
 	}
 
 	public function assert_competition_in_scope( int $competition_id ): void {
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 		if ( '' === $scope_region ) {
@@ -191,8 +191,8 @@ class CompetitionRepository {
 			return '';
 		}
 
-		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
-			$normalized = ufsc_normalize_region_key( $value );
+		if ( function_exists( 'ufsc_lc_normalize_region_key' ) ) {
+			$normalized = ufsc_lc_normalize_region_key( $value );
 			if ( is_string( $normalized ) && '' !== $normalized ) {
 				return $normalized;
 			}

@@ -4,8 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'ufsc_comp_log' ) ) {
-	function ufsc_comp_log( string $message, array $context = array() ): void {
+if ( ! function_exists( 'ufsc_lc_comp_log' ) ) {
+	function ufsc_lc_comp_log( string $message, array $context = array() ): void {
 		$enabled = ( defined( 'UFSC_LC_DEBUG' ) && UFSC_LC_DEBUG )
 			|| ( defined( 'WP_DEBUG' ) && WP_DEBUG );
 

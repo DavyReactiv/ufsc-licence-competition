@@ -44,7 +44,7 @@ class Club_Entries_Export_Controller {
 		}
 
 		$user_id = (int) get_current_user_id();
-		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 
 		if ( ! $club_id ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
@@ -191,8 +191,8 @@ class Club_Entries_Export_Controller {
 				$this->redirect_with_notice( 0, 'error_forbidden' );
 			}
 
-			if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
-				$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports_club' );
+			if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
+				$eligibility = ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports_club' );
 				if ( empty( $eligibility['eligible'] ) ) {
 					continue;
 				}

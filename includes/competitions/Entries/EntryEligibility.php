@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'ufsc_is_entry_eligible' ) ) {
+if ( ! function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 	/**
 	 * Central business eligibility check for competition entries.
 	 *
@@ -12,7 +12,7 @@ if ( ! function_exists( 'ufsc_is_entry_eligible' ) ) {
 	 * @param string $context  Context (admin_entries, admin_validation, front_club, fights, exports, exports_club).
 	 * @return array{eligible:bool,status:string,entry:object|null,reasons:array}
 	 */
-	function ufsc_is_entry_eligible( int $entry_id, string $context ): array {
+	function ufsc_lc_is_entry_eligible( int $entry_id, string $context ): array {
 		$entry_id = absint( $entry_id );
 		$context  = sanitize_key( $context );
 

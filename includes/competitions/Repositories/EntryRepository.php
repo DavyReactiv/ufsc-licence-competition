@@ -52,8 +52,8 @@ class EntryRepository {
 	}
 
 	public function assert_entry_in_scope( int $entry_id ): void {
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 		if ( '' === $scope_region ) {

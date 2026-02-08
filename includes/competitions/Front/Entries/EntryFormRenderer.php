@@ -204,8 +204,8 @@ class EntryFormRenderer {
 							</a>
 						<?php endif; ?>
 					</div>
-				<?php elseif ( $access_result && function_exists( 'ufsc_render_access_denied_notice' ) ) : ?>
-					<?php echo wp_kses_post( ufsc_render_access_denied_notice( $access_result ) ); ?>
+				<?php elseif ( $access_result && function_exists( 'ufsc_lc_render_access_denied_notice' ) ) : ?>
+					<?php echo wp_kses_post( ufsc_lc_render_access_denied_notice( $access_result ) ); ?>
 				<?php endif; ?>
 
 				<?php if ( $engaged_view ) : ?>
@@ -377,8 +377,8 @@ class EntryFormRenderer {
 									<?php
 									$entry_id = absint( $entry->id ?? 0 );
 
-									$status = function_exists( 'ufsc_is_entry_eligible' )
-										? (string) ( ufsc_is_entry_eligible( $entry_id, 'front_club' )['status'] ?? '' )
+									$status = function_exists( 'ufsc_lc_is_entry_eligible' )
+										? (string) ( ufsc_lc_is_entry_eligible( $entry_id, 'front_club' )['status'] ?? '' )
 										: (string) $repo->get_entry_status( $entry );
 
 									$status = EntriesWorkflow::normalize_status( $status );
@@ -794,8 +794,8 @@ class EntryFormRenderer {
 						'scope' => $scope,
 					)
 				);
-				if ( function_exists( 'ufsc_render_access_denied_notice' ) ) {
-					return (string) ufsc_render_access_denied_notice( $result );
+				if ( function_exists( 'ufsc_lc_render_access_denied_notice' ) ) {
+					return (string) ufsc_lc_render_access_denied_notice( $result );
 				}
 				if ( class_exists( CompetitionAccess::class ) ) {
 					$access = new CompetitionAccess();

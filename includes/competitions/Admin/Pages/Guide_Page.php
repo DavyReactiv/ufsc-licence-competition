@@ -39,8 +39,8 @@ class Guide_Page {
 		}
 		$competition = $competition_id ? $this->competitions->get( $competition_id, true ) : null;
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 
@@ -156,8 +156,8 @@ class Guide_Page {
 
 	private function get_competition_stats( $competition_id ) {
 		$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$entry_filters = ufsc_competitions_apply_scope_to_query_args( $entry_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 		}
 
 		return array(

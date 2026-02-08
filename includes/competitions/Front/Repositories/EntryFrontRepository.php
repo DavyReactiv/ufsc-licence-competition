@@ -97,8 +97,8 @@ class EntryFrontRepository {
 				if ( ! empty( $filters['status'] ) ) {
 					$details_filters['status'] = (string) $filters['status'];
 				}
-				if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-					$details_filters = ufsc_competitions_apply_scope_to_query_args( $details_filters );
+				if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+					$details_filters = ufsc_lc_competitions_apply_scope_to_query_args( $details_filters );
 				}
 
 				$rows = $details_repo->list_with_details( $details_filters, $limit, $offset );
@@ -162,8 +162,8 @@ class EntryFrontRepository {
 				if ( ! empty( $filters['status'] ) ) {
 					$details_filters['status'] = (string) $filters['status'];
 				}
-				if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-					$details_filters = ufsc_competitions_apply_scope_to_query_args( $details_filters );
+				if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+					$details_filters = ufsc_lc_competitions_apply_scope_to_query_args( $details_filters );
 				}
 
 				return (int) $details_repo->count_with_details( $details_filters );
