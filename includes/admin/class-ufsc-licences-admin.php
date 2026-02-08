@@ -71,19 +71,20 @@ class UFSC_LC_Licences_Admin {
 		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
 			$screen_id = '';
 			if ( function_exists( 'get_current_screen' ) ) {
-				$screen = get_current_screen();
+				$screen    = get_current_screen();
 				$screen_id = $screen ? (string) $screen->id : '';
-				if ( $screen && false === strpos( $screen->id, 'ufsc-lc-licences' ) ) {
-					return;
-				}
 			}
-			ufsc_lc_log_query_count(
-				'admin: licences list',
-				array(
-					'screen' => $screen_id,
-					'cache'  => 'n/a',
-				)
-			);
+
+			// Log only if we're on the expected admin screen (avoid noise).
+			if ( '' === $screen_id || false !== strpos( $screen_id, 'ufsc-lc-licences' ) ) {
+				ufsc_lc_log_query_count(
+					'admin: licences list',
+					array(
+						'screen' => $screen_id,
+						'cache'  => 'n/a',
+					)
+				);
+			}
 		}
 	}
 
@@ -98,19 +99,19 @@ class UFSC_LC_Licences_Admin {
 
 		$messages = array(
 			'success' => array(
-				'bulk_mark_review'          => __( 'Licences marquées à vérifier.', 'ufsc-licence-competition' ),
-				'bulk_remove_pdf'           => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
+				'bulk_mark_review'            => __( 'Licences marquées à vérifier.', 'ufsc-licence-competition' ),
+				'bulk_remove_pdf'             => __( 'Associations PDF supprimées.', 'ufsc-licence-competition' ),
 				'bulk_recalculate_categories' => __( 'Catégories recalculées.', 'ufsc-licence-competition' ),
-				'bulk_change_season'        => __( 'Saison mise à jour.', 'ufsc-licence-competition' ),
-				'asptt_updated'             => __( 'N° licence ASPTT mis à jour.', 'ufsc-licence-competition' ),
+				'bulk_change_season'          => __( 'Saison mise à jour.', 'ufsc-licence-competition' ),
+				'asptt_updated'               => __( 'N° licence ASPTT mis à jour.', 'ufsc-licence-competition' ),
 			),
 			'error' => array(
 				'documents_meta_missing' => __( 'Action impossible : table meta des documents manquante.', 'ufsc-licence-competition' ),
 				'documents_missing'      => __( 'Action impossible : table des documents absente.', 'ufsc-licence-competition' ),
 				'season_missing'         => __( 'Action impossible : colonne saison absente.', 'ufsc-licence-competition' ),
-				'asptt_missing'           => __( 'Impossible de mettre à jour le N° ASPTT (colonne manquante).', 'ufsc-licence-competition' ),
-				'asptt_invalid'           => __( 'Licence invalide.', 'ufsc-licence-competition' ),
-				'asptt_too_long'          => __( 'Le N° ASPTT ne doit pas dépasser 40 caractères.', 'ufsc-licence-competition' ),
+				'asptt_missing'          => __( 'Impossible de mettre à jour le N° ASPTT (colonne manquante).', 'ufsc-licence-competition' ),
+				'asptt_invalid'          => __( 'Licence invalide.', 'ufsc-licence-competition' ),
+				'asptt_too_long'         => __( 'Le N° ASPTT ne doit pas dépasser 40 caractères.', 'ufsc-licence-competition' ),
 			),
 			'warning' => array(
 				'bulk_recalculate_empty'   => __( 'Aucune licence valide pour recalculer les catégories.', 'ufsc-licence-competition' ),
@@ -157,11 +158,14 @@ class UFSC_LC_Licences_Admin {
 				wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 			}
 		}
+
 		$list_table = new UFSC_LC_Competition_Licences_List_Table();
-		$filters = $list_table->get_sanitized_filters();
+		$filters    = $list_table->get_sanitized_filters();
+
 		if ( function_exists( 'ufsc_lc_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_apply_scope_to_query_args( $filters );
 		}
+
 		$exporter = new UFSC_LC_Exporter();
 		$exporter->stream_licences_csv( $filters );
 	}
@@ -176,9 +180,9 @@ class UFSC_LC_Licences_Admin {
 			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		$licence_id = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
-		$asptt_number = isset( $_POST['asptt_number'] ) ? sanitize_text_field( wp_unslash( $_POST['asptt_number'] ) ) : '';
-		$asptt_number = trim( $asptt_number );
+		$licence_id    = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
+		$asptt_number  = isset( $_POST['asptt_number'] ) ? sanitize_text_field( wp_unslash( $_POST['asptt_number'] ) ) : '';
+		$asptt_number  = trim( $asptt_number );
 
 		if ( ! $licence_id ) {
 			$this->redirect_to_list_page( 'error', 'asptt_invalid' );
@@ -246,9 +250,9 @@ class UFSC_LC_Licences_Admin {
 		$repository = new UFSC_LC_Licence_Repository();
 		$repository->assert_licence_in_scope( $licence_id );
 
-		$licence = $this->get_licence_context( $licence_id );
-		$asptt_number = $this->get_licence_asptt_number( $licence_id );
-		$back_url = admin_url( 'admin.php?page=ufsc-lc-licences' );
+		$licence        = $this->get_licence_context( $licence_id );
+		$asptt_number   = $this->get_licence_asptt_number( $licence_id );
+		$back_url       = admin_url( 'admin.php?page=ufsc-lc-licences' );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Modifier le N° licence ASPTT', 'ufsc-licence-competition' ); ?></h1>
@@ -295,8 +299,8 @@ class UFSC_LC_Licences_Admin {
 			return null;
 		}
 
-		$columns = array( 'id', 'prenom', 'nom', 'nom_licence', 'numero_licence_delegataire', 'licence_number' );
-		$existing_columns = array();
+		$columns           = array( 'id', 'prenom', 'nom', 'nom_licence', 'numero_licence_delegataire', 'licence_number' );
+		$existing_columns  = array();
 		foreach ( $columns as $column ) {
 			if ( $this->column_exists( $table, $column ) ) {
 				$existing_columns[] = $column;
@@ -330,7 +334,7 @@ class UFSC_LC_Licences_Admin {
 		}
 
 		$licence_number = $row['numero_licence_delegataire'] ?? $row['licence_number'] ?? '';
-		$label_parts = array(
+		$label_parts    = array(
 			sprintf( __( 'Licence #%d', 'ufsc-licence-competition' ), $licence_id ),
 		);
 		if ( '' !== $name ) {
@@ -392,11 +396,11 @@ class UFSC_LC_Licences_Admin {
 			return new WP_Error( 'asptt_column_missing', __( 'Colonne ASPTT indisponible.', 'ufsc-licence-competition' ) );
 		}
 
-		$data = array();
+		$data    = array();
 		$formats = array();
 		foreach ( $columns as $column ) {
 			$data[ $column ] = $asptt_number;
-			$formats[] = '%s';
+			$formats[]       = '%s';
 		}
 
 		$result = $wpdb->update(

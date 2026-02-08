@@ -45,20 +45,20 @@ class UFSC_LC_Status_Page {
 
 		$screen_id = '';
 		if ( function_exists( 'get_current_screen' ) ) {
-			$screen = get_current_screen();
+			$screen    = get_current_screen();
 			$screen_id = $screen ? (string) $screen->id : '';
-			if ( $screen && false === strpos( $screen->id, 'ufsc-lc-status' ) ) {
+			if ( $screen && $screen_id !== '' && false === strpos( $screen_id, 'ufsc-lc-status' ) ) {
 				return;
 			}
 		}
 
 		global $wpdb;
 
-		$licences_table  = $wpdb->prefix . 'ufsc_licences';
-		$clubs_table     = $wpdb->prefix . 'ufsc_clubs';
-		$docs_table      = $wpdb->prefix . 'ufsc_licence_documents';
-		$aliases_table   = $wpdb->prefix . 'ufsc_asptt_aliases';
-		$season_column   = $this->get_season_column( $licences_table );
+		$licences_table = $wpdb->prefix . 'ufsc_licences';
+		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
+		$docs_table     = $wpdb->prefix . 'ufsc_licence_documents';
+		$aliases_table  = $wpdb->prefix . 'ufsc_asptt_aliases';
+		$season_column  = $this->get_season_column( $licences_table );
 
 		$cache_key = '';
 		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
@@ -68,10 +68,14 @@ class UFSC_LC_Status_Page {
 					'version' => ufsc_lc_get_cache_version( 'status', 0 ),
 				)
 			);
+		} elseif ( function_exists( 'ufsc_lc_get_cache_version' ) ) {
+			// Fallback legacy (still versioned).
+			$cache_key = 'ufsc_lc_status_' . ufsc_lc_get_cache_version( 'status', 0 );
 		}
 
 		$cache_hit = false;
-		$cached = $cache_key ? get_transient( $cache_key ) : false;
+		$cached    = $cache_key ? get_transient( $cache_key ) : false;
+
 		if ( is_array( $cached ) ) {
 			$cache_hit    = true;
 			$tables        = $cached['tables'];
@@ -110,6 +114,7 @@ class UFSC_LC_Status_Page {
 					GROUP BY {$season_column}
 					ORDER BY {$season_column} DESC"
 				);
+
 				foreach ( $results as $row ) {
 					$season_counts[] = array(
 						'saison' => (string) $row->saison,
@@ -132,14 +137,15 @@ class UFSC_LC_Status_Page {
 			}
 		}
 
-		$legacy_enabled = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
-		$legacy_label   = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
-		$status_ok      = __( 'OK', 'ufsc-licence-competition' );
-		$status_ko      = __( 'KO', 'ufsc-licence-competition' );
+		$legacy_enabled      = (bool) get_option( UFSC_LC_Plugin::LEGACY_OPTION, false );
+		$legacy_label        = $legacy_enabled ? __( 'ON', 'ufsc-licence-competition' ) : __( 'OFF', 'ufsc-licence-competition' );
+		$status_ok           = __( 'OK', 'ufsc-licence-competition' );
+		$status_ko           = __( 'KO', 'ufsc-licence-competition' );
 		$last_import_display = '';
+
 		if ( $last_import ) {
-			$formatted = mysql2date( 'd/m/Y H:i', $last_import );
-			$last_import_display = '' !== $formatted ? $formatted : $last_import;
+			$formatted            = mysql2date( 'd/m/Y H:i', $last_import );
+			$last_import_display  = '' !== $formatted ? $formatted : $last_import;
 		}
 
 		?>
