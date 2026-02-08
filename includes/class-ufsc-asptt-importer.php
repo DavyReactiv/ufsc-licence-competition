@@ -54,7 +54,7 @@ class UFSC_LC_ASPTT_Importer {
 			add_action( 'admin_post_ufsc_asptt_export_errors', array( $this, 'handle_export_errors' ) );
 			add_action( 'admin_post_ufsc_asptt_export_delta', array( $this, 'handle_export_delta' ) );
 		}
-
+	}
 
 	public function create_tables() {
 		global $wpdb;
