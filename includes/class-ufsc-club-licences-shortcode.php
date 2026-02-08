@@ -27,18 +27,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( $this->legacy_enabled ) {
 			$this->register_shortcode( 'ufsc_club_licences_asptt' );
 			$this->register_shortcode( 'ufsc_licences' );
-if ( $this->legacy_enabled ) {
-	$this->register_shortcode( 'ufsc_club_licences_asptt' );
-	$this->register_shortcode( 'ufsc_licences' );
+			// Legacy admin-post handler (OFF by default, opt-in via filters).
+			$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', false );
+			$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
 
-	// Legacy admin-post handler (OFF by default, opt-in via filters).
-	$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', false );
-	$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
-
-	if ( $legacy_allowed ) {
-		add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
+			if ( $legacy_allowed ) {
+				add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
+			}
+		}
 	}
-}
 
 
 	private function register_shortcode( $tag ) {
