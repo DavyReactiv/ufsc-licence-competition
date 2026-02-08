@@ -52,8 +52,8 @@ class Access_Diagnostic_Page {
 		}
 
 		$user_id = (int) get_current_user_id();
-		if ( function_exists( 'ufsc_comp_log' ) ) {
-			ufsc_comp_log(
+		if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+			ufsc_lc_comp_log(
 				'access_diag_inputs',
 				array(
 					'competition_id' => $competition_id,
@@ -98,10 +98,10 @@ class Access_Diagnostic_Page {
 		$engaged_result = $access->can_view_engaged_list( $competition_id, $club_id, $user_id );
 
 		$club_region_raw = $club ? (string) ( $club->region ?? '' ) : '';
-		$club_region_key = function_exists( 'ufsc_normalize_region_key' ) ? ufsc_normalize_region_key( $club_region_raw ) : $club_region_raw;
+		$club_region_key = function_exists( 'ufsc_lc_normalize_region_key' ) ? ufsc_lc_normalize_region_key( $club_region_raw ) : $club_region_raw;
 
-		if ( function_exists( 'ufsc_comp_log' ) ) {
-			ufsc_comp_log(
+		if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+			ufsc_lc_comp_log(
 				'access_diag_club',
 				array(
 					'club_id' => (int) ( $club->id ?? 0 ),
@@ -110,7 +110,7 @@ class Access_Diagnostic_Page {
 					'region_key' => $club_region_key,
 				)
 			);
-			ufsc_comp_log(
+			ufsc_lc_comp_log(
 				'access_diag_rules',
 				array(
 					'access_mode' => $settings['access_mode'] ?? '',
@@ -121,7 +121,7 @@ class Access_Diagnostic_Page {
 					'public_read' => ! empty( $settings['public_read'] ),
 				)
 			);
-			ufsc_comp_log(
+			ufsc_lc_comp_log(
 				'access_diag_result',
 				array(
 					'view_allowed' => (bool) ( $view_result->allowed ?? false ),
@@ -167,8 +167,8 @@ class Access_Diagnostic_Page {
 
 		$competition_repo = new CompetitionReadRepository();
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $competition_repo->list( $competition_filters, 200, 0 );
 
@@ -253,9 +253,9 @@ class Access_Diagnostic_Page {
 
 	private function render_results( $competition, $club, array $settings, $view_result, $register_result, $engaged_result, ClubRepository $club_repo, CompetitionAccess $access ): void {
 		$club_region_raw = $club ? (string) ( $club->region ?? '' ) : '';
-		$club_region = function_exists( 'ufsc_normalize_region_key' ) ? ufsc_normalize_region_key( $club_region_raw ) : $club_region_raw;
+		$club_region = function_exists( 'ufsc_lc_normalize_region_key' ) ? ufsc_lc_normalize_region_key( $club_region_raw ) : $club_region_raw;
 		$club_region_missing = '' === trim( $club_region_raw );
-		$club_disciplines = function_exists( 'ufsc_extract_club_disciplines' ) ? ufsc_extract_club_disciplines( $club ) : array();
+		$club_disciplines = function_exists( 'ufsc_lc_extract_club_disciplines' ) ? ufsc_lc_extract_club_disciplines( $club ) : array();
 
 		$allowed_regions = $settings['allowed_regions_labels'] ?? array();
 		$allowed_regions_keys = $settings['allowed_regions_keys'] ?? array();
@@ -306,7 +306,7 @@ class Access_Diagnostic_Page {
 		echo '<tr><th>' . esc_html__( 'Disciplines', 'ufsc-licence-competition' ) . '</th><td>' . esc_html( $club_disciplines ? implode( ' / ', $club_disciplines ) : '—' ) . '</td></tr>';
 		echo '</tbody></table>';
 
-		$current_context = function_exists( 'ufsc_current_club_context' ) ? ufsc_current_club_context( (int) get_current_user_id() ) : array();
+		$current_context = function_exists( 'ufsc_lc_current_club_context' ) ? ufsc_lc_current_club_context( (int) get_current_user_id() ) : array();
 		if ( $current_context ) {
 			$context_affiliated = ! empty( $current_context['affiliated'] ) ? __( 'Oui', 'ufsc-licence-competition' ) : __( 'Non', 'ufsc-licence-competition' );
 			echo '<h3>' . esc_html__( 'Contexte club (utilisateur connecté)', 'ufsc-licence-competition' ) . '</h3>';

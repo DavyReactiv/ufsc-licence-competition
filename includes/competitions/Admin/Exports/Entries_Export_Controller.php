@@ -109,8 +109,8 @@ class Entries_Export_Controller {
 		$filters = $this->get_requested_filters();
 		$entries = $this->get_plateau_entries( $competition_id, $filters );
 
-		if ( function_exists( 'ufsc_comp_log' ) ) {
-			ufsc_comp_log(
+		if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+			ufsc_lc_comp_log(
 				'pdf_export_request',
 				array(
 					'competition_id' => $competition_id,
@@ -122,8 +122,8 @@ class Entries_Export_Controller {
 		}
 
 		if ( empty( $entries ) ) {
-			if ( function_exists( 'ufsc_comp_log' ) ) {
-				ufsc_comp_log(
+			if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+				ufsc_lc_comp_log(
 					'pdf_export_empty',
 					array(
 						'competition_id' => $competition_id,
@@ -135,8 +135,8 @@ class Entries_Export_Controller {
 		}
 
 		if ( ! class_exists( '\UFSC\Competitions\Services\Plateau_Pdf_Renderer' ) ) {
-			if ( function_exists( 'ufsc_comp_log' ) ) {
-				ufsc_comp_log(
+			if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+				ufsc_lc_comp_log(
 					'pdf_export_missing_renderer',
 					array(
 						'competition_id' => $competition_id,
@@ -150,8 +150,8 @@ class Entries_Export_Controller {
 		$renderer = new \UFSC\Competitions\Services\Plateau_Pdf_Renderer();
 		$pdf = $renderer->render_pdf( $competition, $entries, $mode );
 		if ( empty( $pdf ) ) {
-			if ( function_exists( 'ufsc_comp_log' ) ) {
-				ufsc_comp_log(
+			if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+				ufsc_lc_comp_log(
 					'pdf_export_failed',
 					array(
 						'competition_id' => $competition_id,
@@ -164,8 +164,8 @@ class Entries_Export_Controller {
 			$this->redirect_with_notice( 'pdf_generation_failed' );
 		}
 
-		if ( function_exists( 'ufsc_comp_log' ) ) {
-			ufsc_comp_log(
+		if ( function_exists( 'ufsc_lc_comp_log' ) ) {
+			ufsc_lc_comp_log(
 				'pdf_export_ready',
 				array(
 					'competition_id' => $competition_id,
@@ -295,8 +295,8 @@ class Entries_Export_Controller {
 			$requested_filters['category']
 		);
 
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
 		$repository = new EntryRepository();
@@ -388,8 +388,8 @@ class Entries_Export_Controller {
 						}
 					}
 
-					if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
-						$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' );
+					if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
+						$eligibility = ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' );
 						if ( empty( $eligibility['eligible'] ) ) {
 							return false;
 						}

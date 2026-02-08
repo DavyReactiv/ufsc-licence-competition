@@ -267,9 +267,9 @@ class Competitions_Page {
 				: '';
 		}
 		$allowed_regions_map = array();
-		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+		if ( function_exists( 'ufsc_lc_normalize_region_key' ) ) {
 			foreach ( $allowed_regions as $region_label ) {
-				$key = ufsc_normalize_region_key( $region_label );
+				$key = ufsc_lc_normalize_region_key( $region_label );
 				if ( '' === $key ) {
 					continue;
 				}
@@ -292,9 +292,9 @@ class Competitions_Page {
 		$club_regions = $this->club_repository ? $this->club_repository->list_regions() : array();
 		$club_select  = $this->club_repository ? $this->club_repository->list_for_select() : array();
 		$regions_for_select = array();
-		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+		if ( function_exists( 'ufsc_lc_normalize_region_key' ) ) {
 			foreach ( $club_regions as $region ) {
-				$key = ufsc_normalize_region_key( $region );
+				$key = ufsc_lc_normalize_region_key( $region );
 				if ( '' === $key ) {
 					continue;
 				}
@@ -806,8 +806,8 @@ class Competitions_Page {
 			wp_send_json_error( 'not_found', 404 );
 		}
 
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 		if ( '' !== $scope_region ) {
@@ -864,16 +864,16 @@ class Competitions_Page {
 
 		$allowed_regions = isset( $_POST['allowed_regions'] ) ? wp_unslash( $_POST['allowed_regions'] ) : array();
 		$allowed_regions_keys = array();
-		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
+		if ( function_exists( 'ufsc_lc_normalize_region_key' ) ) {
 			foreach ( (array) $allowed_regions as $region_label ) {
-				$key = ufsc_normalize_region_key( $region_label );
+				$key = ufsc_lc_normalize_region_key( $region_label );
 				if ( '' !== $key && ! in_array( $key, $allowed_regions_keys, true ) ) {
 					$allowed_regions_keys[] = $key;
 				}
 			}
 		}
-		$scope_region = function_exists( 'ufsc_competitions_get_user_scope_region' )
-			? ufsc_competitions_get_user_scope_region()
+		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
+			? ufsc_lc_competitions_get_user_scope_region()
 			: '';
 		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
 		if ( '' !== $scope_region && ! empty( $allowed_regions_keys ) && ! in_array( $scope_region, $allowed_regions_keys, true ) ) {

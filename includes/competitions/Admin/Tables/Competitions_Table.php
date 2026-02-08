@@ -540,8 +540,8 @@ class Competitions_Table extends \WP_List_Table {
 			$filters['order_dir'] = ( 'ASC' === $order ) ? 'ASC' : 'DESC';
 		}
 
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
 		$this->filters = $filters;

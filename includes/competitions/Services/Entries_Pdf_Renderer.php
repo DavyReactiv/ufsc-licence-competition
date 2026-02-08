@@ -34,8 +34,8 @@ class Entries_Pdf_Renderer {
 				$year = $matches[1];
 			}
 
-			$status = function_exists( 'ufsc_is_entry_eligible' )
-				? (string) ( ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' )['status'] ?? '' )
+			$status = function_exists( 'ufsc_lc_is_entry_eligible' )
+				? (string) ( ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' )['status'] ?? '' )
 				: (string) ( $entry->status ?? '' );
 
 			$rows[] = array(

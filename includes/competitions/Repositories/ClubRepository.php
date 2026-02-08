@@ -160,9 +160,9 @@ class ClubRepository {
 				continue;
 			}
 
-			$region_key = function_exists( 'ufsc_normalize_region_key' )
-				? ufsc_normalize_region_key( $region_raw )
-				: ( function_exists( 'ufsc_normalize_region' ) ? ufsc_normalize_region( $region_raw ) : strtoupper( $region_raw ) );
+			$region_key = function_exists( 'ufsc_lc_normalize_region_key' )
+				? ufsc_lc_normalize_region_key( $region_raw )
+				: ( function_exists( 'ufsc_lc_normalize_region' ) ? ufsc_lc_normalize_region( $region_raw ) : strtoupper( $region_raw ) );
 			$region_key = trim( $region_key );
 			if ( '' === $region_key ) {
 				continue;

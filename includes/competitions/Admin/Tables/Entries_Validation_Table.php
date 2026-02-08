@@ -65,8 +65,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 			'search' => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
 		if ( '' === $filters['status'] ) {
@@ -75,8 +75,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		$this->filters = $filters;
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$this->competitions = $this->competition_repository->list( $competition_filters, 200, 0 );
 		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
@@ -185,8 +185,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	protected function column_actions( $item ) {
 		$actions = array();
-		$status = function_exists( 'ufsc_is_entry_eligible' )
-			? (string) ( ufsc_is_entry_eligible( (int) ( $item->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
+		$status = function_exists( 'ufsc_lc_is_entry_eligible' )
+			? (string) ( ufsc_lc_is_entry_eligible( (int) ( $item->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
 			: $this->repository->get_entry_status( $item );
 
 		if ( in_array( $status, array( 'submitted', 'pending' ), true ) ) {
@@ -310,8 +310,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_status( $entry ): string {
-		$status = function_exists( 'ufsc_is_entry_eligible' )
-			? (string) ( ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
+		$status = function_exists( 'ufsc_lc_is_entry_eligible' )
+			? (string) ( ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_validation' )['status'] ?? '' )
 			: $this->repository->get_entry_status( $entry );
 		$label = EntriesWorkflow::get_status_label( $status );
 		$class = EntriesWorkflow::get_status_badge_class( $status );

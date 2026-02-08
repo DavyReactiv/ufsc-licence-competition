@@ -79,7 +79,7 @@ class EntryActions {
 		}
 
 		$user_id = (int) get_current_user_id();
-		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
@@ -299,7 +299,7 @@ class EntryActions {
 		}
 
 		$user_id = (int) get_current_user_id();
-		$club_id = function_exists( 'ufsc_get_current_club_id' ) ? (int) ufsc_get_current_club_id( $user_id ) : 0;
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}

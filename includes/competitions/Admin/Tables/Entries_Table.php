@@ -58,14 +58,14 @@ class Entries_Table extends \WP_List_Table {
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$filters = ufsc_competitions_apply_scope_to_query_args( $filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
 		$this->filters = $filters;
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$this->competitions = $this->competition_repository->list( $competition_filters, 100, 0 );
 		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
@@ -446,8 +446,8 @@ class Entries_Table extends \WP_List_Table {
 
 	private function format_status( $entry ) {
 		$status = '';
-		if ( function_exists( 'ufsc_is_entry_eligible' ) ) {
-			$eligibility = ufsc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_entries' );
+		if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
+			$eligibility = ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_entries' );
 			$status = (string) ( $eligibility['status'] ?? '' );
 		}
 		if ( '' === $status ) {

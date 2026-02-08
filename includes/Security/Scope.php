@@ -90,8 +90,11 @@ function ufsc_lc_apply_scope_to_sql( array &$where, array &$params, string $club
 }
 }
 
-if ( ! class_exists( 'UFSC_Scope' ) ) {
-	class UFSC_Scope {
+if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
+	class UFSC_LC_Scope extends UFSC_Scope {
+	}
+} elseif ( ! class_exists( 'UFSC_LC_Scope' ) ) {
+	class UFSC_LC_Scope {
 		public static function user_has_all_regions( int $user_id = 0 ): bool {
 			return ufsc_lc_user_has_all_regions( $user_id );
 		}
