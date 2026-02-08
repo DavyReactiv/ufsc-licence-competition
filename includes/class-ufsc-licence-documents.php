@@ -19,14 +19,14 @@ class UFSC_LC_Licence_Documents {
 		add_action( 'admin_post_ufsc_lc_download_licence_pdf', array( $this, 'handle_download' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
 
-$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
-$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
+		$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
+		$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
 
-if ( $this->legacy_enabled && $legacy_allowed ) {
-	add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
-	add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
-}
-
+		if ( $this->legacy_enabled && $legacy_allowed ) {
+			add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
+			add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
+		}
+	}
 
 	public function create_table() {
 		global $wpdb;
