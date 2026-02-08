@@ -67,6 +67,10 @@ class UFSC_LC_Licences_Admin {
 			</form>
 		</div>
 		<?php
+
+		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
+			ufsc_lc_log_query_count( 'admin: licences list' );
+		}
 	}
 
 	public function render_notices() {
@@ -182,6 +186,8 @@ class UFSC_LC_Licences_Admin {
 			$this->redirect_to_edit_page( $licence_id, 'error', 'asptt_missing' );
 			return;
 		}
+
+		$this->bump_licence_caches( $licence_id );
 
 		$this->redirect_to_edit_page( $licence_id, 'success', 'asptt_updated' );
 	}
@@ -392,6 +398,40 @@ class UFSC_LC_Licences_Admin {
 		}
 
 		return $result;
+	}
+
+	private function bump_licence_caches( $licence_id ): void {
+		if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+			return;
+		}
+
+		$club_id = $this->get_licence_club_id( $licence_id );
+		if ( $club_id ) {
+			ufsc_lc_bump_cache_version( 'club', (int) $club_id );
+		}
+	}
+
+	private function get_licence_club_id( $licence_id ) {
+		global $wpdb;
+
+		$licence_id = (int) $licence_id;
+		if ( $licence_id <= 0 ) {
+			return 0;
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return 0;
+		}
+
+		$club_id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT club_id FROM {$table} WHERE id = %d",
+				$licence_id
+			)
+		);
+
+		return $club_id ? (int) $club_id : 0;
 	}
 
 	private function get_licences_table() {
