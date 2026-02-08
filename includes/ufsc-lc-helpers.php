@@ -205,6 +205,68 @@ if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_lc_get_cache_version' ) ) {
+	function ufsc_lc_get_cache_version( string $bucket, int $id = 0 ): string {
+		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$cached = wp_cache_get( $key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			return (string) $cached;
+		}
+
+		$version = get_option( $key, '' );
+		if ( '' === $version ) {
+			$version = (string) time();
+			add_option( $key, $version, '', false );
+		}
+
+		wp_cache_set( $key, $version, 'ufsc_licence_competition' );
+
+		return (string) $version;
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+	function ufsc_lc_bump_cache_version( string $bucket, int $id = 0 ): void {
+		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$version = (string) time();
+		update_option( $key, $version, false );
+		wp_cache_set( $key, $version, 'ufsc_licence_competition' );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_log_query_count' ) ) {
+	function ufsc_lc_log_query_count( string $context, int $threshold = 150 ): void {
+		static $logged = false;
+
+		if ( $logged ) {
+			return;
+		}
+
+		if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
+			return;
+		}
+
+		global $wpdb;
+		if ( ! isset( $wpdb->num_queries ) ) {
+			return;
+		}
+
+		$num_queries = (int) $wpdb->num_queries;
+		if ( $num_queries < $threshold ) {
+			return;
+		}
+
+		$logged = true;
+		error_log(
+			sprintf(
+				'UFSC LC query count high (%d) on %s.',
+				$num_queries,
+				$context
+			)
+		);
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_get_competitions_list_url' ) ) {
 	function ufsc_lc_get_competitions_list_url(): string {
 		$url = (string) apply_filters( 'ufsc_competitions_front_list_url', '' );
