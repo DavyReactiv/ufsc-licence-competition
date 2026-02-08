@@ -277,7 +277,8 @@ class UFSC_LC_ASPTT_Import_Service {
 			$this->row_index++;
 			$line_number = $this->row_index;
 
-			$result   = $this->process_row( $row, $force_club_id, null, $season_end_year_override, false );
+			$row_stats = null;
+			$result   = $this->process_row( $row, $force_club_id, $row_stats, $season_end_year_override, false );
 			$data     = $result['data'];
 			$row_error = $result['error'];
 			$club_id  = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
