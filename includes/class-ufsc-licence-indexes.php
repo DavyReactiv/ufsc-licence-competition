@@ -8,9 +8,10 @@ class UFSC_LC_Licence_Indexes {
 	public function ensure_indexes() {
 		global $wpdb;
 
-		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', true ) ) {
-			return;
-		}
+if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
+	return;
+}
+
 
 		$this->ensure_licence_indexes( $wpdb->prefix . 'ufsc_licences' );
 		$this->ensure_documents_indexes( $wpdb->prefix . 'ufsc_licence_documents' );

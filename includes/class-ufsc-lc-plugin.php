@@ -171,7 +171,8 @@ class UFSC_LC_Plugin {
 		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
 		$importer->create_tables();
 
-		$allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', true );
+$allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', false );
+
 		$migrations = new UFSC_LC_Licence_Migrations();
 		$indexes = new UFSC_LC_Licence_Indexes();
 

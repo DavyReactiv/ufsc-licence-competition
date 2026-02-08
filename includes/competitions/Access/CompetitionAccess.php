@@ -393,8 +393,8 @@ class CompetitionAccess {
 			return 0;
 		}
 
-		if ( function_exists( 'ufsc_get_current_club_id' ) ) {
-			return (int) ufsc_get_current_club_id( $user_id );
+		if ( function_exists( 'ufsc_lc_get_current_club_id' ) ) {
+			return (int) ufsc_lc_get_current_club_id( $user_id );
 		}
 
 		return 0;
@@ -472,8 +472,8 @@ class CompetitionAccess {
 			return array();
 		}
 
-		if ( function_exists( 'ufsc_extract_club_disciplines' ) ) {
-			return ufsc_extract_club_disciplines( $club );
+		if ( function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
+			return ufsc_lc_extract_club_disciplines( $club );
 		}
 
 		$raw = '';
@@ -524,8 +524,8 @@ class CompetitionAccess {
 	}
 
 	private function normalize_region_value( string $value ): string {
-		if ( function_exists( 'ufsc_normalize_region_key' ) ) {
-			return ufsc_normalize_region_key( $value );
+		if ( function_exists( 'ufsc_lc_normalize_region_key' ) ) {
+			return ufsc_lc_normalize_region_key( $value );
 		}
 
 		$value = trim( $value );
@@ -533,8 +533,8 @@ class CompetitionAccess {
 	}
 
 	private function normalize_discipline_value( string $value ): string {
-		if ( function_exists( 'ufsc_normalize_discipline' ) ) {
-			return ufsc_normalize_discipline( $value );
+		if ( function_exists( 'ufsc_lc_normalize_discipline' ) ) {
+			return ufsc_lc_normalize_discipline( $value );
 		}
 
 		$value = trim( $value );

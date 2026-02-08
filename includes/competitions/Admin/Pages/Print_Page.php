@@ -36,8 +36,8 @@ class Print_Page {
 		$type = isset( $_GET['print_type'] ) ? sanitize_key( wp_unslash( $_GET['print_type'] ) ) : 'entries';
 
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 
@@ -94,8 +94,8 @@ class Print_Page {
 							echo '</tbody></table>';
 						} else {
 							$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
-							if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-								$entry_filters = ufsc_competitions_apply_scope_to_query_args( $entry_filters );
+							if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+								$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 							}
 							$entries = $this->entries->list( $entry_filters, 500, 0 );
 							$categories = $this->categories->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );

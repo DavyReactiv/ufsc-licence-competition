@@ -27,13 +27,19 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( $this->legacy_enabled ) {
 			$this->register_shortcode( 'ufsc_club_licences_asptt' );
 			$this->register_shortcode( 'ufsc_licences' );
-			$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
-			$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
-			if ( $legacy_allowed ) {
-				add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
-			}
-		}
+if ( $this->legacy_enabled ) {
+	$this->register_shortcode( 'ufsc_club_licences_asptt' );
+	$this->register_shortcode( 'ufsc_licences' );
+
+	// Legacy admin-post handler (OFF by default, opt-in via filters).
+	$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', false );
+	$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
+
+	if ( $legacy_allowed ) {
+		add_action( 'admin_post_ufsc_download_asptt_pdf', array( $this, 'handle_download' ) );
 	}
+}
+
 
 	private function register_shortcode( $tag ) {
 		if ( ! shortcode_exists( $tag ) ) {
@@ -261,8 +267,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
 							$pdf_attachment_id = ! empty( $item->attachment_id ) ? (int) $item->attachment_id : 0;
-							if ( ! $pdf_attachment_id && function_exists( 'ufsc_licence_get_pdf_attachment_id' ) ) {
-								$pdf_attachment_id = (int) ufsc_licence_get_pdf_attachment_id( $item->id );
+							if ( ! $pdf_attachment_id && function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
+								$pdf_attachment_id = (int) ufsc_lc_licence_get_pdf_attachment_id( $item->id );
 							}
 							?>
 							<tr>
@@ -386,8 +392,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 
-		$attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-			? ufsc_licence_get_pdf_attachment_id( $licence_id )
+		$attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
+			? ufsc_lc_licence_get_pdf_attachment_id( $licence_id )
 			: null;
 		if ( ! $attachment_id ) {
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ) );
@@ -398,21 +404,21 @@ class UFSC_LC_Club_Licences_Shortcode {
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( headers_sent() ) {
-			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
-		}
+if ( headers_sent() ) {
+	wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+}
 
-		while ( ob_get_level() ) {
-			ob_end_clean();
-		}
-		nocache_headers();
-		header( 'Content-Type: application/pdf' );
-		header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
-		header( 'Content-Length: ' . filesize( $file_path ) );
+while ( ob_get_level() ) {
+	ob_end_clean();
+}
+nocache_headers();
+header( 'Content-Type: application/pdf' );
+header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
+header( 'Content-Length: ' . filesize( $file_path ) );
 
-		@readfile( $file_path );
-		exit;
-	}
+@readfile( $file_path );
+exit;
+
 
 	private function get_filters() {
 		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;

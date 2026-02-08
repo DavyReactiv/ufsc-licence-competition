@@ -190,8 +190,8 @@ class FightAutoGenerationService {
 			$ineligible_reasons = array();
 			foreach ( $entries as $entry ) {
 				$entry_id = (int) ( $entry->id ?? 0 );
-				$eligibility = function_exists( 'ufsc_is_entry_eligible' )
-					? ufsc_is_entry_eligible( $entry_id, 'fights' )
+				$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
+					? ufsc_lc_is_entry_eligible( $entry_id, 'fights' )
 					: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
 
 				if ( empty( $eligibility['eligible'] ) ) {

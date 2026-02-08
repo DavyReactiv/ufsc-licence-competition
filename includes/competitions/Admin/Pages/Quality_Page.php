@@ -43,14 +43,14 @@ class Quality_Page {
 
 	private function collect_issues() {
 		$entry_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$entry_filters = ufsc_competitions_apply_scope_to_query_args( $entry_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 		}
 		$entries = $this->entries->list( $entry_filters, 500, 0 );
 
 		$competition_filters = array( 'view' => 'all' );
-		if ( function_exists( 'ufsc_competitions_apply_scope_to_query_args' ) ) {
-			$competition_filters = ufsc_competitions_apply_scope_to_query_args( $competition_filters );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
 		$index = array();

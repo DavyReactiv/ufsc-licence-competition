@@ -19,14 +19,14 @@ class UFSC_LC_Licence_Documents {
 		add_action( 'admin_post_ufsc_lc_download_licence_pdf', array( $this, 'handle_download' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
 
-		$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
-		$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
+$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
+$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
 
-		if ( $this->legacy_enabled && $legacy_allowed ) {
-			add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
-			add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
-		}
-	}
+if ( $this->legacy_enabled && $legacy_allowed ) {
+	add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
+	add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
+}
+
 
 	public function create_table() {
 		global $wpdb;
@@ -222,8 +222,8 @@ class UFSC_LC_Licence_Documents {
 								<h2><?php esc_html_e( 'Licence trouvée', 'ufsc-licence-competition' ); ?></h2>
 								<?php echo wp_kses_post( $this->render_licence_summary( $item, $search['season_label'] ) ); ?>
 								<?php
-								$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-									? ufsc_licence_get_pdf_attachment_id( (int) $item->id )
+								$current_attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
+									? ufsc_lc_licence_get_pdf_attachment_id( (int) $item->id )
 									: null;
 								$current_pdf_url = $current_attachment_id ? wp_get_attachment_url( $current_attachment_id ) : '';
 								?>
@@ -511,15 +511,15 @@ class UFSC_LC_Licence_Documents {
 			$this->redirect_with_message( 'error', __( 'Licence introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		if ( class_exists( 'UFSC_Scope' ) ) {
-			UFSC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
 		} else {
 			$repository = new UFSC_LC_Licence_Repository();
 			$repository->assert_licence_in_scope( (int) $licence->id );
 		}
 
-		$current_attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-			? ufsc_licence_get_pdf_attachment_id( (int) $licence->id )
+		$current_attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
+			? ufsc_lc_licence_get_pdf_attachment_id( (int) $licence->id )
 			: null;
 
 		if ( 'detach' === $action ) {
@@ -603,8 +603,8 @@ class UFSC_LC_Licence_Documents {
 			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ), '', array( 'response' => 404 ) );
 		}
 
-		if ( class_exists( 'UFSC_Scope' ) ) {
-			UFSC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
 		} else {
 			$repository = new UFSC_LC_Licence_Repository();
 			$repository->assert_licence_in_scope( (int) $licence->id );
@@ -624,8 +624,8 @@ class UFSC_LC_Licence_Documents {
 			}
 		}
 
-		$attachment_id = function_exists( 'ufsc_licence_get_pdf_attachment_id' )
-			? ufsc_licence_get_pdf_attachment_id( $licence_id )
+		$attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
+			? ufsc_lc_licence_get_pdf_attachment_id( $licence_id )
 			: null;
 		if ( ! $attachment_id ) {
 			UFSC_LC_Logger::log(
@@ -646,9 +646,9 @@ class UFSC_LC_Licence_Documents {
 
 		$file_name = basename( $file_path );
 
-		if ( headers_sent() ) {
-			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
-		}
+if ( headers_sent() ) {
+	wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+}
 
 		while ( ob_get_level() ) {
 			ob_end_clean();
@@ -693,8 +693,8 @@ class UFSC_LC_Licence_Documents {
 			return null;
 		}
 
-		if ( class_exists( 'UFSC_Scope' ) ) {
-			UFSC_Scope::enforce_object_scope( (int) $club_id, 'club' );
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( (int) $club_id, 'club' );
 		}
 
 		$table = $this->get_clubs_table();

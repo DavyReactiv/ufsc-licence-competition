@@ -6,29 +6,33 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'ufsc_get_current_club_id' ) ) {
+if ( ! function_exists( 'ufsc_lc_get_current_club_id' ) ) {
 	/**
 	 * Resolve current club id for a given user (or current user if omitted).
 	 *
 	 * @param int $user_id Optional user id.
 	 * @return int
 	 */
-	function ufsc_get_current_club_id( int $user_id = 0 ): int {
-		$resolved = function_exists( 'ufsc_resolve_current_club_id' ) ? ufsc_resolve_current_club_id( $user_id ) : array();
+	function ufsc_lc_get_current_club_id( int $user_id = 0 ): int {
+		if ( function_exists( 'ufsc_get_current_club_id' ) ) {
+			return (int) ufsc_get_current_club_id( $user_id );
+		}
+
+		$resolved = function_exists( 'ufsc_lc_resolve_current_club_id' ) ? ufsc_lc_resolve_current_club_id( $user_id ) : array();
 		$club_id  = absint( $resolved['club_id'] ?? 0 );
 
 		return $club_id ? $club_id : 0;
 	}
 }
 
-if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
+if ( ! function_exists( 'ufsc_lc_resolve_current_club_id' ) ) {
 	/**
 	 * Resolve current club id with fallback sources.
 	 *
 	 * @param int $user_id Optional user id.
 	 * @return array{club_id:int,source:string,source_meta_key:string}
 	 */
-	function ufsc_resolve_current_club_id( int $user_id = 0 ): array {
+	function ufsc_lc_resolve_current_club_id( int $user_id = 0 ): array {
 		$user_id = $user_id > 0 ? $user_id : ( is_user_logged_in() ? (int) get_current_user_id() : 0 );
 		if ( ! $user_id ) {
 			return array(
@@ -171,16 +175,16 @@ if ( ! function_exists( 'ufsc_resolve_current_club_id' ) ) {
 	}
 }
 
-if ( ! function_exists( 'ufsc_current_club_context' ) ) {
+if ( ! function_exists( 'ufsc_lc_current_club_context' ) ) {
 	/**
 	 * Resolve current club context for a user (or current user if omitted).
 	 *
 	 * @param int $user_id Optional user id.
 	 * @return array{club_id:int,club_name:string,region:string,affiliated:bool,source:string,source_meta_key:string}
 	 */
-	function ufsc_current_club_context( int $user_id = 0 ): array {
+	function ufsc_lc_current_club_context( int $user_id = 0 ): array {
 		$user_id = $user_id > 0 ? $user_id : ( is_user_logged_in() ? (int) get_current_user_id() : 0 );
-		$resolved = function_exists( 'ufsc_resolve_current_club_id' ) ? ufsc_resolve_current_club_id( $user_id ) : array();
+		$resolved = function_exists( 'ufsc_lc_resolve_current_club_id' ) ? ufsc_lc_resolve_current_club_id( $user_id ) : array();
 
 		$club_id = absint( $resolved['club_id'] ?? 0 );
 		$source = (string) ( $resolved['source'] ?? '' );
