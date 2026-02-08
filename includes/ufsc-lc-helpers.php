@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( ! function_exists( 'ufsc_lc_get_nom_affiche' ) ) {
 function ufsc_lc_get_nom_affiche( $row ) {
 	$nom_affiche = '';
 	$nom         = '';
@@ -36,7 +37,9 @@ function ufsc_lc_get_nom_affiche( $row ) {
 
 	return '';
 }
+}
 
+if ( ! function_exists( 'ufsc_lc_format_birthdate' ) ) {
 function ufsc_lc_format_birthdate( $raw ) {
 	$raw = trim( (string) $raw );
 	if ( '' === $raw ) {
@@ -54,7 +57,9 @@ function ufsc_lc_format_birthdate( $raw ) {
 
 	return '';
 }
+}
 
+if ( ! function_exists( 'ufsc_lc_compute_category_from_birthdate' ) ) {
 function ufsc_lc_compute_category_from_birthdate( $birthdate, $season_end_year ) {
 	if ( ! class_exists( 'UFSC_LC_Categories' ) ) {
 		return '';
@@ -73,7 +78,9 @@ function ufsc_lc_compute_category_from_birthdate( $birthdate, $season_end_year )
 	$computed = UFSC_LC_Categories::category_from_birthdate( $birthdate, $season_end_year );
 	return isset( $computed['category'] ) ? (string) $computed['category'] : '';
 }
+}
 
+if ( ! function_exists( 'ufsc_lc_normalize_search' ) ) {
 function ufsc_lc_normalize_search( $value ) {
 	$value = remove_accents( (string) $value );
 	$value = preg_replace( '/\s+/', ' ', $value );
@@ -87,7 +94,9 @@ function ufsc_lc_normalize_search( $value ) {
 
 	return $value;
 }
+}
 
+if ( ! function_exists( 'ufsc_normalize_token' ) ) {
 function ufsc_normalize_token( $value ): string {
 	$value = trim( (string) $value );
 	if ( '' === $value ) {
@@ -107,7 +116,9 @@ function ufsc_normalize_token( $value ): string {
 
 	return $value;
 }
+}
 
+if ( ! function_exists( 'ufsc_normalize_region' ) ) {
 function ufsc_normalize_region( $value ): string {
 	$normalized = ufsc_normalize_token( $value );
 	if ( '' === $normalized ) {
@@ -123,7 +134,9 @@ function ufsc_normalize_region( $value ): string {
 
 	return isset( $aliases[ $normalized ] ) ? $aliases[ $normalized ] : $normalized;
 }
+}
 
+if ( ! function_exists( 'ufsc_normalize_region_key' ) ) {
 function ufsc_normalize_region_key( $label ): string {
 	$value = trim( (string) $label );
 	if ( '' === $value ) {
@@ -147,11 +160,15 @@ function ufsc_normalize_region_key( $label ): string {
 
 	return $value;
 }
+}
 
+if ( ! function_exists( 'ufsc_normalize_discipline' ) ) {
 function ufsc_normalize_discipline( $value ): string {
 	return ufsc_normalize_token( $value );
 }
+}
 
+if ( ! function_exists( 'ufsc_extract_club_disciplines' ) ) {
 function ufsc_extract_club_disciplines( $club ): array {
 	if ( ! is_object( $club ) ) {
 		return array();
@@ -182,7 +199,9 @@ function ufsc_extract_club_disciplines( $club ): array {
 
 	return array_values( array_unique( $disciplines ) );
 }
+}
 
+if ( ! function_exists( 'ufsc_get_competitions_list_url' ) ) {
 function ufsc_get_competitions_list_url(): string {
 	$url = (string) apply_filters( 'ufsc_competitions_front_list_url', '' );
 	if ( '' !== $url ) {
@@ -196,7 +215,9 @@ function ufsc_get_competitions_list_url(): string {
 
 	return home_url( '/' );
 }
+}
 
+if ( ! function_exists( 'ufsc_render_access_denied_notice' ) ) {
 function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResult $result, string $list_url = '' ): string {
 	$messages = array(
 		'not_logged_in' => __( 'Connexion requise pour accéder à cette compétition.', 'ufsc-licence-competition' ),
@@ -257,7 +278,9 @@ function ufsc_render_access_denied_notice( \UFSC\Competitions\Access\AccessResul
 		$buttons ? '<p>' . implode( ' ', $buttons ) . '</p>' : ''
 	);
 }
+}
 
+if ( ! function_exists( 'ufsc_lc_table_exists' ) ) {
 function ufsc_lc_table_exists( $table_name ) {
 	global $wpdb;
 
@@ -268,7 +291,9 @@ function ufsc_lc_table_exists( $table_name ) {
 	$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
 	return $exists === $table_name;
 }
+}
 
+if ( ! function_exists( 'ufsc_get_current_season_end_year' ) ) {
 function ufsc_get_current_season_end_year() {
 	$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
 	$now      = new DateTimeImmutable( 'now', $timezone );
@@ -280,14 +305,18 @@ function ufsc_get_current_season_end_year() {
 
 	return $is_new_season ? $year + 1 : $year;
 }
+}
 
+if ( ! function_exists( 'ufsc_get_current_season_label' ) ) {
 function ufsc_get_current_season_label() {
 	$end_year = ufsc_get_current_season_end_year();
 	$start_year = $end_year - 1;
 
 	return sprintf( '%d-%d', $start_year, $end_year );
 }
+}
 
+if ( ! function_exists( 'ufsc_licence_get_pdf_attachment_id' ) ) {
 function ufsc_licence_get_pdf_attachment_id( $licence_id ) {
 	$licence_id = absint( $licence_id );
 	if ( ! $licence_id ) {
@@ -362,7 +391,9 @@ function ufsc_licence_get_pdf_attachment_id( $licence_id ) {
 	$cache[ $licence_id ] = $attachment_id ? (int) $attachment_id : null;
 	return $cache[ $licence_id ];
 }
+}
 
+if ( ! function_exists( 'ufsc_licence_get_pdf_url' ) ) {
 function ufsc_licence_get_pdf_url( $licence_id ) {
 	$attachment_id = ufsc_licence_get_pdf_attachment_id( $licence_id );
 	if ( ! $attachment_id ) {
@@ -372,7 +403,10 @@ function ufsc_licence_get_pdf_url( $licence_id ) {
 	$url = wp_get_attachment_url( $attachment_id );
 	return $url ? $url : null;
 }
+}
 
+if ( ! function_exists( 'ufsc_licence_has_pdf' ) ) {
 function ufsc_licence_has_pdf( $licence_id ) {
 	return null !== ufsc_licence_get_pdf_attachment_id( $licence_id );
+}
 }

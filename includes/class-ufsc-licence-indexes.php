@@ -8,6 +8,10 @@ class UFSC_LC_Licence_Indexes {
 	public function ensure_indexes() {
 		global $wpdb;
 
+		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', true ) ) {
+			return;
+		}
+
 		$this->ensure_licence_indexes( $wpdb->prefix . 'ufsc_licences' );
 		$this->ensure_documents_indexes( $wpdb->prefix . 'ufsc_licence_documents' );
 	}
@@ -102,5 +106,54 @@ class UFSC_LC_Licence_Indexes {
 		$index_type  = $unique ? 'UNIQUE INDEX' : 'INDEX';
 
 		$wpdb->query( "ALTER TABLE {$table} ADD {$index_type} `{$index_name}` ({$columns_sql})" );
+	}
+
+	public function get_missing_master_indexes(): array {
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'ufsc_licences';
+		if ( ! $this->table_exists( $table ) ) {
+			return array();
+		}
+
+		$indexes = $this->get_index_names( $table );
+		$expected = array(
+			'idx_club_id' => array( 'club_id' ),
+			'idx_nom_licence' => array( 'nom_licence' ),
+			'idx_prenom' => array( 'prenom' ),
+			'idx_statut' => array( 'statut' ),
+		);
+
+		if ( $this->column_exists( $table, 'numero_licence_asptt' ) ) {
+			$expected['idx_numero_licence_asptt'] = array( 'numero_licence_asptt' );
+		}
+		if ( $this->column_exists( $table, 'categorie' ) ) {
+			$expected['idx_categorie'] = array( 'categorie' );
+		}
+		if ( $this->column_exists( $table, 'category' ) ) {
+			$expected['idx_category'] = array( 'category' );
+		}
+		if ( $this->column_exists( $table, 'season_end_year' ) ) {
+			$expected['idx_season_end_year'] = array( 'season_end_year' );
+		}
+		if (
+			$this->column_exists( $table, 'club_id' )
+			&& $this->column_exists( $table, 'nom_licence' )
+			&& $this->column_exists( $table, 'prenom' )
+			&& $this->column_exists( $table, 'date_naissance' )
+			&& $this->column_exists( $table, 'season_end_year' )
+		) {
+			$expected['idx_club_person_season'] = array( 'club_id', 'nom_licence', 'prenom', 'date_naissance', 'season_end_year' );
+		}
+
+		$missing = array();
+		foreach ( $expected as $index_name => $columns ) {
+			if ( isset( $indexes[ $index_name ] ) ) {
+				continue;
+			}
+			$missing[] = $index_name;
+		}
+
+		return $missing;
 	}
 }

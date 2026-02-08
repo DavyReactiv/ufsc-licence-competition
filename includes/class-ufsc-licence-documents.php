@@ -19,7 +19,10 @@ class UFSC_LC_Licence_Documents {
 		add_action( 'admin_post_ufsc_lc_download_licence_pdf', array( $this, 'handle_download' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_clubs', array( $this, 'ajax_search_clubs' ) );
 
-		if ( $this->legacy_enabled ) {
+		$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', true );
+		$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
+
+		if ( $this->legacy_enabled && $legacy_allowed ) {
 			add_action( 'admin_post_ufsc_upload_licence_pdf', array( $this, 'handle_upload' ) );
 			add_action( 'admin_post_ufsc_download_licence_pdf', array( $this, 'handle_download' ) );
 		}
@@ -643,6 +646,13 @@ class UFSC_LC_Licence_Documents {
 
 		$file_name = basename( $file_path );
 
+		if ( headers_sent() ) {
+			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+		}
+
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
 		header( 'Content-Disposition: attachment; filename="' . $file_name . '"' );
