@@ -36,6 +36,8 @@ class UFSC_LC_ASPTT_Import_Service {
 	private $licence_lookup_ready = false;
 	private $club_lookup = array();
 	private $club_lookup_ready = false;
+	private $transactions_notice = '';
+	private $table_engine_cache = array();
 
 	public function validate_upload( $file ) {
 		if ( empty( $file ) || empty( $file['tmp_name'] ) ) {
@@ -173,7 +175,8 @@ class UFSC_LC_ASPTT_Import_Service {
 		global $wpdb;
 
 		$started_at = microtime( true );
-		$batch_id   = $dry_run ? '' : $this->generate_import_batch_id();
+		$import_batch_id = $dry_run ? '' : $this->generate_import_batch_id();
+		$batch_ids       = array();
 
 		$inserted          = array();
 		$created_documents = array();
@@ -224,8 +227,17 @@ class UFSC_LC_ASPTT_Import_Service {
 		$this->licence_lookup = array();
 		$this->licence_lookup_ready = false;
 
-		if ( ! $dry_run && ! $wpdb->has_cap( 'transactions' ) ) {
-			return new WP_Error( 'transactions_unavailable', __( 'Les transactions SQL sont indisponibles pour cet import.', 'ufsc-licence-competition' ) );
+		$transactions_state   = $dry_run ? array( 'available' => false, 'mode' => 'dry_run', 'reasons' => array() ) : $this->detect_transactions_support();
+		$transactions_enabled = ! $dry_run && ! empty( $transactions_state['available'] );
+
+		if ( ! $dry_run && ! $transactions_enabled ) {
+			$this->transactions_notice = __( 'Transactions SQL indisponibles : bascule en mode fallback batch_id.', 'ufsc-licence-competition' );
+			$this->log_import_warning(
+				$this->transactions_notice,
+				array(
+					'reasons' => isset( $transactions_state['reasons'] ) ? $transactions_state['reasons'] : array(),
+				)
+			);
 		}
 
 		$parsed = $this->read_csv( $file_path, $mapping, 0 );
@@ -322,6 +334,12 @@ class UFSC_LC_ASPTT_Import_Service {
 						'prenom'       => $data['prenom'],
 						'asptt_number' => $data['asptt_number'],
 						'error'        => __( 'Licence ambiguë : plusieurs correspondances trouvées.', 'ufsc-licence-competition' ),
+						'error_code'   => 'ambiguous_licence',
+						'error_field'  => $this->map_error_field( 'ambiguous_licence' ),
+						'error_message'=> __( 'Licence ambiguë : plusieurs correspondances trouvées.', 'ufsc-licence-competition' ),
+						'club_resolution_status' => isset( $data['club_status'] ) ? (string) $data['club_status'] : '',
+						'club_id_resolved' => (int) $club_id,
+						'batch_id'     => isset( $data['batch_id'] ) ? (string) $data['batch_id'] : '',
 					),
 					$line_number
 				);
@@ -388,6 +406,10 @@ class UFSC_LC_ASPTT_Import_Service {
 		$stats['clubs_processed'] = count( $rows_by_club );
 
 		foreach ( $rows_by_club as $club_id => $club_rows ) {
+			$club_batch_id = $dry_run ? '' : $this->generate_import_batch_id();
+			if ( $club_batch_id ) {
+				$batch_ids[] = $club_batch_id;
+			}
 			$club_log = array(
 				'club_id' => (int) $club_id,
 				'status'  => 'committed',
@@ -395,11 +417,18 @@ class UFSC_LC_ASPTT_Import_Service {
 				'created' => 0,
 				'updated' => 0,
 				'ignored' => 0,
+				'batch_id' => $club_batch_id ? $club_batch_id : null,
+				'transaction_mode' => $transactions_enabled ? 'transaction' : 'fallback',
 			);
 			$club_inserted = array();
 			$club_created_documents = array();
 			$club_created_meta = array();
 			$club_updated_licences = array();
+			$club_updated_licences_previous = array();
+			$club_updated_documents = array();
+			$club_updated_meta = array();
+			$club_hash_updates = array();
+			$club_existing_docs_changes = array();
 			$club_delta_rows = array();
 			$club_ok = 0;
 			$club_licences_updated = 0;
@@ -417,12 +446,18 @@ class UFSC_LC_ASPTT_Import_Service {
 
 			$club_has_error = false;
 			$club_error_reason = '';
-			$use_transactions = ! $dry_run && $wpdb->has_cap( 'transactions' );
+			$use_transactions = $transactions_enabled;
+			$fallback_mode = ! $dry_run && ! $use_transactions;
 
 			if ( $use_transactions ) {
 				if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
-					$club_has_error = true;
-					$club_error_reason = __( 'Impossible de démarrer la transaction SQL.', 'ufsc-licence-competition' );
+					$use_transactions = false;
+					$fallback_mode = ! $dry_run;
+					$club_log['transaction_mode'] = 'fallback';
+					$this->log_import_warning(
+						__( 'Impossible de démarrer la transaction SQL, bascule en mode fallback batch_id.', 'ufsc-licence-competition' ),
+						array( 'club_id' => (int) $club_id )
+					);
 				}
 			}
 
@@ -434,6 +469,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				$asptt_no    = $data['asptt_number'];
 				$club_id     = (int) $data['club_id'];
 				$licence_id  = (int) $data['licence_id'];
+				$data['batch_id'] = $club_batch_id;
 
 				$current_hash = $this->build_row_hash( $data );
 				$previous_hash = '';
@@ -456,7 +492,11 @@ class UFSC_LC_ASPTT_Import_Service {
 
 				if ( $incremental && $licence_id && $current_hash && $previous_hash && hash_equals( $previous_hash, $current_hash ) ) {
 					if ( $used_fallback_hash && ! $dry_run ) {
-						$this->store_hash( $asptt_no, $club_id, $previous_hash, $hash_table_available );
+						$club_hash_updates[] = array(
+							'asptt_number' => $asptt_no,
+							'club_id'      => $club_id,
+							'hash'         => $previous_hash,
+						);
 					}
 
 					if ( isset( $existing_docs[ $asptt_no ] ) ) {
@@ -495,6 +535,12 @@ class UFSC_LC_ASPTT_Import_Service {
 							'prenom'       => $data['prenom'],
 							'asptt_number' => $asptt_no,
 							'error'        => __( 'Doublon détecté sur la clé métier.', 'ufsc-licence-competition' ),
+							'error_code'   => 'duplicate_business_key',
+							'error_field'  => $this->map_error_field( 'duplicate_business_key' ),
+							'error_message'=> __( 'Doublon détecté sur la clé métier.', 'ufsc-licence-competition' ),
+							'club_resolution_status' => isset( $data['club_status'] ) ? (string) $data['club_status'] : '',
+							'club_id_resolved' => (int) $club_id,
+							'batch_id'     => $club_batch_id,
 						),
 						$line_number
 					);
@@ -514,7 +560,7 @@ class UFSC_LC_ASPTT_Import_Service {
 					'telephone'       => $data['telephone'],
 					'activite'        => $data['activite'],
 					'region'          => $data['region'],
-					'import_batch_id' => $batch_id,
+					'import_batch_id' => $club_batch_id,
 				);
 
 				$licence_result = array(
@@ -526,7 +572,9 @@ class UFSC_LC_ASPTT_Import_Service {
 					$licence_result = $this->upsert_licence_by_number(
 						$asptt_no,
 						$licence_payload,
-						$licence_id
+						$licence_id,
+						$club_batch_id,
+						$fallback_mode
 					);
 
 					if ( is_wp_error( $licence_result ) ) {
@@ -552,6 +600,9 @@ class UFSC_LC_ASPTT_Import_Service {
 				$club_log['updated']++;
 				if ( ! $dry_run ) {
 					$club_updated_licences[] = (int) $licence_result['id'];
+					if ( $fallback_mode && ! empty( $licence_result['previous'] ) ) {
+						$club_updated_licences_previous[ (int) $licence_result['id'] ] = (array) $licence_result['previous'];
+					}
 				}
 
 				if ( ! empty( $data['club_from_note'] ) ) {
@@ -584,7 +635,9 @@ class UFSC_LC_ASPTT_Import_Service {
 						$asptt_no,
 						$data['attachment_id'],
 						$data['note'],
-						$data['source_created_at']
+						$data['source_created_at'],
+						$club_batch_id,
+						$fallback_mode
 					);
 
 					if ( false === $doc_result || ! empty( $wpdb->last_error ) ) {
@@ -594,7 +647,30 @@ class UFSC_LC_ASPTT_Import_Service {
 							__( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ),
 							array( 'error' => $wpdb->last_error )
 						);
+						$this->push_line_log(
+							$report_line_logs,
+							$this->build_line_log_entry( $data, $line_number, __( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ), 'db_error', 'db_error' )
+						);
+						$this->push_report_error(
+							$report_errors,
+							array(
+								'nom'          => $data['nom'],
+								'prenom'       => $data['prenom'],
+								'asptt_number' => $asptt_no,
+								'error'        => __( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ),
+								'error_code'   => 'db_error',
+								'error_field'  => $this->map_error_field( 'db_error' ),
+								'error_message'=> __( 'Erreur SQL lors de l’import ASPTT.', 'ufsc-licence-competition' ),
+								'club_resolution_status' => isset( $data['club_status'] ) ? (string) $data['club_status'] : '',
+								'club_id_resolved' => (int) $club_id,
+								'batch_id'     => $club_batch_id,
+							),
+							$line_number
+						);
 						break;
+					}
+					if ( $fallback_mode && ! empty( $doc_result['previous'] ) ) {
+						$club_updated_documents[ (int) $doc_result['id'] ] = (array) $doc_result['previous'];
 					}
 
 					if ( $has_meta_table ) {
@@ -605,25 +681,40 @@ class UFSC_LC_ASPTT_Import_Service {
 							$review_status = 'approved';
 						}
 
-						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'] );
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'confidence_score', (int) $data['confidence_score'], $club_batch_id, $fallback_mode );
 						if ( $meta_result && $meta_result['created'] ) {
 							$club_created_meta[] = (int) $meta_result['id'];
 						}
-						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'link_mode', $link_mode );
+						if ( $fallback_mode && ! empty( $meta_result['previous'] ) ) {
+							$club_updated_meta[ (int) $meta_result['id'] ] = (array) $meta_result['previous'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'link_mode', $link_mode, $club_batch_id, $fallback_mode );
 						if ( $meta_result && $meta_result['created'] ) {
 							$club_created_meta[] = (int) $meta_result['id'];
 						}
-						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'review_status', $review_status );
+						if ( $fallback_mode && ! empty( $meta_result['previous'] ) ) {
+							$club_updated_meta[ (int) $meta_result['id'] ] = (array) $meta_result['previous'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'review_status', $review_status, $club_batch_id, $fallback_mode );
 						if ( $meta_result && $meta_result['created'] ) {
 							$club_created_meta[] = (int) $meta_result['id'];
 						}
-						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'club_resolution', $data['club_resolution'] );
+						if ( $fallback_mode && ! empty( $meta_result['previous'] ) ) {
+							$club_updated_meta[ (int) $meta_result['id'] ] = (array) $meta_result['previous'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'club_resolution', $data['club_resolution'], $club_batch_id, $fallback_mode );
 						if ( $meta_result && $meta_result['created'] ) {
 							$club_created_meta[] = (int) $meta_result['id'];
 						}
-						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'person_resolution', $data['person_resolution'] );
+						if ( $fallback_mode && ! empty( $meta_result['previous'] ) ) {
+							$club_updated_meta[ (int) $meta_result['id'] ] = (array) $meta_result['previous'];
+						}
+						$meta_result = $this->upsert_document_meta( (int) $data['licence_id'], self::SOURCE, 'person_resolution', $data['person_resolution'], $club_batch_id, $fallback_mode );
 						if ( $meta_result && $meta_result['created'] ) {
 							$club_created_meta[] = (int) $meta_result['id'];
+						}
+						if ( $fallback_mode && ! empty( $meta_result['previous'] ) ) {
+							$club_updated_meta[ (int) $meta_result['id'] ] = (array) $meta_result['previous'];
 						}
 					}
 				}
@@ -634,14 +725,19 @@ class UFSC_LC_ASPTT_Import_Service {
 						$club_created_documents[] = (int) $doc_result['id'];
 					}
 				}
+				if ( ! array_key_exists( $asptt_no, $club_existing_docs_changes ) ) {
+					$club_existing_docs_changes[ $asptt_no ] = isset( $existing_docs[ $asptt_no ] ) ? (int) $existing_docs[ $asptt_no ] : null;
+				}
 				$existing_docs[ $asptt_no ] = (int) $data['licence_id'];
 
 				$club_ok++;
 
-				if ( $current_hash ) {
-					if ( ! $dry_run ) {
-						$this->store_hash( $asptt_no, $club_id, $current_hash, $hash_table_available );
-					}
+				if ( $current_hash && ! $dry_run ) {
+					$club_hash_updates[] = array(
+						'asptt_number' => $asptt_no,
+						'club_id'      => $club_id,
+						'hash'         => $current_hash,
+					);
 				}
 
 				$action = $licence_result['created'] ? 'created' : 'updated';
@@ -668,6 +764,25 @@ class UFSC_LC_ASPTT_Import_Service {
 			}
 
 			if ( $club_has_error ) {
+				if ( $fallback_mode ) {
+					$this->cleanup_failed_club_batch(
+						$club_batch_id,
+						array(
+							'documents'       => $club_created_documents,
+							'meta'            => $club_created_meta,
+							'licence_updates' => $club_updated_licences_previous,
+							'document_updates'=> $club_updated_documents,
+							'meta_updates'    => $club_updated_meta,
+						)
+					);
+					foreach ( $club_existing_docs_changes as $asptt_key => $previous_value ) {
+						if ( null === $previous_value ) {
+							unset( $existing_docs[ $asptt_key ] );
+						} else {
+							$existing_docs[ $asptt_key ] = $previous_value;
+						}
+					}
+				}
 				$club_log['status'] = 'skipped';
 				$club_log['reason'] = $club_error_reason;
 				$club_log['ignored'] = count( $club_rows );
@@ -683,6 +798,16 @@ class UFSC_LC_ASPTT_Import_Service {
 				$created_meta = array_merge( $created_meta, $club_created_meta );
 				$updated_licences = array_merge( $updated_licences, $club_updated_licences );
 				$delta_rows = array_merge( $delta_rows, $club_delta_rows );
+				if ( ! $dry_run ) {
+					foreach ( $club_hash_updates as $hash_update ) {
+						$this->store_hash(
+							$hash_update['asptt_number'],
+							$hash_update['club_id'],
+							$hash_update['hash'],
+							$hash_table_available
+						);
+					}
+				}
 			}
 
 			$report_club_logs[] = $club_log;
@@ -704,13 +829,15 @@ class UFSC_LC_ASPTT_Import_Service {
 			'created_meta'      => array_values( array_unique( $created_meta ) ),
 			'created_licences'  => array_values( array_unique( $created_licences ) ),
 			'updated_licences'  => array_values( array_unique( $updated_licences ) ),
-			'batch_id'          => $batch_id,
-			'used_transactions' => $wpdb->has_cap( 'transactions' ),
+			'batch_id'          => $import_batch_id,
+			'batch_ids'         => array_values( array_unique( array_filter( $batch_ids ) ) ),
+			'used_transactions' => (bool) $transactions_enabled,
 			'stats'             => $stats,
 			'duration_sec'      => $duration_sec,
 			'rows_per_sec'      => $rows_per_sec,
 			'hash_storage'      => $hash_storage,
 			'hash_notice'       => $hash_notice,
+			'transaction_notice' => $this->transactions_notice,
 			'report'            => array(
 				'errors' => $this->finalize_report_errors( $report_errors ),
 				'line_logs' => $report_line_logs,
@@ -742,6 +869,12 @@ class UFSC_LC_ASPTT_Import_Service {
 				__( 'Date ASPTT brute', 'ufsc-licence-competition' ),
 				__( 'Status', 'ufsc-licence-competition' ),
 				__( 'Erreur', 'ufsc-licence-competition' ),
+				__( 'Code erreur', 'ufsc-licence-competition' ),
+				__( 'Champ erreur', 'ufsc-licence-competition' ),
+				__( 'Message erreur', 'ufsc-licence-competition' ),
+				__( 'Statut club', 'ufsc-licence-competition' ),
+				__( 'Batch ID', 'ufsc-licence-competition' ),
+				__( 'Club ID résolu', 'ufsc-licence-competition' ),
 			),
 			';'
 		);
@@ -758,6 +891,12 @@ class UFSC_LC_ASPTT_Import_Service {
 					$this->sanitize_csv_value( $error['source_created_at_raw'] ),
 					$this->sanitize_csv_value( $error['status'] ),
 					$this->sanitize_csv_value( $error['error'] ),
+					$this->sanitize_csv_value( isset( $error['error_code'] ) ? $error['error_code'] : '' ),
+					$this->sanitize_csv_value( isset( $error['error_field'] ) ? $error['error_field'] : '' ),
+					$this->sanitize_csv_value( isset( $error['error_message'] ) ? $error['error_message'] : '' ),
+					$this->sanitize_csv_value( isset( $error['club_resolution_status'] ) ? $error['club_resolution_status'] : '' ),
+					$this->sanitize_csv_value( isset( $error['batch_id'] ) ? $error['batch_id'] : '' ),
+					$this->sanitize_csv_value( isset( $error['club_id_resolved'] ) ? $error['club_id_resolved'] : '' ),
 				),
 				';'
 			);
@@ -1151,6 +1290,8 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$error = null;
 		if ( ! empty( $row_errors ) ) {
+			$error_code = $this->map_status_to_error_code( $status );
+			$error_field = $this->map_error_field( $error_code );
 			$error = array(
 				'nom'                  => $nom,
 				'prenom'               => $prenom,
@@ -1161,6 +1302,11 @@ class UFSC_LC_ASPTT_Import_Service {
 				'source_created_at_raw'=> $raw_created_at,
 				'status'               => $status,
 				'error'                => implode( ' | ', $row_errors ),
+				'error_code'           => $error_code,
+				'error_field'          => $error_field,
+				'error_message'        => implode( ' | ', $row_errors ),
+				'club_resolution_status' => $resolved['status'],
+				'club_id_resolved'     => (int) $resolved['club_id'],
 			);
 		}
 
@@ -1755,10 +1901,11 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 	}
 
-	private function upsert_document( $licence_id, $source_licence_number, $attachment_id, $note, $source_created_at ) {
+	private function upsert_document( $licence_id, $source_licence_number, $attachment_id, $note, $source_created_at, $batch_id = '', $track_previous = false ) {
 		global $wpdb;
 
 		$table = $this->get_documents_table();
+		$has_batch_column = $batch_id && $this->column_exists( $table, 'import_batch_id' );
 
 		$existing = $wpdb->get_var(
 			$wpdb->prepare(
@@ -1767,6 +1914,21 @@ class UFSC_LC_ASPTT_Import_Service {
 				self::SOURCE
 			)
 		);
+
+		$previous = array();
+		if ( $existing && $track_previous ) {
+			$select_fields = array( 'source_licence_number', 'attachment_id', 'asptt_club_note', 'source_created_at' );
+			if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+				$select_fields[] = 'import_batch_id';
+			}
+			$previous = (array) $wpdb->get_row(
+				$wpdb->prepare(
+					'SELECT ' . implode( ', ', $select_fields ) . " FROM {$table} WHERE id = %d",
+					(int) $existing
+				),
+				ARRAY_A
+			);
+		}
 
 		$data = array(
 			'licence_id'             => $licence_id,
@@ -1799,6 +1961,10 @@ class UFSC_LC_ASPTT_Import_Service {
 			$data['source_created_at'] = $source_created_at;
 			$formats[]                 = '%s';
 		}
+		if ( $has_batch_column ) {
+			$data['import_batch_id'] = $batch_id;
+			$formats[] = '%s';
+		}
 
 		if ( $existing ) {
 			$updated = $wpdb->update(
@@ -1816,6 +1982,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			return array(
 				'id'      => (int) $existing,
 				'created' => false,
+				'previous'=> $previous,
 			);
 		}
 
@@ -1837,16 +2004,18 @@ class UFSC_LC_ASPTT_Import_Service {
 		return array(
 			'id'      => (int) $wpdb->insert_id,
 			'created' => true,
+			'previous'=> array(),
 		);
 	}
 
-	private function upsert_document_meta( $licence_id, $source, $meta_key, $meta_value ) {
+	private function upsert_document_meta( $licence_id, $source, $meta_key, $meta_value, $batch_id = '', $track_previous = false ) {
 		global $wpdb;
 
 		$table = $this->get_documents_meta_table();
 		if ( ! $this->table_exists( $table ) ) {
 			return false;
 		}
+		$has_batch_column = $batch_id && $this->column_exists( $table, 'import_batch_id' );
 
 		$existing = $wpdb->get_var(
 			$wpdb->prepare(
@@ -1857,6 +2026,21 @@ class UFSC_LC_ASPTT_Import_Service {
 			)
 		);
 
+		$previous = array();
+		if ( $existing && $track_previous ) {
+			$select_fields = array( 'meta_value' );
+			if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+				$select_fields[] = 'import_batch_id';
+			}
+			$previous = (array) $wpdb->get_row(
+				$wpdb->prepare(
+					'SELECT ' . implode( ', ', $select_fields ) . " FROM {$table} WHERE id = %d",
+					(int) $existing
+				),
+				ARRAY_A
+			);
+		}
+
 		$data = array(
 			'licence_id' => $licence_id,
 			'source'     => $source,
@@ -1866,6 +2050,10 @@ class UFSC_LC_ASPTT_Import_Service {
 		);
 
 		$formats = array( '%d', '%s', '%s', '%s', '%s' );
+		if ( $has_batch_column ) {
+			$data['import_batch_id'] = $batch_id;
+			$formats[] = '%s';
+		}
 
 		if ( $existing ) {
 			$updated = false !== $wpdb->update(
@@ -1879,6 +2067,7 @@ class UFSC_LC_ASPTT_Import_Service {
 				'id'      => (int) $existing,
 				'created' => false,
 				'updated' => $updated,
+				'previous'=> $previous,
 			);
 		}
 
@@ -1887,7 +2076,174 @@ class UFSC_LC_ASPTT_Import_Service {
 			'id'      => $inserted ? (int) $wpdb->insert_id : 0,
 			'created' => $inserted,
 			'updated' => false,
+			'previous'=> array(),
 		);
+	}
+
+	private function detect_transactions_support() {
+		global $wpdb;
+
+		$reasons = array();
+		$engines = array();
+		$available = true;
+
+		if ( ! $wpdb->has_cap( 'transactions' ) ) {
+			$available = false;
+			$reasons[] = 'wpdb_no_transactions';
+		}
+
+		$tables = $this->get_transaction_tables();
+		foreach ( $tables as $table ) {
+			if ( ! $this->table_exists( $table ) ) {
+				$available = false;
+				$reasons[] = 'table_missing:' . $table;
+				continue;
+			}
+			$engine = $this->get_table_engine( $table );
+			$engines[ $table ] = $engine;
+			if ( '' === $engine || 0 !== strcasecmp( 'InnoDB', $engine ) ) {
+				$available = false;
+				$reasons[] = 'table_engine:' . $table . ':' . ( $engine ? $engine : 'unknown' );
+			}
+		}
+
+		if ( $available ) {
+			if ( false === $wpdb->query( 'START TRANSACTION' ) ) {
+				$available = false;
+				$reasons[] = 'start_transaction_failed';
+			} elseif ( false === $wpdb->query( 'ROLLBACK' ) ) {
+				$available = false;
+				$reasons[] = 'rollback_failed';
+			}
+		}
+
+		return array(
+			'available' => $available,
+			'reasons'   => $reasons,
+			'engines'   => $engines,
+		);
+	}
+
+	private function cleanup_failed_club_batch( $batch_id, array $payload ) {
+		global $wpdb;
+
+		if ( ! $batch_id ) {
+			return;
+		}
+
+		$documents_table = $this->get_documents_table();
+		$meta_table      = $this->get_documents_meta_table();
+		$licences_table  = $this->get_licences_table();
+
+		if ( ! empty( $payload['document_updates'] ) && $this->table_exists( $documents_table ) ) {
+			foreach ( (array) $payload['document_updates'] as $doc_id => $previous ) {
+				$data = array(
+					'source_licence_number' => isset( $previous['source_licence_number'] ) ? $previous['source_licence_number'] : '',
+					'attachment_id'         => isset( $previous['attachment_id'] ) ? $previous['attachment_id'] : null,
+					'asptt_club_note'       => isset( $previous['asptt_club_note'] ) ? $previous['asptt_club_note'] : '',
+					'source_created_at'     => isset( $previous['source_created_at'] ) ? $previous['source_created_at'] : null,
+					'updated_at'            => current_time( 'mysql' ),
+				);
+				$formats = array( '%s', '%d', '%s', '%s', '%s' );
+				if ( $this->column_exists( $documents_table, 'import_batch_id' ) ) {
+					$data['import_batch_id'] = isset( $previous['import_batch_id'] ) ? $previous['import_batch_id'] : null;
+					$formats[] = '%s';
+				}
+				$wpdb->update(
+					$documents_table,
+					$data,
+					array( 'id' => (int) $doc_id ),
+					$formats,
+					array( '%d' )
+				);
+			}
+		}
+
+		if ( ! empty( $payload['meta_updates'] ) && $this->table_exists( $meta_table ) ) {
+			foreach ( (array) $payload['meta_updates'] as $meta_id => $previous ) {
+				$data = array(
+					'meta_value' => isset( $previous['meta_value'] ) ? $previous['meta_value'] : null,
+					'updated_at' => current_time( 'mysql' ),
+				);
+				$formats = array( '%s', '%s' );
+				if ( $this->column_exists( $meta_table, 'import_batch_id' ) ) {
+					$data['import_batch_id'] = isset( $previous['import_batch_id'] ) ? $previous['import_batch_id'] : null;
+					$formats[] = '%s';
+				}
+				$wpdb->update(
+					$meta_table,
+					$data,
+					array( 'id' => (int) $meta_id ),
+					$formats,
+					array( '%d' )
+				);
+			}
+		}
+
+		if ( ! empty( $payload['licence_updates'] ) && $this->table_exists( $licences_table ) ) {
+			foreach ( (array) $payload['licence_updates'] as $licence_id => $previous ) {
+				if ( empty( $previous ) || ! is_array( $previous ) ) {
+					continue;
+				}
+				$data = array();
+				$formats = array();
+				foreach ( $previous as $column => $value ) {
+					$data[ $column ] = $value;
+					$formats[] = '%s';
+				}
+				if ( $data ) {
+					$wpdb->update(
+						$licences_table,
+						$data,
+						array( 'id' => (int) $licence_id ),
+						$formats,
+						array( '%d' )
+					);
+				}
+			}
+		}
+
+		if ( $this->table_exists( $documents_table ) && $this->column_exists( $documents_table, 'import_batch_id' ) ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"DELETE FROM {$documents_table} WHERE import_batch_id = %s",
+					$batch_id
+				)
+			);
+		} elseif ( ! empty( $payload['documents'] ) && $this->table_exists( $documents_table ) ) {
+			$ids = array_map( 'absint', (array) $payload['documents'] );
+			$ids = array_values( array_filter( $ids ) );
+			if ( $ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM {$documents_table} WHERE id IN ({$placeholders})",
+						$ids
+					)
+				);
+			}
+		}
+
+		if ( $this->table_exists( $meta_table ) && $this->column_exists( $meta_table, 'import_batch_id' ) ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"DELETE FROM {$meta_table} WHERE import_batch_id = %s",
+					$batch_id
+				)
+			);
+		} elseif ( ! empty( $payload['meta'] ) && $this->table_exists( $meta_table ) ) {
+			$ids = array_map( 'absint', (array) $payload['meta'] );
+			$ids = array_values( array_filter( $ids ) );
+			if ( $ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM {$meta_table} WHERE id IN ({$placeholders})",
+						$ids
+					)
+				);
+			}
+		}
 	}
 
 	public function rollback_import_batch( $batch ) {
@@ -2664,10 +3020,20 @@ class UFSC_LC_ASPTT_Import_Service {
 			return;
 		}
 
+		$error_code = isset( $error['error_code'] ) ? (string) $error['error_code'] : $this->map_status_to_error_code( isset( $error['status'] ) ? $error['status'] : '' );
+		$error_field = isset( $error['error_field'] ) ? (string) $error['error_field'] : $this->map_error_field( $error_code );
+
 		$report_errors[] = array(
 			'line'         => (int) $line_number,
 			'asptt_number' => isset( $error['asptt_number'] ) ? (string) $error['asptt_number'] : '',
 			'error'        => isset( $error['error'] ) ? (string) $error['error'] : '',
+			'error_code'   => $error_code,
+			'error_field'  => $error_field,
+			'error_message' => isset( $error['error_message'] ) ? (string) $error['error_message'] : ( isset( $error['error'] ) ? (string) $error['error'] : '' ),
+			'status'       => isset( $error['status'] ) ? (string) $error['status'] : '',
+			'club_resolution_status' => isset( $error['club_resolution_status'] ) ? (string) $error['club_resolution_status'] : '',
+			'batch_id'     => isset( $error['batch_id'] ) ? (string) $error['batch_id'] : '',
+			'club_id_resolved' => isset( $error['club_id_resolved'] ) ? (int) $error['club_id_resolved'] : 0,
 		);
 	}
 
@@ -3096,6 +3462,7 @@ class UFSC_LC_ASPTT_Import_Service {
 	private function build_line_log_entry( array $data, int $line_number, string $message, string $status, string $error_code = '' ) {
 		$club_id = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
 		$licence_id = isset( $data['licence_id'] ) ? (int) $data['licence_id'] : 0;
+		$batch_id = isset( $data['batch_id'] ) ? (string) $data['batch_id'] : '';
 		$error_code = '' !== $error_code ? $error_code : $this->map_status_to_error_code( $status );
 
 		return array(
@@ -3108,6 +3475,8 @@ class UFSC_LC_ASPTT_Import_Service {
 			'message_humain' => $message,
 			'status'      => $status,
 			'asptt_number'=> isset( $data['asptt_number'] ) ? (string) $data['asptt_number'] : '',
+			'club_resolution_status' => isset( $data['club_status'] ) ? (string) $data['club_status'] : '',
+			'batch_id'    => $batch_id ? $batch_id : null,
 		);
 	}
 
@@ -3148,6 +3517,8 @@ class UFSC_LC_ASPTT_Import_Service {
 				return 'asptt_number';
 			case 'licence_update_failed':
 				return 'licence';
+			case 'db_error':
+				return 'database';
 			default:
 				return '';
 		}
@@ -3186,9 +3557,13 @@ class UFSC_LC_ASPTT_Import_Service {
 			return $this->licence_columns;
 		}
 
-		$this->licence_columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
-		if ( ! is_array( $this->licence_columns ) ) {
-			$this->licence_columns = array();
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			$this->licence_columns = UFSC_LC_Schema_Cache::get_columns( $table );
+		} else {
+			$this->licence_columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+			if ( ! is_array( $this->licence_columns ) ) {
+				$this->licence_columns = array();
+			}
 		}
 
 		return $this->licence_columns;
@@ -3282,7 +3657,7 @@ class UFSC_LC_ASPTT_Import_Service {
 		return $row ? (int) $row->id : 0;
 	}
 
-	private function upsert_licence_by_number( $license_number, array $data, $existing_id = 0 ) {
+	private function upsert_licence_by_number( $license_number, array $data, $existing_id = 0, $batch_id = '', $track_previous = false ) {
 		global $wpdb;
 
 		$license_number = $this->normalize_license_number( $license_number );
@@ -3312,12 +3687,31 @@ class UFSC_LC_ASPTT_Import_Service {
 			$fields[ $column ] = $license_number;
 			$formats[] = '%s';
 		}
+		if ( $batch_id && $this->column_exists( $table, 'import_batch_id' ) ) {
+			$fields['import_batch_id'] = $batch_id;
+			$formats[] = '%s';
+		}
 
 		$existing = null;
 		if ( $existing_id ) {
 			$existing = (object) array( 'id' => (int) $existing_id );
 		} else {
 			return new WP_Error( 'licence_not_found', __( 'Licence introuvable : import en mode mise à jour uniquement.', 'ufsc-licence-competition' ) );
+		}
+
+		$previous = array();
+		if ( $existing && $track_previous ) {
+			$select_fields = $asptt_columns;
+			if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+				$select_fields[] = 'import_batch_id';
+			}
+			$previous = (array) $wpdb->get_row(
+				$wpdb->prepare(
+					'SELECT ' . implode( ', ', $select_fields ) . " FROM {$table} WHERE id = %d",
+					(int) $existing->id
+				),
+				ARRAY_A
+			);
 		}
 
 		if ( $existing ) {
@@ -3336,6 +3730,7 @@ class UFSC_LC_ASPTT_Import_Service {
 			return array(
 				'id'      => (int) $existing->id,
 				'created' => false,
+				'previous'=> $previous,
 			);
 		}
 
@@ -3447,6 +3842,9 @@ class UFSC_LC_ASPTT_Import_Service {
 
 	private function table_exists( $table ) {
 		global $wpdb;
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::table_exists( $table );
+		}
 		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
 	}
 
@@ -3455,9 +3853,45 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$column = sanitize_key( $column );
 
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::column_exists( $table, $column );
+		}
+
 		return (bool) $wpdb->get_var(
 			$wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column )
 		);
+	}
+
+	private function get_table_engine( $table ) {
+		global $wpdb;
+
+		if ( isset( $this->table_engine_cache[ $table ] ) ) {
+			return $this->table_engine_cache[ $table ];
+		}
+
+		$engine = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+				$table
+			)
+		);
+		$engine = $engine ? (string) $engine : '';
+		$this->table_engine_cache[ $table ] = $engine;
+
+		return $engine;
+	}
+
+	private function get_transaction_tables() {
+		$tables = array(
+			$this->get_licences_table(),
+			$this->get_documents_table(),
+			$this->get_documents_meta_table(),
+		);
+		if ( $this->is_hash_table_available() ) {
+			$tables[] = $this->get_hashes_table();
+		}
+
+		return $tables;
 	}
 
 	private function get_clubs_table() {

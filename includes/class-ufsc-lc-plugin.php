@@ -32,7 +32,7 @@ if ( file_exists( $competitions_bootstrap ) ) {
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.5.1';
+	const DB_VERSION        = '1.5.2';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	// Must match add_menu_page slug.
 	const PARENT_SLUG       = 'ufsc-licence-documents';
