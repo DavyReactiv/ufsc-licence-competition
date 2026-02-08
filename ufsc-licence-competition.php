@@ -16,6 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( defined( 'UFSC_LC_LOADED' ) ) {
+	return;
+}
+define( 'UFSC_LC_LOADED', true );
+
 /**
  * Define core plugin constants early to avoid undefined constant errors.
  * These are used throughout the plugin. Keep them minimal and deterministic.

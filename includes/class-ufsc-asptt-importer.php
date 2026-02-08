@@ -42,7 +42,7 @@ class UFSC_LC_ASPTT_Importer {
 		add_action( 'admin_post_ufsc_lc_asptt_export_errors', array( $this, 'handle_export_errors' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_export_delta', array( $this, 'handle_export_delta' ) );
 
-		if ( $this->legacy_enabled ) {
+		if ( $this->legacy_enabled && apply_filters( 'ufsc_lc_enable_legacy_admin_post', false ) ) {
 			add_action( 'admin_post_ufsc_asptt_upload', array( $this, 'handle_upload' ) );
 			add_action( 'admin_post_ufsc_asptt_import', array( $this, 'handle_import' ) );
 			add_action( 'admin_post_ufsc_asptt_cancel_import', array( $this, 'handle_cancel_import' ) );

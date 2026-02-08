@@ -18,6 +18,10 @@ class UFSC_LC_Licence_Migrations {
 			return;
 		}
 
+		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
+			return;
+		}
+
 		$columns = array(
 			'season_end_year'      => 'season_end_year int(4) NULL',
 			'category'             => 'category varchar(50) NULL',
@@ -96,8 +100,36 @@ class UFSC_LC_Licence_Migrations {
 		$this->migrate_asptt_number_column( $table );
 	}
 
+	public function get_missing_master_columns(): array {
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return array();
+		}
+
+		$columns = array(
+			'season_end_year',
+			'category',
+			'age_ref',
+			'numero_licence_asptt',
+			'import_batch_id',
+		);
+
+		$missing = array();
+		foreach ( $columns as $column ) {
+			if ( ! $this->has_column( $table, $column ) ) {
+				$missing[] = $column;
+			}
+		}
+
+		return $missing;
+	}
+
 	private function migrate_asptt_number_column( $table ) {
 		global $wpdb;
+
+		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
+			return;
+		}
 
 		if ( ! $this->has_column( $table, 'numero_licence_asptt' ) || ! $this->has_column( $table, 'numero_licence_delegataire' ) ) {
 			return;
@@ -129,6 +161,10 @@ class UFSC_LC_Licence_Migrations {
 
 	public function backfill_categories() {
 		global $wpdb;
+
+		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
+			return;
+		}
 
 		$table = $this->get_licences_table();
 		if ( ! $this->table_exists( $table ) ) {
@@ -179,6 +215,10 @@ class UFSC_LC_Licence_Migrations {
 
 	public function backfill_nom_columns() {
 		global $wpdb;
+
+		if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
+			return;
+		}
 
 		$table = $this->get_licences_table();
 		if ( ! $this->table_exists( $table ) ) {

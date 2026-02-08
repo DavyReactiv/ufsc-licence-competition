@@ -216,6 +216,18 @@ class LicenseBridge {
 
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
+		$context = array(
+			'table' => $table,
+			'club_id' => $club_id,
+			'term' => $term,
+			'license_number' => $license_number,
+			'birthdate' => $birthdate,
+		);
+		$join = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
+		$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
+		$join = trim( (string) $join );
+		$join_sql = '' !== $join ? ' ' . $join : '';
+
 		// Select columns as normalized aliases expected by the competitions module.
 		$select_columns   = array( 'id' );
 		$select_columns[] = "''" !== $last_name_expr ? "{$last_name_expr} AS last_name" : "'' AS last_name";
@@ -230,7 +242,7 @@ class LicenseBridge {
 		$order_last  = ! empty( $last_name_columns ) ? $last_name_columns[0] : 'id';
 		$order_first = ! empty( $first_name_columns ) ? $first_name_columns[0] : $order_last;
 
-		$sql  = "SELECT {$select} FROM {$table} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
+		$sql  = "SELECT {$select} FROM {$table}{$join_sql} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
 		$this->debug_log(
 			'license_search_sql',
 			array(
