@@ -1,4 +1,14 @@
 <?php
+/**
+ * UFSC LC - Helpers (canonical)
+ * - Normalisation (nom/birthdate/search/region/discipline)
+ * - Cache versioning + cache key builder + scope key
+ * - Query count logger (debug)
+ * - Access denied notice helpers
+ * - Season helpers
+ * - PDF helpers (attachment id/url/has_pdf)
+ * - Backward compatibility wrappers (ufsc_* -> ufsc_lc_*)
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -48,6 +58,7 @@ if ( ! function_exists( 'ufsc_lc_format_birthdate' ) ) {
 
 		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
 		$formats  = array( 'Y-m-d', 'd/m/Y' );
+
 		foreach ( $formats as $format ) {
 			$parsed = DateTimeImmutable::createFromFormat( '!' . $format, $raw, $timezone );
 			if ( $parsed && $parsed->format( $format ) === $raw ) {
@@ -84,7 +95,7 @@ if ( ! function_exists( 'ufsc_lc_normalize_search' ) ) {
 	function ufsc_lc_normalize_search( $value ) {
 		$value = remove_accents( (string) $value );
 		$value = preg_replace( '/\s+/', ' ', $value );
-		$value = trim( $value );
+		$value = trim( (string) $value );
 
 		if ( function_exists( 'mb_strtolower' ) ) {
 			$value = mb_strtolower( $value );
@@ -207,7 +218,7 @@ if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_get_cache_version' ) ) {
 	function ufsc_lc_get_cache_version( string $bucket, int $id = 0 ): string {
-		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$key    = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
 		$cached = wp_cache_get( $key, 'ufsc_licence_competition' );
 		if ( false !== $cached ) {
 			return (string) $cached;
@@ -225,9 +236,52 @@ if ( ! function_exists( 'ufsc_lc_get_cache_version' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_lc_build_cache_key' ) ) {
+	function ufsc_lc_build_cache_key( string $prefix, array $parts ): string {
+		$normalize = static function ( $value ) use ( &$normalize ) {
+			if ( is_array( $value ) ) {
+				$normalized = array();
+				foreach ( $value as $key => $item ) {
+					$normalized[ (string) $key ] = $normalize( $item );
+				}
+				ksort( $normalized );
+				return $normalized;
+			}
+
+			if ( is_bool( $value ) ) {
+				return $value ? 1 : 0;
+			}
+
+			if ( is_scalar( $value ) || null === $value ) {
+				return (string) $value;
+			}
+
+			return '';
+		};
+
+		$normalized = $normalize( $parts );
+		$payload    = wp_json_encode( $normalized );
+
+		return $prefix . '_' . md5( (string) $payload );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_get_scope_cache_key' ) ) {
+	function ufsc_lc_get_scope_cache_key(): string {
+		if ( function_exists( 'ufsc_lc_get_user_scope_region' ) ) {
+			$scope = ufsc_lc_get_user_scope_region();
+			if ( null !== $scope && '' !== $scope ) {
+				return (string) $scope;
+			}
+		}
+
+		return 'all';
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
 	function ufsc_lc_bump_cache_version( string $bucket, int $id = 0 ): void {
-		$key = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
+		$key     = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
 		$version = (string) time();
 		update_option( $key, $version, false );
 		wp_cache_set( $key, $version, 'ufsc_licence_competition' );
@@ -235,14 +289,30 @@ if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
 }
 
 if ( ! function_exists( 'ufsc_lc_log_query_count' ) ) {
-	function ufsc_lc_log_query_count( string $context, int $threshold = 150 ): void {
-		static $logged = false;
+	/**
+	 * Log only when UFSC_LC_DEBUG_QUERIES is enabled AND thresholds exceeded.
+	 * Prevents spam and keeps prod safe.
+	 */
+	function ufsc_lc_log_query_count( string $context, array $data = array(), int $threshold_queries = 200, float $threshold_time = 1.5 ): void {
+		static $logged = array();
 
-		if ( $logged ) {
+		if ( ! defined( 'UFSC_LC_DEBUG_QUERIES' ) || ! UFSC_LC_DEBUG_QUERIES ) {
 			return;
 		}
 
 		if ( ! defined( 'WP_DEBUG_LOG' ) || ! WP_DEBUG_LOG ) {
+			return;
+		}
+
+		$log_key_parts = array(
+			'context' => $context,
+			'screen'  => $data['screen'] ?? '',
+			'club_id' => $data['club_id'] ?? '',
+			'cache'   => $data['cache'] ?? '',
+		);
+		$log_key = ufsc_lc_build_cache_key( 'ufsc_lc_log', $log_key_parts );
+
+		if ( isset( $logged[ $log_key ] ) ) {
 			return;
 		}
 
@@ -252,16 +322,23 @@ if ( ! function_exists( 'ufsc_lc_log_query_count' ) ) {
 		}
 
 		$num_queries = (int) $wpdb->num_queries;
-		if ( $num_queries < $threshold ) {
+		$elapsed     = function_exists( 'timer_stop' ) ? (float) timer_stop( 0 ) : 0.0;
+
+		if ( $num_queries < $threshold_queries && $elapsed < $threshold_time ) {
 			return;
 		}
 
-		$logged = true;
+		$logged[ $log_key ] = true;
+
 		error_log(
 			sprintf(
-				'UFSC LC query count high (%d) on %s.',
+				'UFSC LC query count high (%d, %.3fs) on %s. screen=%s club_id=%s cache=%s',
 				$num_queries,
-				$context
+				$elapsed,
+				$context,
+				(string) ( $data['screen'] ?? '' ),
+				(string) ( $data['club_id'] ?? '' ),
+				(string) ( $data['cache'] ?? '' )
 			)
 		);
 	}
@@ -401,10 +478,15 @@ if ( ! function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
 		}
 
 		global $wpdb;
+
 		$documents_table = $wpdb->prefix . 'ufsc_licence_documents';
 		$meta_table      = $wpdb->prefix . 'ufsc_licence_documents_meta';
-		$source          = 'UFSC';
-		$attachment_id   = null;
+
+		// IMPORTANT: keep SOURCE aligned with the table you store PDFs into.
+		// In your shortcode class you join documents with SOURCE = 'ASPTT'.
+		// Here, for PDF licence files, you used 'UFSC'. We keep it as-is to avoid regressions.
+		$source        = 'UFSC';
+		$attachment_id = null;
 
 		if ( ufsc_lc_table_exists( $documents_table ) ) {
 			$attachment_id = $wpdb->get_var(

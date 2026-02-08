@@ -1,4 +1,17 @@
 <?php
+/**
+ * UFSC LC - Club Licences Shortcode (ASPTT)
+ *
+ * Shortcodes:
+ * - [ufsc_lc_club_licences_asptt]
+ * - [ufsc_lc_licences]
+ *
+ * Admin-post endpoints:
+ * - ufsc_lc_pdf (proxy view/download via mode=view|download)
+ * - ufsc_lc_pdf_view
+ * - ufsc_lc_pdf_download
+ * - ufsc_lc_download_asptt_pdf (legacy download wrapper)
+ */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -7,9 +20,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class UFSC_LC_Club_Licences_Shortcode {
 	const SOURCE = 'ASPTT';
 
-	private $legacy_enabled = false;
-	private $licence_columns = null;
-	private $documents_columns = null;
+	private $legacy_enabled      = false;
+	private $licence_columns     = null;
+	private $documents_columns   = null;
+	private $stats_cache_hit     = null;
+	private $distinct_cache_hit  = null;
 
 	public function __construct( $legacy_enabled = false ) {
 		$this->legacy_enabled = (bool) $legacy_enabled;
@@ -18,6 +33,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	public function register() {
 		$this->register_shortcode( 'ufsc_lc_club_licences_asptt' );
 		$this->register_shortcode( 'ufsc_lc_licences' );
+
 		add_action( 'admin_post_ufsc_lc_download_asptt_pdf', array( $this, 'handle_download' ) );
 		add_action( 'admin_post_ufsc_lc_pdf', array( $this, 'handle_pdf_proxy' ) );
 		add_action( 'admin_post_nopriv_ufsc_lc_pdf', array( $this, 'handle_pdf_proxy' ) );
@@ -27,6 +43,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( $this->legacy_enabled ) {
 			$this->register_shortcode( 'ufsc_club_licences_asptt' );
 			$this->register_shortcode( 'ufsc_licences' );
+
 			// Legacy admin-post handler (OFF by default, opt-in via filters).
 			$legacy_allowed = apply_filters( 'ufsc_enable_legacy_admin_post', false );
 			$legacy_allowed = apply_filters( 'ufsc_lc_enable_legacy_admin_post', $legacy_allowed );
@@ -36,7 +53,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 	}
-
 
 	private function register_shortcode( $tag ) {
 		if ( ! shortcode_exists( $tag ) ) {
@@ -61,13 +77,35 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		wp_enqueue_style( 'dashicons' );
 
-		$filters = $this->get_filters();
+		$filters    = $this->get_filters();
+		$render_key = '';
+
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) ) {
+			$scope_key  = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
+			$render_key = ufsc_lc_build_cache_key(
+				'ufsc_lc_shortcode_render',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'filters' => $this->get_filters_cache_parts( $filters ),
+				)
+			);
+		}
+
+		static $rendered = array();
+		if ( $render_key && isset( $rendered[ $render_key ] ) ) {
+			return $rendered[ $render_key ];
+		}
 
 		$stats   = $this->get_stats( $club_id, $filters );
 		$results = $this->get_licences( $club_id, $filters );
-		$items   = $results['items'];
+
+		$items       = isset( $results['items'] ) ? $results['items'] : array();
 		$total_pages = isset( $results['total_pages'] ) ? (int) $results['total_pages'] : 1;
-		$filters['paged'] = isset( $results['current_page'] ) ? (int) $results['current_page'] : $filters['paged'];
+
+		$filters['paged'] = isset( $results['current_page'] )
+			? (int) $results['current_page']
+			: ( isset( $filters['paged'] ) ? (int) $filters['paged'] : 1 );
 
 		ob_start();
 		?>
@@ -151,25 +189,36 @@ class UFSC_LC_Club_Licences_Shortcode {
 				}
 			}
 		</style>
+
 		<div class="ufsc-licence-stats">
 			<div class="ufsc-licence-stat">
 				<span><?php esc_html_e( 'Total licences', 'ufsc-licence-competition' ); ?></span>
-				<strong><?php echo esc_html( number_format_i18n( $stats['total'] ) ); ?></strong>
+				<strong><?php echo esc_html( number_format_i18n( (int) ( $stats['total'] ?? 0 ) ) ); ?></strong>
 			</div>
 			<div class="ufsc-licence-stat">
 				<span><?php esc_html_e( 'Avec PDF / Sans PDF', 'ufsc-licence-competition' ); ?></span>
-				<strong><?php echo esc_html( number_format_i18n( $stats['with_pdf'] ) ); ?> / <?php echo esc_html( number_format_i18n( $stats['without_pdf'] ) ); ?></strong>
+				<strong>
+					<?php echo esc_html( number_format_i18n( (int) ( $stats['with_pdf'] ?? 0 ) ) ); ?>
+					/
+					<?php echo esc_html( number_format_i18n( (int) ( $stats['without_pdf'] ?? 0 ) ) ); ?>
+				</strong>
 			</div>
 			<div class="ufsc-licence-stat">
 				<span><?php esc_html_e( 'Avec N° ASPTT / Sans N° ASPTT', 'ufsc-licence-competition' ); ?></span>
-				<strong><?php echo esc_html( number_format_i18n( $stats['with_asptt'] ) ); ?> / <?php echo esc_html( number_format_i18n( $stats['without_asptt'] ) ); ?></strong>
+				<strong>
+					<?php echo esc_html( number_format_i18n( (int) ( $stats['with_asptt'] ?? 0 ) ) ); ?>
+					/
+					<?php echo esc_html( number_format_i18n( (int) ( $stats['without_asptt'] ?? 0 ) ) ); ?>
+				</strong>
 			</div>
 		</div>
+
 		<form method="get" class="ufsc-licence-filters" id="ufsc-licence-filters">
 			<div>
 				<label for="ufsc-licence-search"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label>
 				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom, N° ASPTT', 'ufsc-licence-competition' ); ?>" />
 			</div>
+
 			<div>
 				<label for="ufsc-licence-status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-status" name="ufsc_statut">
@@ -181,6 +230,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<?php endforeach; ?>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-category"><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-category" name="ufsc_categorie">
@@ -192,6 +242,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<?php endforeach; ?>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-competition"><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-competition" name="ufsc_competition">
@@ -203,6 +254,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<?php endforeach; ?>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-pdf"><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-pdf" name="ufsc_pdf">
@@ -211,6 +263,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<option value="0" <?php selected( $filters['pdf'], '0' ); ?>><?php esc_html_e( 'Sans PDF', 'ufsc-licence-competition' ); ?></option>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-orderby"><?php esc_html_e( 'Trier par', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-orderby" name="ufsc_orderby">
@@ -219,6 +272,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<option value="date_asptt" <?php selected( $filters['orderby'], 'date_asptt' ); ?>><?php esc_html_e( 'Date ASPTT', 'ufsc-licence-competition' ); ?></option>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-order"><?php esc_html_e( 'Ordre', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-order" name="ufsc_order">
@@ -226,6 +280,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<option value="desc" <?php selected( $filters['order'], 'desc' ); ?>><?php esc_html_e( 'Descendant', 'ufsc-licence-competition' ); ?></option>
 				</select>
 			</div>
+
 			<div>
 				<label for="ufsc-licence-per-page"><?php esc_html_e( 'Par page', 'ufsc-licence-competition' ); ?></label>
 				<select id="ufsc-licence-per-page" name="ufsc_per_page">
@@ -234,6 +289,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					<?php endforeach; ?>
 				</select>
 			</div>
+
 			<div>
 				<button type="submit"><?php esc_html_e( 'Appliquer', 'ufsc-licence-competition' ); ?></button>
 			</div>
@@ -263,6 +319,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 							$nom_affiche = function_exists( 'ufsc_lc_get_nom_affiche' ) ? ufsc_lc_get_nom_affiche( $item ) : ( $item->nom_affiche ?? '' );
 							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
+
 							$pdf_attachment_id = ! empty( $item->attachment_id ) ? (int) $item->attachment_id : 0;
 							if ( ! $pdf_attachment_id && function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
 								$pdf_attachment_id = (int) ufsc_lc_licence_get_pdf_attachment_id( $item->id );
@@ -279,10 +336,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">
 											<span class="ufsc-licence-badge"><?php esc_html_e( 'Généré', 'ufsc-licence-competition' ); ?></span>
+
 											<a class="button button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'view', $item->id ) ); ?>">
 												<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 												<?php esc_html_e( 'Voir', 'ufsc-licence-competition' ); ?>
 											</a>
+
 											<?php if ( ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_pdf_download_allowed() ) : ?>
 												<a class="button button-primary button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'download', $item->id ) ); ?>">
 													<span class="dashicons dashicons-download" aria-hidden="true"></span>
@@ -306,6 +365,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				<?php echo wp_kses_post( $this->render_pagination( $filters, $total_pages ) ); ?>
 			</div>
 		<?php endif; ?>
+
 		<script>
 			(function() {
 				var form = document.getElementById('ufsc-licence-filters');
@@ -332,8 +392,30 @@ class UFSC_LC_Club_Licences_Shortcode {
 		</script>
 		<?php
 		$html = ob_get_clean();
+
+		if ( $render_key ) {
+			$rendered[ $render_key ] = $html;
+		}
+
 		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
-			ufsc_lc_log_query_count( 'shortcode: club licences' );
+			$cache_parts = array();
+
+			if ( null !== $this->stats_cache_hit ) {
+				$cache_parts[] = 'stats:' . ( $this->stats_cache_hit ? 'hit' : 'miss' );
+			}
+			if ( null !== $this->distinct_cache_hit ) {
+				$cache_parts[] = 'distinct:' . ( $this->distinct_cache_hit ? 'hit' : 'miss' );
+			}
+
+			$cache_status = $cache_parts ? implode( ',', $cache_parts ) : '';
+
+			ufsc_lc_log_query_count(
+				'shortcode: club licences',
+				array(
+					'club_id' => (int) $club_id,
+					'cache'   => $cache_status,
+				)
+			);
 		}
 
 		return $html;
@@ -397,6 +479,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$attachment_id = function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' )
 			? ufsc_lc_licence_get_pdf_attachment_id( $licence_id )
 			: null;
+
 		if ( ! $attachment_id ) {
 			wp_die( esc_html__( 'Document indisponible.', 'ufsc-licence-competition' ) );
 		}
@@ -413,6 +496,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		while ( ob_get_level() ) {
 			ob_end_clean();
 		}
+
 		nocache_headers();
 		header( 'Content-Type: application/pdf' );
 		header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
@@ -425,7 +509,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function normalize_text_input( $value ): string {
 		return is_scalar( $value ) ? (string) $value : '';
 	}
-
 
 	private function get_filters() {
 		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;
@@ -464,10 +547,24 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return $filters;
 	}
 
+	private function get_filters_cache_parts( array $filters ): array {
+		return array(
+			'q'        => $filters['q'] ?? '',
+			'statut'   => $filters['statut'] ?? '',
+			'categorie'=> $filters['categorie'] ?? '',
+			'competition' => $filters['competition'] ?? '',
+			'pdf'      => $filters['pdf'] ?? '',
+			'orderby'  => $filters['orderby'] ?? '',
+			'order'    => $filters['order'] ?? '',
+			'paged'    => $filters['paged'] ?? 1,
+			'per_page' => $filters['per_page'] ?? 0,
+		);
+	}
+
 	private function get_stats( $club_id, $filters ) {
 		global $wpdb;
 
-		$licences_table  = $this->get_licences_table();
+		$licences_table = $this->get_licences_table();
 		if ( ! $this->table_exists( $licences_table ) ) {
 			return array(
 				'total'         => 0,
@@ -479,22 +576,37 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$cache_key = '';
-		if ( function_exists( 'ufsc_lc_get_cache_version' ) ) {
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
 			$global_version = ufsc_lc_get_cache_version( 'club_all', 0 );
 			$club_version   = ufsc_lc_get_cache_version( 'club', (int) $club_id );
-			$cache_key      = sprintf(
-				'ufsc_lc_stats_%d_%s_%s_%s',
-				(int) $club_id,
-				$global_version,
-				$club_version,
-				md5( wp_json_encode( $filters ) )
+			$scope_key      = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
+
+			$cache_key      = ufsc_lc_build_cache_key(
+				'ufsc_lc_stats',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'version' => array(
+						'global' => $global_version,
+						'club'   => $club_version,
+					),
+					'filters' => array(
+						'q'           => $filters['q'] ?? '',
+						'statut'      => $filters['statut'] ?? '',
+						'categorie'   => $filters['categorie'] ?? '',
+						'competition' => $filters['competition'] ?? '',
+						'pdf'         => $filters['pdf'] ?? '',
+					),
+				)
 			);
 
 			$cached = get_transient( $cache_key );
 			if ( is_array( $cached ) ) {
+				$this->stats_cache_hit = true;
 				return $cached;
 			}
 		}
+		$this->stats_cache_hit = $cache_key ? false : null;
 
 		$documents_table = $this->get_documents_table();
 		$columns         = $this->get_licence_columns();
@@ -505,7 +617,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$has_statut      = in_array( 'statut', $columns, true );
 		$has_competition = in_array( 'competition', $columns, true );
 
-		$can_join_docs   = $this->table_exists( $documents_table )
+		$can_join_docs = $this->table_exists( $documents_table )
 			&& $this->has_document_column( 'licence_id' )
 			&& $this->has_document_column( 'source' );
 
@@ -540,7 +652,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		if ( '' !== $filters['statut'] && $has_statut ) {
-			$where[] = 'l.statut = %s';
+			$where[]  = 'l.statut = %s';
 			$params[] = $filters['statut'];
 		}
 
@@ -549,7 +661,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		if ( '' !== $filters['competition'] && $has_competition ) {
-			$where[] = 'l.competition = %s';
+			$where[]  = 'l.competition = %s';
 			$params[] = $filters['competition'];
 		}
 
@@ -585,7 +697,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$row = $wpdb->get_row( $wpdb->prepare( $select_sql, array_merge( $join_params, $params ) ), ARRAY_A );
 		} else {
 			$select_sql = "SELECT COUNT(*) AS total FROM {$licences_table} l {$where_sql}";
-			$row = $wpdb->get_row( $wpdb->prepare( $select_sql, $params ), ARRAY_A );
+			$row        = $wpdb->get_row( $wpdb->prepare( $select_sql, $params ), ARRAY_A );
 			$row['with_pdf']   = 0;
 			$row['with_asptt'] = 0;
 		}
@@ -612,7 +724,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function get_licences( $club_id, $filters ) {
 		global $wpdb;
 
-		$licences_table  = $this->get_licences_table();
+		$licences_table = $this->get_licences_table();
 		if ( ! $this->table_exists( $licences_table ) ) {
 			return array(
 				'items' => array(),
@@ -622,8 +734,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$documents_table = $this->get_documents_table();
 
-		$columns_source  = $filters['columns'] ?? $this->get_licence_columns();
-		$columns         = $this->normalize_columns( $columns_source );
+		$columns_source = $filters['columns'] ?? $this->get_licence_columns();
+		$columns        = $this->normalize_columns( $columns_source );
 		if ( empty( $columns ) ) {
 			$columns = $this->get_licence_columns();
 		}
@@ -638,7 +750,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$has_statut      = in_array( 'statut', $columns, true );
 		$has_competition = in_array( 'competition', $columns, true );
 
-		$can_join_docs   = $this->table_exists( $documents_table )
+		$can_join_docs = $this->table_exists( $documents_table )
 			&& $this->has_document_column( 'licence_id' )
 			&& $this->has_document_column( 'source' );
 
@@ -650,7 +762,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$params = array( $club_id );
 
 		if ( '' !== $filters['statut'] && $has_statut ) {
-			$where[] = 'l.statut = %s';
+			$where[]  = 'l.statut = %s';
 			$params[] = $filters['statut'];
 		}
 
@@ -659,12 +771,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		if ( '' !== $filters['competition'] && $has_competition ) {
-			$where[] = 'l.competition = %s';
+			$where[]  = 'l.competition = %s';
 			$params[] = $filters['competition'];
 		}
 
-		$order     = 'desc' === $filters['order'] ? 'DESC' : 'ASC';
-		$orderby   = 'l.' . $filters['orderby'];
+		$order   = 'desc' === $filters['order'] ? 'DESC' : 'ASC';
+		$orderby = 'l.' . $filters['orderby'];
 
 		$join_sql = '';
 
@@ -683,8 +795,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			? "'' AS categorie_affiche"
 			: 'COALESCE(' . implode( ', ', $category_select_parts ) . ') AS categorie_affiche';
 
-		$nom_affiche_sql = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
-		$season_end_year_sql = in_array( 'season_end_year', $columns, true ) ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
+		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
+		$season_end_year_sql  = in_array( 'season_end_year', $columns, true ) ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
 
 		$select_document_columns = 'NULL AS asptt_number, NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
@@ -695,7 +807,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$competition_select = $has_competition ? 'l.competition' : 'NULL AS competition';
 
 		if ( $can_join_docs ) {
-			$join_sql = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
+			$join_sql        = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
 			$document_params = array( self::SOURCE );
 
 			$select_document_columns = sprintf(
@@ -753,13 +865,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 			{$where_sql}";
 
 		$count_params = array_merge( $document_params, $params );
-		$total = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $count_params ) );
+		$total        = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $count_params ) );
 
 		$total_pages  = $filters['per_page'] ? (int) ceil( $total / $filters['per_page'] ) : 1;
 		$total_pages  = max( 1, $total_pages );
-		$current_page = min( $filters['paged'], $total_pages );
+		$current_page = min( (int) $filters['paged'], $total_pages );
 
-		$offset = ( $current_page - 1 ) * $filters['per_page'];
+		$offset = ( $current_page - 1 ) * (int) $filters['per_page'];
 
 		if ( 'date_asptt' === $filters['orderby'] ) {
 			$orderby = ( $join_sql && $has_doc_source_date ) ? 'd.source_created_at' : $nom_affiche_sql;
@@ -771,7 +883,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$orderby = $nom_affiche_sql;
 		}
 
-		$items_sql = "SELECT l.id, {$nom_affiche_sql} AS nom_affiche, {$prenom_select}, {$birthdate_select}, {$statut_select}, {$category_select}, {$season_end_year_sql}, {$competition_select},
+		$items_sql = "SELECT l.id,
+			{$nom_affiche_sql} AS nom_affiche,
+			{$prenom_select},
+			{$birthdate_select},
+			{$statut_select},
+			{$category_select},
+			{$season_end_year_sql},
+			{$competition_select},
 			{$select_document_columns}
 			FROM {$licences_table} l
 			{$join_sql}
@@ -779,7 +898,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			ORDER BY {$orderby} {$order}
 			LIMIT %d OFFSET %d";
 
-		$item_params = array_merge( $document_params, $params, array( $filters['per_page'], $offset ) );
+		$item_params = array_merge( $document_params, $params, array( (int) $filters['per_page'], (int) $offset ) );
 		$items       = $wpdb->get_results( $wpdb->prepare( $items_sql, $item_params ) );
 
 		return array(
@@ -795,6 +914,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( '' === $request_uri ) {
 			$request_uri = home_url( '/' );
 		}
+
 		$base = remove_query_arg( 'ufsc_page', $request_uri );
 		$base = add_query_arg( $this->get_pagination_query_args( $filters ), $base );
 
@@ -802,8 +922,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			array(
 				'base'      => add_query_arg( 'ufsc_page', '%#%', $base ),
 				'format'    => '',
-				'current'   => $filters['paged'],
-				'total'     => $total_pages,
+				'current'   => (int) $filters['paged'],
+				'total'     => (int) $total_pages,
 				'prev_text' => __( 'Précédent', 'ufsc-licence-competition' ),
 				'next_text' => __( 'Suivant', 'ufsc-licence-competition' ),
 				'type'      => 'list',
@@ -833,15 +953,18 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 	private function get_nom_affiche_sql( $alias, $has_nom, $has_nom_licence ) {
 		$parts = array();
+
 		if ( $has_nom ) {
 			$parts[] = "NULLIF({$alias}.nom, '')";
 		}
 		if ( $has_nom_licence ) {
 			$parts[] = "NULLIF({$alias}.nom_licence, '')";
 		}
+
 		if ( empty( $parts ) ) {
 			return "''";
 		}
+
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
@@ -893,7 +1016,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$year = (int) gmdate( 'Y' );
-		return class_exists( 'UFSC_LC_Categories' ) && method_exists( 'UFSC_LC_Categories', 'sanitize_season_end_year' )
+
+		return ( class_exists( 'UFSC_LC_Categories' ) && method_exists( 'UFSC_LC_Categories', 'sanitize_season_end_year' ) )
 			? UFSC_LC_Categories::sanitize_season_end_year( $year )
 			: $year;
 	}
@@ -976,86 +1100,122 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_distinct_values( $column, $club_id ) {
-		global $wpdb;
-
 		$allowed = array( 'statut', 'categorie', 'competition' );
 		if ( ! in_array( $column, $allowed, true ) ) {
 			return array();
 		}
 
+		$grouped = $this->get_distinct_values_grouped( $club_id );
+		return $grouped[ $column ] ?? array();
+	}
+
+	private function get_distinct_values_grouped( $club_id ): array {
+		static $memo = array();
+
+		$scope_key = function_exists( 'ufsc_lc_get_scope_cache_key' ) ? ufsc_lc_get_scope_cache_key() : 'all';
 		$cache_key = '';
-		if ( function_exists( 'ufsc_lc_get_cache_version' ) ) {
+
+		if ( function_exists( 'ufsc_lc_build_cache_key' ) && function_exists( 'ufsc_lc_get_cache_version' ) ) {
 			$global_version = ufsc_lc_get_cache_version( 'club_all', 0 );
 			$club_version   = ufsc_lc_get_cache_version( 'club', (int) $club_id );
-			$cache_key      = sprintf(
-				'ufsc_lc_distinct_%d_%s_%s_%s',
-				(int) $club_id,
-				sanitize_key( $column ),
-				$global_version,
-				$club_version
-			);
 
+			$cache_key = ufsc_lc_build_cache_key(
+				'ufsc_lc_distinct_grouped',
+				array(
+					'club_id' => (int) $club_id,
+					'scope'   => $scope_key,
+					'version' => array(
+						'global' => $global_version,
+						'club'   => $club_version,
+					),
+				)
+			);
+		}
+
+		if ( $cache_key && isset( $memo[ $cache_key ] ) ) {
+			$this->distinct_cache_hit = true;
+			return $memo[ $cache_key ];
+		}
+
+		if ( $cache_key ) {
 			$cached = get_transient( $cache_key );
 			if ( is_array( $cached ) ) {
+				$this->distinct_cache_hit = true;
+				$memo[ $cache_key ]       = $cached;
 				return $cached;
 			}
 		}
 
+		global $wpdb;
+
 		$table   = $this->get_licences_table();
 		$columns = $this->get_licence_columns();
 
-		if ( 'categorie' === $column ) {
-			$category_columns = $this->get_category_columns();
-			if ( empty( $category_columns ) ) {
-				return array();
-			}
+		$selects = array();
+		$params  = array();
 
-			if ( 1 === count( $category_columns ) ) {
-				$column = $category_columns[0];
-			} else {
-				$select = 'COALESCE(' . implode(
-					', ',
-					array_map(
-						static function ( $col ) {
-							return "NULLIF({$col}, '')";
-						},
-						$category_columns
-					)
-				) . ')';
-
-				$results = $wpdb->get_col(
-					$wpdb->prepare(
-						"SELECT DISTINCT category FROM (SELECT {$select} AS category FROM {$table} WHERE club_id = %d) t WHERE category IS NOT NULL AND category != '' ORDER BY category ASC",
-						$club_id
-					)
-				);
-
-				$values = array_filter( array_map( 'strval', $results ) );
-				if ( $cache_key ) {
-					set_transient( $cache_key, $values, 2 * MINUTE_IN_SECONDS );
-				}
-
-				return $values;
-			}
+		if ( in_array( 'statut', $columns, true ) ) {
+			$selects[] = "SELECT 'statut' AS type, l.statut AS value FROM {$table} l WHERE l.club_id = %d AND l.statut IS NOT NULL AND l.statut != ''";
+			$params[]  = $club_id;
 		}
 
-		if ( ! $column || ! in_array( $column, $columns, true ) ) {
-			return array();
+		if ( in_array( 'competition', $columns, true ) ) {
+			$selects[] = "SELECT 'competition' AS type, l.competition AS value FROM {$table} l WHERE l.club_id = %d AND l.competition IS NOT NULL AND l.competition != ''";
+			$params[]  = $club_id;
 		}
 
-		$results = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT DISTINCT {$column} FROM {$table} WHERE club_id = %d AND {$column} IS NOT NULL AND {$column} != '' ORDER BY {$column} ASC",
-				$club_id
-			)
+		$category_columns = $this->get_category_columns();
+		if ( ! empty( $category_columns ) ) {
+			$parts = array_map(
+				static function ( $column ) {
+					return "NULLIF(l.{$column}, '')";
+				},
+				$category_columns
+			);
+
+			$category_expr = 'COALESCE(' . implode( ', ', $parts ) . ')';
+			$selects[]     = "SELECT 'categorie' AS type, {$category_expr} AS value FROM {$table} l WHERE l.club_id = %d AND {$category_expr} IS NOT NULL AND {$category_expr} != ''";
+			$params[]      = $club_id;
+		}
+
+		$grouped = array(
+			'statut'      => array(),
+			'categorie'   => array(),
+			'competition' => array(),
 		);
 
-		$values = array_filter( array_map( 'strval', $results ) );
-		if ( $cache_key ) {
-			set_transient( $cache_key, $values, 2 * MINUTE_IN_SECONDS );
+		if ( ! empty( $selects ) ) {
+			$sql  = implode( ' UNION ALL ', $selects );
+			$rows = $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+			$rows = is_array( $rows ) ? $rows : array();
+
+			foreach ( $rows as $row ) {
+				$type  = isset( $row['type'] ) ? (string) $row['type'] : '';
+				$value = isset( $row['value'] ) ? trim( (string) $row['value'] ) : '';
+
+				if ( '' === $type || '' === $value || ! isset( $grouped[ $type ] ) ) {
+					continue;
+				}
+
+				$grouped[ $type ][] = $value;
+			}
 		}
 
-		return $values;
+		foreach ( $grouped as $type => $values ) {
+			$values = array_values( array_unique( $values ) );
+			sort( $values, SORT_NATURAL | SORT_FLAG_CASE );
+			$grouped[ $type ] = $values;
+		}
+
+		if ( $cache_key ) {
+			set_transient( $cache_key, $grouped, 2 * MINUTE_IN_SECONDS );
+			$memo[ $cache_key ]       = $grouped;
+			$this->distinct_cache_hit = false;
+		} else {
+			$this->distinct_cache_hit = null;
+		}
+
+		return $grouped;
 	}
 
 	private function get_category_columns() {
@@ -1096,7 +1256,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$value_clause = '%s';
 
 		if ( '' !== $collation ) {
-			$expression .= " COLLATE {$collation}";
+			$expression   .= " COLLATE {$collation}";
 			$value_clause .= " COLLATE {$collation}";
 		}
 
@@ -1124,8 +1284,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return $cached;
 		}
 
-		$cache_key = 'ufsc_lc_category_collation';
-		$cached_value = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		$cache_key     = 'ufsc_lc_category_collation';
+		$cached_value  = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+
 		if ( false !== $cached_value ) {
 			$cached = (string) $cached_value;
 			return $cached;
@@ -1168,39 +1329,39 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return '';
 		}
 
-		$like = '%' . $wpdb->esc_like( $term ) . '%';
-		$normalized = $this->normalize_search_term( $term );
+		$like            = '%' . $wpdb->esc_like( $term ) . '%';
+		$normalized      = $this->normalize_search_term( $term );
 		$like_normalized = '' !== $normalized ? '%' . $wpdb->esc_like( $normalized ) . '%' : '';
 
 		$search_clauses = array();
 
 		if ( "''" !== $nom_affiche_sql ) {
 			$search_clauses[] = "{$nom_affiche_sql} LIKE %s";
-			$params[] = $like;
+			$params[]         = $like;
 
 			if ( '' !== $like_normalized ) {
 				$search_clauses[] = "LOWER({$nom_affiche_sql}) LIKE %s";
-				$params[] = $like_normalized;
+				$params[]         = $like_normalized;
 			}
 		}
 
 		if ( $has_prenom ) {
 			$search_clauses[] = 'l.prenom LIKE %s';
-			$params[] = $like;
+			$params[]         = $like;
 
 			if ( '' !== $like_normalized ) {
 				$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
-				$params[] = $like_normalized;
+				$params[]         = $like_normalized;
 			}
 		}
 
 		if ( $can_join_docs && $has_doc_source_number ) {
 			$search_clauses[] = 'd.source_licence_number LIKE %s';
-			$params[] = $like;
+			$params[]         = $like;
 
 			if ( '' !== $like_normalized ) {
 				$search_clauses[] = 'LOWER(d.source_licence_number) LIKE %s';
-				$params[] = $like_normalized;
+				$params[]         = $like_normalized;
 			}
 		}
 
@@ -1224,7 +1385,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return $this->licence_columns;
 		}
 
-		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$columns              = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
 		$this->licence_columns = is_array( $columns ) ? $columns : array();
 
 		return $this->licence_columns;
@@ -1243,7 +1404,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return $this->documents_columns;
 		}
 
-		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$columns                = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
 		$this->documents_columns = is_array( $columns ) ? $columns : array();
 
 		return $this->documents_columns;
