@@ -33,10 +33,15 @@ class DisciplineRegistry {
 				}
 
 				if ( is_array( $value ) ) {
-					$label = sanitize_text_field( $value['label'] ?? '' );
-					$type = sanitize_key( $value['type'] ?? '' );
+					$label_raw = $value['label'] ?? '';
+					$label_raw = is_scalar( $label_raw ) ? (string) $label_raw : '';
+					$type_raw  = $value['type'] ?? '';
+					$type_raw  = is_scalar( $type_raw ) ? (string) $type_raw : '';
+					$label = sanitize_text_field( $label_raw );
+					$type = sanitize_key( $type_raw );
 				} else {
-					$label = sanitize_text_field( $value );
+					$label_raw = is_scalar( $value ) ? (string) $value : '';
+					$label = sanitize_text_field( $label_raw );
 					$type = '';
 				}
 
