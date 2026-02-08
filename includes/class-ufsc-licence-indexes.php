@@ -15,6 +15,7 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 
 		$this->ensure_licence_indexes( $wpdb->prefix . 'ufsc_licences' );
 		$this->ensure_documents_indexes( $wpdb->prefix . 'ufsc_licence_documents' );
+		$this->ensure_documents_meta_indexes( $wpdb->prefix . 'ufsc_licence_documents_meta' );
 	}
 
 	private function ensure_licence_indexes( $table ) {
@@ -39,6 +40,9 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 		}
 		if ( $this->column_exists( $table, 'season_end_year' ) ) {
 			$this->add_index_if_missing( $table, $indexes, 'idx_season_end_year', array( 'season_end_year' ) );
+		}
+		if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_import_batch_id', array( 'import_batch_id' ) );
 		}
 		if (
 			$this->column_exists( $table, 'club_id' )
@@ -66,6 +70,24 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 		$this->add_index_if_missing( $table, $indexes, 'idx_licence_source', array( 'licence_id', 'source' ) );
 		$this->add_index_if_missing( $table, $indexes, 'uniq_source_number', array( 'source', 'source_licence_number' ), true );
 		$this->add_index_if_missing( $table, $indexes, 'idx_source_created_at', array( 'source_created_at' ) );
+		if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_import_batch_id', array( 'import_batch_id' ) );
+		}
+	}
+
+	private function ensure_documents_meta_indexes( $table ) {
+		if ( ! $this->table_exists( $table ) ) {
+			return;
+		}
+
+		$indexes = $this->get_index_names( $table );
+
+		$this->add_index_if_missing( $table, $indexes, 'idx_licence_source', array( 'licence_id', 'source' ) );
+		$this->add_index_if_missing( $table, $indexes, 'idx_meta_key', array( 'meta_key' ) );
+		$this->add_index_if_missing( $table, $indexes, 'uniq_licence_meta', array( 'licence_id', 'source', 'meta_key' ), true );
+		if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+			$this->add_index_if_missing( $table, $indexes, 'idx_import_batch_id', array( 'import_batch_id' ) );
+		}
 	}
 
 	private function table_exists( $table ) {
@@ -136,6 +158,9 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 		}
 		if ( $this->column_exists( $table, 'season_end_year' ) ) {
 			$expected['idx_season_end_year'] = array( 'season_end_year' );
+		}
+		if ( $this->column_exists( $table, 'import_batch_id' ) ) {
+			$expected['idx_import_batch_id'] = array( 'import_batch_id' );
 		}
 		if (
 			$this->column_exists( $table, 'club_id' )

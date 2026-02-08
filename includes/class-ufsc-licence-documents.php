@@ -45,13 +45,15 @@ class UFSC_LC_Licence_Documents {
 			attachment_id bigint(20) unsigned NULL,
 			asptt_club_note varchar(255) NULL,
 			source_created_at datetime NULL,
+			import_batch_id char(36) NULL,
 			imported_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY uniq_source_number (source, source_licence_number),
 			KEY idx_licence_source (licence_id, source),
 			KEY licence_id (licence_id),
-			KEY idx_source_created_at (source_created_at)
+			KEY idx_source_created_at (source_created_at),
+			KEY idx_import_batch_id (import_batch_id)
 		) {$charset_collate};";
 
 		dbDelta( $sql );
@@ -62,11 +64,13 @@ class UFSC_LC_Licence_Documents {
 			source varchar(50) NOT NULL,
 			meta_key varchar(190) NOT NULL,
 			meta_value longtext NULL,
+			import_batch_id char(36) NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY uniq_licence_meta (licence_id, source, meta_key),
 			KEY idx_meta_key (meta_key),
-			KEY idx_licence_source (licence_id, source)
+			KEY idx_licence_source (licence_id, source),
+			KEY idx_import_batch_id (import_batch_id)
 		) {$charset_collate};";
 
 		dbDelta( $meta_sql );
