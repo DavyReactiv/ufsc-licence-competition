@@ -8,6 +8,7 @@ require_once __DIR__ . '/ufsc-lc-helpers.php';
 require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
 require_once __DIR__ . '/Security/Scope.php';
 require_once __DIR__ . '/class-ufsc-lc-categories.php';
+require_once __DIR__ . '/class-ufsc-lc-schema-cache.php';
 require_once __DIR__ . '/class-ufsc-licence-documents.php';
 require_once __DIR__ . '/class-ufsc-asptt-importer.php';
 require_once __DIR__ . '/class-ufsc-club-licences-shortcode.php';
@@ -132,6 +133,10 @@ class UFSC_LC_Plugin {
 		if ( class_exists( '\\UFSC\\Competitions\\Bootstrap' ) ) {
 			\UFSC\Competitions\Bootstrap::init( $this->plugin_file );
 		}
+
+		if ( defined( 'UFSC_LC_DEBUG_PERF' ) && UFSC_LC_DEBUG_PERF ) {
+			add_action( 'shutdown', array( $this, 'log_perf_summary' ) );
+		}
 	}
 
 	public function load_textdomain() {
@@ -243,17 +248,15 @@ $allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', 
 	}
 
 	private function check_dependencies() {
-		global $wpdb;
-
 		$tables = array(
-			$wpdb->prefix . 'ufsc_licences' => __( 'table des licences UFSC', 'ufsc-licence-competition' ),
-			$wpdb->prefix . 'ufsc_clubs'    => __( 'table des clubs UFSC', 'ufsc-licence-competition' ),
+			'ufsc_licences' => __( 'table des licences UFSC', 'ufsc-licence-competition' ),
+			'ufsc_clubs'    => __( 'table des clubs UFSC', 'ufsc-licence-competition' ),
 		);
 
 		$missing = array();
-		foreach ( $tables as $table => $label ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-			if ( $exists !== $table ) {
+		foreach ( $tables as $suffix => $label ) {
+			$table = $this->get_table_name( $suffix );
+			if ( ! UFSC_LC_Schema_Cache::table_exists( $table ) ) {
 				$missing[] = $label;
 			}
 		}
@@ -263,6 +266,37 @@ $allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', 
 		$met = empty( $missing );
 
 		return (bool) apply_filters( 'ufsc_lc_dependencies_met', $met, $missing );
+	}
+
+	private function get_table_name( string $suffix ): string {
+		global $wpdb;
+		return $wpdb->prefix . ltrim( $suffix, '_' );
+	}
+
+	public function log_perf_summary(): void {
+		if ( ! is_admin() ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$page  = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		$time  = function_exists( 'timer_stop' ) ? timer_stop( 0, 3 ) : '';
+		$stats = class_exists( 'UFSC_LC_Schema_Cache' ) ? UFSC_LC_Schema_Cache::get_debug_stats() : array(
+			'hits'   => 0,
+			'misses' => 0,
+		);
+
+		error_log(
+			sprintf(
+				'UFSC LC perf: page=%s queries=%d time=%ss schema_cache_hits=%d schema_cache_misses=%d',
+				$page,
+				(int) $wpdb->num_queries,
+				$time,
+				(int) $stats['hits'],
+				(int) $stats['misses']
+			)
+		);
 	}
 
 	public function render_dependency_notice() {
