@@ -423,6 +423,10 @@ if ( ! function_exists( 'ufsc_lc_table_exists' ) ) {
 			return false;
 		}
 
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::table_exists( $table_name );
+		}
+
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
 		return $exists === $table_name;
 	}

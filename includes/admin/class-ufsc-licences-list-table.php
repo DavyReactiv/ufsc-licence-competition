@@ -1281,12 +1281,38 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function get_clubs() {
 		global $wpdb;
-		$table = $this->get_clubs_table();
-		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
+		static $runtime_cache = null;
+
+		if ( null !== $runtime_cache ) {
+			return $runtime_cache;
+		}
+
+		$table      = $this->get_clubs_table();
+		$cache_key  = $this->get_clubs_cache_key( $table );
+		$cached     = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			$runtime_cache = $cached;
+			return $runtime_cache;
+		}
+
+		$cached = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			wp_cache_set( $cache_key, $cached, 'ufsc_licence_competition', 15 * MINUTE_IN_SECONDS );
+			$runtime_cache = $cached;
+			return $runtime_cache;
+		}
+
+		$runtime_cache = $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
+
+		wp_cache_set( $cache_key, $runtime_cache, 'ufsc_licence_competition', 15 * MINUTE_IN_SECONDS );
+		set_transient( $cache_key, $runtime_cache, 15 * MINUTE_IN_SECONDS );
+
+		return $runtime_cache;
 	}
 
-	private function get_distinct_values( $column ) {
+	private function get_distinct_values( $column, $retry = true ) {
 		global $wpdb;
+		static $runtime_cache = array();
 
 		// Canonical allowed keys (request-level)
 		$allowed = array( 'statut', 'category', 'season_end_year', 'competition', 'saison' );
@@ -1295,27 +1321,64 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 
 		$table = $this->get_licences_table();
+		$cache_key = $this->get_distinct_cache_key( $column, $table );
+
+		if ( array_key_exists( $cache_key, $runtime_cache ) ) {
+			return $runtime_cache[ $cache_key ];
+		}
+
+		$cached = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			$runtime_cache[ $cache_key ] = $cached;
+			return $cached;
+		}
+
+		$cached = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			wp_cache_set( $cache_key, $cached, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			$runtime_cache[ $cache_key ] = $cached;
+			return $cached;
+		}
 
 		// Map "category" => merged values (config + DB).
 		if ( 'category' === $column ) {
-			return $this->get_category_filter_options();
+			$values = $this->get_category_filter_options();
+			$values = is_array( $values ) ? $values : array();
+			$runtime_cache[ $cache_key ] = $values;
+			wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
+			return $values;
 		}
 
 		// Map "saison" => dynamic season column (saison|season)
 		if ( 'saison' === $column ) {
 			if ( ! $this->has_season_column ) {
-				return array();
+				$runtime_cache[ $cache_key ] = array();
+				wp_cache_set( $cache_key, $runtime_cache[ $cache_key ], 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+				set_transient( $cache_key, $runtime_cache[ $cache_key ], 10 * MINUTE_IN_SECONDS );
+				return $runtime_cache[ $cache_key ];
 			}
 			$real = $this->season_column;
 			$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$real}) FROM {$table} WHERE {$real} IS NOT NULL AND {$real} != '' ORDER BY TRIM({$real}) ASC" );
-			return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
+				$this->refresh_schema_cache( $table );
+				return $this->get_distinct_values( $column, false );
+			}
+			$values = array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			$runtime_cache[ $cache_key ] = $values;
+			wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
+			return $values;
 		}
 
 		// season_end_year from COALESCE(season_end_year, season, saison)
 		if ( 'season_end_year' === $column ) {
 			$season_sql = $this->get_season_end_year_sql( 'l' );
 			if ( "''" === $season_sql ) {
-				return array();
+				$runtime_cache[ $cache_key ] = array();
+				wp_cache_set( $cache_key, $runtime_cache[ $cache_key ], 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+				set_transient( $cache_key, $runtime_cache[ $cache_key ], 10 * MINUTE_IN_SECONDS );
+				return $runtime_cache[ $cache_key ];
 			}
 			$results = $wpdb->get_col(
 				"SELECT DISTINCT TRIM({$season_sql}) AS season_value
@@ -1324,37 +1387,68 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 						AND {$season_sql} <> ''
 					ORDER BY TRIM({$season_sql}) ASC"
 			);
-			return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
+				$this->refresh_schema_cache( $table );
+				return $this->get_distinct_values( $column, false );
+			}
+			$values = array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			$runtime_cache[ $cache_key ] = $values;
+			wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
+			return $values;
 		}
 
 		// Generic
 		if ( ! $this->has_column( $table, $column ) ) {
-			return array();
+			$runtime_cache[ $cache_key ] = array();
+			wp_cache_set( $cache_key, $runtime_cache[ $cache_key ], 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache_key, $runtime_cache[ $cache_key ], 10 * MINUTE_IN_SECONDS );
+			return $runtime_cache[ $cache_key ];
 		}
 
 		$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$column}) FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY TRIM({$column}) ASC" );
-		return array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+		if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
+			$this->refresh_schema_cache( $table );
+			return $this->get_distinct_values( $column, false );
+		}
+
+		$values = array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+		$runtime_cache[ $cache_key ] = $values;
+		wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+		set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
+
+		return $values;
 	}
 
 	private function get_category_filter_values() {
 		return $this->get_category_filter_options();
 	}
 
-	private function get_category_filter_options() {
+	private function get_category_filter_options( $retry = true ) {
 		global $wpdb;
+
+		static $runtime_cache = null;
+		if ( null !== $runtime_cache ) {
+			return $runtime_cache;
+		}
 
 		$table = $this->get_licences_table();
 		$config_categories = class_exists( 'UFSC_LC_Categories' ) ? UFSC_LC_Categories::get_default_categories() : array();
 
-		$category_columns = array();
-		if ( $this->has_legacy_category ) {
-			$category_columns[] = 'categorie';
+		$category_columns = $this->get_category_columns();
+
+		$cache_key = $this->get_category_cache_key( $table, $category_columns, $config_categories );
+		$cached    = wp_cache_get( $cache_key, 'ufsc_licence_competition' );
+		if ( false !== $cached ) {
+			$runtime_cache = $cached;
+			return $runtime_cache;
 		}
-		if ( $this->has_category ) {
-			$category_columns[] = 'category';
-		}
-		if ( $this->has_legacy_category_column ) {
-			$category_columns[] = 'legacy_category';
+
+		$cached = get_transient( $cache_key );
+		if ( false !== $cached ) {
+			wp_cache_set( $cache_key, $cached, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			$runtime_cache = $cached;
+			return $runtime_cache;
 		}
 
 		$db_categories = array();
@@ -1373,6 +1467,10 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 						AND {$coalesce_sql} <> ''
 					ORDER BY TRIM({$coalesce_sql}) ASC"
 			);
+			if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
+				$this->refresh_schema_cache( $table );
+				return $this->get_category_filter_options( false );
+			}
 			$db_categories = array_filter( array_map( 'strval', array_map( 'trim', $db_categories ) ) );
 		}
 
@@ -1421,7 +1519,11 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			}
 		);
 
-		return array_merge( $ordered, $extras );
+		$runtime_cache = array_merge( $ordered, $extras );
+		wp_cache_set( $cache_key, $runtime_cache, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+		set_transient( $cache_key, $runtime_cache, 10 * MINUTE_IN_SECONDS );
+
+		return $runtime_cache;
 	}
 
 	private function get_nom_affiche_sql( $alias ) {
@@ -1542,8 +1644,11 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	}
 
 	private function has_column( $table, $column ) {
-		global $wpdb;
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::column_exists( $table, $column );
+		}
 
+		global $wpdb;
 		$column = sanitize_key( $column );
 		$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
 		return ! empty( $exists );
@@ -1701,7 +1806,66 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	}
 
 	private function table_exists( $table ) {
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::table_exists( $table );
+		}
+
 		global $wpdb;
 		return $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table;
+	}
+
+	private function get_cache_version() {
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::get_cache_version();
+		}
+		return (string) get_option( 'ufsc_lc_db_version', '0' );
+	}
+
+	private function get_clubs_cache_key( $table ) {
+		return 'ufsc_lc_clubs_' . md5( $table . '|' . $this->get_cache_version() );
+	}
+
+	private function get_distinct_cache_key( $column, $table ) {
+		$signature = $column;
+
+		if ( 'saison' === $column ) {
+			$signature = $column . '|' . $this->season_column;
+		} elseif ( 'season_end_year' === $column ) {
+			$signature = $column . '|' . implode( ',', $this->get_season_columns() );
+		} elseif ( 'category' === $column ) {
+			$config_categories = class_exists( 'UFSC_LC_Categories' ) ? UFSC_LC_Categories::get_default_categories() : array();
+			$signature = $column . '|' . implode( ',', $this->get_category_columns() ) . '|' . md5( wp_json_encode( $config_categories ) );
+		}
+
+		return 'ufsc_lc_distinct_' . md5( $table . '|' . $signature . '|' . $this->get_cache_version() );
+	}
+
+	private function get_category_cache_key( $table, array $columns, array $config_categories ) {
+		$signature = implode( ',', $columns ) . '|' . md5( wp_json_encode( $config_categories ) );
+		return 'ufsc_lc_categories_' . md5( $table . '|' . $signature . '|' . $this->get_cache_version() );
+	}
+
+	private function get_category_columns() {
+		$columns = array();
+		if ( $this->has_legacy_category ) {
+			$columns[] = 'categorie';
+		}
+		if ( $this->has_category ) {
+			$columns[] = 'category';
+		}
+		if ( $this->has_legacy_category_column ) {
+			$columns[] = 'legacy_category';
+		}
+		return $columns;
+	}
+
+	private function refresh_schema_cache( $table ) {
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			UFSC_LC_Schema_Cache::refresh_table_cache( $table );
+		}
+	}
+
+	private function is_unknown_column_error( $error ) {
+		return is_string( $error ) && '' !== $error && false !== stripos( $error, 'Unknown column' );
 	}
 }

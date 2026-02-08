@@ -38,6 +38,9 @@ if ( ! defined( 'UFSC_LC_URL' ) ) {
 if ( ! defined( 'UFSC_LC_PLUGIN_DIR' ) ) {
 	define( 'UFSC_LC_PLUGIN_DIR', UFSC_LC_DIR );
 }
+if ( ! defined( 'UFSC_LC_DEBUG_PERF' ) ) {
+	define( 'UFSC_LC_DEBUG_PERF', false );
+}
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';

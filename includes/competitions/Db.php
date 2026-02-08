@@ -57,21 +57,20 @@ class Db {
 		}
 		$did_run = true;
 
+		$option              = get_option( self::DB_VERSION_OPTION, '' );
+		$needs_version_upgrade = ( $option !== self::DB_VERSION );
+		$needs_fights_upgrade  = self::get_cached_fights_schema_needs_upgrade();
+
+		// Nothing to do: release lock & exit.
+		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade ) {
+			return;
+		}
+
 		$lock_key = 'ufsc_competitions_db_upgrade_lock';
 		if ( get_transient( $lock_key ) ) {
 			return;
 		}
 		set_transient( $lock_key, 1, 10 );
-
-		$option              = get_option( self::DB_VERSION_OPTION, '' );
-		$needs_version_upgrade = ( $option !== self::DB_VERSION );
-		$needs_fights_upgrade  = self::fights_schema_needs_upgrade();
-
-		// Nothing to do: release lock & exit.
-		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade ) {
-			delete_transient( $lock_key );
-			return;
-		}
 
 		try {
 			if ( $needs_version_upgrade ) {
@@ -86,9 +85,12 @@ class Db {
 			if ( $needs_version_upgrade ) {
 				update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
 			}
+
+			self::set_fights_schema_upgrade_cache( false );
 		} catch ( \Throwable $e ) {
 			// Never fatal: log and continue
 			error_log( 'UFSC Competitions DB upgrade failed: ' . $e->getMessage() );
+			self::set_fights_schema_upgrade_cache( $needs_fights_upgrade );
 		} finally {
 			delete_transient( $lock_key );
 		}
@@ -449,6 +451,32 @@ class Db {
 		}
 
 		return false;
+	}
+
+	private static function get_cached_fights_schema_needs_upgrade(): bool {
+		global $wpdb;
+
+		$cache_key = self::get_fights_schema_cache_key();
+		$cached    = get_transient( $cache_key );
+
+		if ( false !== $cached ) {
+			return (bool) $cached;
+		}
+
+		$needs_upgrade = self::fights_schema_needs_upgrade();
+		set_transient( $cache_key, $needs_upgrade ? 1 : 0, HOUR_IN_SECONDS );
+
+		return $needs_upgrade;
+	}
+
+	private static function set_fights_schema_upgrade_cache( bool $needs_upgrade ): void {
+		$cache_key = self::get_fights_schema_cache_key();
+		set_transient( $cache_key, $needs_upgrade ? 1 : 0, HOUR_IN_SECONDS );
+	}
+
+	private static function get_fights_schema_cache_key(): string {
+		global $wpdb;
+		return 'ufsc_competitions_schema_upgrade_' . md5( $wpdb->prefix . '|' . self::DB_VERSION );
 	}
 
 	public static function get_table_columns( string $table ): array {
