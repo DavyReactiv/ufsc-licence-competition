@@ -1,0 +1,118 @@
+.ufsc-asptt-wrap .ufsc-asptt-help-notice {
+	margin: 16px 0 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 16px;
+	margin: 0 0 16px;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 360px;
+	gap: 16px;
+	align-items: start;
+	margin-top: 8px;
+}
+
+@media (max-width: 1024px) {
+	.ufsc-asptt-wrap .ufsc-asptt-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-help details summary,
+.ufsc-asptt-wrap .ufsc-asptt-technical details summary {
+	cursor: pointer;
+	font-weight: 600;
+	margin: -4px 0 8px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-help-body h3,
+.ufsc-asptt-wrap .ufsc-asptt-technical-body h3 {
+	margin: 16px 0 8px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-help-body ul,
+.ufsc-asptt-wrap .ufsc-asptt-help-body ol {
+	margin-left: 20px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-kpi-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-kpi {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-kpi strong {
+	font-size: 18px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-badges {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-badge {
+	background: #f0f0f1;
+	border: 1px solid #dcdcde;
+	border-radius: 999px;
+	padding: 4px 10px;
+	font-size: 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-history-table {
+	overflow-x: auto;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-history-table table {
+	margin-bottom: 0;
+	min-width: 320px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-technical {
+	margin-top: 24px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-technical details > summary {
+	margin-bottom: 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-technical-body > div {
+	margin-bottom: 16px;
+}
+
+.ufsc-asptt-wrap .ufsc-lc-import-report ul,
+.ufsc-asptt-wrap .ufsc-lc-import-report h3,
+.ufsc-asptt-wrap .ufsc-lc-import-report h2 {
+	margin-top: 0;
+}
+
+.ufsc-asptt-wrap .ufsc-asptt-main .notice {
+	margin: 0 0 16px;
+}
+
+.ufsc-asptt-wrap .ufsc-lc-filter-row {
+	margin: 16px 0 12px;
+}
+
+.ufsc-asptt-wrap .ufsc-lc-sticky-bar {
+	margin-top: 20px;
+}
