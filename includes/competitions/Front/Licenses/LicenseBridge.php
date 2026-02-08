@@ -225,8 +225,13 @@ class LicenseBridge {
 		);
 		$join = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
 		$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
-		$join = trim( (string) $join );
-		$join_sql = '' !== $join ? ' ' . $join : '';
+$join  = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
+$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
+$params = apply_filters( 'ufsc_competitions_license_search_params', $params, $context );
+
+$join = trim( (string) $join );
+$join_sql = '' !== $join ? ' ' . $join : '';
+
 
 		// Select columns as normalized aliases expected by the competitions module.
 		$select_columns   = array( 'id' );
