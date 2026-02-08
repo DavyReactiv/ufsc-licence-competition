@@ -404,20 +404,25 @@ if ( $this->legacy_enabled ) {
 			wp_die( esc_html__( 'Fichier introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-if ( headers_sent() ) {
-	wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
-}
+		if ( headers_sent() ) {
+			wp_die( esc_html__( 'Export impossible.', 'ufsc-licence-competition' ) );
+		}
 
-while ( ob_get_level() ) {
-	ob_end_clean();
-}
-nocache_headers();
-header( 'Content-Type: application/pdf' );
-header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
-header( 'Content-Length: ' . filesize( $file_path ) );
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
+		nocache_headers();
+		header( 'Content-Type: application/pdf' );
+		header( 'Content-Disposition: ' . $disposition . '; filename="' . basename( $file_path ) . '"' );
+		header( 'Content-Length: ' . filesize( $file_path ) );
 
-@readfile( $file_path );
-exit;
+		@readfile( $file_path );
+		exit;
+	}
+
+	private function normalize_text_input( $value ): string {
+		return is_scalar( $value ) ? (string) $value : '';
+	}
 
 
 	private function get_filters() {
@@ -434,15 +439,15 @@ exit;
 		};
 
 		$filters = array(
-			'q'           => sanitize_text_field( $get_value( 'ufsc_q', 'q' ) ),
-			'statut'      => sanitize_text_field( $get_value( 'ufsc_statut', 'statut' ) ),
-			'categorie'   => sanitize_text_field( $get_value( 'ufsc_categorie', 'categorie' ) ),
-			'competition' => sanitize_text_field( $get_value( 'ufsc_competition', 'competition' ) ),
-			'pdf'         => sanitize_text_field( $get_value( 'ufsc_pdf', 'pdf' ) ),
-			'orderby'     => sanitize_text_field( $get_value( 'ufsc_orderby', 'orderby' ) ),
-			'order'       => strtolower( sanitize_text_field( $get_value( 'ufsc_order', 'order' ) ) ),
-			'paged'       => max( 1, absint( $get_value( 'ufsc_page', 'paged' ) ) ),
-			'per_page'    => absint( $get_value( 'ufsc_per_page', 'per_page' ) ),
+			'q'           => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_q', 'q' ) ) ),
+			'statut'      => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_statut', 'statut' ) ) ),
+			'categorie'   => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_categorie', 'categorie' ) ) ),
+			'competition' => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_competition', 'competition' ) ) ),
+			'pdf'         => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_pdf', 'pdf' ) ) ),
+			'orderby'     => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_orderby', 'orderby' ) ) ),
+			'order'       => strtolower( sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_order', 'order' ) ) ) ),
+			'paged'       => max( 1, absint( $this->normalize_text_input( $get_value( 'ufsc_page', 'paged' ) ) ) ),
+			'per_page'    => absint( $this->normalize_text_input( $get_value( 'ufsc_per_page', 'per_page' ) ) ),
 		);
 
 		if ( '' === $filters['orderby'] || ! in_array( $filters['orderby'], array( 'nom_licence', 'date_naissance', 'date_asptt' ), true ) ) {

@@ -12,6 +12,10 @@ class LogService {
 	public function log( $action, $object_type, $object_id, $message, array $context = array() ) {
 		global $wpdb;
 
+		$action = is_scalar( $action ) ? (string) $action : '';
+		$object_type = is_scalar( $object_type ) ? (string) $object_type : '';
+		$message = is_scalar( $message ) ? (string) $message : '';
+
 		$wpdb->insert(
 			Db::logs_table(),
 			array(
