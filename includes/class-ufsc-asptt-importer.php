@@ -441,8 +441,9 @@ class UFSC_LC_ASPTT_Importer {
 		$minimal_mode,
 		$update_only_minimal
 	) {
-		$report_mode            = $this->get_report_mode( $preview );
-		$last_import            = $this->get_last_report_for_mode( $report_mode );
+		$report_mode = $this->get_report_mode( $preview );
+		$last_import = $this->get_last_report_for_mode( $report_mode );
+
 		$auto_validate_threshold = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_asptt_auto_validate_threshold() : 0;
 		$auto_validate_score     = $this->get_auto_validate_score( $stats );
 		$auto_approve_default    = 0 === $auto_validate_threshold ? true : ( $auto_validate_score >= $auto_validate_threshold );
@@ -460,7 +461,7 @@ class UFSC_LC_ASPTT_Importer {
 			</div>
 		<?php endif; ?>
 
-		<div class="ufsc-card">
+				<div class="ufsc-card">
 			<details class="ufsc-asptt-help">
 				<summary><?php esc_html_e( 'Aide / Mode d’emploi', 'ufsc-licence-competition' ); ?></summary>
 				<ul>
@@ -471,6 +472,7 @@ class UFSC_LC_ASPTT_Importer {
 				</ul>
 			</details>
 		</div>
+
 
 		<?php if ( empty( $rows ) ) : ?>
 			<div class="ufsc-asptt-grid">
@@ -1065,8 +1067,8 @@ class UFSC_LC_ASPTT_Importer {
 			self::STATUS_INVALID_ASPTT_NUMBER => __( 'N° ASPTT invalide', 'ufsc-licence-competition' ),
 			UFSC_LC_ASPTT_Import_Service::STATUS_MINIMAL_MISSING_FIELDS => __( 'Champs requis manquants', 'ufsc-licence-competition' ),
 			UFSC_LC_ASPTT_Import_Service::STATUS_MINIMAL_NOT_FOUND      => __( 'Licence introuvable (mode minimal)', 'ufsc-licence-competition' ),
-			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_SEASON         => __( 'Saison invalide', 'ufsc-licence-competition' ),
-			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_BIRTHDATE      => __( 'Date de naissance invalide', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_SEASON    => __( 'Saison invalide', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_BIRTHDATE => __( 'Date de naissance invalide', 'ufsc-licence-competition' ),
 		);
 
 		?>
@@ -1258,17 +1260,18 @@ class UFSC_LC_ASPTT_Importer {
 	 */
 	private function get_mapping_options( $minimal_mode = false ) {
 		$options = array(
-			'Nom'                          => __( 'Nom', 'ufsc-licence-competition' ),
-			'Prenom'                       => __( 'Prénom', 'ufsc-licence-competition' ),
-			'Email'                        => __( 'Email', 'ufsc-licence-competition' ),
-			'Adresse'                      => __( 'Adresse', 'ufsc-licence-competition' ),
-			'Ville'                        => __( 'Ville', 'ufsc-licence-competition' ),
-			'Code postal'                  => __( 'Code postal', 'ufsc-licence-competition' ),
-			'Téléphone'                    => __( 'Téléphone', 'ufsc-licence-competition' ),
-			'Date de naissance'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
-			'Saison (année de fin)'        => __( 'Saison (année de fin)', 'ufsc-licence-competition' ),
-			'Activité'                     => __( 'Activité', 'ufsc-licence-competition' ),
-			'N° Licence'                   => __( 'N° Licence', 'ufsc-licence-competition' ),
+			'Nom'             => __( 'Nom', 'ufsc-licence-competition' ),
+			'Prenom'          => __( 'Prénom', 'ufsc-licence-competition' ),
+			'Email'           => __( 'Email', 'ufsc-licence-competition' ),
+			'Adresse'         => __( 'Adresse', 'ufsc-licence-competition' ),
+			'Ville'           => __( 'Ville', 'ufsc-licence-competition' ),
+			'Code postal'     => __( 'Code postal', 'ufsc-licence-competition' ),
+			'Téléphone'       => __( 'Téléphone', 'ufsc-licence-competition' ),
+			'Date de naissance' => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'Saison (année de fin)' => __( 'Saison (année de fin)', 'ufsc-licence-competition' ),
+			'Activité'        => __( 'Activité', 'ufsc-licence-competition' ),
+			'N° Licence'      => __( 'N° Licence', 'ufsc-licence-competition' ),
+
 			'Date de création de la licence' => __( 'Date de création de la licence', 'ufsc-licence-competition' ),
 			'Note'                         => __( 'Note', 'ufsc-licence-competition' ),
 			'Région'                       => __( 'Région', 'ufsc-licence-competition' ),
@@ -1340,6 +1343,7 @@ class UFSC_LC_ASPTT_Importer {
 		}
 
 		// Par défaut en mode minimal : "update-only" activé si non fourni.
+
 		if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
 			$update_only_minimal = true;
 		}
@@ -1416,6 +1420,7 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['incremental']              = $incremental;
 			$preview['minimal_mode']             = $minimal_mode;
 			$preview['update_only_minimal']      = $update_only_minimal;
+
 		}
 
 		$this->persist_preview( $preview );
@@ -1507,6 +1512,9 @@ class UFSC_LC_ASPTT_Importer {
 		$preview['use_season_override']      = $use_season_override;
 		$preview['season_end_year_override'] = $season_end_year_override;
 		$preview['auto_save_alias']          = $auto_save_alias;
+		$preview['incremental']             = $incremental;
+		$preview['minimal_mode']            = $minimal_mode;
+		$preview['update_only_minimal']     = $update_only_minimal;
 		$preview['incremental']              = $incremental;
 		$preview['minimal_mode']             = $minimal_mode;
 		$preview['update_only_minimal']      = $update_only_minimal;
