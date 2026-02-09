@@ -1498,15 +1498,17 @@ class UFSC_LC_ASPTT_Import_Service {
 			return '';
 		}
 
-		$value = preg_replace( '/\s+/u', ' ', $value );
-		if ( function_exists( 'mb_strtolower' ) ) {
-			$value = mb_strtolower( $value, 'UTF-8' );
-		} else {
-			$value = strtolower( $value );
-		}
+		$value = preg_replace('/\s+/u', ' ', $value);
+$value = remove_accents( $value );
 
-		return trim( $value );
-	}
+if ( function_exists( 'mb_strtolower' ) ) {
+	$value = mb_strtolower( $value, 'UTF-8' );
+} else {
+	$value = strtolower( $value );
+}
+
+return trim( $value );
+
 
 	private function find_existing_licence_id_by_minimal_identity( string $nom, string $prenom, string $dob, string $genre ): array {
 		global $wpdb;
@@ -1536,32 +1538,37 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		$columns = $this->get_licence_columns();
-		if ( ! in_array( 'nom', $columns, true )
-			|| ! in_array( 'prenom', $columns, true )
-			|| ! in_array( 'date_naissance', $columns, true )
-			|| ! in_array( 'sexe', $columns, true ) ) {
-			return array(
-				'id' => 0,
-				'ambiguous_ids' => array(),
-				'resolution' => 'none',
-				'warning_code' => '',
-			);
-		}
+$nom_column = '';
+if ( in_array( 'nom', $columns, true ) ) {
+	$nom_column = 'nom';
+} elseif ( in_array( 'nom_licence', $columns, true ) ) {
+	$nom_column = 'nom_licence';
+}
 
-		$rows = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT id, sexe, nom, prenom, date_naissance FROM {$table}
-				WHERE LOWER(nom) = LOWER(%s)
-					AND LOWER(prenom) = LOWER(%s)
-					AND date_naissance = %s
-					AND (sexe = %s OR sexe IS NULL OR sexe = '')
-				ORDER BY id DESC",
-				$nom,
-				$prenom,
-				$dob,
-				$genre
-			)
-		);
+if (
+	'' === $nom_column
+	|| ! in_array( 'prenom', $columns, true )
+	|| ! in_array( 'date_naissance', $columns, true )
+	|| ! in_array( 'sexe', $columns, true )
+) {
+	return array(
+		'id'            => 0,
+		'ambiguous_ids' => array(),
+		'resolution'    => 'none',
+		'warning_code'  => '',
+	);
+}
+
+
+$rows = $wpdb->get_results(
+	$wpdb->prepare(
+		"SELECT id, sexe, {$nom_column} as nom_value, prenom, date_naissance
+		FROM {$table}
+		WHERE date_naissance = %s
+		ORDER BY id DESC",
+		$dob
+	)
+);
 
 		if ( empty( $rows ) ) {
 			return array(
@@ -1572,13 +1579,29 @@ class UFSC_LC_ASPTT_Import_Service {
 			);
 		}
 
-		$ids = array_map(
-			static function ( $row ) {
-				return (int) $row->id;
-			},
-			$rows
-		);
-		$ids = array_values( array_unique( $ids ) );
+$ids = array();
+foreach ( $rows as $row ) {
+	$row_nom    = $this->normalize_identity_value( $row->nom_value ?? '' );
+	$row_prenom = $this->normalize_identity_value( $row->prenom ?? '' );
+
+	if ( '' === $row_nom || '' === $row_prenom ) {
+		continue;
+	}
+
+	if ( $row_nom !== $nom || $row_prenom !== $prenom ) {
+		continue;
+	}
+
+	$row_sexe = $this->normalize_genre( $row->sexe ?? '' );
+	if ( '' !== $row_sexe && $row_sexe !== $genre ) {
+		continue;
+	}
+
+	$ids[] = (int) $row->id;
+}
+
+$ids = array_values( array_unique( $ids ) );
+
 
 		$warning_code = '';
 		if ( count( $ids ) > 1 ) {
@@ -1714,17 +1737,22 @@ class UFSC_LC_ASPTT_Import_Service {
 				continue;
 			}
 
-			if ( $licence_id ) {
-				$update_result = $this->update_minimal_licence(
-					$licence_id,
-					array(
-						'nom'            => $data['nom'],
-						'prenom'         => $data['prenom'],
-						'date_naissance' => $data['date_naissance'],
-						'sexe'           => $data['genre'],
-						'import_batch_id'=> $import_batch_id,
-					)
-				);
+$payload = array(
+	'nom'            => $data['nom'],
+	'prenom'         => $data['prenom'],
+	'date_naissance' => $data['date_naissance'],
+	'sexe'           => $data['genre'],
+);
+
+// Ajout trace batch si présent (sans rendre l'import obligatoire)
+if ( isset( $import_batch_id ) && '' !== (string) $import_batch_id ) {
+	$payload['import_batch_id'] = (string) $import_batch_id;
+}
+
+$update_result = $this->update_minimal_licence(
+	$licence_id,
+	$payload
+);
 
 				if ( is_wp_error( $update_result ) ) {
 					$stats['errors']++;
@@ -1763,9 +1791,11 @@ class UFSC_LC_ASPTT_Import_Service {
 						'prenom'         => $data['prenom'],
 						'date_naissance' => $data['date_naissance'],
 						'sexe'           => $data['genre'],
-						'import_batch_id'=> $import_batch_id,
-					)
-				);
+if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
+	$fields['import_batch_id'] = (string) $data['import_batch_id'];
+	$formats[] = '%s';
+}
+
 
 				if ( is_wp_error( $create_result ) ) {
 					$stats['errors']++;
@@ -1902,10 +1932,10 @@ class UFSC_LC_ASPTT_Import_Service {
 			}
 		}
 
-		if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
-			$fields['import_batch_id'] = (string) $data['import_batch_id'];
-			$formats[] = '%s';
-		}
+if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
+	$fields['import_batch_id'] = (string) $data['import_batch_id'];
+	$formats[] = '%s';
+}
 
 		if ( empty( $fields ) ) {
 			return array(
@@ -1969,10 +1999,10 @@ class UFSC_LC_ASPTT_Import_Service {
 			$fields['sexe'] = $sexe_value;
 			$formats[] = '%s';
 		}
-		if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
-			$fields['import_batch_id'] = (string) $data['import_batch_id'];
-			$formats[] = '%s';
-		}
+if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
+	$fields['import_batch_id'] = (string) $data['import_batch_id'];
+	$formats[] = '%s';
+}
 
 		if ( empty( $fields ) ) {
 			return new WP_Error( 'licence_create_failed', __( 'Champs insuffisants pour créer une licence.', 'ufsc-licence-competition' ) );
