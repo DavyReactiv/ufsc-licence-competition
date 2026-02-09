@@ -130,7 +130,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( $club_id, 'club' );
+			ufsc_lc_safe_enforce_object_scope( $club_id, 'club' );
 		}
 
 		$match = $this->find_matching_licence_id( $club_id, ufsc_lc_get_nom_affiche( $document ), $document->prenom, $document->date_naissance, $document->sexe );
@@ -582,7 +582,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		global $wpdb;
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $club_id, 'club' );
+			ufsc_lc_safe_enforce_object_scope( (int) $club_id, 'club' );
 		}
 
 		$table      = $wpdb->prefix . 'ufsc_clubs';
@@ -655,11 +655,11 @@ class UFSC_LC_ASPTT_Review_Page {
 		}
 
 		if ( ! empty( $document->licence_id ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $document->licence_id, 'licence' );
+			ufsc_lc_safe_enforce_object_scope( (int) $document->licence_id, 'licence' );
 		}
 
 		if ( ! empty( $document->club_id ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $document->club_id, 'club' );
+			ufsc_lc_safe_enforce_object_scope( (int) $document->club_id, 'club' );
 		}
 	}
 

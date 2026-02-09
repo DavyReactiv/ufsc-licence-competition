@@ -189,7 +189,7 @@ class UFSC_LC_Licences_Admin {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( $licence_id, 'licence' );
+			ufsc_lc_safe_enforce_object_scope( $licence_id, 'licence' );
 		} else {
 			$repository = new UFSC_LC_Licence_Repository();
 			$repository->assert_licence_in_scope( $licence_id );

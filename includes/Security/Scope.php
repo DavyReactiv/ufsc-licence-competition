@@ -90,6 +90,25 @@ function ufsc_lc_apply_scope_to_sql( array &$where, array &$params, string $club
 }
 }
 
+if ( ! function_exists( 'ufsc_lc_safe_enforce_object_scope' ) ) {
+function ufsc_lc_safe_enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {
+	if ( class_exists( 'UFSC_LC_Scope' ) ) {
+		if ( method_exists( 'UFSC_LC_Scope', 'enforce_object_scope' ) ) {
+			UFSC_LC_Scope::enforce_object_scope( $object_id, $object_type );
+			return;
+		}
+		if ( method_exists( 'UFSC_LC_Scope', 'enforce_scope' ) ) {
+			UFSC_LC_Scope::enforce_scope( $object_id, $object_type );
+			return;
+		}
+	}
+
+	if ( class_exists( 'UFSC_LC_Capabilities' ) && ! UFSC_LC_Capabilities::user_can_manage() ) {
+		wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+	}
+}
+}
+
 if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 	class UFSC_LC_Scope extends UFSC_Scope {
 		public static function enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {

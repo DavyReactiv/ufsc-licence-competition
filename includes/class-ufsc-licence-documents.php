@@ -516,7 +516,7 @@ class UFSC_LC_Licence_Documents {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+			ufsc_lc_safe_enforce_object_scope( (int) $licence->id, 'licence' );
 		} else {
 			$repository = new UFSC_LC_Licence_Repository();
 			$repository->assert_licence_in_scope( (int) $licence->id );
@@ -608,7 +608,7 @@ class UFSC_LC_Licence_Documents {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $licence->id, 'licence' );
+			ufsc_lc_safe_enforce_object_scope( (int) $licence->id, 'licence' );
 		} else {
 			$repository = new UFSC_LC_Licence_Repository();
 			$repository->assert_licence_in_scope( (int) $licence->id );
@@ -698,7 +698,7 @@ if ( headers_sent() ) {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $club_id, 'club' );
+			ufsc_lc_safe_enforce_object_scope( (int) $club_id, 'club' );
 		}
 
 		$table = $this->get_clubs_table();
