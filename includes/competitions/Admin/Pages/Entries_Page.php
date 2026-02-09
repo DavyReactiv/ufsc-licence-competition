@@ -155,7 +155,7 @@ class Entries_Page {
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		if ( $id ) {
 			if ( class_exists( 'UFSC_LC_Scope' ) ) {
-				UFSC_LC_Scope::enforce_object_scope( $id, 'entry' );
+				ufsc_lc_safe_enforce_object_scope( $id, 'entry' );
 			} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 				$this->repository->assert_entry_in_scope( $id );
 			}
@@ -182,7 +182,7 @@ class Entries_Page {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( (int) $data['competition_id'], 'competition' );
+			ufsc_lc_safe_enforce_object_scope( (int) $data['competition_id'], 'competition' );
 		} elseif ( method_exists( $this->competition_repository, 'assert_competition_in_scope' ) ) {
 			$this->competition_repository->assert_competition_in_scope( (int) $data['competition_id'] );
 		}
@@ -540,7 +540,7 @@ class Entries_Page {
 		}
 
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::enforce_object_scope( $id, 'entry' );
+			ufsc_lc_safe_enforce_object_scope( $id, 'entry' );
 		} elseif ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 			$this->repository->assert_entry_in_scope( $id );
 		}
