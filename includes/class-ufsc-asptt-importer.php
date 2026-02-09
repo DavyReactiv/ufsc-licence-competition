@@ -273,7 +273,9 @@ class UFSC_LC_ASPTT_Importer {
 					$pinned_club_id,
 					$pinned_apply,
 					$pinned_club,
-					$incremental
+					$incremental,
+					! empty( $preview['minimal_mode'] ),
+					isset( $preview['update_only_minimal'] ) ? (bool) $preview['update_only_minimal'] : true
 				);
 				?>
 			<?php endif; ?>
@@ -417,7 +419,7 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club, $incremental ) {
+	private function render_import_tab( $preview, $rows, $errors, $headers, $mapping, $file_name, $preview_limit, $force_club_id, $force_club, $stats, $default_season_end_year, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $pinned_club, $incremental, $minimal_mode, $update_only_minimal ) {
 		$report_mode = $this->get_report_mode( $preview );
 		$last_import = $this->get_last_report_for_mode( $report_mode );
 		$auto_validate_threshold = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_asptt_auto_validate_threshold() : 0;
@@ -437,6 +439,17 @@ class UFSC_LC_ASPTT_Importer {
 			</div>
 		<?php endif; ?>
 
+		<div class="ufsc-card">
+			<details class="ufsc-asptt-help">
+				<summary><?php esc_html_e( 'Aide / Mode d’emploi', 'ufsc-licence-competition' ); ?></summary>
+				<ul>
+					<li><?php esc_html_e( 'Mode minimal : importe uniquement Nom, Prénom, Date de naissance et Sexe/Genre. Les autres colonnes sont ignorées.', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( 'Formats de date acceptés : YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY.', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( 'Si aucune mise à jour : vérifiez la concordance nom/prénom/date/genre dans la base.', 'ufsc-licence-competition' ); ?></li>
+				</ul>
+			</details>
+		</div>
+
 		<?php if ( empty( $rows ) ) : ?>
 			<div class="ufsc-asptt-grid">
 				<div class="ufsc-asptt-main">
@@ -444,6 +457,7 @@ class UFSC_LC_ASPTT_Importer {
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data">
 							<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
 							<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
+							<input type="hidden" name="ufsc_asptt_update_only_minimal" value="0">
 
 							<table class="form-table" role="presentation">
 								<tr>
@@ -457,6 +471,27 @@ class UFSC_LC_ASPTT_Importer {
 										<label>
 											<input type="radio" name="ufsc_asptt_mode" value="import">
 											<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
+										</label>
+									</td>
+								</tr>
+
+								<tr>
+									<th scope="row"><?php esc_html_e( 'Mode minimal', 'ufsc-licence-competition' ); ?></th>
+									<td>
+										<label>
+											<input type="checkbox" name="ufsc_asptt_minimal_mode" value="1" <?php checked( $minimal_mode ); ?>>
+											<?php esc_html_e( 'Mode minimal (Nom/Prénom/Naissance/Sexe uniquement)', 'ufsc-licence-competition' ); ?>
+										</label>
+										<span class="dashicons dashicons-info" title="<?php esc_attr_e( 'Ignore toutes les autres colonnes, n’exige pas saison/catégorie/numéros.', 'ufsc-licence-competition' ); ?>"></span>
+									</td>
+								</tr>
+
+								<tr>
+									<th scope="row"><?php esc_html_e( 'Update-only minimal', 'ufsc-licence-competition' ); ?></th>
+									<td>
+										<label>
+											<input type="checkbox" name="ufsc_asptt_update_only_minimal" value="1" <?php checked( $update_only_minimal ); ?>>
+											<?php esc_html_e( 'Update-only minimal (ne crée jamais)', 'ufsc-licence-competition' ); ?>
 										</label>
 									</td>
 								</tr>
@@ -608,6 +643,8 @@ class UFSC_LC_ASPTT_Importer {
 								<?php wp_nonce_field( 'ufsc_lc_asptt_upload', 'ufsc_lc_asptt_nonce' ); ?>
 								<input type="hidden" name="action" value="ufsc_lc_asptt_upload">
 								<input type="hidden" name="ufsc_lc_reprocess" value="1">
+								<input type="hidden" name="ufsc_asptt_minimal_mode" value="0">
+								<input type="hidden" name="ufsc_asptt_update_only_minimal" value="0">
 
 								<?php if ( $force_club_id ) : ?>
 									<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
@@ -627,6 +664,21 @@ class UFSC_LC_ASPTT_Importer {
 										<?php esc_html_e( 'Utiliser une saison spécifique pour cet import', 'ufsc-licence-competition' ); ?>
 									</label>
 									<input type="number" name="ufsc_asptt_season_end_year" value="<?php echo esc_attr( $season_end_year_override ); ?>" min="2000" max="2100">
+								</p>
+
+								<p>
+									<label>
+										<input type="checkbox" name="ufsc_asptt_minimal_mode" value="1" <?php checked( $minimal_mode ); ?>>
+										<?php esc_html_e( 'Mode minimal (Nom/Prénom/Naissance/Sexe uniquement)', 'ufsc-licence-competition' ); ?>
+									</label>
+									<span class="dashicons dashicons-info" title="<?php esc_attr_e( 'Ignore toutes les autres colonnes, n’exige pas saison/catégorie/numéros.', 'ufsc-licence-competition' ); ?>"></span>
+								</p>
+
+								<p>
+									<label>
+										<input type="checkbox" name="ufsc_asptt_update_only_minimal" value="1" <?php checked( $update_only_minimal ); ?>>
+										<?php esc_html_e( 'Update-only minimal (ne crée jamais)', 'ufsc-licence-competition' ); ?>
+									</label>
 								</p>
 
 								<p>
@@ -670,7 +722,7 @@ class UFSC_LC_ASPTT_Importer {
 													<td>
 														<select name="ufsc_lc_mapping[<?php echo esc_attr( $header ); ?>]">
 															<option value=""><?php esc_html_e( 'Ignorer', 'ufsc-licence-competition' ); ?></option>
-															<?php foreach ( $this->get_mapping_options() as $option_value => $option_label ) : ?>
+															<?php foreach ( $this->get_mapping_options( $minimal_mode ) as $option_value => $option_label ) : ?>
 																<option value="<?php echo esc_attr( $option_value ); ?>" <?php selected( isset( $mapping[ $header ] ) ? $mapping[ $header ] : '', $option_value ); ?>>
 																	<?php echo esc_html( $option_label ); ?>
 																</option>
@@ -694,7 +746,7 @@ class UFSC_LC_ASPTT_Importer {
 				</div>
 			</div>
 
-			<?php $this->render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $incremental ); ?>
+			<?php $this->render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $incremental, $minimal_mode, $update_only_minimal ); ?>
 			<?php $this->render_cancel_actions( $preview, $last_import ); ?>
 			<?php $this->render_preview_table( $rows, $preview_limit, $pinned_club_id, $pinned_apply ); ?>
 
@@ -717,6 +769,24 @@ class UFSC_LC_ASPTT_Importer {
 					<?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?>
 				</label>
 				<br>
+
+				<?php if ( $minimal_mode ) : ?>
+					<input type="hidden" name="ufsc_asptt_minimal_mode" value="0">
+					<input type="hidden" name="ufsc_asptt_update_only_minimal" value="0">
+					<label>
+						<input type="checkbox" name="ufsc_asptt_minimal_mode" value="1" <?php checked( $minimal_mode ); ?>>
+						<?php esc_html_e( 'Mode minimal (Nom/Prénom/Naissance/Sexe uniquement)', 'ufsc-licence-competition' ); ?>
+					</label>
+					<br>
+					<label>
+						<input type="checkbox" name="ufsc_asptt_update_only_minimal" value="1" <?php checked( $update_only_minimal ); ?>>
+						<?php esc_html_e( 'Update-only minimal (ne crée jamais)', 'ufsc-licence-competition' ); ?>
+					</label>
+					<br>
+				<?php else : ?>
+					<input type="hidden" name="ufsc_asptt_minimal_mode" value="0">
+					<input type="hidden" name="ufsc_asptt_update_only_minimal" value="0">
+				<?php endif; ?>
 
 				<label>
 					<input type="checkbox" name="ufsc_asptt_auto_approve" value="1" <?php checked( $auto_approve_default ); ?>>
@@ -882,7 +952,7 @@ class UFSC_LC_ASPTT_Importer {
 		<?php
 	}
 
-	private function render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $incremental ) {
+	private function render_preview_sticky_bar( $stats, $preview_limit, $mapping, $force_club_id, $use_season_override, $season_end_year_override, $auto_save_alias, $pinned_club_id, $pinned_apply, $incremental, $minimal_mode, $update_only_minimal ) {
 		$total_rows = isset( $stats['total'] ) ? (int) $stats['total'] : 0;
 		?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-sticky-bar ufsc-lc-sticky-bar--import">
@@ -894,6 +964,8 @@ class UFSC_LC_ASPTT_Importer {
 			<input type="hidden" name="ufsc_asptt_season_end_year" value="<?php echo esc_attr( $season_end_year_override ); ?>">
 			<input type="hidden" name="ufsc_asptt_auto_save_alias" value="<?php echo esc_attr( $auto_save_alias ? 1 : 0 ); ?>">
 			<input type="hidden" name="ufsc_asptt_incremental" value="<?php echo esc_attr( $incremental ? 1 : 0 ); ?>">
+			<input type="hidden" name="ufsc_asptt_minimal_mode" value="<?php echo esc_attr( $minimal_mode ? 1 : 0 ); ?>">
+			<input type="hidden" name="ufsc_asptt_update_only_minimal" value="<?php echo esc_attr( $update_only_minimal ? 1 : 0 ); ?>">
 
 			<?php if ( $force_club_id ) : ?>
 				<input type="hidden" name="ufsc_asptt_force_club" value="<?php echo esc_attr( $force_club_id ); ?>">
@@ -961,6 +1033,8 @@ class UFSC_LC_ASPTT_Importer {
 			self::STATUS_NEEDS_REVIEW         => __( 'À vérifier', 'ufsc-licence-competition' ),
 			self::STATUS_LICENCE_MISSING      => __( 'Licence introuvable', 'ufsc-licence-competition' ),
 			self::STATUS_INVALID_ASPTT_NUMBER => __( 'N° ASPTT invalide', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_MINIMAL_MISSING_FIELDS => __( 'Champs requis manquants', 'ufsc-licence-competition' ),
+			UFSC_LC_ASPTT_Import_Service::STATUS_MINIMAL_NOT_FOUND      => __( 'Licence introuvable (mode minimal)', 'ufsc-licence-competition' ),
 			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_SEASON    => __( 'Saison invalide', 'ufsc-licence-competition' ),
 			UFSC_LC_ASPTT_Import_Service::STATUS_INVALID_BIRTHDATE => __( 'Date de naissance invalide', 'ufsc-licence-competition' ),
 		);
@@ -1152,8 +1226,8 @@ class UFSC_LC_ASPTT_Importer {
 	/**
 	 * Options mapping (identifiants internes stables).
 	 */
-	private function get_mapping_options() {
-		return array(
+	private function get_mapping_options( $minimal_mode = false ) {
+		$options = array(
 			'Nom'                    => __( 'Nom', 'ufsc-licence-competition' ),
 			'Prenom'                 => __( 'Prénom', 'ufsc-licence-competition' ),
 			'Email'                  => __( 'Email', 'ufsc-licence-competition' ),
@@ -1171,6 +1245,17 @@ class UFSC_LC_ASPTT_Importer {
 			'genre'                  => __( 'Genre', 'ufsc-licence-competition' ),
 			'Licence ID'             => __( 'Licence ID', 'ufsc-licence-competition' ),
 		);
+
+		if ( $minimal_mode ) {
+			return array(
+				'Nom'               => $options['Nom'],
+				'Prenom'            => $options['Prenom'],
+				'Date de naissance' => $options['Date de naissance'],
+				'genre'             => $options['genre'],
+			);
+		}
+
+		return $options;
 	}
 
 	public function handle_upload() {
@@ -1190,6 +1275,8 @@ class UFSC_LC_ASPTT_Importer {
 		$mode          = isset( $_POST['ufsc_asptt_mode'] ) ? sanitize_key( wp_unslash( $_POST['ufsc_asptt_mode'] ) ) : 'dry_run';
 		$mapping       = isset( $_POST['ufsc_lc_mapping'] ) ? $this->service->sanitize_mapping( wp_unslash( $_POST['ufsc_lc_mapping'] ) ) : array();
 		$preview_limit = isset( $_POST['ufsc_asptt_preview_limit'] ) ? $this->service->sanitize_preview_limit( wp_unslash( $_POST['ufsc_asptt_preview_limit'] ) ) : UFSC_LC_ASPTT_Import_Service::PREVIEW_DEFAULT_LIMIT;
+		$minimal_mode  = isset( $_POST['ufsc_asptt_minimal_mode'] ) ? (bool) absint( $_POST['ufsc_asptt_minimal_mode'] ) : false;
+		$update_only_minimal = isset( $_POST['ufsc_asptt_update_only_minimal'] ) ? (bool) absint( $_POST['ufsc_asptt_update_only_minimal'] ) : false;
 
 		$existing_preview = $this->get_preview();
 		$is_reprocess     = isset( $_POST['ufsc_lc_reprocess'] );
@@ -1210,6 +1297,16 @@ class UFSC_LC_ASPTT_Importer {
 			if ( ! isset( $_POST['ufsc_asptt_incremental'] ) && isset( $existing_preview['incremental'] ) ) {
 				$incremental = (bool) $existing_preview['incremental'];
 			}
+			if ( ! isset( $_POST['ufsc_asptt_minimal_mode'] ) && isset( $existing_preview['minimal_mode'] ) ) {
+				$minimal_mode = (bool) $existing_preview['minimal_mode'];
+			}
+			if ( ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && isset( $existing_preview['update_only_minimal'] ) ) {
+				$update_only_minimal = (bool) $existing_preview['update_only_minimal'];
+			}
+		}
+
+		if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
+			$update_only_minimal = true;
 		}
 
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
@@ -1231,7 +1328,7 @@ class UFSC_LC_ASPTT_Importer {
 					'message' => $stored->get_error_message(),
 				);
 			} else {
-				$preview              = $this->service->build_preview( $stored['path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
+				$preview              = $this->service->build_preview( $stored['path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override, $minimal_mode, $update_only_minimal );
 				$preview['file_path'] = $stored['path'];
 				$preview['file_name'] = $stored['name'];
 				$preview['file_size'] = $stored['size'];
@@ -1255,7 +1352,7 @@ class UFSC_LC_ASPTT_Importer {
 						$season_end_year_override = null;
 					}
 
-					$preview              = $this->service->build_preview( $existing_preview['file_path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override );
+					$preview              = $this->service->build_preview( $existing_preview['file_path'], $force_club_id, $mapping, $preview_limit, $season_end_year_override, $minimal_mode, $update_only_minimal );
 					$preview['file_path'] = $existing_preview['file_path'];
 					$preview['file_name'] = isset( $existing_preview['file_name'] ) ? $existing_preview['file_name'] : '';
 					$preview['file_size'] = isset( $existing_preview['file_size'] ) ? (int) $existing_preview['file_size'] : 0;
@@ -1282,6 +1379,8 @@ class UFSC_LC_ASPTT_Importer {
 			$preview['season_end_year_override']  = $season_end_year_override;
 			$preview['auto_save_alias']           = $auto_save_alias;
 			$preview['incremental']               = $incremental;
+			$preview['minimal_mode']              = $minimal_mode;
+			$preview['update_only_minimal']        = $update_only_minimal;
 		}
 
 		$this->persist_preview( $preview );
@@ -1342,6 +1441,14 @@ class UFSC_LC_ASPTT_Importer {
 			? (bool) absint( $_POST['ufsc_asptt_incremental'] )
 			: ( isset( $preview['incremental'] ) ? (bool) $preview['incremental'] : true );
 
+		$minimal_mode = isset( $_POST['ufsc_asptt_minimal_mode'] )
+			? (bool) absint( $_POST['ufsc_asptt_minimal_mode'] )
+			: ( isset( $preview['minimal_mode'] ) ? (bool) $preview['minimal_mode'] : false );
+
+		$update_only_minimal = isset( $_POST['ufsc_asptt_update_only_minimal'] )
+			? (bool) absint( $_POST['ufsc_asptt_update_only_minimal'] )
+			: ( isset( $preview['update_only_minimal'] ) ? (bool) $preview['update_only_minimal'] : true );
+
 		$pinned_club_id = isset( $_POST['ufsc_asptt_pinned_club_id'] )
 			? absint( $_POST['ufsc_asptt_pinned_club_id'] )
 			: ( isset( $preview['pinned_club_id'] ) ? (int) $preview['pinned_club_id'] : 0 );
@@ -1363,6 +1470,8 @@ class UFSC_LC_ASPTT_Importer {
 		$preview['season_end_year_override'] = $season_end_year_override;
 		$preview['auto_save_alias']          = $auto_save_alias;
 		$preview['incremental']             = $incremental;
+		$preview['minimal_mode']            = $minimal_mode;
+		$preview['update_only_minimal']     = $update_only_minimal;
 		$preview['pinned_club_id']           = $pinned_club_id;
 		$preview['pinned_apply']             = $pinned_apply;
 
@@ -1383,7 +1492,9 @@ class UFSC_LC_ASPTT_Importer {
 			$season_end_year_override,
 			$auto_save_alias,
 			$incremental,
-			$is_dry_run
+			$is_dry_run,
+			$minimal_mode,
+			$update_only_minimal
 		);
 
 		if ( is_wp_error( $result ) ) {
