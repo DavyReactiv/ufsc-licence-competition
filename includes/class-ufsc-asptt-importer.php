@@ -1530,6 +1530,19 @@ class UFSC_LC_ASPTT_Importer {
 
 		$is_dry_run = ( 'import' !== $mode );
 
+
+		$preview_matches = array();
+		if ( ! empty( $preview['rows'] ) && is_array( $preview['rows'] ) ) {
+			foreach ( $preview['rows'] as $preview_row ) {
+				$line_number = isset( $preview_row['line_number'] ) ? absint( $preview_row['line_number'] ) : 0;
+				$licence_id  = isset( $preview_row['licence_id'] ) ? absint( $preview_row['licence_id'] ) : 0;
+				if ( $line_number > 0 && $licence_id > 0 ) {
+					$preview_matches[ $line_number ] = $licence_id;
+				}
+			}
+		}
+		$this->service->set_preview_licence_ids( $preview_matches );
+
 		$result = $this->service->import_from_file(
 			$preview['file_path'],
 			$force_club_id,

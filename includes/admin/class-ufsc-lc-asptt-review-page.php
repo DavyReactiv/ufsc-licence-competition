@@ -223,11 +223,38 @@ class UFSC_LC_ASPTT_Review_Page {
 		$review_status = 'approve' === $action ? 'approved' : 'rejected';
 		$link_mode     = 'approve' === $action ? 'manual' : $document->link_mode;
 
+		if ( 'approve' === $action ) {
+			if ( empty( $document->licence_id ) || empty( $document->source_licence_number ) ) {
+				UFSC_LC_Logger::log(
+					__( 'Review ASPTT: approbation refusée (données source manquantes).', 'ufsc-licence-competition' ),
+					array(
+						'document_id'    => (int) $document->document_id,
+						'licence_id'     => (int) $document->licence_id,
+						'asptt_number'   => (string) $document->source_licence_number,
+					)
+				);
+				$this->redirect_with_notice( 'error', __( 'Validation impossible : licence ou numéro ASPTT source manquant.', 'ufsc-licence-competition' ) );
+			}
+
+			$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
+			if ( is_wp_error( $write_result ) ) {
+				UFSC_LC_Logger::log(
+					__( 'Review ASPTT: échec écriture licence lors de l’approbation.', 'ufsc-licence-competition' ),
+					array(
+						'document_id' => (int) $document->document_id,
+						'error'       => $write_result->get_error_message(),
+					)
+				);
+				$this->redirect_with_notice( 'error', $write_result->get_error_message() );
+			}
+			$this->service->mark_review_approval_hash( (int) $document->club_id, (string) $document->source_licence_number, $document->source_created_at );
+		}
+
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $review_status );
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', $link_mode );
 
 		$message = 'approve' === $action
-			? __( 'Validation enregistrée.', 'ufsc-licence-competition' )
+			? __( 'Validation enregistrée et licence mise à jour.', 'ufsc-licence-competition' )
 			: __( 'Rejet enregistré.', 'ufsc-licence-competition' );
 
 		$this->redirect_with_notice( 'success', $message );
@@ -275,6 +302,28 @@ class UFSC_LC_ASPTT_Review_Page {
 
 			switch ( $action ) {
 				case 'approve':
+					if ( empty( $document->licence_id ) || empty( $document->source_licence_number ) ) {
+						UFSC_LC_Logger::log(
+							__( 'Review ASPTT: approbation bulk refusée (données source manquantes).', 'ufsc-licence-competition' ),
+							array( 'document_id' => (int) $document->document_id )
+						);
+						$failed++;
+						break;
+					}
+
+					$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
+					if ( is_wp_error( $write_result ) ) {
+						UFSC_LC_Logger::log(
+							__( 'Review ASPTT: échec écriture licence lors de l’approbation bulk.', 'ufsc-licence-competition' ),
+							array(
+								'document_id' => (int) $document->document_id,
+								'error'       => $write_result->get_error_message(),
+							)
+						);
+						$failed++;
+						break;
+					}
+					$this->service->mark_review_approval_hash( (int) $document->club_id, (string) $document->source_licence_number, $document->source_created_at );
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'approved' );
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', 'manual' );
 					$updated++;
@@ -634,6 +683,8 @@ class UFSC_LC_ASPTT_Review_Page {
 			docs.licence_id,
 			docs.source,
 			docs.asptt_club_note,
+			docs.source_licence_number,
+			docs.source_created_at,
 			{$nom_affiche_sql} AS nom_affiche,
 			licences.prenom,
 			licences.date_naissance,
