@@ -545,6 +545,14 @@ class UFSC_LC_ASPTT_Import_Service {
 						$club_licences_skipped++;
 						$club_ok++;
 						$club_log['ignored']++;
+						$this->log_import_warning(
+							__( 'Ligne ignorée en incrémental : hash identique et licence déjà conforme.', 'ufsc-licence-competition' ),
+							array(
+								'asptt_number' => $asptt_no,
+								'club_id'      => $club_id,
+								'licence_id'   => $licence_id,
+							)
+						);
 						continue;
 					}
 				}
