@@ -1510,19 +1510,6 @@ class UFSC_LC_ASPTT_Import_Service {
 		return trim( $value );
 	}
 
-		$value = preg_replace('/\s+/u', ' ', $value);
-$value = remove_accents( $value );
-
-if ( function_exists( 'mb_strtolower' ) ) {
-	$value = mb_strtolower( $value, 'UTF-8' );
-} else {
-	$value = strtolower( $value );
-}
-
-return trim( $value );
-
-
-
 	private function find_existing_licence_id_by_minimal_identity( string $nom, string $prenom, string $dob, string $genre ): array {
 		global $wpdb;
 
