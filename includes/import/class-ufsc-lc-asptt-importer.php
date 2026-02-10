@@ -1233,6 +1233,7 @@ class UFSC_LC_ASPTT_Import_Service {
 						$nom,
 						$prenom,
 						$dob,
+						$genre,
 						$email
 					);
 				$licence_id        = $match['id'];
@@ -3285,7 +3286,7 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		return implode( '|', array( $club_id, $nom_key, $prenom_key, $dob, $season_end_year ) );
 	}
 
-	private function resolve_licence_match( int $licence_id, string $asptt_number, int $club_id, string $nom, string $prenom, string $dob, string $email = '' ): array {
+	private function resolve_licence_match( int $licence_id, string $asptt_number, int $club_id, string $nom, string $prenom, string $dob, string $genre = '', string $email = '' ): array {
 		if ( $licence_id ) {
 			$licence_exists = $this->licence_lookup_ready
 				? isset( $this->licence_lookup['by_id'][ $licence_id ] )
@@ -3307,8 +3308,8 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		}
 
 		$identity_ids = $this->licence_lookup_ready
-			? $this->get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob )
-			: $this->find_existing_licence_ids_by_identity( $nom, $prenom, $dob, $club_id );
+			? $this->get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob, $genre )
+			: $this->find_existing_licence_ids_by_identity( $nom, $prenom, $dob, $club_id, $genre );
 
 		if ( count( $identity_ids ) === 1 ) {
 			return array(
@@ -3324,52 +3325,6 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 				'ambiguous_ids' => $identity_ids,
 				'resolution' => 'identity',
 			);
-		}
-
-		$email = sanitize_email( $email );
-		if ( '' !== $email ) {
-			$email_ids = $this->licence_lookup_ready
-				? $this->get_email_ids_from_cache( $club_id, $email, $dob )
-				: $this->find_existing_licence_ids_by_email( $email, $club_id, $dob );
-
-			if ( count( $email_ids ) === 1 ) {
-				return array(
-					'id' => (int) $email_ids[0],
-					'ambiguous_ids' => array(),
-					'resolution' => 'email',
-				);
-			}
-
-			if ( count( $email_ids ) > 1 ) {
-				return array(
-					'id' => 0,
-					'ambiguous_ids' => $email_ids,
-					'resolution' => 'email',
-				);
-			}
-		}
-
-		$normalized_number = $this->normalize_license_number( $asptt_number );
-		if ( '' !== $normalized_number && $club_id ) {
-			$number_ids = $this->licence_lookup_ready
-				? ( $this->licence_lookup['by_number'][ $club_id ][ $normalized_number ] ?? array() )
-				: array_filter( array( $this->find_existing_licence_id_by_asptt_number( $normalized_number, $club_id ) ) );
-
-			if ( count( $number_ids ) === 1 ) {
-				return array(
-					'id' => (int) $number_ids[0],
-					'ambiguous_ids' => array(),
-					'resolution' => 'asptt_number',
-				);
-			}
-
-			if ( count( $number_ids ) > 1 ) {
-				return array(
-					'id' => 0,
-					'ambiguous_ids' => array_values( array_unique( $number_ids ) ),
-					'resolution' => 'asptt_number',
-				);
-			}
 		}
 
 		return array(
@@ -3401,12 +3356,13 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		return (int) $found === $licence_id;
 	}
 
-	private function find_existing_licence_ids_by_identity( string $nom, string $prenom, string $dob, int $club_id = 0 ): array {
+	private function find_existing_licence_ids_by_identity( string $nom, string $prenom, string $dob, int $club_id = 0, string $genre = '' ): array {
 		global $wpdb;
 
 		$nom    = trim( $nom );
 		$prenom = trim( $prenom );
 		$dob    = $this->parse_date( $dob );
+		$genre  = $this->normalize_genre( $genre );
 
 		if ( '' === $nom || '' === $prenom || '' === $dob ) {
 			return array();
@@ -3443,7 +3399,9 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		$like_nom    = '%' . $wpdb->esc_like( $nom ) . '%';
 		$like_prenom = '%' . $wpdb->esc_like( $prenom ) . '%';
 
-		$sql = "SELECT id, {$last_name_expr} AS nom_affiche, prenom, date_naissance FROM {$table} WHERE date_naissance = %s";
+		$sql = "SELECT id, {$last_name_expr} AS nom_affiche, prenom, date_naissance,";
+		$sql .= in_array( 'sexe', $columns, true ) ? " sexe " : " '' AS sexe ";
+		$sql .= "FROM {$table} WHERE date_naissance = %s";
 		$params = array( $dob );
 
 		if ( $club_id > 0 && $has_club_column ) {
@@ -3467,11 +3425,20 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 
 		$ids = array();
 		foreach ( $rows as $row ) {
-			if ( $normalized_nom === $this->normalize_name( $row->nom_affiche ?? '' )
-				&& $normalized_prenom === $this->normalize_name( $row->prenom ?? '' )
-				&& $dob === (string) ( $row->date_naissance ?? '' ) ) {
-				$ids[] = (int) $row->id;
+			if ( $normalized_nom !== $this->normalize_name( $row->nom_affiche ?? '' )
+				|| $normalized_prenom !== $this->normalize_name( $row->prenom ?? '' )
+				|| $dob !== (string) ( $row->date_naissance ?? '' ) ) {
+				continue;
 			}
+
+			if ( '' !== $genre ) {
+				$row_genre = $this->normalize_genre( (string) ( $row->sexe ?? '' ) );
+				if ( '' !== $row_genre && $row_genre !== $genre ) {
+					continue;
+				}
+			}
+
+			$ids[] = (int) $row->id;
 		}
 
 		return array_values( array_unique( $ids ) );
@@ -3564,36 +3531,21 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		$value = $this->convert_to_utf8( $value );
 		$value = preg_replace( '/\s+/', '', $value );
 
-		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
-			$parts = explode( '-', $value );
-			$year  = $parts[0];
-			$month = $parts[1];
-			$day   = $parts[2];
-
-			if ( ! checkdate( (int) $month, (int) $day, (int) $year ) ) {
-				return '';
-			}
-
-			return $value;
+		if ( preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $matches ) ) {
+			$year  = (int) $matches[1];
+			$month = (int) $matches[2];
+			$day   = (int) $matches[3];
+			return checkdate( $month, $day, $year ) ? sprintf( '%04d-%02d-%02d', $year, $month, $day ) : '';
 		}
 
-		$parts = explode( '/', $value );
-		if ( 3 !== count( $parts ) ) {
-			$parts = explode( '-', $value );
-			if ( 3 !== count( $parts ) ) {
-				return '';
-			}
+		if ( preg_match( '/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/', $value, $matches ) ) {
+			$day   = (int) $matches[1];
+			$month = (int) $matches[2];
+			$year  = (int) $matches[3];
+			return checkdate( $month, $day, $year ) ? sprintf( '%04d-%02d-%02d', $year, $month, $day ) : '';
 		}
 
-		$day   = str_pad( $parts[0], 2, '0', STR_PAD_LEFT );
-		$month = str_pad( $parts[1], 2, '0', STR_PAD_LEFT );
-		$year  = $parts[2];
-
-		if ( ! checkdate( (int) $month, (int) $day, (int) $year ) ) {
-			return '';
-		}
-
-		return $year . '-' . $month . '-' . $day;
+		return '';
 	}
 
 	private function parse_source_created_at( $value ) {
@@ -3641,6 +3593,21 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 
 	private function log_import_warning( $message, $context = array() ) {
 		UFSC_LC_Logger::log( $message, $context );
+	}
+
+	private function debug_asptt_event( $event, array $context = array() ) {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		do_action(
+			'ufsc_lc_asptt_debug',
+			array(
+				'component' => 'import_service',
+				'event'     => (string) $event,
+				'context'   => $context,
+			)
+		);
 	}
 
 	private function find_club_by_name( $normalized ) {
@@ -4076,6 +4043,14 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 	}
 
 	if ( $stored_number !== $asptt_number ) {
+		$this->debug_asptt_event(
+			'licence_requires_asptt_sync_number_diff',
+			array(
+				'licence_id'     => $licence_id,
+				'stored_number'  => $stored_number,
+				'incoming_number'=> $asptt_number,
+			)
+		);
 		return true;
 	}
 
@@ -4398,6 +4373,8 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 		}
 
 		$select_parts = array( 'id', 'club_id', 'prenom', 'date_naissance' );
+		$select_parts[] = in_array( 'email', $columns, true ) ? 'email' : "'' AS email";
+		$select_parts[] = in_array( 'sexe', $columns, true ) ? 'sexe' : "'' AS sexe";
 		if ( $asptt_column ) {
 			$select_parts[] = $asptt_column . ' AS asptt_number';
 		} else {
@@ -4424,7 +4401,7 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 		foreach ( (array) $rows as $row ) {
 			$licence_id = (int) $row->id;
 			$club_id = (int) $row->club_id;
-			$by_id[ $licence_id ] = true;
+			$by_id[ $licence_id ] = $row;
 
 			$asptt_number = $this->normalize_license_number( $row->asptt_number ?? '' );
 			if ( '' !== $asptt_number ) {
@@ -4469,7 +4446,7 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 		return implode( '|', array( $club_id, $nom_key, $prenom_key, $dob_key ) );
 	}
 
-	private function get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob ) {
+	private function get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob, $genre = '' ) {
 		$key = $this->build_identity_key( $club_id, $nom, $prenom, $dob );
 		if ( '' === $key ) {
 			return array();
@@ -4480,7 +4457,27 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 			return array();
 		}
 
-		return array_values( array_unique( $this->licence_lookup['by_identity'][ $club_id ][ $key ] ) );
+		$ids   = array_values( array_unique( $this->licence_lookup['by_identity'][ $club_id ][ $key ] ) );
+		$genre = $this->normalize_genre( $genre );
+		if ( '' === $genre ) {
+			return $ids;
+		}
+
+		$filtered = array();
+		foreach ( $ids as $id ) {
+			$row = $this->licence_lookup['by_id'][ $id ] ?? null;
+			if ( ! $row ) {
+				continue;
+			}
+
+			$row_genre = $this->normalize_genre( (string) ( $row->sexe ?? '' ) );
+			if ( '' !== $row_genre && $row_genre !== $genre ) {
+				continue;
+			}
+			$filtered[] = (int) $id;
+		}
+
+		return array_values( array_unique( $filtered ) );
 	}
 
 	private function validate_required_columns( array $headers, $force_club_id ) {
@@ -4826,10 +4823,9 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 
 		$fields  = array();
 		$formats = array();
-		foreach ( $asptt_columns as $column ) {
-			$fields[ $column ] = $license_number;
-			$formats[] = '%s';
-		}
+		$target_asptt_column = $asptt_columns[0];
+		$fields[ $target_asptt_column ] = $license_number;
+		$formats[] = '%s';
 
 		$date_asptt = isset( $data['date_asptt'] ) ? $this->parse_source_created_at( $data['date_asptt'] ) : null;
 		if ( null !== $date_asptt ) {

@@ -83,9 +83,24 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 
 	public function column_cb( $item ) {
 		return sprintf(
-			'<input type="checkbox" name="document[]" value="%d" />',
+			'<input type="checkbox" name="document_ids[]" value="%d" />',
 			(int) $item->document_id
 		);
+	}
+
+	public function get_selected_document_ids() {
+		$raw_ids = isset( $_REQUEST['document_ids'] )
+			? (array) wp_unslash( $_REQUEST['document_ids'] )
+			: array();
+
+		if ( empty( $raw_ids ) && isset( $_REQUEST['document'] ) ) {
+			$raw_ids = (array) wp_unslash( $_REQUEST['document'] );
+		}
+
+		$ids = array_map( 'absint', $raw_ids );
+		$ids = array_values( array_filter( $ids ) );
+
+		return $ids;
 	}
 
 	public function column_club( $item ) {
