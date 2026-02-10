@@ -224,9 +224,46 @@ class UFSC_LC_ASPTT_Review_Page {
 		$link_mode     = 'approve' === $action ? 'manual' : $document->link_mode;
 
 		if ( 'approve' === $action ) {
-			$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
+			if ( empty( $document->licence_id ) || empty( $document->source_licence_number ) ) {
+				UFSC_LC_Logger::log(
+					__( 'Review ASPTT: approbation refusée (données source manquantes).', 'ufsc-licence-competition' ),
+					array(
+						'document_id'  => (int) $document->document_id,
+						'licence_id'   => (int) $document->licence_id,
+						'asptt_number' => (string) $document->source_licence_number,
+					)
+				);
+				$this->redirect_with_notice(
+					'error',
+					__( 'Validation impossible : licence ou numéro ASPTT source manquant.', 'ufsc-licence-competition' )
+				);
+			}
+
+			$write_result = $this->service->apply_asptt_data_to_licence(
+				(int) $document->licence_id,
+				(string) $document->source_licence_number,
+				$document->source_created_at
+			);
+
 			if ( is_wp_error( $write_result ) ) {
+				UFSC_LC_Logger::log(
+					__( 'Review ASPTT: échec écriture licence lors de l’approbation.', 'ufsc-licence-competition' ),
+					array(
+						'document_id' => (int) $document->document_id,
+						'licence_id'  => (int) $document->licence_id,
+						'error'       => $write_result->get_error_message(),
+					)
+				);
 				$this->redirect_with_notice( 'error', $write_result->get_error_message() );
+			}
+
+			// Écrit le hash d'approbation APRÈS succès de l’écriture licence (anti reprocessing)
+			if ( method_exists( $this->service, 'mark_review_approval_hash' ) ) {
+				$this->service->mark_review_approval_hash(
+					(int) $document->club_id,
+					(string) $document->source_licence_number,
+					$document->source_created_at
+				);
 			}
 		}
 
@@ -282,19 +319,55 @@ class UFSC_LC_ASPTT_Review_Page {
 
 			switch ( $action ) {
 				case 'approve':
-					$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
-					if ( is_wp_error( $write_result ) ) {
+					if ( empty( $document->licence_id ) || empty( $document->source_licence_number ) ) {
+						UFSC_LC_Logger::log(
+							__( 'Review ASPTT: approbation bulk refusée (données source manquantes).', 'ufsc-licence-competition' ),
+							array(
+								'document_id' => (int) $document->document_id,
+								'licence_id'  => (int) $document->licence_id,
+							)
+						);
 						$failed++;
 						break;
 					}
+
+					$write_result = $this->service->apply_asptt_data_to_licence(
+						(int) $document->licence_id,
+						(string) $document->source_licence_number,
+						$document->source_created_at
+					);
+
+					if ( is_wp_error( $write_result ) ) {
+						UFSC_LC_Logger::log(
+							__( 'Review ASPTT: échec écriture licence lors de l’approbation bulk.', 'ufsc-licence-competition' ),
+							array(
+								'document_id' => (int) $document->document_id,
+								'licence_id'  => (int) $document->licence_id,
+								'error'       => $write_result->get_error_message(),
+							)
+						);
+						$failed++;
+						break;
+					}
+
+					if ( method_exists( $this->service, 'mark_review_approval_hash' ) ) {
+						$this->service->mark_review_approval_hash(
+							(int) $document->club_id,
+							(string) $document->source_licence_number,
+							$document->source_created_at
+						);
+					}
+
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'approved' );
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', 'manual' );
 					$updated++;
 					break;
+
 				case 'reject':
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'rejected' );
 					$updated++;
 					break;
+
 				case 'trash':
 					$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'review_status' );
 					$previous_status = $previous_status ? $previous_status : 'pending';
@@ -302,6 +375,7 @@ class UFSC_LC_ASPTT_Review_Page {
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'trash' );
 					$updated++;
 					break;
+
 				case 'restore':
 					$previous_status = $this->get_document_meta_value( (int) $document->licence_id, $document->source, 'prev_review_status' );
 					$restore_status  = $previous_status ? $previous_status : 'pending';
@@ -311,6 +385,7 @@ class UFSC_LC_ASPTT_Review_Page {
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $restore_status );
 					$updated++;
 					break;
+
 				case 'save_alias':
 					if ( ! empty( $document->asptt_club_note ) ) {
 						$this->service->save_alias( (int) $document->club_id, $document->asptt_club_note );
@@ -319,6 +394,7 @@ class UFSC_LC_ASPTT_Review_Page {
 						$failed++;
 					}
 					break;
+
 				default:
 					$failed++;
 					break;
@@ -547,28 +623,28 @@ class UFSC_LC_ASPTT_Review_Page {
 	private function get_clubs_for_select( $search = '' ) {
 		global $wpdb;
 
-		$table      = $wpdb->prefix . 'ufsc_clubs';
-		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
+		$table         = $wpdb->prefix . 'ufsc_clubs';
+		$has_postal    = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
-		$scope = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
+		$scope         = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
 		$region_column = ( $scope && $this->column_exists( $table, 'region' ) ) ? 'region' : '';
 
 		$where_parts = array();
-		$params = array();
+		$params      = array();
 		if ( '' !== $search ) {
 			$like = '%' . $wpdb->esc_like( $search ) . '%';
 			if ( $has_postal ) {
 				$where_parts[] = '(nom LIKE %s OR code_postal LIKE %s)';
-				$params[] = $like;
-				$params[] = $like;
+				$params[]      = $like;
+				$params[]      = $like;
 			} else {
 				$where_parts[] = 'nom LIKE %s';
-				$params[] = $like;
+				$params[]      = $like;
 			}
 		}
 		if ( $scope && '' !== $region_column ) {
 			$where_parts[] = "{$region_column} = %s";
-			$params[] = $scope;
+			$params[]      = $scope;
 		}
 
 		$where_sql = '';
@@ -597,8 +673,8 @@ class UFSC_LC_ASPTT_Review_Page {
 			ufsc_lc_safe_enforce_object_scope( (int) $club_id, 'club' );
 		}
 
-		$table      = $wpdb->prefix . 'ufsc_clubs';
-		$has_postal = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
+		$table         = $wpdb->prefix . 'ufsc_clubs';
+		$has_postal    = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
 
 		$club = $wpdb->get_row(
