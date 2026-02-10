@@ -42,6 +42,7 @@ class UFSC_LC_ASPTT_Import_Service {
 	private $table_engine_cache = array();
 	private $minimal_mode = false;
 	private $update_only_minimal = true;
+	private $preview_licence_ids = array();
 
 	public function validate_upload( $file ) {
 		if ( empty( $file ) || empty( $file['tmp_name'] ) ) {
@@ -70,6 +71,19 @@ class UFSC_LC_ASPTT_Import_Service {
 		}
 
 		return true;
+	}
+
+
+	public function set_preview_licence_ids( array $licence_ids ) {
+		$this->preview_licence_ids = array();
+
+		foreach ( $licence_ids as $line_number => $licence_id ) {
+			$line_number = absint( $line_number );
+			$licence_id  = absint( $licence_id );
+			if ( $line_number > 0 && $licence_id > 0 ) {
+				$this->preview_licence_ids[ $line_number ] = $licence_id;
+			}
+		}
 	}
 
 	public function store_upload( $file ) {
@@ -146,11 +160,14 @@ class UFSC_LC_ASPTT_Import_Service {
 		$headers = $parsed['headers_raw'];
 		$mapping = $parsed['mapping'];
 
+		$preview_line_number = 0;
 		foreach ( $parsed['rows'] as $row ) {
 			$stats['total']++;
+			$preview_line_number++;
 			$result = $this->process_row( $row, $force_club_id, $stats, $season_end_year_override );
 
 			if ( $result['preview'] ) {
+				$result['preview']['line_number'] = $preview_line_number;
 				$preview_rows[] = $result['preview'];
 			}
 			if ( ! empty( $result['error'] ) ) {
@@ -291,6 +308,14 @@ class UFSC_LC_ASPTT_Import_Service {
 			$row_stats = null;
 			$result   = $this->process_row( $row, $force_club_id, $row_stats, $season_end_year_override, false );
 			$data     = $result['data'];
+
+			if ( isset( $this->preview_licence_ids[ $line_number ] ) ) {
+				$data['licence_id'] = (int) $this->preview_licence_ids[ $line_number ];
+				if ( self::STATUS_LINKED !== $data['status'] && empty( $result['error'] ) ) {
+					$data['status'] = self::STATUS_LINKED;
+					$data['person_resolution'] = 'preview';
+				}
+			}
 			$row_error = $result['error'];
 			$club_id  = isset( $data['club_id'] ) ? (int) $data['club_id'] : 0;
 			$status   = isset( $data['status'] ) ? $data['status'] : '';
@@ -502,7 +527,9 @@ class UFSC_LC_ASPTT_Import_Service {
 					$previous_hash = $this->get_existing_option_hash( $asptt_no, $club_id, $used_fallback_hash );
 				}
 
-				if ( $incremental && $licence_id && $current_hash && $previous_hash && hash_equals( $previous_hash, $current_hash ) ) {
+				$licence_needs_sync = $licence_id ? $this->licence_requires_asptt_sync( $licence_id, $asptt_no, $data['source_created_at'] ) : false;
+
+				if ( $incremental && ! $licence_needs_sync && $licence_id && $current_hash && $previous_hash && hash_equals( $previous_hash, $current_hash ) ) {
 					if ( $used_fallback_hash && ! $dry_run ) {
 						$club_hash_updates[] = array(
 							'asptt_number' => $asptt_no,
@@ -572,6 +599,7 @@ class UFSC_LC_ASPTT_Import_Service {
 					'telephone'       => $data['telephone'],
 					'activite'        => $data['activite'],
 					'region'          => $data['region'],
+					'date_asptt'      => $data['source_created_at'],
 					'import_batch_id' => $club_batch_id,
 				);
 
@@ -829,6 +857,8 @@ class UFSC_LC_ASPTT_Import_Service {
 		$rows_per_sec = ( $stats['total'] > 0 ) ? ( $stats['total'] / $duration_sec ) : 0;
 		$hash_storage = $hash_table_available ? 'table' : 'option';
 		$hash_notice  = $this->hash_table_notice;
+
+		$this->preview_licence_ids = array();
 
 		if ( ! $dry_run && function_exists( 'ufsc_lc_bump_cache_version' ) ) {
 			ufsc_lc_bump_cache_version( 'club_all', 0 );
@@ -3868,9 +3898,12 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 
 		return array(
 			'asptt_number'      => $this->normalize_hash_value( $this->normalize_license_number( $data['asptt_number'] ) ),
+			'club_id'           => (string) (int) ( isset( $data['club_id'] ) ? $data['club_id'] : 0 ),
 			'nom'               => $this->normalize_hash_value( isset( $data['nom'] ) ? $data['nom'] : '' ),
 			'prenom'            => $this->normalize_hash_value( isset( $data['prenom'] ) ? $data['prenom'] : '' ),
 			'date_naissance'    => $this->normalize_hash_value( $birthdate ),
+			'date_asptt'        => $this->normalize_hash_value( $source_created_at ),
+			'saison'            => $this->normalize_hash_value( isset( $data['season_end_year'] ) ? (string) $data['season_end_year'] : '' ),
 			'genre'             => $this->normalize_hash_value( $this->normalize_genre( isset( $data['genre'] ) ? $data['genre'] : '' ) ),
 			'email'             => $this->normalize_hash_value( isset( $data['email'] ) ? strtolower( $data['email'] ) : '' ),
 			'adresse'           => $this->normalize_hash_value( isset( $data['adresse'] ) ? $data['adresse'] : '' ),
@@ -3882,6 +3915,88 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 			'region'            => $this->normalize_hash_value( isset( $data['region'] ) ? $data['region'] : '' ),
 			'source_created_at' => $this->normalize_hash_value( $source_created_at ),
 		);
+	}
+
+	public function apply_asptt_data_to_licence( $licence_id, $asptt_number, $date_asptt = null ) {
+		$licence_id    = absint( $licence_id );
+		$asptt_number  = $this->normalize_license_number( $asptt_number );
+		$date_asptt    = $this->parse_source_created_at( $date_asptt );
+
+		if ( ! $licence_id ) {
+			return new WP_Error( 'licence_missing', __( 'Licence introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( '' === $asptt_number ) {
+			return new WP_Error( 'asptt_missing', __( 'N° Licence ASPTT manquant.', 'ufsc-licence-competition' ) );
+		}
+
+		return $this->upsert_licence_by_number(
+			$asptt_number,
+			array(
+				'date_asptt' => $date_asptt,
+			),
+			$licence_id,
+			'',
+			false
+		);
+	}
+
+	private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_asptt = null ) {
+		global $wpdb;
+
+		$licence_id = absint( $licence_id );
+		if ( ! $licence_id ) {
+			return false;
+		}
+
+		$table   = $this->get_licences_table();
+		$columns = $this->get_licence_columns();
+
+		if ( empty( $columns ) || ! $this->table_exists( $table ) ) {
+			return false;
+		}
+
+		$asptt_columns = array_values( array_intersect( array( 'numero_licence_asptt', 'asptt_number' ), $columns ) );
+		$date_columns  = array_values( array_intersect( array( 'date_asptt', 'asptt_date', 'date_licence_asptt', 'date_asptt_licence' ), $columns ) );
+
+		$select_fields = array_merge( $asptt_columns, $date_columns );
+		if ( empty( $select_fields ) ) {
+			return false;
+		}
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				'SELECT ' . implode( ', ', array_unique( $select_fields ) ) . " FROM {$table} WHERE id = %d",
+				$licence_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! is_array( $row ) || empty( $row ) ) {
+			return false;
+		}
+
+		$normalized_number = $this->normalize_license_number( $asptt_number );
+		foreach ( $asptt_columns as $column ) {
+			$current_number = $this->normalize_license_number( isset( $row[ $column ] ) ? $row[ $column ] : '' );
+			if ( $current_number !== $normalized_number ) {
+				return true;
+			}
+		}
+
+		$parsed_date = $this->parse_source_created_at( $date_asptt );
+		if ( null === $parsed_date ) {
+			return false;
+		}
+
+		foreach ( $date_columns as $column ) {
+			$current_date = $this->parse_source_created_at( isset( $row[ $column ] ) ? $row[ $column ] : '' );
+			if ( $current_date !== $parsed_date ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function normalize_license_number( $value ) {
@@ -4608,6 +4723,16 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 			$fields[ $column ] = $license_number;
 			$formats[] = '%s';
 		}
+
+		$date_asptt = isset( $data['date_asptt'] ) ? $this->parse_source_created_at( $data['date_asptt'] ) : null;
+		if ( null !== $date_asptt ) {
+			$date_columns = array_values( array_intersect( array( 'date_asptt', 'asptt_date', 'date_licence_asptt', 'date_asptt_licence' ), $columns ) );
+			foreach ( $date_columns as $date_column ) {
+				$fields[ $date_column ] = $date_asptt;
+				$formats[] = '%s';
+			}
+		}
+
 		if ( $batch_id && $this->column_exists( $table, 'import_batch_id' ) ) {
 			$fields['import_batch_id'] = $batch_id;
 			$formats[] = '%s';
