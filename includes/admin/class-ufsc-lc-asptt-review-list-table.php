@@ -455,7 +455,9 @@ class UFSC_LC_ASPTT_Review_List_Table extends WP_List_Table {
 		$params[] = $per_page;
 		$params[] = $offset;
 
-		$this->items = $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+		$items = $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+		$this->items = is_array( $items ) ? $items : array();
+		$this->_column_headers = array( $this->get_columns(), array(), $this->get_sortable_columns(), 'nom_licence' );
 
 		$this->set_pagination_args(
 			array(
