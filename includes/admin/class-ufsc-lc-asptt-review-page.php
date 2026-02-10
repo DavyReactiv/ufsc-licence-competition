@@ -38,11 +38,10 @@ class UFSC_LC_ASPTT_Review_Page {
 			return;
 		}
 
-		$this->handle_bulk_action_request();
+		$list_table = new UFSC_LC_ASPTT_Review_List_Table( $this->get_clubs() );
+		$this->handle_bulk_action_request( $list_table );
 		$this->render_notice();
 		$this->render_choose_club_form();
-
-		$list_table = new UFSC_LC_ASPTT_Review_List_Table( $this->get_clubs() );
 		$list_table->prepare_items();
 
 		$list_table->views();
@@ -277,8 +276,8 @@ class UFSC_LC_ASPTT_Review_Page {
 		$this->redirect_with_notice( 'success', $message );
 	}
 
-	private function handle_bulk_action_request() {
-		if ( empty( $_POST['action'] ) && empty( $_POST['action2'] ) ) {
+	private function handle_bulk_action_request( UFSC_LC_ASPTT_Review_List_Table $list_table ) {
+		if ( 'POST' !== strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? '' ) ) ) ) {
 			return;
 		}
 
@@ -288,17 +287,19 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		check_admin_referer( 'ufsc_lc_asptt_review_bulk', 'ufsc_lc_asptt_review_nonce' );
 
-		$action = isset( $_POST['action'] ) && '-1' !== $_POST['action'] ? sanitize_key( wp_unslash( $_POST['action'] ) ) : '';
-		if ( ! $action && isset( $_POST['action2'] ) && '-1' !== $_POST['action2'] ) {
-			$action = sanitize_key( wp_unslash( $_POST['action2'] ) );
+		$action = $list_table->current_action();
+		if ( ! $action && isset( $_POST['ufsc_bulk_action'] ) ) {
+			$sticky_action = sanitize_key( wp_unslash( $_POST['ufsc_bulk_action'] ) );
+			if ( '-1' !== $sticky_action ) {
+				$action = $sticky_action;
+			}
 		}
 
 		if ( ! $action ) {
 			return;
 		}
 
-		$document_ids = isset( $_POST['document'] ) ? array_map( 'absint', (array) $_POST['document'] ) : array();
-		$document_ids = array_filter( $document_ids );
+		$document_ids = $list_table->get_selected_document_ids();
 		if ( empty( $document_ids ) ) {
 			$this->notice = array(
 				'type'    => 'warning',
@@ -410,6 +411,16 @@ class UFSC_LC_ASPTT_Review_Page {
 				$failed
 			),
 		);
+
+		$this->debug_log(
+			'bulk_action_processed',
+			array(
+				'action'      => $action,
+				'document_ids'=> $document_ids,
+				'updated'     => $updated,
+				'failed'      => $failed,
+			)
+		);
 	}
 
 	private function render_notice() {
@@ -507,7 +518,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		<div class="ufsc-lc-sticky-bar ufsc-lc-sticky-bar--review">
 			<div class="ufsc-lc-sticky-field">
 				<label for="ufsc-review-bulk-action" class="ufsc-lc-sticky-label"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></label>
-				<select name="action" id="ufsc-review-bulk-action">
+				<select name="ufsc_bulk_action" id="ufsc-review-bulk-action">
 					<option value="-1"><?php esc_html_e( 'Actions groupées', 'ufsc-licence-competition' ); ?></option>
 					<?php foreach ( $actions as $action_key => $label ) : ?>
 						<option value="<?php echo esc_attr( $action_key ); ?>"><?php echo esc_html( $label ); ?></option>
@@ -581,6 +592,21 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		wp_safe_redirect( $redirect );
 		exit;
+	}
+
+	private function debug_log( $event, array $context = array() ) {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		do_action(
+			'ufsc_lc_asptt_debug',
+			array(
+				'component' => 'review_page',
+				'event'     => (string) $event,
+				'context'   => $context,
+			)
+		);
 	}
 
 	private function get_review_url() {
