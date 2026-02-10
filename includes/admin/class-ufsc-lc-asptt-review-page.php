@@ -223,11 +223,18 @@ class UFSC_LC_ASPTT_Review_Page {
 		$review_status = 'approve' === $action ? 'approved' : 'rejected';
 		$link_mode     = 'approve' === $action ? 'manual' : $document->link_mode;
 
+		if ( 'approve' === $action ) {
+			$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
+			if ( is_wp_error( $write_result ) ) {
+				$this->redirect_with_notice( 'error', $write_result->get_error_message() );
+			}
+		}
+
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', $review_status );
 		$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', $link_mode );
 
 		$message = 'approve' === $action
-			? __( 'Validation enregistrée.', 'ufsc-licence-competition' )
+			? __( 'Validation enregistrée et licence mise à jour.', 'ufsc-licence-competition' )
 			: __( 'Rejet enregistré.', 'ufsc-licence-competition' );
 
 		$this->redirect_with_notice( 'success', $message );
@@ -275,6 +282,11 @@ class UFSC_LC_ASPTT_Review_Page {
 
 			switch ( $action ) {
 				case 'approve':
+					$write_result = $this->service->apply_asptt_data_to_licence( (int) $document->licence_id, (string) $document->source_licence_number, $document->source_created_at );
+					if ( is_wp_error( $write_result ) ) {
+						$failed++;
+						break;
+					}
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'review_status', 'approved' );
 					$this->upsert_document_meta( (int) $document->licence_id, $document->source, 'link_mode', 'manual' );
 					$updated++;
@@ -634,6 +646,8 @@ class UFSC_LC_ASPTT_Review_Page {
 			docs.licence_id,
 			docs.source,
 			docs.asptt_club_note,
+			docs.source_licence_number,
+			docs.source_created_at,
 			{$nom_affiche_sql} AS nom_affiche,
 			licences.prenom,
 			licences.date_naissance,
