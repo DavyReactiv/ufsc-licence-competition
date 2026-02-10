@@ -545,14 +545,6 @@ class UFSC_LC_ASPTT_Import_Service {
 						$club_licences_skipped++;
 						$club_ok++;
 						$club_log['ignored']++;
-						$this->log_import_warning(
-							__( 'Ligne ignorée en incrémental : hash identique et licence déjà conforme.', 'ufsc-licence-competition' ),
-							array(
-								'asptt_number' => $asptt_no,
-								'club_id'      => $club_id,
-								'licence_id'   => $licence_id,
-							)
-						);
 						continue;
 					}
 				}
@@ -3971,89 +3963,129 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		);
 	}
 
-	public function mark_review_approval_hash( $club_id, $asptt_number, $date_asptt = null ) {
-		$club_id      = absint( $club_id );
-		$asptt_number = $this->normalize_license_number( $asptt_number );
+public function mark_review_approval_hash( $club_id, $asptt_number, $date_asptt = null ) {
+	$club_id      = absint( $club_id );
+	$asptt_number = $this->normalize_license_number( $asptt_number );
 
-		if ( ! $club_id || '' === $asptt_number ) {
-			return false;
+	if ( ! $club_id || '' === $asptt_number ) {
+		return false;
+	}
+
+	// On tente d'utiliser la table hash si possible, sinon fallback options.
+	$hash_table_available = $this->ensure_hash_table_exists();
+
+	$row_hash = $this->build_row_hash(
+		array(
+			'club_id'          => $club_id,
+			'asptt_number'     => $asptt_number,
+			'source_created_at'=> $date_asptt,
+		)
+	);
+
+	if ( '' === $row_hash ) {
+		return false;
+	}
+
+	$this->store_hash( $asptt_number, $club_id, $row_hash, (bool) $hash_table_available );
+
+	return true;
+}
+
+private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_asptt = null ) {
+	global $wpdb;
+
+	$licence_id   = absint( $licence_id );
+	$asptt_number = $this->normalize_license_number( $asptt_number );
+
+	if ( ! $licence_id || '' === $asptt_number ) {
+		return false;
+	}
+
+	$table   = $this->get_licences_table();
+	$columns = $this->get_licence_columns();
+
+	if ( empty( $columns ) || ! $this->table_exists( $table ) ) {
+		return false;
+	}
+
+	// (Le calcul des colonnes ASPTT + dates est géré dans le conflit 2 ci-dessous)
+
+
+	$target_asptt_columns = method_exists( $this, 'get_asptt_target_columns' )
+		? (array) $this->get_asptt_target_columns()
+		: array( 'numero_licence_asptt', 'asptt_number', 'numero_asptt', 'licence_asptt', 'no_asptt', 'n_asptt' );
+
+	$asptt_columns = array_values( array_intersect( $target_asptt_columns, $columns ) );
+
+	// Fallback ultra-safe (ancienne implémentation)
+	if ( empty( $asptt_columns ) ) {
+		$asptt_columns = array_values( array_intersect( array( 'numero_licence_asptt', 'asptt_number' ), $columns ) );
+	}
+
+	$date_columns = array_values(
+		array_intersect(
+			array( 'date_asptt', 'asptt_date', 'date_licence_asptt', 'date_asptt_licence' ),
+			$columns
+		)
+	);
+
+	$select_fields = array_unique( array_merge( $asptt_columns, $date_columns ) );
+	if ( empty( $select_fields ) ) {
+		return false;
+	}
+
+	$row = $wpdb->get_row(
+		$wpdb->prepare(
+			"SELECT " . implode( ', ', $select_fields ) . " FROM {$table} WHERE id = %d",
+			$licence_id
+		),
+		ARRAY_A
+	);
+
+	if ( ! is_array( $row ) || empty( $row ) ) {
+		return false;
+	}
+
+	// Valeur ASPTT actuelle en base (première colonne non vide)
+	$stored_number = '';
+	foreach ( $asptt_columns as $col ) {
+		if ( isset( $row[ $col ] ) && '' !== (string) $row[ $col ] ) {
+			$stored_number = $this->normalize_license_number( (string) $row[ $col ] );
+			break;
 		}
+	}
 
-		$hash_table_available = $this->ensure_hash_table_exists();
-		$row_hash = $this->build_row_hash(
-			array(
-				'club_id'           => $club_id,
-				'asptt_number'      => $asptt_number,
-				'source_created_at' => $date_asptt,
-			)
-		);
-
-		if ( '' === $row_hash ) {
-			return false;
+	// Date ASPTT actuelle en base (si présente)
+	$stored_date = null;
+	foreach ( $date_columns as $col ) {
+		if ( isset( $row[ $col ] ) && '' !== (string) $row[ $col ] ) {
+			$stored_date = $this->parse_source_created_at( (string) $row[ $col ] );
+			if ( null !== $stored_date ) {
+				break;
+			}
 		}
+	}
 
-		$this->store_hash( $asptt_number, $club_id, $row_hash, $hash_table_available );
+	$incoming_date = ( null !== $date_asptt && '' !== (string) $date_asptt )
+		? $this->parse_source_created_at( (string) $date_asptt )
+		: null;
 
+	// Règles de sync : on sync si vide, différent, ou date entrante plus récente.
+	if ( '' === $stored_number ) {
 		return true;
 	}
 
-	private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_asptt = null ) {
-		global $wpdb;
-
-		$licence_id = absint( $licence_id );
-		if ( ! $licence_id ) {
-			return false;
-		}
-
-		$table   = $this->get_licences_table();
-		$columns = $this->get_licence_columns();
-
-		if ( empty( $columns ) || ! $this->table_exists( $table ) ) {
-			return false;
-		}
-
-		$asptt_columns = array_values( array_intersect( $this->get_asptt_target_columns(), $columns ) );
-		$date_columns  = array_values( array_intersect( array( 'date_asptt', 'asptt_date', 'date_licence_asptt', 'date_asptt_licence' ), $columns ) );
-
-		$select_fields = array_merge( $asptt_columns, $date_columns );
-		if ( empty( $select_fields ) ) {
-			return false;
-		}
-
-		$row = $wpdb->get_row(
-			$wpdb->prepare(
-				'SELECT ' . implode( ', ', array_unique( $select_fields ) ) . " FROM {$table} WHERE id = %d",
-				$licence_id
-			),
-			ARRAY_A
-		);
-
-		if ( ! is_array( $row ) || empty( $row ) ) {
-			return false;
-		}
-
-		$normalized_number = $this->normalize_license_number( $asptt_number );
-		foreach ( $asptt_columns as $column ) {
-			$current_number = $this->normalize_license_number( isset( $row[ $column ] ) ? $row[ $column ] : '' );
-			if ( $current_number !== $normalized_number ) {
-				return true;
-			}
-		}
-
-		$parsed_date = $this->parse_source_created_at( $date_asptt );
-		if ( null === $parsed_date ) {
-			return false;
-		}
-
-		foreach ( $date_columns as $column ) {
-			$current_date = $this->parse_source_created_at( isset( $row[ $column ] ) ? $row[ $column ] : '' );
-			if ( $current_date !== $parsed_date ) {
-				return true;
-			}
-		}
-
-		return false;
+	if ( $stored_number !== $asptt_number ) {
+		return true;
 	}
+
+	if ( $incoming_date && ( ! $stored_date || strtotime( $incoming_date ) > strtotime( $stored_date ) ) ) {
+		return true;
+	}
+
+	return false;
+}
+
 
 	private function normalize_license_number( $value ) {
 		$value = trim( (string) $value );
