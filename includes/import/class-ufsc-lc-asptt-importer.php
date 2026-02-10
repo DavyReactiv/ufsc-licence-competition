@@ -1175,13 +1175,14 @@ class UFSC_LC_ASPTT_Import_Service {
 				}
 
 				$match = $this->resolve_licence_match(
-					$licence_id_source,
-					$asptt_no,
-					(int) $resolved['club_id'],
-					$nom,
-					$prenom,
-					$dob
-				);
+						$licence_id_source,
+						$asptt_no,
+						(int) $resolved['club_id'],
+						$nom,
+						$prenom,
+						$dob,
+						$email
+					);
 				$licence_id        = $match['id'];
 				$person_resolution = $match['resolution'];
 				$licence_ambiguous_ids = $match['ambiguous_ids'];
@@ -2283,10 +2284,26 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		$used     = array();
 		$allowed  = $this->get_allowed_columns();
 		$mapping  = $this->sanitize_mapping( $mapping );
+		$normalized_mapping = array();
+
+		foreach ( $mapping as $source_header => $target_column ) {
+			$normalized_mapping[ $this->normalize_header( $source_header ) ] = $target_column;
+		}
 
 		foreach ( $headers as $header ) {
 			$header = trim( (string) $header );
-			$key    = isset( $mapping[ $header ] ) ? $mapping[ $header ] : $this->map_header( $header );
+			$key    = isset( $mapping[ $header ] ) ? $mapping[ $header ] : '';
+
+			if ( '' === $key ) {
+				$normalized_header = $this->normalize_header( $header );
+				$key = isset( $normalized_mapping[ $normalized_header ] ) ? $normalized_mapping[ $normalized_header ] : '';
+			}
+
+			if ( '' === $key ) {
+				$key = $this->map_header( $header );
+			}
+
+			$key = $this->normalize_target_column( $key );
 
 			if ( ! in_array( $key, $allowed, true ) ) {
 				$key = '';
@@ -2372,7 +2389,12 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 			'region club'                    => 'Région',
 		);
 
-		return isset( $mapping[ $normalized ] ) ? $mapping[ $normalized ] : '';
+		$normalized_mapping = array();
+		foreach ( $mapping as $key => $value ) {
+			$normalized_mapping[ $this->normalize_header( $key ) ] = $value;
+		}
+
+		return isset( $normalized_mapping[ $normalized ] ) ? $normalized_mapping[ $normalized ] : '';
 	}
 
 	private function normalize_header( $value ) {
@@ -2381,13 +2403,36 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 			return '';
 		}
 
-		$value = $this->strip_utf8_bom( $value );
+		$value = $this->convert_to_utf8( $this->strip_utf8_bom( $value ) );
 		$value = remove_accents( $value );
 		$value = strtolower( $value );
-		$value = preg_replace( '/[^a-z0-9]+/u', ' ', $value );
-		$value = preg_replace( '/\s+/', ' ', $value );
+		$value = preg_replace( '/[^a-z0-9]+/u', '_', $value );
+		$value = preg_replace( '/_+/', '_', $value );
 
-		return trim( $value );
+		return trim( $value, '_' );
+	}
+
+	private function normalize_target_column( $column ) {
+		$column = trim( (string) $column );
+
+		if ( '' === $column ) {
+			return '';
+		}
+
+		$normalized = $this->normalize_header( $column );
+		$aliases = array(
+			'numero_asptt'         => 'N° Licence',
+			'numero_licence'       => 'N° Licence',
+			'numero_licence_asptt' => 'N° Licence',
+			'n_licence'            => 'N° Licence',
+			'licence_asptt'        => 'N° Licence',
+		);
+
+		if ( isset( $aliases[ $normalized ] ) ) {
+			return $aliases[ $normalized ];
+		}
+
+		return $column;
 	}
 
 	private function resolve_club( $note, $force_club_id ) {
@@ -3188,7 +3233,7 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		return implode( '|', array( $club_id, $nom_key, $prenom_key, $dob, $season_end_year ) );
 	}
 
-	private function resolve_licence_match( int $licence_id, string $asptt_number, int $club_id, string $nom, string $prenom, string $dob ): array {
+	private function resolve_licence_match( int $licence_id, string $asptt_number, int $club_id, string $nom, string $prenom, string $dob, string $email = '' ): array {
 		if ( $licence_id ) {
 			$licence_exists = $this->licence_lookup_ready
 				? isset( $this->licence_lookup['by_id'][ $licence_id ] )
@@ -3207,6 +3252,49 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 				'ambiguous_ids' => array(),
 				'resolution' => 'licence_id_missing',
 			);
+		}
+
+		$identity_ids = $this->licence_lookup_ready
+			? $this->get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob )
+			: $this->find_existing_licence_ids_by_identity( $nom, $prenom, $dob, $club_id );
+
+		if ( count( $identity_ids ) === 1 ) {
+			return array(
+				'id' => (int) $identity_ids[0],
+				'ambiguous_ids' => array(),
+				'resolution' => 'identity',
+			);
+		}
+
+		if ( count( $identity_ids ) > 1 ) {
+			return array(
+				'id' => 0,
+				'ambiguous_ids' => $identity_ids,
+				'resolution' => 'identity',
+			);
+		}
+
+		$email = sanitize_email( $email );
+		if ( '' !== $email ) {
+			$email_ids = $this->licence_lookup_ready
+				? $this->get_email_ids_from_cache( $club_id, $email, $dob )
+				: $this->find_existing_licence_ids_by_email( $email, $club_id, $dob );
+
+			if ( count( $email_ids ) === 1 ) {
+				return array(
+					'id' => (int) $email_ids[0],
+					'ambiguous_ids' => array(),
+					'resolution' => 'email',
+				);
+			}
+
+			if ( count( $email_ids ) > 1 ) {
+				return array(
+					'id' => 0,
+					'ambiguous_ids' => $email_ids,
+					'resolution' => 'email',
+				);
+			}
 		}
 
 		$normalized_number = $this->normalize_license_number( $asptt_number );
@@ -3230,26 +3318,6 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 					'resolution' => 'asptt_number',
 				);
 			}
-		}
-
-		$identity_ids = $this->licence_lookup_ready
-			? $this->get_identity_ids_from_cache( $club_id, $nom, $prenom, $dob )
-			: $this->find_existing_licence_ids_by_identity( $nom, $prenom, $dob );
-
-		if ( count( $identity_ids ) === 1 ) {
-			return array(
-				'id' => (int) $identity_ids[0],
-				'ambiguous_ids' => array(),
-				'resolution' => 'identity',
-			);
-		}
-
-		if ( count( $identity_ids ) > 1 ) {
-			return array(
-				'id' => 0,
-				'ambiguous_ids' => $identity_ids,
-				'resolution' => 'identity',
-			);
 		}
 
 		return array(
@@ -3281,7 +3349,7 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		return (int) $found === $licence_id;
 	}
 
-	private function find_existing_licence_ids_by_identity( string $nom, string $prenom, string $dob ): array {
+	private function find_existing_licence_ids_by_identity( string $nom, string $prenom, string $dob, int $club_id = 0 ): array {
 		global $wpdb;
 
 		$nom    = trim( $nom );
@@ -3301,6 +3369,7 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		if ( ! in_array( 'prenom', $columns, true ) || ! in_array( 'date_naissance', $columns, true ) ) {
 			return array();
 		}
+		$has_club_column = in_array( 'club_id', $columns, true );
 
 		$last_name_columns = array();
 		if ( in_array( 'nom', $columns, true ) ) {
@@ -3322,12 +3391,19 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		$like_nom    = '%' . $wpdb->esc_like( $nom ) . '%';
 		$like_prenom = '%' . $wpdb->esc_like( $prenom ) . '%';
 
-		$sql = $wpdb->prepare(
-			"SELECT id, {$last_name_expr} AS nom_affiche, prenom, date_naissance FROM {$table} WHERE date_naissance = %s AND {$last_name_expr} LIKE %s AND prenom LIKE %s",
-			$dob,
-			$like_nom,
-			$like_prenom
-		);
+		$sql = "SELECT id, {$last_name_expr} AS nom_affiche, prenom, date_naissance FROM {$table} WHERE date_naissance = %s";
+		$params = array( $dob );
+
+		if ( $club_id > 0 && $has_club_column ) {
+			$sql .= ' AND club_id = %d';
+			$params[] = $club_id;
+		}
+
+		$sql .= " AND {$last_name_expr} LIKE %s AND prenom LIKE %s";
+		$params[] = $like_nom;
+		$params[] = $like_prenom;
+
+		$sql = $wpdb->prepare( $sql, $params );
 
 		$rows = $wpdb->get_results( $sql );
 		if ( ! is_array( $rows ) ) {
@@ -3349,7 +3425,7 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		return array_values( array_unique( $ids ) );
 	}
 
-	private function find_existing_licence_ids_by_email( string $email ): array {
+	private function find_existing_licence_ids_by_email( string $email, int $club_id = 0, string $dob = '' ): array {
 		global $wpdb;
 
 		$email = sanitize_email( $email );
@@ -3367,17 +3443,51 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 			return array();
 		}
 
-		$rows = $wpdb->get_col(
-			$wpdb->prepare(
-				"SELECT id FROM {$table} WHERE email = %s",
-				$email
-			)
-		);
+		$sql    = "SELECT id FROM {$table} WHERE email = %s";
+		$params = array( $email );
+
+		if ( $club_id > 0 && in_array( 'club_id', $columns, true ) ) {
+			$sql .= ' AND club_id = %d';
+			$params[] = $club_id;
+		}
+
+		$dob = $this->parse_date( $dob );
+		if ( '' !== $dob && in_array( 'date_naissance', $columns, true ) ) {
+			$sql .= ' AND date_naissance = %s';
+			$params[] = $dob;
+		}
+
+		$rows = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
 
 		$rows = is_array( $rows ) ? $rows : array();
 		$ids  = array_map( 'absint', $rows );
 
 		return array_values( array_filter( $ids ) );
+	}
+
+	private function get_email_ids_from_cache( int $club_id, string $email, string $dob ): array {
+		$email = sanitize_email( $email );
+		$dob   = $this->parse_date( $dob );
+
+		if ( ! $this->licence_lookup_ready || '' === $email || '' === $dob || ! $club_id ) {
+			return array();
+		}
+
+		$matches = array();
+		foreach ( $this->licence_lookup['by_id'] as $id => $row ) {
+			if ( (int) ( $row->club_id ?? 0 ) !== $club_id ) {
+				continue;
+			}
+			if ( $email !== sanitize_email( (string) ( $row->email ?? '' ) ) ) {
+				continue;
+			}
+			if ( $dob !== $this->parse_date( (string) ( $row->date_naissance ?? '' ) ) ) {
+				continue;
+			}
+			$matches[] = (int) $id;
+		}
+
+		return array_values( array_unique( array_filter( $matches ) ) );
 	}
 
 	private function sanitize_csv_value( $value ) {
@@ -3398,6 +3508,9 @@ if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns,
 		if ( '' === $value ) {
 			return '';
 		}
+
+		$value = $this->convert_to_utf8( $value );
+		$value = preg_replace( '/\s+/', '', $value );
 
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
 			$parts = explode( '-', $value );
