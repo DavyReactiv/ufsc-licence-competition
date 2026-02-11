@@ -49,6 +49,37 @@ if ( ! function_exists( 'ufsc_lc_get_nom_affiche' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_lc_get_asptt_number' ) ) {
+	function ufsc_lc_get_asptt_number( $row ) {
+		$candidates = array();
+
+		if ( is_array( $row ) ) {
+			$candidates = array(
+				$row['asptt_number'] ?? '',
+				$row['numero_licence_asptt'] ?? '',
+				$row['n_asptt'] ?? '',
+				$row['source_licence_number'] ?? '',
+			);
+		} elseif ( is_object( $row ) ) {
+			$candidates = array(
+				$row->asptt_number ?? '',
+				$row->numero_licence_asptt ?? '',
+				$row->n_asptt ?? '',
+				$row->source_licence_number ?? '',
+			);
+		}
+
+		foreach ( $candidates as $candidate ) {
+			$candidate = trim( (string) $candidate );
+			if ( '' !== $candidate ) {
+				return $candidate;
+			}
+		}
+
+		return '';
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_format_birthdate' ) ) {
 	function ufsc_lc_format_birthdate( $raw ) {
 		$raw = trim( (string) $raw );
