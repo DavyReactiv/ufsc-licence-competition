@@ -471,6 +471,10 @@ class Competitions_Table extends \WP_List_Table {
 		$arch_filters['view'] = 'archived';
 		$arch_count          = $this->repository->count( $arch_filters );
 
+		$all_with_archived_filters        = $base_filters;
+		$all_with_archived_filters['view'] = 'all_with_archived';
+		$all_with_archived_count          = $this->repository->count( $all_with_archived_filters );
+
 		$trash_filters        = $base_filters;
 		$trash_filters['view'] = 'trash';
 		$trash_count          = $this->repository->count( $trash_filters );
@@ -491,6 +495,14 @@ class Competitions_Table extends \WP_List_Table {
 			( 'archived' === $current ) ? ' class="current"' : '',
 			esc_html__( 'Archivées', 'ufsc-licence-competition' ),
 			(int) $arch_count
+		);
+
+		$views['all_with_archived'] = sprintf(
+			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
+			esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_view' => 'all_with_archived' ), admin_url( 'admin.php' ) ) ),
+			( 'all_with_archived' === $current ) ? ' class="current"' : '',
+			esc_html__( 'Toutes', 'ufsc-licence-competition' ),
+			(int) $all_with_archived_count
 		);
 
 		$views['trash'] = sprintf(
@@ -520,7 +532,7 @@ class Competitions_Table extends \WP_List_Table {
 			's'          => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
-		if ( ! in_array( $filters['view'], array( 'all', 'archived', 'trash' ), true ) ) {
+		if ( ! in_array( $filters['view'], array( 'all', 'archived', 'all_with_archived', 'trash' ), true ) ) {
 			$filters['view'] = 'all';
 		}
 

@@ -140,6 +140,49 @@ function load_competitions_admin_dependencies(): void {
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
 
+const AUTO_ARCHIVE_HOOK = 'ufsc_competitions_auto_archive_finished';
+
+function ensure_auto_archive_cron(): void {
+	if ( ! wp_next_scheduled( AUTO_ARCHIVE_HOOK ) ) {
+		wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', AUTO_ARCHIVE_HOOK );
+	}
+}
+
+function run_auto_archive_finished_competitions(): void {
+	if ( ! class_exists( '\\UFSC\\Competitions\\Repositories\\CompetitionRepository' ) ) {
+		return;
+	}
+
+	$repo = new \UFSC\Competitions\Repositories\CompetitionRepository();
+	if ( method_exists( $repo, 'auto_archive_finished_competitions' ) ) {
+		$repo->auto_archive_finished_competitions();
+	}
+}
+
+add_action( AUTO_ARCHIVE_HOOK, __NAMESPACE__ . '\\run_auto_archive_finished_competitions' );
+
+add_action(
+	'plugins_loaded',
+	function() {
+		ensure_auto_archive_cron();
+	},
+	5
+);
+
+add_action(
+	'admin_init',
+	function() {
+		$last_run = (int) get_transient( 'ufsc_competitions_auto_archive_last_run' );
+		if ( $last_run > 0 && ( time() - $last_run ) < DAY_IN_SECONDS ) {
+			return;
+		}
+
+		run_auto_archive_finished_competitions();
+		set_transient( 'ufsc_competitions_auto_archive_last_run', time(), DAY_IN_SECONDS );
+	},
+	20
+);
+
 // Run DB upgrades as early as possible so repository queries don't fail.
 add_action(
 	'plugins_loaded',

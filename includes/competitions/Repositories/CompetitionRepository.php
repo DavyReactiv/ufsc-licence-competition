@@ -390,6 +390,48 @@ class CompetitionRepository {
 	}
 
 	/**
+	 * Auto-archive competitions that are past event end date.
+	 * Rule:
+	 * - event_end_datetime < now
+	 * - OR event_end_datetime missing and DATE_ADD(event_start_datetime, INTERVAL 1 DAY) < now
+	 */
+	public function auto_archive_finished_competitions(): int {
+		global $wpdb;
+
+		$table = Db::competitions_table();
+		$now   = current_time( 'mysql' );
+
+		$sql = $wpdb->prepare(
+			"UPDATE {$table}
+			SET status = %s,
+				updated_at = %s,
+				updated_by = %d
+			WHERE deleted_at IS NULL
+				AND status != %s
+				AND (
+					(event_end_datetime IS NOT NULL AND event_end_datetime != '0000-00-00 00:00:00' AND event_end_datetime < %s)
+					OR (
+						(event_end_datetime IS NULL OR event_end_datetime = '0000-00-00 00:00:00')
+						AND event_start_datetime IS NOT NULL
+						AND event_start_datetime != '0000-00-00 00:00:00'
+						AND DATE_ADD(event_start_datetime, INTERVAL 1 DAY) < %s
+					)
+				)",
+			'archived',
+			$now,
+			0,
+			'archived',
+			$now,
+			$now
+		);
+
+		$wpdb->query( $sql );
+		$this->maybe_log_db_error( __METHOD__ . ':auto_archive_finished_competitions' );
+
+		return is_int( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
+	}
+
+	/**
 	 * Sanitize input data without breaking existing fields.
 	 */
 	private function sanitize_competition_data( array $data ): array {
@@ -453,6 +495,8 @@ class CompetitionRepository {
 			// Archived filter (non-destructive)
 			if ( 'archived' === $view ) {
 				$where[] = $wpdb->prepare( "status = %s", 'archived' );
+			} elseif ( 'all_with_archived' === $view ) {
+				// Keep every non-trashed competition.
 			} else {
 				$where[] = $wpdb->prepare( "status != %s", 'archived' );
 			}
