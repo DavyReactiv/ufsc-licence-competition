@@ -65,6 +65,7 @@ class CompetitionRepository {
 		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$filters_no_scope = $filters;
 		unset( $filters_no_scope['scope_region'] );
+		$filters_no_scope['view'] = self::normalize_view( $filters_no_scope['view'] ?? 'all' );
 		$where  = $this->build_where( $filters_no_scope ); // prepared fragment or empty
 		$limit  = max( 1, (int) $limit );
 		$offset = max( 0, (int) $offset );
@@ -97,6 +98,7 @@ class CompetitionRepository {
 		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$filters_no_scope = $filters;
 		unset( $filters_no_scope['scope_region'] );
+		$filters_no_scope['view'] = self::normalize_view( $filters_no_scope['view'] ?? 'all' );
 		$where = $this->build_where( $filters_no_scope );
 
 		if ( '' !== $scope_region ) {
@@ -201,6 +203,15 @@ class CompetitionRepository {
 		return sanitize_key( $value );
 	}
 
+
+	public static function normalize_view( $view ): string {
+		$view = sanitize_key( (string) $view );
+		if ( in_array( $view, array( 'active', 'all', 'archived', 'all_with_archived', 'trash' ), true ) ) {
+			return $view;
+		}
+
+		return 'all';
+	}
 	/**
 	 * Create or update a competition.
 	 * Expects keys: id, name, discipline, type, season, status (optional), event_start_datetime (optional)
@@ -484,23 +495,26 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$where  = array();
-		$view   = isset( $filters['view'] ) ? (string) $filters['view'] : 'all';
+		$view   = self::normalize_view( $filters['view'] ?? 'all' );
 
 		// Trash filter
 		if ( 'trash' === $view ) {
-			$where[] = "deleted_at IS NOT NULL";
+			$where[] = $this->is_trashed_sql( true );
 		} else {
-			$where[] = "deleted_at IS NULL";
+			$where[] = $this->is_trashed_sql( false );
 
 			// Archived filter (non-destructive)
 			if ( 'archived' === $view ) {
-				$where[] = $wpdb->prepare( "status = %s", 'archived' );
+				$where[] = "status IN ('archived','closed')";
 			} elseif ( 'all_with_archived' === $view ) {
-				// Keep every non-trashed competition.
+				$where[] = "status IN ('open','draft','closed','archived')";
 			} else {
-				$where[] = $wpdb->prepare( "status != %s", 'archived' );
+				// Legacy "all" kept as active to preserve default behaviour.
+				$where[] = "status IN ('open','draft')";
 			}
 		}
+
+		$this->debug_log_effective_filters_once( $view, $filters );
 
 		// Optional status filter (applies only when not trash)
 		if ( isset( $filters['status'] ) && '' !== (string) $filters['status'] && 'trash' !== $view ) {
@@ -530,6 +544,26 @@ class CompetitionRepository {
 		}
 
 		return 'WHERE ' . implode( ' AND ', $where );
+	}
+
+	private function is_trashed_sql( bool $trashed ): string {
+		return $trashed ? 'deleted_at IS NOT NULL' : 'deleted_at IS NULL';
+	}
+
+	private function debug_log_effective_filters_once( string $view, array $filters ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		static $logged = false;
+		if ( $logged ) {
+			return;
+		}
+		$logged = true;
+
+		$scope = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$status = isset( $filters['status'] ) ? sanitize_key( (string) $filters['status'] ) : '';
+		error_log( sprintf( 'UFSC Competitions filters: view=%s status=%s trashed=%s scope=%s', $view, $status, 'trash' === $view ? '1' : '0', $scope ) );
 	}
 
 	private function build_order_by( array $filters ): string {

@@ -532,9 +532,7 @@ class Competitions_Table extends \WP_List_Table {
 			's'          => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
-		if ( ! in_array( $filters['view'], array( 'all', 'archived', 'all_with_archived', 'trash' ), true ) ) {
-			$filters['view'] = 'all';
-		}
+		$filters['view'] = \UFSC\Competitions\Repositories\CompetitionRepository::normalize_view( $filters['view'] );
 
 		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : '';
 		$order   = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( wp_unslash( $_REQUEST['order'] ) ) ) : '';

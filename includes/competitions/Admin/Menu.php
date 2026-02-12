@@ -28,6 +28,7 @@ class Menu {
 	public const PAGE_LOGS         = 'ufsc-competitions-logs';
 	public const PAGE_GUIDE        = 'ufsc-competitions-guide';
 	public const PAGE_ACCESS_DIAGNOSTIC = 'ufsc-competitions-access-diagnostic';
+	public const PAGE_ESTIMATION = 'ufsc-competitions-estimation';
 
 	public function register(): void {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
@@ -103,6 +104,14 @@ class Menu {
 			__( 'Impression', 'ufsc-licence-competition' ),
 			__( 'Impression', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Print_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
+			self::PAGE_ESTIMATION,
+			__( 'Estimation', 'ufsc-licence-competition' ),
+			__( 'Estimation', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Estimation_Page'
 		);
 
 		$this->add_submenu_safe(

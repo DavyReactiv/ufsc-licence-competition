@@ -15,6 +15,7 @@ class Timing_Profiles_Page {
 	public function register_actions(): void {
 		add_action( 'admin_post_ufsc_competitions_save_timing_profile', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_timing_profile', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_seed_timing_profiles', array( $this, 'handle_seed_presets' ) );
 	}
 
 	public function render(): void {
@@ -32,6 +33,7 @@ class Timing_Profiles_Page {
 			'saved' => __( 'Profil enregistré.', 'ufsc-licence-competition' ),
 			'deleted' => __( 'Profil supprimé.', 'ufsc-licence-competition' ),
 			'error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
+			'seeded' => __( 'Presets UFSC ajoutés (sans écraser les profils existants).', 'ufsc-licence-competition' ),
 		);
 
 		if ( $notice && isset( $messages[ $notice ] ) ) {
@@ -48,6 +50,14 @@ class Timing_Profiles_Page {
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Timing Profiles', 'ufsc-licence-competition' ); ?></h1>
 			<p><?php esc_html_e( 'Définissez les durées par discipline et tranche d’âge. Les combats utilisent ces profils en mode "Par catégories".', 'ufsc-licence-competition' ); ?></p>
+			<?php $profiles_count = method_exists( $repo, 'count' ) ? $repo->count() : count( $profiles ); ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:12px 0;">
+				<?php wp_nonce_field( 'ufsc_competitions_seed_timing_profiles' ); ?>
+				<input type="hidden" name="action" value="ufsc_competitions_seed_timing_profiles">
+				<button type="submit" class="button button-secondary">
+					<?php echo esc_html( $profiles_count > 0 ? __( 'Ajouter profils manquants', 'ufsc-licence-competition' ) : __( 'Installer les presets UFSC', 'ufsc-licence-competition' ) ); ?>
+				</button>
+			</form>
 
 			<h2><?php echo $editing ? esc_html__( 'Modifier un profil', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter un profil', 'ufsc-licence-competition' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -162,10 +172,10 @@ class Timing_Profiles_Page {
 								: __( 'Toutes', 'ufsc-licence-competition' );
 							$age_label = trim( (string) ( $profile->age_min ?? '' ) . ' - ' . (string) ( $profile->age_max ?? '' ) );
 							$timing_label = sprintf(
-								__( '%1$d x %2$d min, pause %3$d min, inter-combats %4$d min', 'ufsc-licence-competition' ),
+								__( '%1$d x %2$s min, pause %3$s min, inter-combats %4$d min', 'ufsc-licence-competition' ),
 								(int) ( $profile->rounds ?? 1 ),
-								(int) ( $profile->round_duration ?? 2 ),
-								(int) ( $profile->break_duration ?? 0 ),
+								(string) ( $profile->round_duration ?? 2 ),
+								(string) ( $profile->break_duration ?? 0 ),
 								(int) ( $profile->fight_pause ?? 0 )
 							);
 							?>
@@ -216,9 +226,9 @@ class Timing_Profiles_Page {
 			'age_max' => isset( $_POST['age_max'] ) ? absint( $_POST['age_max'] ) : '',
 			'level' => isset( $_POST['level'] ) ? sanitize_text_field( wp_unslash( $_POST['level'] ) ) : '',
 			'format' => isset( $_POST['format'] ) ? sanitize_text_field( wp_unslash( $_POST['format'] ) ) : '',
-			'round_duration' => isset( $_POST['round_duration'] ) ? absint( $_POST['round_duration'] ) : 0,
+			'round_duration' => isset( $_POST['round_duration'] ) ? (float) wp_unslash( $_POST['round_duration'] ) : 0,
 			'rounds' => isset( $_POST['rounds'] ) ? absint( $_POST['rounds'] ) : 0,
-			'break_duration' => isset( $_POST['break_duration'] ) ? absint( $_POST['break_duration'] ) : 0,
+			'break_duration' => isset( $_POST['break_duration'] ) ? (float) wp_unslash( $_POST['break_duration'] ) : 0,
 			'fight_pause' => isset( $_POST['fight_pause'] ) ? absint( $_POST['fight_pause'] ) : 0,
 		);
 
@@ -254,6 +264,20 @@ class Timing_Profiles_Page {
 		$this->redirect( 'deleted' );
 	}
 
+
+	public function handle_seed_presets(): void {
+		if ( ! Capabilities::user_can_manage() ) {
+			$this->redirect( 'error' );
+		}
+
+		check_admin_referer( 'ufsc_competitions_seed_timing_profiles' );
+
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\TimingProfilePresetSeeder' ) ) {
+			\UFSC\Competitions\Services\TimingProfilePresetSeeder::install_missing();
+		}
+
+		$this->redirect( 'seeded' );
+	}
 	private function redirect( string $notice ): void {
 		$url = add_query_arg( 'ufsc_notice', $notice, admin_url( 'admin.php?page=ufsc-competitions-timing-profiles' ) );
 		wp_safe_redirect( $url );

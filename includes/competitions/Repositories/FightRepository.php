@@ -341,6 +341,20 @@ class FightRepository {
 			}
 		}
 
+		if ( ! empty( $filters['scope_region'] ) && empty( $filters['competition_id'] ) && empty( $filters['competition_ids'] ) ) {
+			$comp_repo = new CompetitionRepository();
+			$competitions = $comp_repo->list(
+				array(
+					'view' => 'all_with_archived',
+					'scope_region' => sanitize_key( (string) $filters['scope_region'] ),
+				),
+				1000,
+				0
+			);
+			$ids = array_filter( array_map( 'absint', wp_list_pluck( $competitions, 'id' ) ) );
+			$where[] = $ids ? 'competition_id IN (' . implode( ',', $ids ) . ')' : '1=0';
+		}
+
 		if ( ! empty( $filters['category_id'] ) ) {
 			$where[] = $wpdb->prepare( 'category_id = %d', absint( $filters['category_id'] ) );
 		}

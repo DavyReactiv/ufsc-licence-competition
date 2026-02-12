@@ -14,6 +14,9 @@ class Capabilities {
 	public const EXPORT_CAPABILITY = 'ufsc_competition_export';
 	public const VALIDATE_CAPABILITY = 'ufsc_competition_validate';
 	public const DELETE_CAPABILITY = 'ufsc_competition_delete';
+	public const MANAGE_ALL_CAPABILITY = 'ufsc_comp_manage_all';
+	public const MANAGE_REGION_CAPABILITY = 'ufsc_comp_manage_region';
+	public const VIEW_REGION_CAPABILITY = 'ufsc_comp_view_region';
 
 	public static function user_can_read(): bool {
 		return current_user_can( self::READ_CAPABILITY ) || self::user_can_manage();
@@ -36,6 +39,10 @@ class Capabilities {
 	}
 
 	public static function user_can_manage() {
+		if ( current_user_can( self::MANAGE_ALL_CAPABILITY ) || current_user_can( self::MANAGE_REGION_CAPABILITY ) ) {
+			return true;
+		}
+
 		if ( class_exists( 'UFSC_LC_Capabilities' ) && defined( 'UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY' ) ) {
 			if ( current_user_can( \UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY ) ) {
 				return true;

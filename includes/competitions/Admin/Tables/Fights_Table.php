@@ -53,6 +53,7 @@ class Fights_Table extends \WP_List_Table {
 
 		$filters = array(
 			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
+			'competition_view' => isset( $_REQUEST['ufsc_competition_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_competition_view'] ) ) : 'all_with_archived',
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
 			'status'         => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
@@ -62,12 +63,16 @@ class Fights_Table extends \WP_List_Table {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
-		$competition_filters = array( 'view' => 'all' );
+		$competition_filters = array( 'view' => \UFSC\Competitions\Repositories\CompetitionRepository::normalize_view( $filters['competition_view'] ) );
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$this->competitions = $this->competition_repository->list( $competition_filters, 200, 0 );
 		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
+
+		if ( ! $filters['competition_id'] ) {
+			$filters['competition_ids'] = wp_list_pluck( $this->competitions, 'id' );
+		}
 
 		if ( $filters['discipline'] && ! $filters['competition_id'] ) {
 			$filters['competition_ids'] = $this->get_competition_ids_by_discipline( $filters['discipline'] );
@@ -201,6 +206,7 @@ class Fights_Table extends \WP_List_Table {
 
 		$current = $this->filters['competition_id'] ?? 0;
 		$status = $this->filters['status'] ?? '';
+		$competition_view = $this->filters['competition_view'] ?? 'all_with_archived';
 		$discipline = $this->filters['discipline'] ?? '';
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
@@ -211,6 +217,12 @@ class Fights_Table extends \WP_List_Table {
 				<?php foreach ( $this->competitions as $competition ) : ?>
 					<option value="<?php echo esc_attr( $competition->id ); ?>" <?php selected( $current, $competition->id ); ?>><?php echo esc_html( $competition->name ); ?></option>
 				<?php endforeach; ?>
+			</select>
+			<select name="ufsc_competition_view" id="ufsc_competition_view_filter">
+				<option value="all_with_archived" <?php selected( $competition_view, 'all_with_archived' ); ?>><?php esc_html_e( 'Toutes les compétitions (incl. archivées)', 'ufsc-licence-competition' ); ?></option>
+				<option value="active" <?php selected( $competition_view, 'active' ); ?>><?php esc_html_e( 'Actives', 'ufsc-licence-competition' ); ?></option>
+				<option value="archived" <?php selected( $competition_view, 'archived' ); ?>><?php esc_html_e( 'Archivées', 'ufsc-licence-competition' ); ?></option>
+				<option value="trash" <?php selected( $competition_view, 'trash' ); ?>><?php esc_html_e( 'Corbeille', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<label class="screen-reader-text" for="ufsc_discipline_filter"><?php esc_html_e( 'Filtrer par discipline', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_discipline" id="ufsc_discipline_filter">
@@ -227,6 +239,9 @@ class Fights_Table extends \WP_List_Table {
 				<option value="completed" <?php selected( $status, 'completed' ); ?>><?php esc_html_e( 'Terminé', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+			<?php if ( empty( $this->competitions ) ) : ?>
+				<p class="description"><?php esc_html_e( 'Aucune compétition dans votre périmètre (scope). Vérifiez les filtres et la région.', 'ufsc-licence-competition' ); ?></p>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

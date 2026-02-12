@@ -60,6 +60,8 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/Plateau_Pdf_Renderer.php',
 		$base . '/Services/Entries_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
+		$base . '/Services/TimingProfilePresetSeeder.php',
+		$base . '/Services/CompetitionScheduleEstimator.php',
 		$base . '/Services/AuditLogger.php',
 		// Repository helpers must be available to all repos
 		$base . '/Repositories/RepositoryHelpers.php',
@@ -129,6 +131,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Guide_Page.php',
 		$base . '/Admin/Pages/Quality_Page.php',
 		$base . '/Admin/Pages/Print_Page.php',
+		$base . '/Admin/Pages/Estimation_Page.php',
 	);
 
 	foreach ( $admin_files as $file ) {
