@@ -45,12 +45,60 @@ if ( ! function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ) {
 		}
 
 		$scope = get_user_meta( $user_id, 'ufsc_scope_region', true );
+		$scope_alt = get_user_meta( $user_id, 'ufsc_region_scope', true );
+		if ( is_string( $scope_alt ) && '' !== $scope_alt ) {
+			$scope = $scope_alt;
+		}
 		$scope = is_string( $scope ) ? $scope : '';
 		$scope = sanitize_key( $scope );
+
+		if ( 'all' === $scope ) {
+			return null;
+		}
 
 		return '' !== $scope ? $scope : null;
 	}
 }
+
+if ( ! function_exists( 'ufsc_lc_competitions_scope_profile_fields' ) ) {
+	function ufsc_lc_competitions_scope_profile_fields( $user ): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$value = get_user_meta( $user->ID, 'ufsc_region_scope', true );
+		$value = is_string( $value ) ? $value : '';
+		?>
+		<h2><?php esc_html_e( 'UFSC Compétitions - Scope', 'ufsc-licence-competition' ); ?></h2>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th><label for="ufsc_region_scope"><?php esc_html_e( 'Scope région', 'ufsc-licence-competition' ); ?></label></th>
+				<td>
+					<input type="text" name="ufsc_region_scope" id="ufsc_region_scope" value="<?php echo esc_attr( $value ); ?>" class="regular-text" placeholder="all / AURA / PACA">
+					<p class="description"><?php esc_html_e( 'all = Super Admin, sinon code région.', 'ufsc-licence-competition' ); ?></p>
+				</td>
+			</tr>
+		</table>
+		<?php
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_competitions_save_scope_profile_fields' ) ) {
+	function ufsc_lc_competitions_save_scope_profile_fields( int $user_id ): void {
+		if ( ! current_user_can( 'manage_options' ) || ! current_user_can( 'edit_user', $user_id ) ) {
+			return;
+		}
+		if ( ! isset( $_POST['ufsc_region_scope'] ) ) {
+			return;
+		}
+		$scope = sanitize_key( wp_unslash( $_POST['ufsc_region_scope'] ) );
+		update_user_meta( $user_id, 'ufsc_region_scope', $scope );
+	}
+}
+
+add_action( 'show_user_profile', 'ufsc_lc_competitions_scope_profile_fields' );
+add_action( 'edit_user_profile', 'ufsc_lc_competitions_scope_profile_fields' );
+add_action( 'personal_options_update', 'ufsc_lc_competitions_save_scope_profile_fields' );
+add_action( 'edit_user_profile_update', 'ufsc_lc_competitions_save_scope_profile_fields' );
 
 if ( ! function_exists( 'ufsc_lc_competitions_assert_object_in_scope' ) ) {
 	function ufsc_lc_competitions_assert_object_in_scope( $object_region ): void {

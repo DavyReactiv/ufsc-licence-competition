@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.16';
+	const DB_VERSION = '1.17';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.16';
+	const UFSC_COMP_DB_VERSION = '1.17';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -238,9 +238,9 @@ class Db {
 			age_max smallint(5) unsigned NULL,
 			level varchar(50) NULL,
 			format varchar(50) NULL,
-			round_duration smallint(5) unsigned NOT NULL DEFAULT 2,
+			round_duration decimal(4,1) NOT NULL DEFAULT 2.0,
 			rounds smallint(5) unsigned NOT NULL DEFAULT 1,
-			break_duration smallint(5) unsigned NOT NULL DEFAULT 1,
+			break_duration decimal(4,1) NOT NULL DEFAULT 1.0,
 			fight_pause smallint(5) unsigned NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,

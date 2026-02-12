@@ -182,7 +182,8 @@ class Bouts_Page {
 			'scheduled_at'    => $this->format_datetime_local( $item->scheduled_at ?? '' ),
 		);
 
-		$competition_filters = array( 'view' => 'all' );
+		$competition_view = isset( $_GET['ufsc_competition_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_competition_view'] ) ) : 'all_with_archived';
+		$competition_filters = array( 'view' => \UFSC\Competitions\Repositories\CompetitionRepository::normalize_view( $competition_view ) );
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
@@ -207,6 +208,9 @@ class Bouts_Page {
 									<option value="<?php echo esc_attr( $competition->id ); ?>" <?php selected( $values['competition_id'], $competition->id ); ?>><?php echo esc_html( $competition->name ); ?></option>
 								<?php endforeach; ?>
 							</select>
+							<?php if ( empty( $competitions ) ) : ?>
+								<p class="description"><?php esc_html_e( 'Aucune compétition dans votre périmètre (scope). Vérifiez les filtres et la région.', 'ufsc-licence-competition' ); ?></p>
+							<?php endif; ?>
 						</td>
 					</tr>
 					<tr>

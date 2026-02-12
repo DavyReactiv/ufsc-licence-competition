@@ -27,6 +27,12 @@ class TimingProfileRepository {
 		return is_array( $rows ) ? $rows : array();
 	}
 
+	public function count(): int {
+		global $wpdb;
+		$value = $wpdb->get_var( 'SELECT COUNT(1) FROM ' . Db::timing_profiles_table() );
+		return (int) $value;
+	}
+
 	public function get( int $id ) {
 		global $wpdb;
 
@@ -95,9 +101,9 @@ class TimingProfileRepository {
 		$format = isset( $data['format'] ) ? sanitize_text_field( (string) $data['format'] ) : '';
 		$format = '' !== $format ? $format : null;
 
-		$round_duration = isset( $data['round_duration'] ) ? max( 1, absint( $data['round_duration'] ) ) : 2;
+		$round_duration = isset( $data['round_duration'] ) ? max( 0.5, (float) $data['round_duration'] ) : 2.0;
 		$rounds = isset( $data['rounds'] ) ? max( 1, absint( $data['rounds'] ) ) : 1;
-		$break_duration = isset( $data['break_duration'] ) ? max( 0, absint( $data['break_duration'] ) ) : 1;
+		$break_duration = isset( $data['break_duration'] ) ? max( 0.0, (float) $data['break_duration'] ) : 1.0;
 		$fight_pause = isset( $data['fight_pause'] ) ? max( 0, absint( $data['fight_pause'] ) ) : 0;
 
 		return array(
@@ -117,10 +123,10 @@ class TimingProfileRepository {
 	}
 
 	private function get_insert_format(): array {
-		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s', '%s' );
+		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%f', '%d', '%f', '%d', '%s', '%s' );
 	}
 
 	private function get_update_format(): array {
-		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%s' );
+		return array( '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%f', '%d', '%f', '%d', '%s' );
 	}
 }
