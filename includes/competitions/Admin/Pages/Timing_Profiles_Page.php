@@ -125,7 +125,7 @@ class Timing_Profiles_Page {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_round_duration"><?php esc_html_e( 'Durée d’un round (min)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="round_duration" type="number" min="1" id="ufsc_timing_round_duration" value="<?php echo esc_attr( $editing->round_duration ?? 2 ); ?>"></td>
+						<td><input name="round_duration" type="number" min="0.5" step="0.5" id="ufsc_timing_round_duration" value="<?php echo esc_attr( $editing->round_duration ?? 2 ); ?>"></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_rounds"><?php esc_html_e( 'Nombre de rounds', 'ufsc-licence-competition' ); ?></label></th>
@@ -133,7 +133,7 @@ class Timing_Profiles_Page {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_break"><?php esc_html_e( 'Pause entre rounds (min)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="break_duration" type="number" min="0" id="ufsc_timing_break" value="<?php echo esc_attr( $editing->break_duration ?? 1 ); ?>"></td>
+						<td><input name="break_duration" type="number" min="0" step="0.5" id="ufsc_timing_break" value="<?php echo esc_attr( $editing->break_duration ?? 1 ); ?>"></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_pause"><?php esc_html_e( 'Pause entre combats (min)', 'ufsc-licence-competition' ); ?></label></th>

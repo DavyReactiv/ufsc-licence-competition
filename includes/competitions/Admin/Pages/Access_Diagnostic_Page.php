@@ -5,8 +5,12 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Db;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
+use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\TimingProfileRepository;
 use UFSC\Competitions\Repositories\ClubRepository;
+use UFSC\Competitions\Services\CompetitionScheduleEstimator;
 use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -205,7 +209,195 @@ class Access_Diagnostic_Page {
 			$this->render_results( $selected_competition, $selected_club, $settings, $view_result, $register_result, $engaged_result, $club_repo, $access );
 		}
 
+		if ( (bool) apply_filters( 'ufsc_competitions_enable_qa_diagnostics', false ) ) {
+			$this->render_qa_diagnostics();
+		}
+
 		echo '</div>';
+	}
+
+	private function render_qa_diagnostics(): void {
+		$checks = $this->build_qa_checks();
+
+		echo '<hr />';
+		echo '<h2>' . esc_html__( 'Checklist QA (lecture seule)', 'ufsc-licence-competition' ) . '</h2>';
+		echo '<p>' . esc_html__( 'Ces vérifications sont optionnelles et n’écrivent aucune donnée en base.', 'ufsc-licence-competition' ) . '</p>';
+		echo '<table class="widefat striped"><thead><tr>';
+		echo '<th>' . esc_html__( 'Check', 'ufsc-licence-competition' ) . '</th>';
+		echo '<th>' . esc_html__( 'Statut', 'ufsc-licence-competition' ) . '</th>';
+		echo '<th>' . esc_html__( 'Détails actionnables', 'ufsc-licence-competition' ) . '</th>';
+		echo '</tr></thead><tbody>';
+
+		foreach ( $checks as $check ) {
+			$status = isset( $check['status'] ) ? sanitize_key( (string) $check['status'] ) : 'warn';
+			if ( ! in_array( $status, array( 'ok', 'warn', 'fail' ), true ) ) {
+				$status = 'warn';
+			}
+
+			$label = 'OK';
+			$class = 'notice-success';
+			if ( 'warn' === $status ) {
+				$label = 'WARN';
+				$class = 'notice-warning';
+			} elseif ( 'fail' === $status ) {
+				$label = 'FAIL';
+				$class = 'notice-error';
+			}
+
+			echo '<tr>';
+			echo '<td>' . esc_html( (string) ( $check['label'] ?? '' ) ) . '</td>';
+			echo '<td><span class="notice inline ' . esc_attr( $class ) . '" style="padding:0 8px;margin:0;"><p style="margin:6px 0;">' . esc_html( $label ) . '</p></span></td>';
+			echo '<td>' . esc_html( (string) ( $check['detail'] ?? '' ) ) . '</td>';
+			echo '</tr>';
+		}
+
+		echo '</tbody></table>';
+	}
+
+	private function build_qa_checks(): array {
+		global $wpdb;
+
+		$checks = array();
+		$required_tables = array(
+			'competitions' => Db::competitions_table(),
+			'categories' => Db::categories_table(),
+			'entries' => Db::entries_table(),
+			'fights' => Db::fights_table(),
+			'timing_profiles' => Db::timing_profiles_table(),
+		);
+
+		$weighins_table = Db::weighins_table();
+		$weighins_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $weighins_table ) ) === $weighins_table );
+		if ( $weighins_exists ) {
+			$required_tables['weighins'] = $weighins_table;
+		}
+
+		$missing_tables = array();
+		foreach ( $required_tables as $label => $table_name ) {
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) !== $table_name ) {
+				$missing_tables[] = $label;
+			}
+		}
+
+		$checks[] = array(
+			'label' => __( 'DB: tables attendues', 'ufsc-licence-competition' ),
+			'status' => empty( $missing_tables ) ? 'ok' : 'fail',
+			'detail' => empty( $missing_tables )
+				? __( 'Toutes les tables principales existent.', 'ufsc-licence-competition' )
+				: sprintf( __( 'Tables manquantes: %s. Lancer la routine de mise à niveau du plugin.', 'ufsc-licence-competition' ), implode( ', ', $missing_tables ) ),
+		);
+
+		$critical_columns = array(
+			Db::competitions_table() => array( 'status', 'deleted_at' ),
+			Db::fights_table() => array( 'deleted_at', 'round_duration' ),
+			Db::timing_profiles_table() => array( 'round_duration' ),
+		);
+		$missing_columns = array();
+		foreach ( $critical_columns as $table_name => $columns ) {
+			foreach ( $columns as $column_name ) {
+				if ( ! Db::has_table_column( $table_name, $column_name ) ) {
+					$missing_columns[] = str_replace( $wpdb->prefix, '', $table_name ) . '.' . $column_name;
+				}
+			}
+		}
+
+		$duration_type = '';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', Db::timing_profiles_table() ) ) === Db::timing_profiles_table() ) {
+			$row = $wpdb->get_row( $wpdb->prepare( "SHOW COLUMNS FROM " . Db::timing_profiles_table() . " LIKE %s", 'round_duration' ) );
+			$duration_type = is_object( $row ) && isset( $row->Type ) ? strtolower( (string) $row->Type ) : '';
+		}
+
+		$supports_decimal = ( false !== strpos( $duration_type, 'decimal' ) || false !== strpos( $duration_type, 'float' ) || false !== strpos( $duration_type, 'double' ) );
+		$checks[] = array(
+			'label' => __( 'DB: colonnes critiques', 'ufsc-licence-competition' ),
+			'status' => empty( $missing_columns ) && $supports_decimal ? 'ok' : ( empty( $missing_columns ) ? 'warn' : 'fail' ),
+			'detail' => empty( $missing_columns )
+				? ( $supports_decimal
+					? sprintf( __( 'Colonnes OK, round_duration=%s compatible décimal.', 'ufsc-licence-competition' ), $duration_type )
+					: sprintf( __( 'Colonnes présentes mais type round_duration=%s: vérifier le support de 1.5 minute.', 'ufsc-licence-competition' ), $duration_type ?: 'inconnu' ) )
+				: sprintf( __( 'Colonnes manquantes: %s. Déclencher une mise à niveau.', 'ufsc-licence-competition' ), implode( ', ', $missing_columns ) ),
+		);
+
+		$scope = function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ? ufsc_lc_competitions_get_user_scope_region() : null;
+		$scope_label = ( null === $scope || '' === $scope ) ? __( 'historique (aucun scope forcé)', 'ufsc-licence-competition' ) : $scope;
+		$caps = array(
+			'ufsc_manage_competitions' => current_user_can( 'ufsc_manage_competitions' ),
+			'manage_options' => current_user_can( 'manage_options' ),
+		);
+		$checks[] = array(
+			'label' => __( 'Utilisateur: scope + capabilities', 'ufsc-licence-competition' ),
+			'status' => 'ok',
+			'detail' => sprintf(
+				'ufsc_region_scope=%1$s | caps: ufsc_manage_competitions=%2$s, manage_options=%3$s',
+				$scope_label,
+				$caps['ufsc_manage_competitions'] ? 'yes' : 'no',
+				$caps['manage_options'] ? 'yes' : 'no'
+			),
+		);
+
+		$competition_repo = new CompetitionRepository();
+		$counts = array();
+		foreach ( array( 'all_with_archived', 'active', 'archived', 'trash' ) as $view ) {
+			$args = array( 'view' => $view );
+			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+				$args = ufsc_lc_competitions_apply_scope_to_query_args( $args );
+			}
+			$counts[ $view ] = (int) $competition_repo->count( $args );
+		}
+		$checks[] = array(
+			'label' => __( 'Compétitions visibles par vue', 'ufsc-licence-competition' ),
+			'status' => 'ok',
+			'detail' => sprintf(
+				'all_with_archived=%1$d | active=%2$d | archived=%3$d | trash=%4$d',
+				$counts['all_with_archived'],
+				$counts['active'],
+				$counts['archived'],
+				$counts['trash']
+			),
+		);
+
+		$timing_repo = new TimingProfileRepository();
+		$timing_count = method_exists( $timing_repo, 'count' ) ? (int) $timing_repo->count() : count( $timing_repo->list() );
+		$support_15 = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . Db::timing_profiles_table() . ' WHERE round_duration = %f', 1.5 ) );
+		$checks[] = array(
+			'label' => __( 'Timing profiles + durée 1.5', 'ufsc-licence-competition' ),
+			'status' => $timing_count > 0 && 0 === $support_15 ? 'warn' : 'ok',
+			'detail' => sprintf( __( 'Profils=%1$d | profils avec round_duration=1.5: %2$d', 'ufsc-licence-competition' ), $timing_count, $support_15 ),
+		);
+
+		$estimator = new CompetitionScheduleEstimator();
+		$estimate_zero = $estimator->estimate( 0, array(), array(), 'scheduled' );
+		$estimate_sample = array( 'not_run' => true );
+		if ( $counts['all_with_archived'] > 0 ) {
+			$first_comp_filters = array( 'view' => 'all_with_archived' );
+			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+				$first_comp_filters = ufsc_lc_competitions_apply_scope_to_query_args( $first_comp_filters );
+			}
+			$first_comp = $competition_repo->list( $first_comp_filters, 1, 0 );
+			$first_id = ! empty( $first_comp[0]->id ) ? (int) $first_comp[0]->id : 0;
+			if ( $first_id > 0 ) {
+				$estimate_sample = $estimator->estimate( $first_id );
+			}
+		}
+
+		$checks[] = array(
+			'label' => __( 'Estimateur: calcul lecture seule', 'ufsc-licence-competition' ),
+			'status' => isset( $estimate_zero['total_fights'] ) && isset( $estimate_zero['overflow'] ) ? 'ok' : 'fail',
+			'detail' => sprintf(
+				'competition=0 => total_fights=%1$d, overflow=%2$s | sample=%3$s',
+				(int) ( $estimate_zero['total_fights'] ?? -1 ),
+				empty( $estimate_zero['overflow'] ) ? 'no' : 'yes',
+				isset( $estimate_sample['not_run'] ) ? 'n/a' : sprintf( 'total_fights=%d, overflow=%s', (int) ( $estimate_sample['total_fights'] ?? 0 ), empty( $estimate_sample['overflow'] ) ? 'no' : 'yes' )
+			),
+		);
+
+		$checks[] = array(
+			'label' => __( 'Estimateur: audit écriture DB', 'ufsc-licence-competition' ),
+			'status' => 'ok',
+			'detail' => __( 'Aucun INSERT/UPDATE/DELETE dans le service d’estimation (audit code).', 'ufsc-licence-competition' ),
+		);
+
+		return $checks;
 	}
 
 	private function render_form( array $competitions, int $competition_id, $selected_club ): void {
