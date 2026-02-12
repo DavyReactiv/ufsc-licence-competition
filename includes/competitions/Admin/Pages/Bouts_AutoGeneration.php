@@ -18,6 +18,7 @@ class Bouts_AutoGeneration {
 
 		add_action( 'admin_post_ufsc_competitions_save_fight_settings', array( __CLASS__, 'handle_save_settings' ) );
 		add_action( 'admin_post_ufsc_competitions_generate_fight_draft', array( __CLASS__, 'handle_generate_draft' ) );
+		add_action( 'admin_post_ufsc_competitions_generate_fight_draft_override', array( __CLASS__, 'handle_generate_draft_override' ) );
 		add_action( 'admin_post_ufsc_competitions_validate_fight_draft', array( __CLASS__, 'handle_validate_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_discard_fight_draft', array( __CLASS__, 'handle_discard_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_recalc_fight_schedule', array( __CLASS__, 'handle_recalc_schedule' ) );
@@ -62,10 +63,22 @@ class Bouts_AutoGeneration {
 		$manual_mode = 'manual' === ( $settings['mode'] ?? 'auto' );
 		$can_generate = $competition_id && ! $locked && ! $manual_mode;
 		$has_draft = ! empty( $draft['fights'] );
+		$counters = $competition_id ? FightAutoGenerationService::get_generation_counters( $competition_id, $settings ) : array(
+			'total_entries' => 0,
+			'eligible_entries' => 0,
+			'excluded_unweighed' => 0,
+			'can_override_unweighed' => false,
+		);
 		?>
 		<div class="ufsc-competitions-box">
 			<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
 			<p><?php esc_html_e( 'Générez un brouillon basé sur les inscriptions approuvées, puis validez avant écriture définitive.', 'ufsc-licence-competition' ); ?></p>
+
+			<ul>
+				<li><?php echo esc_html( sprintf( __( 'Inscriptions totales : %d', 'ufsc-licence-competition' ), (int) ( $counters['total_entries'] ?? 0 ) ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Inscriptions éligibles : %d', 'ufsc-licence-competition' ), (int) ( $counters['eligible_entries'] ?? 0 ) ) ); ?></li>
+				<li><?php echo esc_html( sprintf( __( 'Exclues (non pesées) : %d', 'ufsc-licence-competition' ), (int) ( $counters['excluded_unweighed'] ?? 0 ) ) ); ?></li>
+			</ul>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_fight_settings' ); ?>
@@ -78,7 +91,8 @@ class Bouts_AutoGeneration {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_surface_count"><?php esc_html_e( 'Nombre de surfaces', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="surface_count" type="number" min="1" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>"></td>
+						<td><input name="surface_count" type="number" min="1" max="32" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+									<p class="description"><?php esc_html_e( 'Valeur recommandée : 1 à 12 surfaces (max 32).', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
@@ -113,11 +127,12 @@ class Bouts_AutoGeneration {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_duration"><?php esc_html_e( 'Durée (minutes)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="fight_duration" type="number" min="1" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>"></td>
+						<td><input name="fight_duration" type="number" min="1" max="30" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>">
+									<p class="description"><?php esc_html_e( 'Utilisé pour l’horaire estimé lorsque aucun profil timing n’est appliqué.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_break_duration"><?php esc_html_e( 'Pause (minutes)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="break_duration" type="number" min="0" id="ufsc_break_duration" value="<?php echo esc_attr( $settings['break_duration'] ); ?>"></td>
+						<td><input name="break_duration" type="number" min="0" max="30" id="ufsc_break_duration" value="<?php echo esc_attr( $settings['break_duration'] ); ?>"></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_mode"><?php esc_html_e( 'Timing combats', 'ufsc-licence-competition' ); ?></label></th>
@@ -148,6 +163,17 @@ class Bouts_AutoGeneration {
 							<p class="description"><?php esc_html_e( 'Le mode manuel désactive la génération automatique.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
+
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Override pesée', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<label>
+								<input name="allow_unweighed" type="checkbox" value="1" <?php checked( $settings['allow_unweighed'] ?? 0, 1 ); ?>>
+								<?php esc_html_e( 'Inclure les compétiteurs non pesés (override admin explicite)', 'ufsc-licence-competition' ); ?>
+							</label>
+							<p class="description"><?php esc_html_e( 'Désactivé par défaut pour sécuriser la génération automatique.', 'ufsc-licence-competition' ); ?></p>
+						</td>
+					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Verrouillage auto', 'ufsc-licence-competition' ); ?></th>
 						<td>
@@ -171,6 +197,14 @@ class Bouts_AutoGeneration {
 						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 						<?php submit_button( __( 'Générer un brouillon', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array() : array( 'disabled' => 'disabled' ) ); ?>
 					</form>
+					<?php if ( ! empty( $counters['can_override_unweighed'] ) ) : ?>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'ufsc_competitions_generate_fight_draft_override' ); ?>
+							<input type="hidden" name="action" value="ufsc_competitions_generate_fight_draft_override">
+							<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
+							<?php submit_button( __( 'Override : inclure les non pesés', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array( 'onclick' => "return confirm('" . esc_js( __( 'Confirmer l’override pesée pour cette génération ?', 'ufsc-licence-competition' ) ) . "');" ) : array( 'disabled' => 'disabled' ) ); ?>
+						</form>
+					<?php endif; ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_validate_fight_draft' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_validate_fight_draft">
@@ -325,6 +359,19 @@ class Bouts_AutoGeneration {
 		}
 
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
+		self::redirect( $competition_id, $result['ok'] ? 'draft_ready' : 'draft_error', $result['message'] ?? '' );
+	}
+
+	public static function handle_generate_draft_override(): void {
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		self::guard_action( 'ufsc_competitions_generate_fight_draft_override', $competition_id );
+		if ( ! $competition_id ) {
+			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$settings['allow_unweighed'] = 1;
 		$result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		self::redirect( $competition_id, $result['ok'] ? 'draft_ready' : 'draft_error', $result['message'] ?? '' );
 	}

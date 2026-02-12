@@ -71,6 +71,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/LogRepository.php',
 		$base . '/Repositories/ClubRepository.php',
 		$base . '/Repositories/TimingProfileRepository.php',
+		$base . '/Repositories/WeighInRepository.php',
 		// Front repositories and handlers required for admin-post actions.
 		$base . '/Front/Access/ClubAccess.php',
 		$base . '/Front/Access/ClubAccessHelpers.php',

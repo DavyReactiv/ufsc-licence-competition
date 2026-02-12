@@ -7,6 +7,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\TimingProfileRepository;
+use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\CompetitionFilters;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -35,12 +36,13 @@ class FightAutoGenerationService {
 
 		$has_stored_settings = ! empty( $stored );
 		$settings = array_merge( $defaults, $stored );
-		$settings['surface_count'] = max( 1, absint( $settings['surface_count'] ) );
-		$settings['fight_duration'] = max( 1, absint( $settings['fight_duration'] ) );
-		$settings['break_duration'] = max( 0, absint( $settings['break_duration'] ) );
+		$settings['surface_count'] = min( 32, max( 1, absint( $settings['surface_count'] ) ) );
+		$settings['fight_duration'] = min( 30, max( 1, absint( $settings['fight_duration'] ) ) );
+		$settings['break_duration'] = min( 30, max( 0, absint( $settings['break_duration'] ) ) );
 		$settings['timing_mode'] = 'category' === ( $settings['timing_mode'] ?? 'global' ) ? 'category' : 'global';
 		$settings['mode'] = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock'] = ! empty( $settings['auto_lock'] ) ? 1 : 0;
+		$settings['allow_unweighed'] = ! empty( $settings['allow_unweighed'] ) ? 1 : 0;
 
 		if ( ! $has_stored_settings ) {
 			$competition_repo = new CompetitionRepository();
@@ -82,16 +84,16 @@ class FightAutoGenerationService {
 			$settings['plateau_name'] = sanitize_text_field( (string) $data['plateau_name'] );
 		}
 		if ( isset( $data['surface_count'] ) ) {
-			$settings['surface_count'] = max( 1, absint( $data['surface_count'] ) );
+			$settings['surface_count'] = min( 32, max( 1, absint( $data['surface_count'] ) ) );
 		}
 		$settings['surface_details'] = isset( $data['surface_details'] ) && is_array( $data['surface_details'] )
 			? $data['surface_details']
 			: array();
 		if ( isset( $data['fight_duration'] ) ) {
-			$settings['fight_duration'] = max( 1, absint( $data['fight_duration'] ) );
+			$settings['fight_duration'] = min( 30, max( 1, absint( $data['fight_duration'] ) ) );
 		}
 		if ( isset( $data['break_duration'] ) ) {
-			$settings['break_duration'] = max( 0, absint( $data['break_duration'] ) );
+			$settings['break_duration'] = min( 30, max( 0, absint( $data['break_duration'] ) ) );
 		}
 		if ( isset( $data['timing_mode'] ) ) {
 			$settings['timing_mode'] = 'category' === $data['timing_mode'] ? 'category' : 'global';
@@ -101,6 +103,9 @@ class FightAutoGenerationService {
 		}
 		if ( isset( $data['auto_lock'] ) ) {
 			$settings['auto_lock'] = ! empty( $data['auto_lock'] ) ? 1 : 0;
+		}
+		if ( isset( $data['allow_unweighed'] ) ) {
+			$settings['allow_unweighed'] = ! empty( $data['allow_unweighed'] ) ? 1 : 0;
 		}
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
@@ -132,6 +137,39 @@ class FightAutoGenerationService {
 
 		$fight_repo = new FightRepository();
 		return $fight_repo->clear_draft( $competition_id );
+	}
+
+	public static function get_generation_counters( int $competition_id, array $settings ): array {
+		if ( ! $competition_id ) {
+			return array(
+				'total_entries' => 0,
+				'eligible_entries' => 0,
+				'excluded_unweighed' => 0,
+				'can_override_unweighed' => false,
+			);
+		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			return array(
+				'total_entries' => 0,
+				'eligible_entries' => 0,
+				'excluded_unweighed' => 0,
+				'can_override_unweighed' => false,
+			);
+		}
+
+		$entry_repo = new EntryRepository();
+		$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$selection = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
+
+		return array(
+			'total_entries' => count( $entries ),
+			'eligible_entries' => count( $selection['valid_entries'] ),
+			'excluded_unweighed' => (int) ( $selection['excluded_unweighed'] ?? 0 ),
+			'can_override_unweighed' => ! empty( $selection['enforce_weighin'] ) && (int) ( $selection['excluded_unweighed'] ?? 0 ) > 0,
+		);
 	}
 
 	public static function generate_draft( int $competition_id, array $settings ): array {
@@ -185,24 +223,11 @@ class FightAutoGenerationService {
 
 			$entry_repo = new EntryRepository();
 			$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
-
-			$valid_entries = array();
-			$ineligible_reasons = array();
-			foreach ( $entries as $entry ) {
-				$entry_id = (int) ( $entry->id ?? 0 );
-				$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
-					? ufsc_lc_is_entry_eligible( $entry_id, 'fights' )
-					: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
-
-				if ( empty( $eligibility['eligible'] ) ) {
-					foreach ( $eligibility['reasons'] as $reason ) {
-						$ineligible_reasons[ $reason ] = true;
-					}
-					continue;
-				}
-
-				$valid_entries[] = $entry;
-			}
+			$selection = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
+			$valid_entries = $selection['valid_entries'];
+			$ineligible_reasons = $selection['ineligible_reasons'];
+			$excluded_unweighed = (int) ( $selection['excluded_unweighed'] ?? 0 );
+			$total_entries = count( $entries );
 
 			if ( ! $valid_entries ) {
 				$reason_messages = array(
@@ -212,6 +237,7 @@ class FightAutoGenerationService {
 					'license_missing' => __( 'Licence manquante.', 'ufsc-licence-competition' ),
 					'club_missing' => __( 'Club manquant.', 'ufsc-licence-competition' ),
 					'entry_deleted' => __( 'Inscription supprimée.', 'ufsc-licence-competition' ),
+					'weighin_missing' => __( 'Pesée valide requise.', 'ufsc-licence-competition' ),
 				);
 
 				$reasons = array();
@@ -229,6 +255,11 @@ class FightAutoGenerationService {
 				return array(
 					'ok' => false,
 					'message' => $message,
+					'stats' => array(
+						'total_entries' => $total_entries,
+						'eligible_entries' => 0,
+						'excluded_unweighed' => $excluded_unweighed,
+					),
 				);
 			}
 
@@ -292,6 +323,9 @@ class FightAutoGenerationService {
 				'entries' => count( $valid_entries ),
 				'groups'  => count( $groups ),
 				'fights'  => count( $fights ),
+				'total_entries' => $total_entries,
+				'eligible_entries' => count( $valid_entries ),
+				'excluded_unweighed' => $excluded_unweighed,
 			);
 
 			$draft = array(
@@ -306,9 +340,14 @@ class FightAutoGenerationService {
 
 			self::save_draft( $competition_id, $draft );
 
+			$message = __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' );
+			if ( 0 === count( $fights ) ) {
+				$message = __( '0 combat généré : vérifiez les catégories, statuts d’inscription et pesées.', 'ufsc-licence-competition' );
+			}
+
 			return array(
 				'ok' => true,
-				'message' => __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' ),
+				'message' => $message,
 				'draft' => $draft,
 			);
 		} finally {
@@ -486,6 +525,50 @@ class FightAutoGenerationService {
 		);
 	}
 
+
+	private static function select_eligible_entries( array $entries, int $competition_id, $competition, array $settings ): array {
+		$valid_entries = array();
+		$ineligible_reasons = array();
+		$excluded_unweighed = 0;
+		$allow_unweighed = ! empty( $settings['allow_unweighed'] );
+		$weighin_repo = new WeighInRepository();
+		$enforce_weighin = ! $allow_unweighed && $weighin_repo->has_table();
+		$competition_tolerance = isset( $competition->weight_tolerance ) ? (float) $competition->weight_tolerance : 0.0;
+
+		foreach ( $entries as $entry ) {
+			$entry_id = (int) ( $entry->id ?? 0 );
+			$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
+				? ufsc_lc_is_entry_eligible( $entry_id, 'fights' )
+				: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
+
+			if ( empty( $eligibility['eligible'] ) ) {
+				foreach ( $eligibility['reasons'] as $reason ) {
+					$ineligible_reasons[ $reason ] = true;
+				}
+				continue;
+			}
+
+			if ( $enforce_weighin ) {
+				$entry_weight = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null;
+				$has_weighin = $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
+				if ( ! $has_weighin ) {
+					$ineligible_reasons['weighin_missing'] = true;
+					$excluded_unweighed++;
+					continue;
+				}
+			}
+
+			$valid_entries[] = $entry;
+		}
+
+		return array(
+			'valid_entries' => $valid_entries,
+			'ineligible_reasons' => $ineligible_reasons,
+			'excluded_unweighed' => $excluded_unweighed,
+			'enforce_weighin' => $enforce_weighin,
+		);
+	}
+
 	private static function get_default_settings(): array {
 		return array(
 			'plateau_name' => '',
@@ -497,6 +580,7 @@ class FightAutoGenerationService {
 			'timing_mode' => 'global',
 			'mode' => 'auto',
 			'auto_lock' => 0,
+			'allow_unweighed' => 0,
 		);
 	}
 

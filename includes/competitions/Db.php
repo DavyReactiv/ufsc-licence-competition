@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.15';
+	const DB_VERSION = '1.16';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.15';
+	const UFSC_COMP_DB_VERSION = '1.16';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -44,6 +44,11 @@ class Db {
 	public static function timing_profiles_table() {
 		global $wpdb;
 		return $wpdb->prefix . 'ufsc_timing_profiles';
+	}
+
+	public static function weighins_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_competition_weighins';
 	}
 
 	/**
@@ -112,6 +117,7 @@ class Db {
 		$entries_table          = self::entries_table();
 		$fights_table           = self::fights_table();
 		$timing_profiles_table  = self::timing_profiles_table();
+		$weighins_table         = self::weighins_table();
 
 		// Note: avoid SQL comments inside the CREATE TABLE string (dbDelta sensitivity)
 		$competitions_sql = "CREATE TABLE {$competitions_table} (
@@ -247,6 +253,25 @@ class Db {
 		) {$charset_collate};";
 
 		dbDelta( $timing_profiles_sql );
+
+		$weighins_sql = "CREATE TABLE {$weighins_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			competition_id bigint(20) unsigned NOT NULL,
+			entry_id bigint(20) unsigned NOT NULL,
+			weight_measured decimal(6,2) NULL,
+			status varchar(30) NOT NULL DEFAULT 'ok',
+			weighed_at datetime NULL,
+			weighed_by bigint(20) unsigned NULL,
+			notes text NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY (id),
+			UNIQUE KEY uniq_competition_entry (competition_id, entry_id),
+			KEY idx_competition_status (competition_id, status),
+			KEY idx_entry (entry_id)
+		) {$charset_collate};";
+
+		dbDelta( $weighins_sql );
 	}
 
 	private static function maybe_upgrade_entries_table(): void {
