@@ -7,6 +7,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\TimingProfileRepository;
+use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\CompetitionFilters;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -41,6 +42,7 @@ class FightAutoGenerationService {
 		$settings['timing_mode'] = 'category' === ( $settings['timing_mode'] ?? 'global' ) ? 'category' : 'global';
 		$settings['mode'] = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock'] = ! empty( $settings['auto_lock'] ) ? 1 : 0;
+		$settings['allow_unweighed'] = ! empty( $settings['allow_unweighed'] ) ? 1 : 0;
 
 		if ( ! $has_stored_settings ) {
 			$competition_repo = new CompetitionRepository();
@@ -101,6 +103,9 @@ class FightAutoGenerationService {
 		}
 		if ( isset( $data['auto_lock'] ) ) {
 			$settings['auto_lock'] = ! empty( $data['auto_lock'] ) ? 1 : 0;
+		}
+		if ( isset( $data['allow_unweighed'] ) ) {
+			$settings['allow_unweighed'] = ! empty( $data['allow_unweighed'] ) ? 1 : 0;
 		}
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
@@ -188,6 +193,10 @@ class FightAutoGenerationService {
 
 			$valid_entries = array();
 			$ineligible_reasons = array();
+			$allow_unweighed = ! empty( $settings['allow_unweighed'] );
+			$weighin_repo = new WeighInRepository();
+			$enforce_weighin = ! $allow_unweighed && $weighin_repo->has_table();
+			$competition_tolerance = isset( $competition->weight_tolerance ) ? (float) $competition->weight_tolerance : 0.0;
 			foreach ( $entries as $entry ) {
 				$entry_id = (int) ( $entry->id ?? 0 );
 				$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
@@ -201,6 +210,15 @@ class FightAutoGenerationService {
 					continue;
 				}
 
+				if ( $enforce_weighin ) {
+					$entry_weight = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null;
+					$has_weighin = $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
+					if ( ! $has_weighin ) {
+						$ineligible_reasons['weighin_missing'] = true;
+						continue;
+					}
+				}
+
 				$valid_entries[] = $entry;
 			}
 
@@ -212,6 +230,7 @@ class FightAutoGenerationService {
 					'license_missing' => __( 'Licence manquante.', 'ufsc-licence-competition' ),
 					'club_missing' => __( 'Club manquant.', 'ufsc-licence-competition' ),
 					'entry_deleted' => __( 'Inscription supprimée.', 'ufsc-licence-competition' ),
+					'weighin_missing' => __( 'Pesée valide requise.', 'ufsc-licence-competition' ),
 				);
 
 				$reasons = array();
@@ -497,6 +516,7 @@ class FightAutoGenerationService {
 			'timing_mode' => 'global',
 			'mode' => 'auto',
 			'auto_lock' => 0,
+			'allow_unweighed' => 0,
 		);
 	}
 

@@ -13,6 +13,9 @@ class EntriesWorkflow {
 			'submitted' => __( 'Soumise', 'ufsc-licence-competition' ),
 			'pending' => __( 'En attente', 'ufsc-licence-competition' ),
 			'approved' => __( 'Approuvée', 'ufsc-licence-competition' ),
+			'validated' => __( 'Validée', 'ufsc-licence-competition' ),
+			'weighed' => __( 'Pesée OK', 'ufsc-licence-competition' ),
+			'ready' => __( 'Prête au tirage', 'ufsc-licence-competition' ),
 			'rejected' => __( 'Rejetée', 'ufsc-licence-competition' ),
 			'cancelled' => __( 'Annulée', 'ufsc-licence-competition' ),
 		);
@@ -29,7 +32,7 @@ class EntriesWorkflow {
 	public static function normalize_status( string $status ): string {
 		$slug = self::normalize_status_slug( $status );
 
-		switch ( $slug ) {
+			switch ( $slug ) {
 			case 'soumise':
 			case 'soumis':
 			case 'submitted':
@@ -41,6 +44,11 @@ class EntriesWorkflow {
 			case 'validee':
 			case 'valide':
 			case 'validated':
+			case 'ready':
+			case 'prete_au_tirage':
+			case 'weighed':
+			case 'weigh_in_ok':
+			case 'pesee_ok':
 			case 'approved':
 			case 'approuvee':
 			case 'approuve':
