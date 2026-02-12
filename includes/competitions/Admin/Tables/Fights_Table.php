@@ -24,6 +24,7 @@ class Fights_Table extends \WP_List_Table {
 	private $filters = array();
 	private $competitions = array();
 	private $categories = array();
+	private $competition_view_fallback = false;
 
 	public function __construct() {
 		parent::__construct(
@@ -51,9 +52,16 @@ class Fights_Table extends \WP_List_Table {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_fights_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
 
+		$competition_view_raw = isset( $_REQUEST['ufsc_competition_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_competition_view'] ) ) : 'all_with_archived';
+		$competition_view = \UFSC\Competitions\Repositories\CompetitionRepository::normalize_view( $competition_view_raw );
+		if ( 'all' === $competition_view ) {
+			$competition_view = 'all_with_archived';
+			$this->competition_view_fallback = ( 'all_with_archived' !== $competition_view_raw );
+		}
+
 		$filters = array(
 			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
-			'competition_view' => isset( $_REQUEST['ufsc_competition_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_competition_view'] ) ) : 'all_with_archived',
+			'competition_view' => $competition_view,
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
 			'status'         => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
@@ -63,7 +71,7 @@ class Fights_Table extends \WP_List_Table {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
 		}
 
-		$competition_filters = array( 'view' => \UFSC\Competitions\Repositories\CompetitionRepository::normalize_view( $filters['competition_view'] ) );
+		$competition_filters = array( 'view' => $filters['competition_view'] );
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
@@ -196,6 +204,11 @@ class Fights_Table extends \WP_List_Table {
 	}
 
 	public function no_items() {
+		if ( ! empty( $this->filters['competition_id'] ) || ! empty( $this->filters['status'] ) || ! empty( $this->filters['discipline'] ) ) {
+			esc_html_e( 'Aucun combat trouvé pour ces filtres/scope. Essayez une autre vue de compétitions ou réinitialisez les filtres.', 'ufsc-licence-competition' );
+			return;
+		}
+
 		esc_html_e( 'Aucun combat trouvé.', 'ufsc-licence-competition' );
 	}
 
@@ -211,6 +224,9 @@ class Fights_Table extends \WP_List_Table {
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
+			<?php if ( $this->competition_view_fallback ) : ?>
+				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Vue de compétitions inconnue : retour automatique sur “Toutes les compétitions (incl. archivées)”.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
 			<label class="screen-reader-text" for="ufsc_competition_filter"><?php esc_html_e( 'Filtrer par compétition', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_competition_id" id="ufsc_competition_filter">
 				<option value="0"><?php esc_html_e( 'Toutes les compétitions', 'ufsc-licence-competition' ); ?></option>
