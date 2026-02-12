@@ -19,6 +19,7 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_save_fight_settings', array( __CLASS__, 'handle_save_settings' ) );
 		add_action( 'admin_post_ufsc_competitions_generate_fight_draft', array( __CLASS__, 'handle_generate_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_generate_fight_draft_override', array( __CLASS__, 'handle_generate_draft_override' ) );
+		add_action( 'admin_post_ufsc_competitions_regenerate_fight_draft', array( __CLASS__, 'handle_regenerate_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_validate_fight_draft', array( __CLASS__, 'handle_validate_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_discard_fight_draft', array( __CLASS__, 'handle_discard_draft' ) );
 		add_action( 'admin_post_ufsc_competitions_recalc_fight_schedule', array( __CLASS__, 'handle_recalc_schedule' ) );
@@ -192,17 +193,25 @@ class Bouts_AutoGeneration {
 			<?php else : ?>
 				<div class="ufsc-competitions-actions">
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-						<?php wp_nonce_field( 'ufsc_competitions_generate_fight_draft' ); ?>
+						<?php wp_nonce_field( self::nonce_action( 'ufsc_competitions_generate_fight_draft', $competition_id ) ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_generate_fight_draft">
 						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 						<?php submit_button( __( 'Générer un brouillon', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array() : array( 'disabled' => 'disabled' ) ); ?>
 					</form>
 					<?php if ( ! empty( $counters['can_override_unweighed'] ) ) : ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-							<?php wp_nonce_field( 'ufsc_competitions_generate_fight_draft_override' ); ?>
+							<?php wp_nonce_field( self::nonce_action( 'ufsc_competitions_generate_fight_draft_override', $competition_id ) ); ?>
 							<input type="hidden" name="action" value="ufsc_competitions_generate_fight_draft_override">
 							<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 							<?php submit_button( __( 'Override : inclure les non pesés', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array( 'onclick' => "return confirm('" . esc_js( __( 'Confirmer l’override pesée pour cette génération ?', 'ufsc-licence-competition' ) ) . "');" ) : array( 'disabled' => 'disabled' ) ); ?>
+						</form>
+					<?php endif; ?>
+					<?php if ( $has_draft ) : ?>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( self::nonce_action( 'ufsc_competitions_regenerate_fight_draft', $competition_id ) ); ?>
+							<input type="hidden" name="action" value="ufsc_competitions_regenerate_fight_draft">
+							<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
+							<?php submit_button( __( 'Régénérer (supprime le draft existant)', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array( 'onclick' => "return confirm('" . esc_js( __( 'Confirmer la régénération ? Le brouillon actuel sera supprimé.', 'ufsc-licence-competition' ) ) . "');" ) : array( 'disabled' => 'disabled' ) ); ?>
 						</form>
 					<?php endif; ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -353,7 +362,7 @@ class Bouts_AutoGeneration {
 
 	public static function handle_generate_draft(): void {
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		self::guard_action( 'ufsc_competitions_generate_fight_draft', $competition_id );
+		self::guard_action( self::nonce_action( 'ufsc_competitions_generate_fight_draft', $competition_id ), $competition_id );
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
 		}
@@ -365,13 +374,26 @@ class Bouts_AutoGeneration {
 
 	public static function handle_generate_draft_override(): void {
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
-		self::guard_action( 'ufsc_competitions_generate_fight_draft_override', $competition_id );
+		self::guard_action( self::nonce_action( 'ufsc_competitions_generate_fight_draft_override', $competition_id ), $competition_id );
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
 		}
 
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$settings['allow_unweighed'] = 1;
+		$result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
+		self::redirect( $competition_id, $result['ok'] ? 'draft_ready' : 'draft_error', $result['message'] ?? '' );
+	}
+
+	public static function handle_regenerate_draft(): void {
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		self::guard_action( self::nonce_action( 'ufsc_competitions_regenerate_fight_draft', $competition_id ), $competition_id );
+		if ( ! $competition_id ) {
+			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		FightAutoGenerationService::clear_draft( $competition_id );
+		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		self::redirect( $competition_id, $result['ok'] ? 'draft_ready' : 'draft_error', $result['message'] ?? '' );
 	}
@@ -435,6 +457,10 @@ class Bouts_AutoGeneration {
 
 		self::ensure_manage_access();
 		check_admin_referer( $nonce_action );
+	}
+
+	private static function nonce_action( string $base_action, int $competition_id ): string {
+		return sanitize_key( $base_action ) . '_' . absint( $competition_id );
 	}
 
 	private static function redirect( int $competition_id, string $notice, string $message = '' ): void {

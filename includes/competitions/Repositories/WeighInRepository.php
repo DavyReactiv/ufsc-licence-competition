@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( class_exists( __NAMESPACE__ . '\\WeighInRepository', false ) ) {
+if ( class_exists( '\\UFSC\\Competitions\\Repositories\\WeighInRepository', false ) ) {
 	return;
 }
 

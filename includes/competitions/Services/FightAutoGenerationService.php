@@ -221,6 +221,22 @@ class FightAutoGenerationService {
 				);
 			}
 
+			$existing_fights = self::get_existing_generation_blockers( $competition_id );
+			if ( (int) $existing_fights['total'] > 0 ) {
+				return array(
+					'ok' => false,
+					'message' => sprintf(
+						/* translators: 1: draft fights count, 2: scheduled fights count */
+						__( 'Génération bloquée : des combats existent déjà (draft: %1$d, scheduled: %2$d). Utilisez l’action de régénération dédiée ou validez/supprimez les combats existants.', 'ufsc-licence-competition' ),
+						(int) $existing_fights['draft'],
+						(int) $existing_fights['scheduled']
+					),
+					'stats' => array(
+						'existing_fights' => (int) $existing_fights['total'],
+					),
+				);
+			}
+
 			$entry_repo = new EntryRepository();
 			$entries = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 			$selection = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
@@ -525,6 +541,30 @@ class FightAutoGenerationService {
 		);
 	}
 
+
+
+	private static function get_existing_generation_blockers( int $competition_id ): array {
+		$fight_repo = new FightRepository();
+
+		$draft = $fight_repo->count(
+			array(
+				'competition_id' => $competition_id,
+				'status' => 'draft',
+			)
+		);
+		$scheduled = $fight_repo->count(
+			array(
+				'competition_id' => $competition_id,
+				'status' => 'scheduled',
+			)
+		);
+
+		return array(
+			'draft' => (int) $draft,
+			'scheduled' => (int) $scheduled,
+			'total' => (int) $draft + (int) $scheduled,
+		);
+	}
 
 	private static function select_eligible_entries( array $entries, int $competition_id, $competition, array $settings ): array {
 		$valid_entries = array();
