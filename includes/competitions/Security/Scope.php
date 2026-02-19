@@ -36,27 +36,12 @@ if ( ! function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ) {
 			return null;
 		}
 
-		// Prefer master plugin helper if available.
-		if ( function_exists( 'ufsc_get_user_scope_region' ) ) {
-			$scope = ufsc_get_user_scope_region( $user_id );
-			$scope = is_string( $scope ) ? $scope : '';
-			$scope = sanitize_key( $scope );
+		if ( class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_region' ) ) {
+			$scope = UFSC_LC_Scope::get_user_region( $user_id );
 			return '' !== $scope ? $scope : null;
 		}
 
-		$scope = get_user_meta( $user_id, 'ufsc_scope_region', true );
-		$scope_alt = get_user_meta( $user_id, 'ufsc_region_scope', true );
-		if ( is_string( $scope_alt ) && '' !== $scope_alt ) {
-			$scope = $scope_alt;
-		}
-		$scope = is_string( $scope ) ? $scope : '';
-		$scope = sanitize_key( $scope );
-
-		if ( 'all' === $scope ) {
-			return null;
-		}
-
-		return '' !== $scope ? $scope : null;
+		return null;
 	}
 }
 
@@ -65,8 +50,9 @@ if ( ! function_exists( 'ufsc_lc_competitions_scope_profile_fields' ) ) {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$value = get_user_meta( $user->ID, 'ufsc_region_scope', true );
-		$value = is_string( $value ) ? $value : '';
+		$value = class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_region' )
+			? UFSC_LC_Scope::get_user_region( (int) $user->ID )
+			: '';
 		?>
 		<h2><?php esc_html_e( 'UFSC Compétitions - Scope', 'ufsc-licence-competition' ); ?></h2>
 		<table class="form-table" role="presentation">
@@ -92,6 +78,7 @@ if ( ! function_exists( 'ufsc_lc_competitions_save_scope_profile_fields' ) ) {
 		}
 		$scope = sanitize_key( wp_unslash( $_POST['ufsc_region_scope'] ) );
 		update_user_meta( $user_id, 'ufsc_region_scope', $scope );
+		update_user_meta( $user_id, 'ufsc_scope_region', $scope );
 	}
 }
 

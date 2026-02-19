@@ -41,6 +41,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		$list_table = new UFSC_LC_ASPTT_Review_List_Table( $this->get_clubs() );
 		$this->handle_bulk_action_request( $list_table );
 		$this->render_notice();
+		ufsc_lc_render_scope_badge();
 		$this->render_choose_club_form();
 		$list_table->prepare_items();
 
@@ -162,6 +163,10 @@ class UFSC_LC_ASPTT_Review_Page {
 			$this->redirect_with_notice( 'warning', __( 'Aucun alias à enregistrer.', 'ufsc-licence-competition' ) );
 		}
 		$this->enforce_document_scope( $document );
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( (int) $document->club_id );
+		}
 
 		$this->service->save_alias( (int) $document->club_id, $document->asptt_club_note );
 		$this->redirect_with_notice( 'success', __( 'Alias enregistré.', 'ufsc-licence-competition' ) );
@@ -389,6 +394,10 @@ class UFSC_LC_ASPTT_Review_Page {
 
 				case 'save_alias':
 					if ( ! empty( $document->asptt_club_note ) ) {
+						if ( class_exists( 'UFSC_LC_Scope' ) ) {
+							UFSC_LC_Scope::assert_club_in_scope( (int) $document->club_id );
+						}
+
 						$this->service->save_alias( (int) $document->club_id, $document->asptt_club_note );
 						$updated++;
 					} else {
@@ -643,6 +652,11 @@ class UFSC_LC_ASPTT_Review_Page {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		if ( $scope && $this->column_exists( $table, 'region' ) ) {
+			return $wpdb->get_results( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE region = %s ORDER BY nom ASC", $scope ) );
+		}
+
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
 	}
 
@@ -652,7 +666,7 @@ class UFSC_LC_ASPTT_Review_Page {
 		$table         = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal    = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
-		$scope         = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
+		$scope         = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
 		$region_column = ( $scope && $this->column_exists( $table, 'region' ) ) ? 'region' : '';
 
 		$where_parts = array();

@@ -27,27 +27,11 @@ function ufsc_lc_user_has_all_regions( int $user_id = 0 ): bool {
 
 if ( ! function_exists( 'ufsc_lc_get_user_scope_region' ) ) {
 function ufsc_lc_get_user_scope_region( int $user_id = 0 ): ?string {
-	$user_id = $user_id > 0 ? $user_id : get_current_user_id();
-	if ( $user_id <= 0 ) {
-		return null;
+	if ( class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_scope_region' ) ) {
+		return UFSC_LC_Scope::get_user_scope_region( $user_id );
 	}
 
-	if ( ufsc_lc_user_has_all_regions( $user_id ) ) {
-		return null;
-	}
-
-	if ( function_exists( 'ufsc_get_user_scope_region' ) ) {
-		$scope = ufsc_get_user_scope_region( $user_id );
-		$scope = is_string( $scope ) ? $scope : '';
-		$scope = sanitize_key( $scope );
-		return '' !== $scope ? $scope : null;
-	}
-
-	$scope = get_user_meta( $user_id, 'ufsc_scope_region', true );
-	$scope = is_string( $scope ) ? $scope : '';
-	$scope = sanitize_key( $scope );
-
-	return '' !== $scope ? $scope : null;
+	return null;
 }
 }
 
@@ -61,7 +45,7 @@ function ufsc_lc_assert_object_in_scope( $object_region ): void {
 	$object_region = is_string( $object_region ) ? sanitize_key( $object_region ) : '';
 
 	if ( '' === $object_region || $object_region !== $scope ) {
-		wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 	}
 }
 }
@@ -111,6 +95,63 @@ function ufsc_lc_safe_enforce_object_scope( int $object_id, string $object_type 
 
 if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 	class UFSC_LC_Scope extends UFSC_Scope {
+		public static function get_user_region( int $user_id = 0 ): string {
+			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+			if ( $user_id <= 0 ) {
+				return '';
+			}
+
+			$scope = get_user_meta( $user_id, 'ufsc_scope_region', true );
+			$scope = is_string( $scope ) ? sanitize_key( $scope ) : '';
+
+			if ( '' === $scope ) {
+				$legacy_scope = get_user_meta( $user_id, 'ufsc_region_scope', true );
+				$scope = is_string( $legacy_scope ) ? sanitize_key( $legacy_scope ) : '';
+			}
+
+			if ( '' === $scope && function_exists( 'ufsc_get_user_scope_region' ) ) {
+				$master_scope = ufsc_get_user_scope_region( $user_id );
+				$scope = is_string( $master_scope ) ? sanitize_key( $master_scope ) : '';
+			}
+
+			if ( 'all' === $scope ) {
+				return '';
+			}
+
+			return $scope;
+		}
+
+		public static function get_user_scope_region( int $user_id = 0 ): ?string {
+			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+			if ( $user_id <= 0 ) {
+				return null;
+			}
+
+			if ( self::user_has_all_regions( $user_id ) ) {
+				return null;
+			}
+
+			$scope = self::get_user_region( $user_id );
+
+			return '' !== $scope ? $scope : null;
+		}
+
+		public static function is_regional_admin( int $user_id = 0 ): bool {
+			return null !== self::get_user_scope_region( $user_id );
+		}
+
+		public static function apply_licence_scope_sql( array &$where, array &$params, string $club_alias = 'c' ): void {
+			ufsc_lc_apply_scope_to_sql( $where, $params, $club_alias );
+		}
+
+		public static function assert_licence_in_scope( int $licence_id ): void {
+			self::enforce_licence_scope( $licence_id );
+		}
+
+		public static function assert_club_in_scope( int $club_id ): void {
+			self::enforce_club_scope( $club_id );
+		}
+
 		public static function enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {
 			if ( method_exists( 'UFSC_Scope', 'enforce_object_scope' ) ) {
 				UFSC_Scope::enforce_object_scope( $object_id, $object_type );
@@ -119,7 +160,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 
 			$object_id = absint( $object_id );
 			if ( ! $object_id ) {
-				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+				wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 			}
 
 			switch ( $object_type ) {
@@ -207,8 +248,61 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			return ufsc_lc_user_has_all_regions( $user_id );
 		}
 
+		public static function get_user_region( int $user_id = 0 ): string {
+			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+			if ( $user_id <= 0 ) {
+				return '';
+			}
+
+			$scope = get_user_meta( $user_id, 'ufsc_scope_region', true );
+			$scope = is_string( $scope ) ? sanitize_key( $scope ) : '';
+
+			if ( '' === $scope ) {
+				$legacy_scope = get_user_meta( $user_id, 'ufsc_region_scope', true );
+				$scope = is_string( $legacy_scope ) ? sanitize_key( $legacy_scope ) : '';
+			}
+
+			if ( '' === $scope && function_exists( 'ufsc_get_user_scope_region' ) ) {
+				$master_scope = ufsc_get_user_scope_region( $user_id );
+				$scope = is_string( $master_scope ) ? sanitize_key( $master_scope ) : '';
+			}
+
+			if ( 'all' === $scope ) {
+				return '';
+			}
+
+			return $scope;
+		}
+
 		public static function get_user_scope_region( int $user_id = 0 ): ?string {
-			return ufsc_lc_get_user_scope_region( $user_id );
+			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+			if ( $user_id <= 0 ) {
+				return null;
+			}
+
+			if ( self::user_has_all_regions( $user_id ) ) {
+				return null;
+			}
+
+			$scope = self::get_user_region( $user_id );
+
+			return '' !== $scope ? $scope : null;
+		}
+
+		public static function is_regional_admin( int $user_id = 0 ): bool {
+			return null !== self::get_user_scope_region( $user_id );
+		}
+
+		public static function apply_licence_scope_sql( array &$where, array &$params, string $club_alias = 'c' ): void {
+			self::apply_scope_to_sql( $where, $params, $club_alias );
+		}
+
+		public static function assert_licence_in_scope( int $licence_id ): void {
+			self::enforce_licence_scope( $licence_id );
+		}
+
+		public static function assert_club_in_scope( int $club_id ): void {
+			self::enforce_club_scope( $club_id );
 		}
 
 		public static function apply_scope_to_args( array $args ): array {

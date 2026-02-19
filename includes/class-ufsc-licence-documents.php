@@ -430,7 +430,7 @@ class UFSC_LC_Licence_Documents {
 		$like  = '%' . $wpdb->esc_like( $search ) . '%';
 		$limit = $is_empty ? 50 : 20;
 
-		$scope = function_exists( 'ufsc_lc_get_user_scope_region' ) ? ufsc_lc_get_user_scope_region() : null;
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
 		$repository = class_exists( 'UFSC_LC_Licence_Repository' ) ? new UFSC_LC_Licence_Repository() : null;
 		$region_column = $repository ? $repository->get_club_region_column() : '';
 
@@ -443,6 +443,8 @@ class UFSC_LC_Licence_Documents {
 		if ( $scope && '' !== $region_column ) {
 			$where_parts[] = "{$region_column} = %s";
 			$params[] = $scope;
+		} elseif ( $scope ) {
+			wp_send_json_success( array() );
 		}
 
 		$where_sql = '';

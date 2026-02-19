@@ -134,7 +134,7 @@ class UFSC_LC_Licence_Repository {
 
 		$region = $this->get_licence_region( $licence_id );
 		if ( null === $region || $region !== $scope ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
 
@@ -146,7 +146,7 @@ class UFSC_LC_Licence_Repository {
 
 		$region = $this->get_club_region( $club_id );
 		if ( null === $region || $region !== $scope ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
 
