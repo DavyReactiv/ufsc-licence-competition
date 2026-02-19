@@ -310,6 +310,47 @@ if ( ! function_exists( 'ufsc_lc_get_scope_cache_key' ) ) {
 	}
 }
 
+
+if ( ! function_exists( 'ufsc_lc_get_scope_label' ) ) {
+	function ufsc_lc_get_scope_label( string $region ): string {
+		$region = sanitize_key( $region );
+		if ( '' === $region ) {
+			return '';
+		}
+
+		if ( '__no_region__' === $region ) {
+			return __( 'Non assignée', 'ufsc-licence-competition' );
+		}
+
+		if ( function_exists( 'ufsc_get_region_label' ) ) {
+			$label = ufsc_get_region_label( $region );
+			if ( is_string( $label ) && '' !== trim( $label ) ) {
+				return trim( $label );
+			}
+		}
+
+		return strtoupper( $region );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_render_scope_badge' ) ) {
+	function ufsc_lc_render_scope_badge(): void {
+		if ( ! class_exists( 'UFSC_LC_Scope' ) || ! method_exists( 'UFSC_LC_Scope', 'get_user_scope_region' ) ) {
+			return;
+		}
+
+		$scope = UFSC_LC_Scope::get_user_scope_region();
+		if ( null === $scope || '' === $scope ) {
+			return;
+		}
+
+		printf(
+			'<div class="notice notice-info inline"><p><strong>%s</strong></p></div>',
+			esc_html( sprintf( __( 'Scope : %s', 'ufsc-licence-competition' ), ufsc_lc_get_scope_label( $scope ) ) )
+		);
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_bump_cache_version' ) ) {
 	function ufsc_lc_bump_cache_version( string $bucket, int $id = 0 ): void {
 		$key     = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );

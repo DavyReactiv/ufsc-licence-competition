@@ -241,6 +241,7 @@ class UFSC_LC_ASPTT_Importer {
 		?>
 		<div class="wrap ufsc-lc-admin ufsc-asptt-wrap">
 			<h1><?php esc_html_e( 'Import ASPTT', 'ufsc-licence-competition' ); ?></h1>
+			<?php ufsc_lc_render_scope_badge(); ?>
 			<?php $this->render_admin_notice(); ?>
 			<?php $this->render_tabs( $tab ); ?>
 			<?php if ( 'import' === $tab ) : ?>
@@ -1348,6 +1349,14 @@ class UFSC_LC_ASPTT_Importer {
 			$update_only_minimal = true;
 		}
 
+		if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
+		}
+
+		if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
+		}
+
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
 			$pinned_club_id = 0;
 			$pinned_apply   = false;
@@ -1499,6 +1508,9 @@ class UFSC_LC_ASPTT_Importer {
 		$pinned_apply = isset( $_POST['ufsc_asptt_pinned_apply'] )
 			? (bool) absint( $_POST['ufsc_asptt_pinned_apply'] )
 			: ( isset( $preview['pinned_apply'] ) ? (bool) $preview['pinned_apply'] : false );
+		if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
+		}
 
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
 			$pinned_club_id = 0;
@@ -1526,6 +1538,9 @@ class UFSC_LC_ASPTT_Importer {
 
 		$auto_approve  = isset( $_POST['ufsc_asptt_auto_approve'] ) ? (bool) absint( $_POST['ufsc_asptt_auto_approve'] ) : true;
 		$force_club_id = isset( $preview['force_club_id'] ) ? (int) $preview['force_club_id'] : 0;
+		if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
+		}
 		$mapping       = isset( $preview['mapping'] ) ? $preview['mapping'] : array();
 
 		$is_dry_run = ( 'import' !== $mode );
@@ -1815,12 +1830,21 @@ class UFSC_LC_ASPTT_Importer {
 		$table = $this->get_clubs_table();
 		$like  = '%' . $wpdb->esc_like( $term ) . '%';
 
-		$results = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY nom ASC LIMIT 20",
-				$like
-			)
-		);
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		$repository = class_exists( 'UFSC_LC_Licence_Repository' ) ? new UFSC_LC_Licence_Repository() : null;
+		$region_column = $repository ? $repository->get_club_region_column() : '';
+
+		$where_parts = array( 'nom LIKE %s' );
+		$params = array( $like );
+		if ( $scope && '' !== $region_column ) {
+			$where_parts[] = "{$region_column} = %s";
+			$params[] = $scope;
+		} elseif ( $scope ) {
+			wp_send_json_success( array() );
+		}
+
+		$sql = "SELECT id, nom FROM {$table} WHERE " . implode( ' AND ', $where_parts ) . ' ORDER BY nom ASC LIMIT 20';
+		$results = $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
 
 		$items = array();
 		foreach ( $results as $club ) {
@@ -1867,6 +1891,14 @@ class UFSC_LC_ASPTT_Importer {
 
 		if ( '' === $note ) {
 			wp_send_json_error( array( 'message' => __( 'Aucun alias à enregistrer.', 'ufsc-licence-competition' ) ), 400 );
+		}
+
+		if ( class_exists( 'UFSC_LC_Licence_Repository' ) ) {
+			$repository = new UFSC_LC_Licence_Repository();
+			$scope      = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+			if ( $scope && $repository->get_club_region( $club_id ) !== $scope ) {
+				wp_send_json_error( array( 'message' => __( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ) ), 403 );
+			}
 		}
 
 		$this->service->save_alias( $club_id, $note );
@@ -2069,15 +2101,35 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_clubs() {
 		global $wpdb;
 		$table = $this->get_clubs_table();
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		if ( $scope ) {
+			$has_region = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'region'" );
+			if ( ! $has_region ) {
+				return array();
+			}
+
+			return $wpdb->get_results( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE region = %s ORDER BY nom ASC", $scope ) );
+		}
+
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
 	}
 
 	private function get_club_by_id( $club_id ) {
 		global $wpdb;
 		$table = $this->get_clubs_table();
-		return $wpdb->get_row(
+
+		$club = $wpdb->get_row(
 			$wpdb->prepare( "SELECT id, nom FROM {$table} WHERE id = %d", $club_id )
 		);
+		if ( ! $club ) {
+			return null;
+		}
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( (int) $club->id );
+		}
+
+		return $club;
 	}
 
 	private function get_clubs_table() {

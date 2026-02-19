@@ -37,7 +37,7 @@ class Menu {
 
 	public function add_menu(): void {
 		$cap = \UFSC\Competitions\Capabilities::get_read_capability();
-		$settings_cap = 'manage_options';
+		$settings_cap = class_exists( '\UFSC_LC_Capabilities' ) ? \UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY : $cap;
 
 		add_menu_page(
 			__( 'Compétitions', 'ufsc-licence-competition' ),
