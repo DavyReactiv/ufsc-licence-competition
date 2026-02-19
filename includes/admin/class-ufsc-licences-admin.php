@@ -44,6 +44,7 @@ class UFSC_LC_Licences_Admin {
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Licences', 'ufsc-licence-competition' ); ?></h1>
+			<?php ufsc_lc_render_scope_badge(); ?>
 			<?php if ( UFSC_LC_Capabilities::user_can_export() ) : ?>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-lc-export-form" style="display:inline-block; margin-left: 8px;">
 					<?php wp_nonce_field( 'ufsc_lc_export_csv', 'ufsc_lc_nonce' ); ?>
