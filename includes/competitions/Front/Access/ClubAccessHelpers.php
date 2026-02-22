@@ -14,10 +14,6 @@ if ( ! function_exists( 'ufsc_lc_get_current_club_id' ) ) {
 	 * @return int
 	 */
 	function ufsc_lc_get_current_club_id( int $user_id = 0 ): int {
-		if ( function_exists( 'ufsc_get_current_club_id' ) ) {
-			return (int) ufsc_get_current_club_id( $user_id );
-		}
-
 		$resolved = function_exists( 'ufsc_lc_resolve_current_club_id' ) ? ufsc_lc_resolve_current_club_id( $user_id ) : array();
 		$club_id  = absint( $resolved['club_id'] ?? 0 );
 
@@ -46,8 +42,16 @@ if ( ! function_exists( 'ufsc_lc_resolve_current_club_id' ) ) {
 		$source  = 'fallback';
 		$source_meta_key = '';
 
+		if ( ! $club_id && function_exists( 'ufsc_get_current_club_id' ) ) {
+			$native_club_id = absint( ufsc_get_current_club_id( $user_id ) );
+			if ( $native_club_id > 0 ) {
+				$club_id = $native_club_id;
+				$source  = 'native';
+			}
+		}
+
 		if ( ! $club_id ) {
-			$user_meta_keys = array( 'ufsc_club_id', 'club_id' );
+			$user_meta_keys = array( 'ufsc_club_id' );
 			foreach ( $user_meta_keys as $key ) {
 				$meta = get_user_meta( $user_id, $key, true );
 				$meta_id = absint( $meta );
@@ -56,6 +60,31 @@ if ( ! function_exists( 'ufsc_lc_resolve_current_club_id' ) ) {
 					$source  = 'user_meta';
 					$source_meta_key = $key;
 					break;
+				}
+			}
+		}
+
+		if ( ! $club_id ) {
+			$compat_meta_keys = array( 'ufsc_lc_club_id', 'ufsc_asptt_club_id', 'club_id' );
+			$compat_candidates = array();
+			foreach ( $compat_meta_keys as $key ) {
+				$meta    = get_user_meta( $user_id, $key, true );
+				$meta_id = absint( $meta );
+				if ( $meta_id > 0 ) {
+					$compat_candidates[ $key ] = $meta_id;
+				}
+			}
+
+			if ( ! empty( $compat_candidates ) ) {
+				$unique_values = array_values( array_unique( array_values( $compat_candidates ) ) );
+				if ( 1 === count( $unique_values ) ) {
+					$club_id         = (int) $unique_values[0];
+					$source_meta_key = (string) key( $compat_candidates );
+					$source          = 'compat_meta';
+
+					if ( ! get_user_meta( $user_id, 'ufsc_club_id', true ) ) {
+						update_user_meta( $user_id, 'ufsc_club_id', $club_id );
+					}
 				}
 			}
 		}
@@ -144,6 +173,8 @@ if ( ! function_exists( 'ufsc_lc_resolve_current_club_id' ) ) {
 				$source_meta_key = 'ufsc_competitions_resolve_club_id';
 			}
 		}
+
+		$club_id = absint( apply_filters( 'ufsc_lc_current_club_id', $club_id, $user_id ) );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$can_log = class_exists( '\UFSC\Competitions\Capabilities' )
