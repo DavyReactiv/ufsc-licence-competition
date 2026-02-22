@@ -23,6 +23,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private $legacy_enabled      = false;
 	private $licence_columns     = null;
 	private $documents_columns   = null;
+	private $clubs_columns       = null;
 	private $stats_cache_hit     = null;
 	private $distinct_cache_hit  = null;
 
@@ -375,7 +376,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 								<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( '' !== ufsc_lc_get_asptt_number( $item ) ? ufsc_lc_get_asptt_number( $item ) : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td><?php echo esc_html( $this->get_asptt_display_number( $item ) ); ?></td>
 								<td>
 									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">
@@ -655,11 +656,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$documents_table = $this->get_documents_table();
 		$columns         = $this->get_licence_columns();
 
+		$schema          = self::get_schema_compat( $wpdb );
+		$status_column   = $schema['status'];
+		$asptt_column    = $schema['asptt'];
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$has_prenom      = in_array( 'prenom', $columns, true );
-		$has_statut      = in_array( 'statut', $columns, true );
-		$has_status      = in_array( 'status', $columns, true );
+		$has_statut      = 'statut' === $status_column;
+		$has_status      = 'status' === $status_column;
 		$has_competition = in_array( 'competition', $columns, true );
 
 		$can_join_docs = $this->table_exists( $documents_table )
@@ -668,7 +672,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$has_doc_attachment    = $can_join_docs && $this->has_document_column( 'attachment_id' );
 		$has_doc_source_number = $can_join_docs && $this->has_document_column( 'source_licence_number' );
-		$asptt_number_sql      = $this->get_asptt_number_sql( 'l', $can_join_docs ? 'd' : '' );
+		$asptt_number_sql      = $this->get_asptt_number_sql( 'l' );
 
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
@@ -688,6 +692,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$filters['q'],
 				$nom_affiche_sql,
 				$has_prenom,
+				$asptt_column,
 				$has_doc_source_number,
 				$can_join_docs,
 				$params
@@ -697,8 +702,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 
-		if ( '' !== $filters['statut'] && $has_statut ) {
-			$where[]  = 'l.statut = %s';
+		if ( '' !== $filters['statut'] && '' !== $status_column ) {
+			$where[]  = "l.{$status_column} = %s";
 			$params[] = $filters['statut'];
 		}
 
@@ -791,12 +796,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$columns = array();
 		}
 
+		$schema        = self::get_schema_compat( $wpdb );
+		$status_column = $schema['status'];
+		$asptt_column  = $schema['asptt'];
+
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$has_prenom      = in_array( 'prenom', $columns, true );
 		$has_birthdate   = in_array( 'date_naissance', $columns, true );
-		$has_statut      = in_array( 'statut', $columns, true );
-		$has_status      = in_array( 'status', $columns, true );
+		$has_statut      = 'statut' === $status_column;
+		$has_status      = 'status' === $status_column;
 		$has_competition = in_array( 'competition', $columns, true );
 
 		$can_join_docs = $this->table_exists( $documents_table )
@@ -810,8 +819,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
 
-		if ( '' !== $filters['statut'] && $has_statut ) {
-			$where[]  = 'l.statut = %s';
+		if ( '' !== $filters['statut'] && '' !== $status_column ) {
+			$where[]  = "l.{$status_column} = %s";
 			$params[] = $filters['statut'];
 		}
 
@@ -847,15 +856,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 			: 'COALESCE(' . implode( ', ', $category_select_parts ) . ') AS categorie_affiche';
 
 		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
-		$season_end_year_sql  = in_array( 'season_end_year', $columns, true ) ? 'l.season_end_year AS season_end_year' : 'NULL AS season_end_year';
+		$season_end_year_sql  = '' !== $schema['season'] ? "l.{$schema['season']} AS season_end_year" : 'NULL AS season_end_year';
 
 		$select_document_columns = 'NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
-		$asptt_number_sql        = $this->get_asptt_number_sql( 'l', $can_join_docs ? 'd' : '' );
+		$asptt_number_sql        = $this->get_asptt_number_sql( 'l' );
 
 		$prenom_select      = $has_prenom ? 'l.prenom' : 'NULL AS prenom';
 		$birthdate_select   = $has_birthdate ? 'l.date_naissance' : 'NULL AS date_naissance';
-		$statut_select      = $has_statut ? 'l.statut' : 'NULL AS statut';
+		$statut_select      = '' !== $status_column ? "l.{$status_column} AS statut" : 'NULL AS statut';
 		$competition_select = $has_competition ? 'l.competition' : 'NULL AS competition';
 
 		if ( $can_join_docs ) {
@@ -870,12 +879,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 			if ( '' !== $filters['q'] ) {
 				$search_clause = $this->build_search_clause(
-					$filters['q'],
-					$nom_affiche_sql,
-					$has_prenom,
-					$has_doc_source_number,
-					$can_join_docs,
-					$params
+				$filters['q'],
+				$nom_affiche_sql,
+				$has_prenom,
+				$asptt_column,
+				$has_doc_source_number,
+				$can_join_docs,
+				$params
 				);
 				if ( $search_clause ) {
 					$where[] = $search_clause;
@@ -888,12 +898,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 		} else {
 			if ( '' !== $filters['q'] ) {
 				$search_clause = $this->build_search_clause(
-					$filters['q'],
-					$nom_affiche_sql,
-					$has_prenom,
-					false,
-					false,
-					$params
+				$filters['q'],
+				$nom_affiche_sql,
+				$has_prenom,
+				$asptt_column,
+				false,
+				false,
+				$params
 				);
 				if ( $search_clause ) {
 					$where[] = $search_clause;
@@ -1049,6 +1060,20 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return '';
 	}
 
+	private function get_asptt_display_number( $item ): string {
+		$value = trim( (string) ufsc_lc_get_asptt_number( $item ) );
+		if ( '' !== $value ) {
+			return $value;
+		}
+
+		$id = isset( $item->id ) ? (int) $item->id : 0;
+		if ( $id > 0 ) {
+			return 'TEMP-' . $id;
+		}
+
+		return __( '—', 'ufsc-licence-competition' );
+	}
+
 	private function format_birthdate( $raw ) {
 		$raw = trim( (string) $raw );
 		if ( '' === $raw ) {
@@ -1095,7 +1120,17 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		if ( function_exists( 'ufsc_lc_get_current_club_id' ) ) {
-			return (int) ufsc_lc_get_current_club_id( (int) $user_id );
+			$resolved = (int) ufsc_lc_get_current_club_id( (int) $user_id );
+			if ( $resolved > 0 ) {
+				return $resolved;
+			}
+		}
+
+		foreach ( array( 'ufsc_club_id', 'club_id', 'um_club_id', 'ufsc_club' ) as $meta_key ) {
+			$value = get_user_meta( $user_id, $meta_key, true );
+			if ( is_numeric( $value ) && (int) $value > 0 ) {
+				return (int) $value;
+			}
 		}
 
 		return 0;
@@ -1267,8 +1302,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$selects = array();
 		$params  = array();
 
-		if ( in_array( 'statut', $columns, true ) ) {
-			$selects[] = "SELECT 'statut' AS type, l.statut AS value FROM {$table} l WHERE l.club_id = %d AND l.statut IS NOT NULL AND l.statut != ''" . $this->get_distinct_visibility_sql( 'l' );
+		$schema        = self::get_schema_compat( $wpdb );
+		$status_column = $schema['status'];
+
+		if ( '' !== $status_column ) {
+			$selects[] = "SELECT 'statut' AS type, l.{$status_column} AS value FROM {$table} l WHERE l.club_id = %d AND l.{$status_column} IS NOT NULL AND l.{$status_column} != ''" . $this->get_distinct_visibility_sql( 'l' );
 			$params[]  = $club_id;
 		}
 
@@ -1378,71 +1416,49 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function append_default_licence_visibility_filters( array &$where, array &$params, string $statut_filter, bool $has_statut, bool $has_status ): void {
-		$columns = $this->get_licence_columns();
+		global $wpdb;
 
-		if ( in_array( 'deleted_at', $columns, true ) ) {
-			$where[] = "(l.deleted_at IS NULL OR l.deleted_at = '0000-00-00 00:00:00')";
+		$schema = self::get_schema_compat( $wpdb );
+
+		if ( null !== $schema['deleted'] ) {
+			$where[] = 'l.deleted_at IS NULL';
 		}
 
-		if ( '' !== $statut_filter || ( ! $has_statut && ! $has_status ) ) {
+		if ( '' !== $statut_filter || ( ! $has_statut && ! $has_status ) || null === $schema['status'] ) {
 			return;
 		}
 
-		if ( $has_statut && $has_status ) {
-			$where[]  = 'LOWER(COALESCE(l.statut, l.status)) = %s';
-			$params[] = 'valide';
-			return;
-		}
-
-		if ( $has_statut ) {
-			$where[]  = 'LOWER(l.statut) = %s';
-			$params[] = 'valide';
-			return;
-		}
-
-		$where[]  = 'LOWER(l.status) = %s';
+		$where[]  = 'LOWER(l.' . $schema['status'] . ') = %s';
 		$params[] = 'valide';
 	}
 
 	private function get_distinct_visibility_sql( string $alias ): string {
-		$columns = $this->get_licence_columns();
-		$parts   = array();
+		global $wpdb;
 
-		if ( in_array( 'deleted_at', $columns, true ) ) {
-			$parts[] = "({$alias}.deleted_at IS NULL OR {$alias}.deleted_at = '0000-00-00 00:00:00')";
+		$schema = self::get_schema_compat( $wpdb );
+		$parts  = array();
+
+		if ( null !== $schema['deleted'] ) {
+			$parts[] = "{$alias}.deleted_at IS NULL";
 		}
 
-		$has_statut = in_array( 'statut', $columns, true );
-		$has_status = in_array( 'status', $columns, true );
-
-		if ( $has_statut && $has_status ) {
-			$parts[] = "LOWER(COALESCE({$alias}.statut, {$alias}.status)) = 'valide'";
-		} elseif ( $has_statut ) {
-			$parts[] = "LOWER({$alias}.statut) = 'valide'";
-		} elseif ( $has_status ) {
-			$parts[] = "LOWER({$alias}.status) = 'valide'";
+		if ( null !== $schema['status'] ) {
+			$parts[] = "LOWER({$alias}.{$schema['status']}) = 'valide'";
 		}
 
 		return empty( $parts ) ? '' : ' AND ' . implode( ' AND ', $parts );
 	}
 
-	private function get_asptt_number_sql( string $licence_alias, string $documents_alias = '' ): string {
-		$columns = $this->get_licence_columns();
-		$parts   = array();
+	private function get_asptt_number_sql( string $licence_alias ): string {
+		global $wpdb;
 
-		if ( in_array( 'numero_licence_asptt', $columns, true ) ) {
-			$parts[] = "NULLIF({$licence_alias}.numero_licence_asptt, '')";
+		$column = self::get_schema_compat( $wpdb )['asptt'];
+
+		if ( '' === $column ) {
+			return "''";
 		}
 
-		if ( in_array( 'asptt_number', $columns, true ) ) {
-			$parts[] = "NULLIF({$licence_alias}.asptt_number, '')";
-		}
-
-		if ( '' !== $documents_alias && $this->has_document_column( 'source_licence_number' ) ) {
-			$parts[] = "NULLIF({$documents_alias}.source_licence_number, '')";
-		}
-
-		return empty( $parts ) ? "''" : 'COALESCE(' . implode( ', ', $parts ) . ')';
+		return "NULLIF({$licence_alias}.{$column}, '')";
 	}
 
 	private function normalize_category_value( string $value ): string {
@@ -1502,7 +1518,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return strtolower( $value );
 	}
 
-	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
+	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, string $asptt_column, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
 		global $wpdb;
 
 		$term = trim( $term );
@@ -1532,6 +1548,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 			if ( '' !== $like_normalized ) {
 				$search_clauses[] = 'LOWER(l.prenom) LIKE %s';
+				$params[]         = $like_normalized;
+			}
+		}
+
+		if ( '' !== $asptt_column ) {
+			$search_clauses[] = "l.{$asptt_column} LIKE %s";
+			$params[]         = $like;
+
+			if ( '' !== $like_normalized ) {
+				$search_clauses[] = "LOWER(l.{$asptt_column}) LIKE %s";
 				$params[]         = $like_normalized;
 			}
 		}
@@ -1609,16 +1635,61 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_club_columns(): array {
+		if ( null !== $this->clubs_columns ) {
+			return $this->clubs_columns;
+		}
+
 		global $wpdb;
 
 		$table = $this->get_clubs_table();
 		if ( ! $this->table_exists( $table ) ) {
-			return array();
+			$this->clubs_columns = array();
+			return $this->clubs_columns;
 		}
 
 		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$this->clubs_columns = is_array( $columns ) ? $columns : array();
 
-		return is_array( $columns ) ? $columns : array();
+		return $this->clubs_columns;
+	}
+
+	private static function get_schema_compat( $wpdb ): array {
+		static $cache = array();
+
+		$table = $wpdb->prefix . 'ufsc_licences';
+		if ( isset( $cache[ $table ] ) ) {
+			return $cache[ $table ];
+		}
+
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $exists !== $table ) {
+			$cache[ $table ] = array(
+				'asptt'   => null,
+				'season'  => null,
+				'status'  => null,
+				'deleted' => null,
+			);
+
+			return $cache[ $table ];
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$columns = is_array( $columns ) ? $columns : array();
+
+		$cache[ $table ] = array(
+			'asptt'   => in_array( 'numero_licence_asptt', $columns, true )
+				? 'numero_licence_asptt'
+				: ( in_array( 'numero_asptt', $columns, true ) ? 'numero_asptt' : null ),
+			'season'  => in_array( 'season_end_year', $columns, true )
+				? 'season_end_year'
+				: ( in_array( 'saison', $columns, true ) ? 'saison' : null ),
+			'status'  => in_array( 'status', $columns, true )
+				? 'status'
+				: ( in_array( 'statut', $columns, true ) ? 'statut' : null ),
+			'deleted' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : null,
+		);
+
+		return $cache[ $table ];
 	}
 
 	private function get_documents_table() {
