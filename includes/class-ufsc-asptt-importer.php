@@ -1343,32 +1343,14 @@ class UFSC_LC_ASPTT_Importer {
 			}
 		}
 
-	// Par défaut en mode minimal : "update-only" activé si non fourni.
-if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
-	$update_only_minimal = true;
-}
+		// Par défaut en mode minimal : "update-only" activé si non fourni.
+		if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
+			$update_only_minimal = true;
+		}
 
-if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
-	UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
-}
-
-if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
-	$pinned_club_id = 0;
-	$pinned_apply   = false;
-}
-
-if ( $pinned_apply && $pinned_club_id ) {
-	$force_club_id = $pinned_club_id;
-}
-
-/**
- * Sécurité scope (fail-closed) :
- * - si un club est forcé (directement OU via club épinglé appliqué),
- *   on vérifie qu'il est bien dans le scope utilisateur.
- */
-if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
-	UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
-}
+		if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
+		}
 
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
 			$pinned_club_id = 0;
@@ -1377,6 +1359,15 @@ if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
 
 		if ( $pinned_apply && $pinned_club_id ) {
 			$force_club_id = $pinned_club_id;
+		}
+
+		/**
+		 * Sécurité scope (fail-closed) :
+		 * - si un club est forcé (directement OU via club épinglé appliqué),
+		 *   on vérifie qu'il est bien dans le scope utilisateur.
+		 */
+		if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
 		}
 
 		$preview = array();
@@ -1537,9 +1528,6 @@ if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
 		$preview['use_season_override']      = $use_season_override;
 		$preview['season_end_year_override'] = $season_end_year_override;
 		$preview['auto_save_alias']          = $auto_save_alias;
-		$preview['incremental']             = $incremental;
-		$preview['minimal_mode']            = $minimal_mode;
-		$preview['update_only_minimal']     = $update_only_minimal;
 		$preview['incremental']              = $incremental;
 		$preview['minimal_mode']             = $minimal_mode;
 		$preview['update_only_minimal']      = $update_only_minimal;
