@@ -662,8 +662,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$has_prenom      = in_array( 'prenom', $columns, true );
-		$has_statut      = 'statut' === $status_column;
-		$has_status      = 'status' === $status_column;
 		$has_competition = in_array( 'competition', $columns, true );
 
 		$can_join_docs = $this->table_exists( $documents_table )
@@ -707,7 +705,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$params[] = $filters['statut'];
 		}
 
-		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'], $has_statut, $has_status );
+		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'] );
 
 		if ( '' !== $filters['categorie'] ) {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
@@ -804,8 +802,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$has_prenom      = in_array( 'prenom', $columns, true );
 		$has_birthdate   = in_array( 'date_naissance', $columns, true );
-		$has_statut      = 'statut' === $status_column;
-		$has_status      = 'status' === $status_column;
 		$has_competition = in_array( 'competition', $columns, true );
 
 		$can_join_docs = $this->table_exists( $documents_table )
@@ -824,7 +820,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$params[] = $filters['statut'];
 		}
 
-		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'], $has_statut, $has_status );
+		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'] );
 
 		if ( '' !== $filters['categorie'] ) {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
@@ -836,7 +832,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$order   = 'desc' === $filters['order'] ? 'DESC' : 'ASC';
-		$orderby = 'l.' . $filters['orderby'];
+		$orderby = 'l.id';
 
 		$join_sql = '';
 
@@ -937,12 +933,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		if ( 'date_asptt' === $filters['orderby'] ) {
 			$orderby = ( $join_sql && $has_doc_source_date ) ? 'd.source_created_at' : $nom_affiche_sql;
-		}
-		if ( 'date_naissance' === $filters['orderby'] && ! $has_birthdate ) {
+		} elseif ( 'date_naissance' === $filters['orderby'] && ! $has_birthdate ) {
+			$orderby = $nom_affiche_sql;
+		} elseif ( 'date_naissance' === $filters['orderby'] && $has_birthdate ) {
+			$orderby = 'l.date_naissance';
+		} elseif ( 'nom_licence' === $filters['orderby'] ) {
 			$orderby = $nom_affiche_sql;
 		}
-		if ( 'nom_licence' === $filters['orderby'] ) {
-			$orderby = $nom_affiche_sql;
+
+		if ( "''" === $orderby ) {
+			$orderby = in_array( 'id', $columns, true ) ? 'l.id' : '1';
 		}
 
 		$items_sql = "SELECT l.id,
@@ -1061,7 +1061,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_asptt_display_number( $item ): string {
-		$value = trim( (string) ufsc_lc_get_asptt_number( $item ) );
+		$value = trim( (string) ( $item->asptt_number ?? '' ) );
 		if ( '' !== $value ) {
 			return $value;
 		}
@@ -1415,50 +1415,31 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$params[] = $normalized;
 	}
 
-	private function append_default_licence_visibility_filters( array &$where, array &$params, string $statut_filter, bool $has_statut, bool $has_status ): void {
-		$columns = $this->get_licence_columns();
+	private function append_default_licence_visibility_filters( array &$where, array &$params, string $statut_filter ): void {
+		$schema = $this->get_licence_schema_compat();
 
-		if ( in_array( 'deleted_at', $columns, true ) ) {
+		if ( '' !== $schema['deleted'] ) {
 			$where[] = 'l.deleted_at IS NULL';
 		}
 
-		if ( '' !== $statut_filter || ( ! $has_statut && ! $has_status ) ) {
+		if ( '' !== $statut_filter || '' === $schema['status'] ) {
 			return;
 		}
 
-		if ( $has_statut && $has_status ) {
-			$where[]  = 'LOWER(COALESCE(l.statut, l.status)) = %s';
-			$params[] = 'valide';
-			return;
-		}
-
-		if ( $has_statut ) {
-			$where[]  = 'LOWER(l.statut) = %s';
-			$params[] = 'valide';
-			return;
-		}
-
-		$where[]  = 'LOWER(l.status) = %s';
+		$where[]  = "LOWER(l.{$schema['status']}) = %s";
 		$params[] = 'valide';
 	}
 
 	private function get_distinct_visibility_sql( string $alias ): string {
-		$columns = $this->get_licence_columns();
-		$parts   = array();
+		$schema = $this->get_licence_schema_compat();
+		$parts  = array();
 
-		if ( in_array( 'deleted_at', $columns, true ) ) {
+		if ( '' !== $schema['deleted'] ) {
 			$parts[] = "{$alias}.deleted_at IS NULL";
 		}
 
-		$has_statut = in_array( 'statut', $columns, true );
-		$has_status = in_array( 'status', $columns, true );
-
-		if ( $has_statut && $has_status ) {
-			$parts[] = "LOWER(COALESCE({$alias}.statut, {$alias}.status)) = 'valide'";
-		} elseif ( $has_statut ) {
-			$parts[] = "LOWER({$alias}.statut) = 'valide'";
-		} elseif ( $has_status ) {
-			$parts[] = "LOWER({$alias}.status) = 'valide'";
+		if ( '' !== $schema['status'] ) {
+			$parts[] = "LOWER({$alias}.{$schema['status']}) = 'valide'";
 		}
 
 		return empty( $parts ) ? '' : ' AND ' . implode( ' AND ', $parts );
@@ -1686,6 +1667,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			'status' => in_array( 'status', $columns, true )
 				? 'status'
 				: ( in_array( 'statut', $columns, true ) ? 'statut' : '' ),
+			'deleted' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
 		);
 
 		return $cache[ $table ];
