@@ -138,7 +138,7 @@ if ( ! function_exists( 'ufsc_lc_safe_enforce_object_scope' ) ) {
 
 if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 	class UFSC_LC_Scope extends UFSC_Scope {
-		public static function get_user_region( int $user_id = 0 ): string {
+		public static function get_user_region( $user_id = 0 ) {
 			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
 			if ( $user_id <= 0 ) {
 				return '';
@@ -164,7 +164,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			return $scope;
 		}
 
-		public static function get_user_scope_region( int $user_id = 0 ): ?string {
+		public static function get_user_scope_region( $user_id = 0 ) {
 			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
 			if ( $user_id <= 0 ) {
 				return null;
@@ -180,23 +180,23 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			return '' !== $scope ? $scope : null;
 		}
 
-		public static function is_regional_admin( int $user_id = 0 ): bool {
+		public static function is_regional_admin( $user_id = 0 ) {
 			return null !== self::get_user_scope_region( $user_id );
 		}
 
-		public static function apply_licence_scope_sql( array &$where, array &$params, string $club_alias = 'c' ): void {
+		public static function apply_licence_scope_sql( &$where, &$params, $club_alias = 'c' ) {
 			ufsc_lc_apply_scope_to_sql( $where, $params, $club_alias );
 		}
 
-		public static function assert_licence_in_scope( int $licence_id ): void {
+		public static function assert_licence_in_scope( $licence_id ) {
 			self::enforce_licence_scope( $licence_id );
 		}
 
-		public static function assert_club_in_scope( int $club_id ): void {
+		public static function assert_club_in_scope( $club_id ) {
 			self::enforce_club_scope( $club_id );
 		}
 
-		public static function enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {
+		public static function enforce_object_scope( $object_id, $object_type = 'licence' ) {
 			if ( method_exists( 'UFSC_Scope', 'enforce_object_scope' ) ) {
 				UFSC_Scope::enforce_object_scope( $object_id, $object_type );
 				return;
@@ -224,7 +224,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			}
 		}
 
-		public static function enforce_licence_scope( int $licence_id ): void {
+		public static function enforce_licence_scope( $licence_id ) {
 			if ( method_exists( 'UFSC_Scope', 'enforce_licence_scope' ) ) {
 				UFSC_Scope::enforce_licence_scope( $licence_id );
 				return;
@@ -238,7 +238,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			$repository->assert_licence_in_scope( $licence_id );
 		}
 
-		public static function enforce_club_scope( int $club_id ): void {
+		public static function enforce_club_scope( $club_id ) {
 			if ( method_exists( 'UFSC_Scope', 'enforce_club_scope' ) ) {
 				UFSC_Scope::enforce_club_scope( $club_id );
 				return;
@@ -258,7 +258,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			ufsc_lc_assert_object_in_scope( $region );
 		}
 
-		public static function enforce_entry_scope( int $entry_id ): void {
+		public static function enforce_entry_scope( $entry_id ) {
 			if ( method_exists( 'UFSC_Scope', 'enforce_entry_scope' ) ) {
 				UFSC_Scope::enforce_entry_scope( $entry_id );
 				return;
@@ -272,7 +272,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			}
 		}
 
-		public static function enforce_competition_scope( int $competition_id ): void {
+		public static function enforce_competition_scope( $competition_id ) {
 			if ( method_exists( 'UFSC_Scope', 'enforce_competition_scope' ) ) {
 				UFSC_Scope::enforce_competition_scope( $competition_id );
 				return;
