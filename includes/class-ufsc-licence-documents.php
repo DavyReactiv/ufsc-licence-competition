@@ -873,7 +873,7 @@ if ( headers_sent() ) {
 			$select_documents = "CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
 		}
 
-		$sql = "SELECT l.id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
+		$sql = "SELECT l.id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
 			l.club_id, c.nom AS club_name, {$select_documents}
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
@@ -1134,12 +1134,24 @@ if ( headers_sent() ) {
 	private function get_asptt_number_columns() {
 		$table = $this->get_licences_table();
 		$columns = array();
-		foreach ( array( 'numero_licence_asptt', 'asptt_number' ) as $column ) {
+		foreach ( array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number' ) as $column ) {
 			if ( $this->has_column( $table, $column ) ) {
 				$columns[] = $column;
 			}
 		}
 		return $columns;
+	}
+
+	private function get_status_select_sql( $alias ) {
+		$table = $this->get_licences_table();
+		if ( $this->has_column( $table, 'status' ) ) {
+			return "{$alias}.status AS statut";
+		}
+		if ( $this->has_column( $table, 'statut' ) ) {
+			return "{$alias}.statut AS statut";
+		}
+
+		return 'NULL AS statut';
 	}
 
 	private function get_licence_number_sql( $alias ) {

@@ -18,6 +18,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_asptt_number = false;
 	private $has_licence_number_alt = false;
 	private $has_asptt_number_alt = false;
+	private $has_asptt_number_legacy = false;
 	private $has_internal_note = false;
 	private $has_documents_meta_table = false;
 	private $has_competition = false;
@@ -57,6 +58,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_asptt_number          = $this->has_column( $this->get_licences_table(), 'numero_licence_asptt' );
 		$this->has_licence_number_alt    = $this->has_column( $this->get_licences_table(), 'licence_number' );
 		$this->has_asptt_number_alt      = $this->has_column( $this->get_licences_table(), 'asptt_number' );
+		$this->has_asptt_number_legacy   = $this->has_column( $this->get_licences_table(), 'numero_asptt' );
 		$this->has_documents_table       = $this->table_exists( $this->get_documents_table() );
 		$this->has_source_created_at     = $this->has_documents_table && $this->has_column( $this->get_documents_table(), 'source_created_at' );
 		$this->has_internal_note         = $this->has_column( $this->get_licences_table(), 'note_interne' );
@@ -659,8 +661,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$params[] = $search_like;
 			}
 
-			if ( $this->has_asptt_number ) {
-				$search_clauses[] = 'l.numero_licence_asptt LIKE %s';
+			$asptt_column = $this->get_status_or_number_column( 'asptt' );
+			if ( '' !== $asptt_column ) {
+				$search_clauses[] = "l.{$asptt_column} LIKE %s";
 				$params[] = $search_like;
 			}
 
@@ -683,8 +686,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		if ( '' !== $statut ) {
-			$where[] = 'l.statut = %s';
-			$params[] = $statut;
+			$status_column = $this->get_status_or_number_column( 'status' );
+			if ( '' !== $status_column ) {
+				$where[] = "l.{$status_column} = %s";
+				$params[] = $statut;
+			}
 		}
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
@@ -757,7 +763,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
 		$birthdate_column   = $this->has_column( $licences_table, 'date_naissance' ) ? 'l.date_naissance' : 'NULL AS date_naissance';
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -889,8 +895,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				$params[] = $search_like;
 			}
 
-			if ( $this->has_asptt_number ) {
-				$search_clauses[] = 'l.numero_licence_asptt LIKE %s';
+			$asptt_column = $this->get_status_or_number_column( 'asptt' );
+			if ( '' !== $asptt_column ) {
+				$search_clauses[] = "l.{$asptt_column} LIKE %s";
 				$params[] = $search_like;
 			}
 
@@ -913,8 +920,11 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 
 		if ( '' !== $statut ) {
-			$where[] = 'l.statut = %s';
-			$params[] = $statut;
+			$status_column = $this->get_status_or_number_column( 'status' );
+			if ( '' !== $status_column ) {
+				$where[] = "l.{$status_column} = %s";
+				$params[] = $statut;
+			}
 		}
 		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
@@ -983,7 +993,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$age_ref_column    = $this->has_column( $licences_table, 'age_ref' ) ? 'l.age_ref' : 'NULL AS age_ref';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
-		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, l.statut, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
+		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -1772,6 +1782,33 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
+	private function get_status_or_number_column( string $type ): string {
+		if ( 'status' === $type ) {
+			if ( $this->has_column( $this->get_licences_table(), 'status' ) ) {
+				return 'status';
+			}
+			return $this->has_column( $this->get_licences_table(), 'statut' ) ? 'statut' : '';
+		}
+
+		if ( $this->has_asptt_number ) {
+			return 'numero_licence_asptt';
+		}
+		if ( $this->has_asptt_number_legacy ) {
+			return 'numero_asptt';
+		}
+
+		return '';
+	}
+
+	private function get_status_select_sql( string $alias ): string {
+		$column = $this->get_status_or_number_column( 'status' );
+		if ( '' === $column ) {
+			return 'NULL AS statut';
+		}
+
+		return "{$alias}.{$column} AS statut";
+	}
+
 	private function get_asptt_number_sql( $alias, $documents_alias = '' ) {
 		$parts = array();
 		if ( $this->has_asptt_number ) {
@@ -1779,6 +1816,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 		if ( $this->has_asptt_number_alt ) {
 			$parts[] = "NULLIF({$alias}.asptt_number, '')";
+		}
+		if ( $this->has_asptt_number_legacy ) {
+			$parts[] = "NULLIF({$alias}.numero_asptt, '')";
 		}
 		if ( $documents_alias ) {
 			$parts[] = "NULLIF({$documents_alias}.source_licence_number, '')";
