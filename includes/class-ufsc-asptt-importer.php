@@ -1343,19 +1343,32 @@ class UFSC_LC_ASPTT_Importer {
 			}
 		}
 
-		// Par défaut en mode minimal : "update-only" activé si non fourni.
+	// Par défaut en mode minimal : "update-only" activé si non fourni.
+if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
+	$update_only_minimal = true;
+}
 
-		if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
-			$update_only_minimal = true;
-		}
+if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+	UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
+}
 
-		if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
-		}
+if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
+	$pinned_club_id = 0;
+	$pinned_apply   = false;
+}
 
-		if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
-		}
+if ( $pinned_apply && $pinned_club_id ) {
+	$force_club_id = $pinned_club_id;
+}
+
+/**
+ * Sécurité scope (fail-closed) :
+ * - si un club est forcé (directement OU via club épinglé appliqué),
+ *   on vérifie qu'il est bien dans le scope utilisateur.
+ */
+if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+	UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
+}
 
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
 			$pinned_club_id = 0;

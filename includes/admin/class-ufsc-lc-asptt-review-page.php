@@ -108,9 +108,9 @@ class UFSC_LC_ASPTT_Review_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		$document_id = isset( $_POST['document_id'] ) ? absint( $_POST['document_id'] ) : 0;
-		$club_id_raw = isset( $_POST['club_id'] ) ? wp_unslash( $_POST['club_id'] ) : '';
-		$club_id     = ( '' !== $club_id_raw && ctype_digit( (string) $club_id_raw ) ) ? absint( $club_id_raw ) : 0;
+		$document_id    = isset( $_POST['document_id'] ) ? absint( $_POST['document_id'] ) : 0;
+		$club_id_raw    = isset( $_POST['club_id'] ) ? wp_unslash( $_POST['club_id'] ) : '';
+		$club_id        = ( '' !== $club_id_raw && ctype_digit( (string) $club_id_raw ) ) ? absint( $club_id_raw ) : 0;
 		$licence_id_raw = isset( $_POST['licence_id'] ) ? wp_unslash( $_POST['licence_id'] ) : '';
 		$licence_id     = ( '' !== $licence_id_raw && ctype_digit( (string) $licence_id_raw ) ) ? absint( $licence_id_raw ) : 0;
 
@@ -424,10 +424,10 @@ class UFSC_LC_ASPTT_Review_Page {
 		$this->debug_log(
 			'bulk_action_processed',
 			array(
-				'action'      => $action,
-				'document_ids'=> $document_ids,
-				'updated'     => $updated,
-				'failed'      => $failed,
+				'action'       => $action,
+				'document_ids' => $document_ids,
+				'updated'      => $updated,
+				'failed'       => $failed,
 			)
 		);
 	}
@@ -481,8 +481,8 @@ class UFSC_LC_ASPTT_Review_Page {
 			return;
 		}
 
-		$current_club_id    = (int) $document->club_id;
-		$has_current_club   = false;
+		$current_club_id  = (int) $document->club_id;
+		$has_current_club = false;
 		foreach ( $clubs as $club ) {
 			if ( (int) $club['id'] === $current_club_id ) {
 				$has_current_club = true;
@@ -653,12 +653,19 @@ class UFSC_LC_ASPTT_Review_Page {
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
 		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+
+		// Fail-closed: if scoped but missing region column, do not leak data.
 		if ( $scope ) {
 			if ( ! $this->column_exists( $table, 'region' ) ) {
 				return array();
 			}
 
-			return $wpdb->get_results( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE region = %s ORDER BY nom ASC", $scope ) );
+			return $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, nom FROM {$table} WHERE region = %s ORDER BY nom ASC",
+					$scope
+				)
+			);
 		}
 
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );

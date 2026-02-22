@@ -310,7 +310,6 @@ if ( ! function_exists( 'ufsc_lc_get_scope_cache_key' ) ) {
 	}
 }
 
-
 if ( ! function_exists( 'ufsc_lc_get_scope_label' ) ) {
 	function ufsc_lc_get_scope_label( string $region ): string {
 		$region = sanitize_key( $region );
@@ -318,6 +317,7 @@ if ( ! function_exists( 'ufsc_lc_get_scope_label' ) ) {
 			return '';
 		}
 
+		// Special marker used by scope normalization to represent “no region assigned”.
 		if ( '__no_region__' === $region ) {
 			return __( 'Non assignée', 'ufsc-licence-competition' );
 		}

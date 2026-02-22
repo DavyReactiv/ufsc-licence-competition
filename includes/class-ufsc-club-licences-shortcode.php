@@ -70,9 +70,26 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return esc_html__( 'Accès réservé.', 'ufsc-licence-competition' );
 		}
 
-		$club_id = $this->get_current_user_club_id();
+		$club_context = function_exists( 'ufsc_lc_resolve_current_club_id' ) ? ufsc_lc_resolve_current_club_id( (int) get_current_user_id() ) : array();
+		$club_id      = $this->get_current_user_club_id();
 		if ( ! $club_id ) {
-			return esc_html__( 'Aucun club associé à ce compte.', 'ufsc-licence-competition' );
+			$this->log_anomaly( 'club_id_missing', array( 'user_id' => (int) get_current_user_id() ) );
+			return esc_html__( 'Aucune licence affichée : votre compte n’est pas rattaché à un club UFSC. Contactez l’administration.', 'ufsc-licence-competition' );
+		}
+
+		$scope_check = $this->validate_scope_access( $club_id );
+		if ( ! empty( $scope_check['denied'] ) ) {
+			$this->log_anomaly(
+				'scope_blocked',
+				array(
+					'user_id'     => (int) get_current_user_id(),
+					'club_id'     => (int) $club_id,
+					'scope'       => (string) ( $scope_check['scope'] ?? '' ),
+					'club_region' => (string) ( $scope_check['club_region'] ?? '' ),
+				)
+			);
+
+			return esc_html__( 'Accès restreint : votre compte n’est pas autorisé sur ce périmètre.', 'ufsc-licence-competition' );
 		}
 
 		wp_enqueue_style( 'dashicons' );
@@ -99,6 +116,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$stats   = $this->get_stats( $club_id, $filters );
 		$results = $this->get_licences( $club_id, $filters );
+
+		if ( $this->is_debug_enabled() && ! empty( $this->stats_cache_hit ) && 0 === (int) ( $stats['total'] ?? 0 ) && $this->get_raw_licence_count( $club_id ) > 0 ) {
+			$this->log_anomaly(
+				'cache_zero_with_rows',
+				array(
+					'club_id' => (int) $club_id,
+					'filters' => $this->get_filters_cache_parts( $filters ),
+				)
+			);
+		}
 
 		$items       = isset( $results['items'] ) ? $results['items'] : array();
 		$total_pages = isset( $results['total_pages'] ) ? (int) $results['total_pages'] : 1;
@@ -214,6 +241,23 @@ class UFSC_LC_Club_Licences_Shortcode {
 		</div>
 
 		<form method="get" class="ufsc-licence-filters" id="ufsc-licence-filters">
+			<?php if ( $this->can_render_debug_notice() && $this->is_debug_enabled() ) : ?>
+				<p style="margin:0 0 8px 0;color:#50575e;font-size:12px;">
+					<?php
+					echo esc_html(
+						sprintf(
+							'UFSC LC debug — club_id=%1$d, source=%2$s, scope=%3$s, résultats=%4$d, filtres=%5$s',
+							(int) $club_id,
+							(string) ( $club_context['source'] ?? '' ),
+							(string) ( $scope_check['scope'] ?? 'all' ),
+							(int) ( $results['total'] ?? 0 ),
+							wp_json_encode( $this->get_filters_cache_parts( $filters ) )
+						)
+					);
+					?>
+				</p>
+			<?php endif; ?>
+
 			<div>
 				<label for="ufsc-licence-search"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label>
 				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom, N° ASPTT', 'ufsc-licence-competition' ); ?>" />
@@ -1045,24 +1089,85 @@ class UFSC_LC_Club_Licences_Shortcode {
 	}
 
 	private function get_current_user_club_id() {
-		global $wpdb;
-
 		$user_id = get_current_user_id();
 		if ( ! $user_id ) {
 			return 0;
 		}
 
-		$table = $this->get_clubs_table();
-
-		$club_id = $wpdb->get_var(
-			$wpdb->prepare( "SELECT id FROM {$table} WHERE responsable_id = %d", $user_id )
-		);
-
-		if ( ! $club_id ) {
-			$club_id = get_user_meta( $user_id, 'club_id', true );
+		if ( function_exists( 'ufsc_lc_get_current_club_id' ) ) {
+			return (int) ufsc_lc_get_current_club_id( (int) $user_id );
 		}
 
-		return $club_id ? (int) $club_id : 0;
+		return 0;
+	}
+
+	private function is_debug_enabled(): bool {
+		if ( defined( 'UFSC_LC_DEBUG' ) ) {
+			return (bool) UFSC_LC_DEBUG;
+		}
+
+		return (bool) get_option( 'ufsc_lc_debug', false );
+	}
+
+	private function can_render_debug_notice(): bool {
+		if ( current_user_can( 'manage_options' ) ) {
+			return true;
+		}
+
+		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
+		return '' !== $required_capability && current_user_can( $required_capability );
+	}
+
+	private function log_anomaly( string $code, array $context = array() ): void {
+		if ( ! $this->is_debug_enabled() ) {
+			return;
+		}
+
+		error_log( 'UFSC LC anomaly [' . $code . '] ' . wp_json_encode( $context ) );
+	}
+
+	private function validate_scope_access( int $club_id ): array {
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		$scope = is_string( $scope ) ? trim( $scope ) : '';
+
+		if ( '' === $scope ) {
+			return array( 'denied' => false, 'scope' => 'all', 'club_region' => '' );
+		}
+
+		$club_region = $this->get_club_region( $club_id );
+		if ( '' === $club_region ) {
+			return array( 'denied' => true, 'scope' => $scope, 'club_region' => '' );
+		}
+
+		return array(
+			'denied'      => 0 !== strcasecmp( $club_region, $scope ),
+			'scope'       => $scope,
+			'club_region' => $club_region,
+		);
+	}
+
+	private function get_club_region( int $club_id ): string {
+		global $wpdb;
+
+		$table = $this->get_clubs_table();
+		if ( ! $this->table_exists( $table ) || ! in_array( 'region', $this->get_club_columns(), true ) ) {
+			return '';
+		}
+
+		$region = $wpdb->get_var( $wpdb->prepare( "SELECT region FROM {$table} WHERE id = %d", $club_id ) );
+
+		return is_string( $region ) ? trim( $region ) : '';
+	}
+
+	private function get_raw_licence_count( int $club_id ): int {
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return 0;
+		}
+
+		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE club_id = %d", $club_id ) );
 	}
 
 	private function get_document_by_licence( $licence_id ) {
@@ -1501,6 +1606,19 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		return (string) $value;
+	}
+
+	private function get_club_columns(): array {
+		global $wpdb;
+
+		$table = $this->get_clubs_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return array();
+		}
+
+		$columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+
+		return is_array( $columns ) ? $columns : array();
 	}
 
 	private function get_documents_table() {
