@@ -164,7 +164,7 @@ if ( class_exists( 'UFSC_Scope' ) && ! class_exists( 'UFSC_LC_Scope' ) ) {
 			return $scope;
 		}
 
-		public static function get_user_scope_region( $user_id = 0 ) {
+		public static function get_user_scope_region( int $user_id = 0 ): ?string {
 			$user_id = $user_id > 0 ? $user_id : get_current_user_id();
 			if ( $user_id <= 0 ) {
 				return null;
