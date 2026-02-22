@@ -1851,32 +1851,22 @@ $ids = array_values( array_unique( $ids ) );
 			}
 
 			if ( $licence_id ) {
-				$update_result = $this->update_minimal_licence(
-					$licence_id,
-					array(
-						'nom'            => $data['nom'],
-						'prenom'         => $data['prenom'],
-						'date_naissance' => $data['date_naissance'],
-						'sexe'           => $data['genre'],
-					)
+				$payload = array(
+					'nom'            => $data['nom'],
+					'prenom'         => $data['prenom'],
+					'date_naissance' => $data['date_naissance'],
+					'sexe'           => $data['genre'],
 				);
 
-$payload = array(
-	'nom'            => $data['nom'],
-	'prenom'         => $data['prenom'],
-	'date_naissance' => $data['date_naissance'],
-	'sexe'           => $data['genre'],
-);
+				// Ajout trace batch si présent (sans rendre l'import obligatoire).
+				if ( isset( $import_batch_id ) && '' !== (string) $import_batch_id ) {
+					$payload['import_batch_id'] = (string) $import_batch_id;
+				}
 
-// Ajout trace batch si présent (sans rendre l'import obligatoire)
-if ( isset( $import_batch_id ) && '' !== (string) $import_batch_id ) {
-	$payload['import_batch_id'] = (string) $import_batch_id;
-}
-
-$update_result = $this->update_minimal_licence(
-	$licence_id,
-	$payload
-);
+				$update_result = $this->update_minimal_licence(
+					$licence_id,
+					$payload
+				);
 
 
 				if ( is_wp_error( $update_result ) ) {
@@ -1919,11 +1909,6 @@ $update_result = $this->update_minimal_licence(
 
 					)
 				);
-
-if ( isset( $data['import_batch_id'] ) && in_array( 'import_batch_id', $columns, true ) && '' !== (string) $data['import_batch_id'] ) {
-	$fields['import_batch_id'] = (string) $data['import_batch_id'];
-	$formats[] = '%s';
-}
 
 
 				if ( is_wp_error( $create_result ) ) {
