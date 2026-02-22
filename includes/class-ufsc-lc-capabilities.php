@@ -27,6 +27,7 @@ class UFSC_LC_Capabilities {
 			$role->add_cap( self::EDIT_CAPABILITY );
 			$role->add_cap( self::VALIDATE_CAPABILITY );
 			$role->add_cap( self::DELETE_CAPABILITY );
+			$role->add_cap( self::SCOPE_ALL_REGIONS_CAPABILITY );
 			$role->add_cap( self::MANAGE_CAPABILITY );
 			$role->add_cap( self::MANAGE_READ_CAPABILITY );
 			$role->add_cap( self::IMPORT_CAPABILITY );
@@ -72,6 +73,7 @@ class UFSC_LC_Capabilities {
 			$role->remove_cap( self::EDIT_CAPABILITY );
 			$role->remove_cap( self::VALIDATE_CAPABILITY );
 			$role->remove_cap( self::DELETE_CAPABILITY );
+			$role->remove_cap( self::SCOPE_ALL_REGIONS_CAPABILITY );
 			$role->remove_cap( self::MANAGE_CAPABILITY );
 			$role->remove_cap( self::MANAGE_READ_CAPABILITY );
 			$role->remove_cap( self::IMPORT_CAPABILITY );

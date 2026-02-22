@@ -93,12 +93,19 @@ class UFSC_LC_Status_Page {
 				'aliases'   => $this->table_exists( $aliases_table ),
 			);
 
-			$scope_join  = '';
-			$scope_where = '';
-			$scope_args  = array();
-			if ( $scope_enabled && $tables['clubs'] && $this->has_column( $clubs_table, 'region' ) ) {
-				$scope_where = ' WHERE c.region = %s';
-				$scope_args[] = $scope_region;
+			$scope_join         = '';
+			$scope_where        = '';
+			$scope_args         = array();
+			$scope_hard_denied  = false;
+
+			// Fail-closed: scoped users should not see global counts if clubs.region is unavailable.
+			if ( $scope_enabled ) {
+				if ( ! $tables['clubs'] || ! $this->has_column( $clubs_table, 'region' ) ) {
+					$scope_hard_denied = true;
+				} else {
+					$scope_where  = ' WHERE c.region = %s';
+					$scope_args[] = $scope_region;
+				}
 			}
 
 			$counts = array(
@@ -107,28 +114,44 @@ class UFSC_LC_Status_Page {
 				'documents' => null,
 			);
 
-			if ( $tables['licences'] ) {
+			if ( $scope_hard_denied ) {
+				$counts = array(
+					'licences'  => 0,
+					'clubs'     => 0,
+					'documents' => 0,
+				);
+			}
+
+			if ( $tables['licences'] && ! $scope_hard_denied ) {
 				if ( '' !== $scope_where ) {
 					$counts['licences'] = (int) $wpdb->get_var(
-						$wpdb->prepare( "SELECT COUNT(*) FROM {$licences_table} l INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}", $scope_args )
+						$wpdb->prepare(
+							"SELECT COUNT(*) FROM {$licences_table} l INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}",
+							$scope_args
+						)
 					);
 				} else {
 					$counts['licences'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$licences_table}" );
 				}
 			}
 
-			if ( $tables['clubs'] ) {
+			if ( $tables['clubs'] && ! $scope_hard_denied ) {
 				if ( '' !== $scope_where ) {
-					$counts['clubs'] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$clubs_table} c{$scope_where}", $scope_args ) );
+					$counts['clubs'] = (int) $wpdb->get_var(
+						$wpdb->prepare( "SELECT COUNT(*) FROM {$clubs_table} c{$scope_where}", $scope_args )
+					);
 				} else {
 					$counts['clubs'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$clubs_table}" );
 				}
 			}
 
-			if ( $tables['documents'] ) {
+			if ( $tables['documents'] && ! $scope_hard_denied ) {
 				if ( '' !== $scope_where && $tables['licences'] ) {
 					$counts['documents'] = (int) $wpdb->get_var(
-						$wpdb->prepare( "SELECT COUNT(*) FROM {$docs_table} d INNER JOIN {$licences_table} l ON l.id = d.licence_id INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}", $scope_args )
+						$wpdb->prepare(
+							"SELECT COUNT(*) FROM {$docs_table} d INNER JOIN {$licences_table} l ON l.id = d.licence_id INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}",
+							$scope_args
+						)
 					);
 				} else {
 					$counts['documents'] = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$docs_table}" );
@@ -136,11 +159,14 @@ class UFSC_LC_Status_Page {
 			}
 
 			$last_import = null;
-			if ( $tables['documents'] ) {
+			if ( $tables['documents'] && ! $scope_hard_denied ) {
 				$import_column = $this->has_column( $docs_table, 'imported_at' ) ? 'imported_at' : 'updated_at';
 				if ( '' !== $scope_where && $tables['licences'] ) {
 					$last_import = $wpdb->get_var(
-						$wpdb->prepare( "SELECT MAX(d.{$import_column}) FROM {$docs_table} d INNER JOIN {$licences_table} l ON l.id = d.licence_id INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}", $scope_args )
+						$wpdb->prepare(
+							"SELECT MAX(d.{$import_column}) FROM {$docs_table} d INNER JOIN {$licences_table} l ON l.id = d.licence_id INNER JOIN {$clubs_table} c ON c.id = l.club_id{$scope_where}",
+							$scope_args
+						)
 					);
 				} else {
 					$last_import = $wpdb->get_var( "SELECT MAX({$import_column}) FROM {$docs_table}" );
@@ -148,7 +174,7 @@ class UFSC_LC_Status_Page {
 			}
 
 			$season_counts = array();
-			if ( $tables['licences'] && $season_column ) {
+			if ( $tables['licences'] && $season_column && ! $scope_hard_denied ) {
 				$season_sql = "SELECT l.{$season_column} AS saison, COUNT(*) AS total FROM {$licences_table} l";
 				if ( '' !== $scope_where ) {
 					$season_sql .= " INNER JOIN {$clubs_table} c ON c.id = l.club_id";
@@ -158,7 +184,10 @@ class UFSC_LC_Status_Page {
 					$season_sql .= " AND c.region = %s";
 				}
 				$season_sql .= " GROUP BY l.{$season_column} ORDER BY l.{$season_column} DESC";
-				$results = '' !== $scope_where ? $wpdb->get_results( $wpdb->prepare( $season_sql, $scope_args ) ) : $wpdb->get_results( $season_sql );
+
+				$results = '' !== $scope_where
+					? $wpdb->get_results( $wpdb->prepare( $season_sql, $scope_args ) )
+					: $wpdb->get_results( $season_sql );
 
 				foreach ( $results as $row ) {
 					$season_counts[] = array(
@@ -189,8 +218,8 @@ class UFSC_LC_Status_Page {
 		$last_import_display = '';
 
 		if ( $last_import ) {
-			$formatted            = mysql2date( 'd/m/Y H:i', $last_import );
-			$last_import_display  = '' !== $formatted ? $formatted : $last_import;
+			$formatted           = mysql2date( 'd/m/Y H:i', $last_import );
+			$last_import_display = '' !== $formatted ? $formatted : $last_import;
 		}
 
 		?>

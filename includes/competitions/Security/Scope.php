@@ -36,6 +36,9 @@ if ( ! function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ) {
 			return null;
 		}
 
+		// Keep compatibility with existing UFSC_LC_Scope implementation:
+		// - get_user_region() returns '' when no scope is set
+		// - we return null in that case (no regional restriction)
 		if ( class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_region' ) ) {
 			$scope = UFSC_LC_Scope::get_user_region( $user_id );
 			return '' !== $scope ? $scope : null;
@@ -50,6 +53,7 @@ if ( ! function_exists( 'ufsc_lc_competitions_scope_profile_fields' ) ) {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
+
 		$value = class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_region' )
 			? UFSC_LC_Scope::get_user_region( (int) $user->ID )
 			: '';

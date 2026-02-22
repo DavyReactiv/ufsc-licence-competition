@@ -1343,15 +1343,32 @@ class UFSC_LC_ASPTT_Importer {
 			}
 		}
 
-		// Par défaut en mode minimal : "update-only" activé si non fourni.
+	// Par défaut en mode minimal : "update-only" activé si non fourni.
+if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
+	$update_only_minimal = true;
+}
 
-		if ( $minimal_mode && ! isset( $_POST['ufsc_asptt_update_only_minimal'] ) && ! $update_only_minimal ) {
-			$update_only_minimal = true;
-		}
+if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+	UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
+}
 
-		if ( $pinned_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
-			UFSC_LC_Scope::assert_club_in_scope( $pinned_club_id );
-		}
+if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
+	$pinned_club_id = 0;
+	$pinned_apply   = false;
+}
+
+if ( $pinned_apply && $pinned_club_id ) {
+	$force_club_id = $pinned_club_id;
+}
+
+/**
+ * Sécurité scope (fail-closed) :
+ * - si un club est forcé (directement OU via club épinglé appliqué),
+ *   on vérifie qu'il est bien dans le scope utilisateur.
+ */
+if ( $force_club_id && class_exists( 'UFSC_LC_Scope' ) ) {
+	UFSC_LC_Scope::assert_club_in_scope( $force_club_id );
+}
 
 		if ( $pinned_club_id && ! $this->get_club_by_id( $pinned_club_id ) ) {
 			$pinned_club_id = 0;
@@ -2097,15 +2114,35 @@ class UFSC_LC_ASPTT_Importer {
 	private function get_clubs() {
 		global $wpdb;
 		$table = $this->get_clubs_table();
+		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		if ( $scope ) {
+			$has_region = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'region'" );
+			if ( ! $has_region ) {
+				return array();
+			}
+
+			return $wpdb->get_results( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE region = %s ORDER BY nom ASC", $scope ) );
+		}
+
 		return $wpdb->get_results( "SELECT id, nom FROM {$table} ORDER BY nom ASC" );
 	}
 
 	private function get_club_by_id( $club_id ) {
 		global $wpdb;
 		$table = $this->get_clubs_table();
-		return $wpdb->get_row(
+
+		$club = $wpdb->get_row(
 			$wpdb->prepare( "SELECT id, nom FROM {$table} WHERE id = %d", $club_id )
 		);
+		if ( ! $club ) {
+			return null;
+		}
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			UFSC_LC_Scope::assert_club_in_scope( (int) $club->id );
+		}
+
+		return $club;
 	}
 
 	private function get_clubs_table() {
