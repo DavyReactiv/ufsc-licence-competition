@@ -657,8 +657,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$columns         = $this->get_licence_columns();
 
 		$schema          = $this->get_licence_schema_compat();
-		$status_column   = $schema['status'];
-		$asptt_column    = $schema['asptt'];
+		$status_expr     = $schema['status_expr'];
+		$asptt_column    = $schema['asptt_col'];
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
 		$has_prenom      = in_array( 'prenom', $columns, true );
@@ -700,8 +700,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 		}
 
-		if ( '' !== $filters['statut'] && '' !== $status_column ) {
-			$where[]  = "l.{$status_column} = %s";
+		if ( '' !== $filters['statut'] && '' !== $status_expr ) {
+			$where[]  = "{$status_expr} = %s";
 			$params[] = $filters['statut'];
 		}
 
@@ -795,8 +795,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$schema        = $this->get_licence_schema_compat();
-		$status_column = $schema['status'];
-		$asptt_column  = $schema['asptt'];
+		$status_expr   = $schema['status_expr'];
+		$asptt_column  = $schema['asptt_col'];
 
 		$has_nom         = in_array( 'nom', $columns, true );
 		$has_nom_licence = in_array( 'nom_licence', $columns, true );
@@ -815,8 +815,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$where  = array( 'l.club_id = %d' );
 		$params = array( $club_id );
 
-		if ( '' !== $filters['statut'] && '' !== $status_column ) {
-			$where[]  = "l.{$status_column} = %s";
+		if ( '' !== $filters['statut'] && '' !== $status_expr ) {
+			$where[]  = "{$status_expr} = %s";
 			$params[] = $filters['statut'];
 		}
 
@@ -852,7 +852,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			: 'COALESCE(' . implode( ', ', $category_select_parts ) . ') AS categorie_affiche';
 
 		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
-		$season_end_year_sql  = '' !== $schema['season'] ? "l.{$schema['season']} AS season_end_year" : 'NULL AS season_end_year';
+		$season_end_year_sql  = '' !== $schema['season_col'] ? "l.{$schema['season_col']} AS season_end_year" : 'NULL AS season_end_year';
 
 		$select_document_columns = 'NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
@@ -860,7 +860,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$prenom_select      = $has_prenom ? 'l.prenom' : 'NULL AS prenom';
 		$birthdate_select   = $has_birthdate ? 'l.date_naissance' : 'NULL AS date_naissance';
-		$statut_select      = '' !== $status_column ? "l.{$status_column} AS statut" : 'NULL AS statut';
+		$statut_select      = '' !== $status_expr ? "{$status_expr} AS statut" : 'NULL AS statut';
 		$competition_select = $has_competition ? 'l.competition' : 'NULL AS competition';
 
 		if ( $can_join_docs ) {
@@ -1302,11 +1302,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$selects = array();
 		$params  = array();
 
-		$schema        = $this->get_licence_schema_compat();
-		$status_column = $schema['status'];
+		$schema      = $this->get_licence_schema_compat();
+		$status_expr = $schema['status_expr'];
 
-		if ( '' !== $status_column ) {
-			$selects[] = "SELECT 'statut' AS type, l.{$status_column} AS value FROM {$table} l WHERE l.club_id = %d AND l.{$status_column} IS NOT NULL AND l.{$status_column} != ''" . $this->get_distinct_visibility_sql( 'l' );
+		if ( '' !== $status_expr ) {
+			$selects[] = "SELECT 'statut' AS type, {$status_expr} AS value FROM {$table} l WHERE l.club_id = %d AND {$status_expr} IS NOT NULL AND {$status_expr} != ''" . $this->get_distinct_visibility_sql( 'l' );
 			$params[]  = $club_id;
 		}
 
@@ -1418,15 +1418,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function append_default_licence_visibility_filters( array &$where, array &$params, string $statut_filter ): void {
 		$schema = $this->get_licence_schema_compat();
 
-		if ( '' !== $schema['deleted'] ) {
-			$where[] = 'l.deleted_at IS NULL';
+		if ( '' !== $schema['deleted_col'] ) {
+			$where[] = "l.{$schema['deleted_col']} IS NULL";
 		}
 
-		if ( '' !== $statut_filter || '' === $schema['status'] ) {
+		if ( '' !== $statut_filter || '' === $schema['status_expr'] ) {
 			return;
 		}
 
-		$where[]  = "LOWER(l.{$schema['status']}) = %s";
+		$where[]  = "LOWER({$schema['status_expr']}) = %s";
 		$params[] = 'valide';
 	}
 
@@ -1434,19 +1434,19 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$schema = $this->get_licence_schema_compat();
 		$parts  = array();
 
-		if ( '' !== $schema['deleted'] ) {
-			$parts[] = "{$alias}.deleted_at IS NULL";
+		if ( '' !== $schema['deleted_col'] ) {
+			$parts[] = "{$alias}.{$schema['deleted_col']} IS NULL";
 		}
 
-		if ( '' !== $schema['status'] ) {
-			$parts[] = "LOWER({$alias}.{$schema['status']}) = 'valide'";
+		if ( '' !== $schema['status_expr'] ) {
+			$parts[] = "LOWER({$schema['status_expr']}) = 'valide'";
 		}
 
 		return empty( $parts ) ? '' : ' AND ' . implode( ' AND ', $parts );
 	}
 
 	private function get_asptt_number_sql( string $licence_alias ): string {
-		$column = $this->get_licence_schema_compat()['asptt'];
+		$column = $this->get_licence_schema_compat()['asptt_col'];
 
 		if ( '' === $column ) {
 			return "''";
@@ -1657,17 +1657,28 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$columns = $this->get_licence_columns();
 
+		$has_statut = in_array( 'statut', $columns, true );
+		$has_status = in_array( 'status', $columns, true );
+
+		if ( $has_statut && $has_status ) {
+			$status_expr = "COALESCE(NULLIF(l.statut,''), NULLIF(l.status,''))";
+		} elseif ( $has_statut ) {
+			$status_expr = 'l.statut';
+		} elseif ( $has_status ) {
+			$status_expr = 'l.status';
+		} else {
+			$status_expr = '';
+		}
+
 		$cache[ $table ] = array(
-			'asptt'  => in_array( 'numero_licence_asptt', $columns, true )
+			'asptt_col'  => in_array( 'numero_licence_asptt', $columns, true )
 				? 'numero_licence_asptt'
 				: ( in_array( 'numero_asptt', $columns, true ) ? 'numero_asptt' : '' ),
-			'season' => in_array( 'season_end_year', $columns, true )
+			'season_col' => in_array( 'season_end_year', $columns, true )
 				? 'season_end_year'
 				: ( in_array( 'saison', $columns, true ) ? 'saison' : '' ),
-			'status' => in_array( 'status', $columns, true )
-				? 'status'
-				: ( in_array( 'statut', $columns, true ) ? 'statut' : '' ),
-			'deleted' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
+			'deleted_col' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
+			'status_expr' => $status_expr,
 		);
 
 		return $cache[ $table ];
