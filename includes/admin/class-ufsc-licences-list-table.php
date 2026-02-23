@@ -638,6 +638,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$where  = array();
 		$params = array();
+		$this->add_soft_delete_filter( $where, 'l' );
 
 		$search_like = '';
 		if ( '' !== $search ) {
@@ -686,9 +687,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		if ( '' !== $statut ) {
-			$status_column = $this->get_status_or_number_column( 'status' );
-			if ( '' !== $status_column ) {
-				$where[] = "l.{$status_column} = %s";
+			$status_expr = $this->get_status_expression_sql( 'l' );
+			if ( '' !== $status_expr ) {
+				$where[] = "{$status_expr} = %s";
 				$params[] = $statut;
 			}
 		}
@@ -872,6 +873,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		$where  = array();
 		$params = array();
+		$this->add_soft_delete_filter( $where, 'l' );
 
 		$search_like = '';
 		if ( '' !== $search ) {
@@ -920,9 +922,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 
 		if ( '' !== $statut ) {
-			$status_column = $this->get_status_or_number_column( 'status' );
-			if ( '' !== $status_column ) {
-				$where[] = "l.{$status_column} = %s";
+			$status_expr = $this->get_status_expression_sql( 'l' );
+			if ( '' !== $status_expr ) {
+				$where[] = "{$status_expr} = %s";
 				$params[] = $statut;
 			}
 		}
@@ -1071,20 +1073,14 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 
-		$has_statut = $this->has_column( $licences_table, 'statut' );
-		$has_status = $this->has_column( $licences_table, 'status' );
+		unset( $licences_table );
 
-		if ( ! $has_statut && ! $has_status ) {
+		$status_expr = $this->get_status_expression_sql( 'l' );
+		if ( '' === $status_expr ) {
 			return;
 		}
 
-		if ( $has_statut && $has_status ) {
-			$status_expr = 'LOWER(COALESCE(l.statut, l.status))';
-		} else {
-			$status_expr = $has_statut ? 'LOWER(l.statut)' : 'LOWER(l.status)';
-		}
-
-		$where[] = "{$status_expr} = %s";
+		$where[] = 'LOWER(' . $status_expr . ') = %s';
 		$params[] = 'valide';
 	}
 
@@ -1408,6 +1404,34 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return $values;
 		}
 
+		if ( 'statut' === $column ) {
+			$status_expr = $this->get_status_expression_sql( 'l' );
+			if ( '' === $status_expr ) {
+				$runtime_cache[ $cache_key ] = array();
+				wp_cache_set( $cache_key, $runtime_cache[ $cache_key ], 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+				set_transient( $cache_key, $runtime_cache[ $cache_key ], 10 * MINUTE_IN_SECONDS );
+				return $runtime_cache[ $cache_key ];
+			}
+
+			$deleted_where = $this->get_soft_delete_where_sql( 'l' );
+			$results       = $wpdb->get_col(
+				"SELECT DISTINCT TRIM({$status_expr})
+					FROM {$table} l
+					WHERE {$status_expr} IS NOT NULL
+						AND {$status_expr} != ''{$deleted_where}
+					ORDER BY TRIM({$status_expr}) ASC"
+			);
+			if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
+				$this->refresh_schema_cache( $table );
+				return $this->get_distinct_values( $column, false );
+			}
+			$values = array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			$runtime_cache[ $cache_key ] = $values;
+			wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
+			set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
+			return $values;
+		}
+
 		// Generic
 		if ( ! $this->has_column( $table, $column ) ) {
 			$runtime_cache[ $cache_key ] = array();
@@ -1416,7 +1440,8 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return $runtime_cache[ $cache_key ];
 		}
 
-		$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$column}) FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != '' ORDER BY TRIM({$column}) ASC" );
+		$deleted_where = $this->get_soft_delete_where_sql();
+		$results = $wpdb->get_col( "SELECT DISTINCT TRIM({$column}) FROM {$table} WHERE {$column} IS NOT NULL AND {$column} != ''{$deleted_where} ORDER BY TRIM({$column}) ASC" );
 		if ( $retry && $this->is_unknown_column_error( $wpdb->last_error ) ) {
 			$this->refresh_schema_cache( $table );
 			return $this->get_distinct_values( $column, false );
@@ -1653,6 +1678,21 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		return UFSC_LC_Categories::sanitize_season_end_year( $year );
 	}
 
+
+	private function get_table_columns( $table ): array {
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			return UFSC_LC_Schema_Cache::get_columns( $table );
+		}
+
+		global $wpdb;
+		$results = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		if ( ! is_array( $results ) ) {
+			return array();
+		}
+
+		return array_map( 'strval', $results );
+	}
+
 	private function has_column( $table, $column ) {
 		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
 			return UFSC_LC_Schema_Cache::column_exists( $table, $column );
@@ -1784,10 +1824,8 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function get_status_or_number_column( string $type ): string {
 		if ( 'status' === $type ) {
-			if ( $this->has_column( $this->get_licences_table(), 'status' ) ) {
-				return 'status';
-			}
-			return $this->has_column( $this->get_licences_table(), 'statut' ) ? 'statut' : '';
+			$schema = $this->get_licence_schema_compat( 'l' );
+			return '' !== $schema['status_expr'] ? 'status_expr' : '';
 		}
 
 		if ( $this->has_asptt_number ) {
@@ -1801,12 +1839,72 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	}
 
 	private function get_status_select_sql( string $alias ): string {
-		$column = $this->get_status_or_number_column( 'status' );
-		if ( '' === $column ) {
+		$status_expr = $this->get_status_expression_sql( $alias );
+		if ( '' === $status_expr ) {
 			return 'NULL AS statut';
 		}
 
-		return "{$alias}.{$column} AS statut";
+		return "{$status_expr} AS statut";
+	}
+
+	private function get_status_expression_sql( string $alias = 'l' ): string {
+		$schema = $this->get_licence_schema_compat( $alias );
+		return $schema['status_expr'];
+	}
+
+	private function add_soft_delete_filter( array &$where, string $alias = 'l' ): void {
+		$schema = $this->get_licence_schema_compat( $alias );
+		if ( '' !== $schema['deleted_col'] ) {
+			$where[] = "{$alias}.{$schema['deleted_col']} IS NULL";
+		}
+	}
+
+	private function get_soft_delete_where_sql( string $alias = '' ): string {
+		$schema = $this->get_licence_schema_compat( '' !== $alias ? $alias : 'l' );
+		if ( '' === $schema['deleted_col'] ) {
+			return '';
+		}
+
+		$column = '' !== $alias ? "{$alias}.{$schema['deleted_col']}" : $schema['deleted_col'];
+
+		return " AND {$column} IS NULL";
+	}
+
+	private function get_licence_schema_compat( string $alias = 'l' ): array {
+		static $cache = array();
+
+		$table      = $this->get_licences_table();
+		$cache_key  = $table . '|' . $alias;
+		if ( isset( $cache[ $cache_key ] ) ) {
+			return $cache[ $cache_key ];
+		}
+
+		$columns    = $this->get_table_columns( $table );
+		$has_statut = in_array( 'statut', $columns, true );
+		$has_status = in_array( 'status', $columns, true );
+
+		if ( $has_statut && $has_status ) {
+			$status_expr = "COALESCE(NULLIF({$alias}.statut,''), NULLIF({$alias}.status,''))";
+		} elseif ( $has_statut ) {
+			$status_expr = "{$alias}.statut";
+		} elseif ( $has_status ) {
+			$status_expr = "{$alias}.status";
+		} else {
+			$status_expr = '';
+		}
+
+		$cache[ $cache_key ] = array(
+			'asptt_col'   => in_array( 'numero_licence_asptt', $columns, true )
+				? 'numero_licence_asptt'
+				: ( in_array( 'numero_asptt', $columns, true ) ? 'numero_asptt' : '' ),
+			'season_col'  => in_array( 'season_end_year', $columns, true )
+				? 'season_end_year'
+				: ( in_array( 'saison', $columns, true ) ? 'saison' : '' ),
+			'deleted_col' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
+			'status_expr' => $status_expr,
+		);
+
+		return $cache[ $cache_key ];
 	}
 
 	private function get_asptt_number_sql( $alias, $documents_alias = '' ) {
