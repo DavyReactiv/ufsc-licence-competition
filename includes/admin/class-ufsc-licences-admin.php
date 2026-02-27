@@ -13,6 +13,7 @@ class UFSC_LC_Licences_Admin {
 		add_action( 'admin_post_ufsc_lc_export_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_update_asptt_number', array( $this, 'handle_update_asptt_number' ) );
+		add_action( 'admin_post_ufsc_lc_update_club_responsable', array( $this, 'handle_update_club_responsable' ) );
 	}
 
 	public function register_menu() {
@@ -209,6 +210,82 @@ class UFSC_LC_Licences_Admin {
 		$this->bump_licence_caches( $licence_id );
 
 		$this->redirect_to_edit_page( $licence_id, 'success', 'asptt_updated' );
+	}
+
+	/**
+	 * Deterministic admin save handler for club responsible user.
+	 *
+	 * This endpoint updates ufsc_clubs.user_id_responsable/responsable_id,
+	 * then dispatches ufsc_lc_club_responsable_updated when a change occurs.
+	 */
+	public function handle_update_club_responsable() {
+		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$nonce = isset( $_POST['ufsc_lc_club_responsable_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_club_responsable_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'ufsc_lc_update_club_responsable' ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$club_id     = isset( $_POST['club_id'] ) ? absint( $_POST['club_id'] ) : 0;
+		$new_user_id = isset( $_POST['user_id_responsable'] ) ? absint( $_POST['user_id_responsable'] ) : 0;
+
+		if ( $club_id <= 0 ) {
+			wp_safe_redirect( add_query_arg( 'error', 'club_responsable_invalid', wp_get_referer() ?: admin_url() ) );
+			exit;
+		}
+
+		global $wpdb;
+		$table   = $wpdb->prefix . 'ufsc_clubs';
+		$columns = function_exists( 'ufsc_lc_get_clubs_table_columns' ) ? ufsc_lc_get_clubs_table_columns() : array();
+		$responsable_column = function_exists( 'ufsc_lc_club_link_responsable_column' ) ? ufsc_lc_club_link_responsable_column( $columns ) : '';
+
+		if ( '' === $responsable_column ) {
+			wp_safe_redirect( add_query_arg( 'error', 'club_responsable_column_missing', wp_get_referer() ?: admin_url() ) );
+			exit;
+		}
+
+		$old_user_id = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT {$responsable_column} FROM {$table} WHERE id = %d LIMIT 1",
+				$club_id
+			)
+		);
+
+		$updated = $wpdb->update(
+			$table,
+			array( $responsable_column => $new_user_id ),
+			array( 'id' => $club_id ),
+			array( '%d' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			wp_safe_redirect( add_query_arg( 'error', 'club_responsable_update_failed', wp_get_referer() ?: admin_url() ) );
+			exit;
+		}
+
+		if ( $old_user_id !== $new_user_id ) {
+			if ( $old_user_id > 0 && (int) get_user_meta( $old_user_id, 'ufsc_club_id', true ) === $club_id ) {
+				delete_user_meta( $old_user_id, 'ufsc_club_id' );
+			}
+			if ( function_exists( 'ufsc_lc_clear_user_club_cache' ) ) {
+				ufsc_lc_clear_user_club_cache( $old_user_id );
+			}
+
+			if ( $new_user_id > 0 ) {
+				update_user_meta( $new_user_id, 'ufsc_club_id', $club_id );
+				if ( function_exists( 'ufsc_lc_clear_user_club_cache' ) ) {
+					ufsc_lc_clear_user_club_cache( $new_user_id );
+				}
+			}
+
+			do_action( 'ufsc_lc_club_responsable_updated', (int) $club_id, (int) $old_user_id, (int) $new_user_id );
+		}
+
+		wp_safe_redirect( add_query_arg( 'success', 'club_responsable_updated', wp_get_referer() ?: admin_url() ) );
+		exit;
 	}
 
 	private function is_licences_screen() {
