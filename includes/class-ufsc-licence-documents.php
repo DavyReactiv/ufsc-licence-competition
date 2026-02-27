@@ -687,8 +687,11 @@ if ( headers_sent() ) {
 			return 0;
 		}
 
-		$club_id = get_user_meta( $user_id, 'club_id', true );
+		if ( function_exists( 'ufsc_get_current_club_id' ) ) {
+			return (int) ufsc_get_current_club_id( (int) $user_id );
+		}
 
+		$club_id = get_user_meta( $user_id, 'ufsc_club_id', true );
 		return $club_id ? (int) $club_id : 0;
 	}
 
