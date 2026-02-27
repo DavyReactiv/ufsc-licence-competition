@@ -1119,18 +1119,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 			return 0;
 		}
 
-		if ( function_exists( 'ufsc_lc_get_current_club_id' ) ) {
-			$resolved = (int) ufsc_lc_get_current_club_id( (int) $user_id );
-			if ( $resolved > 0 ) {
-				return $resolved;
-			}
+		if ( function_exists( 'ufsc_get_current_club_id' ) ) {
+			return (int) ufsc_get_current_club_id( (int) $user_id );
 		}
 
-		foreach ( array( 'ufsc_club_id', 'club_id', 'um_club_id', 'ufsc_club' ) as $meta_key ) {
-			$value = get_user_meta( $user_id, $meta_key, true );
-			if ( is_numeric( $value ) && (int) $value > 0 ) {
-				return (int) $value;
-			}
+		if ( function_exists( 'ufsc_lc_get_current_club_id' ) ) {
+			return (int) ufsc_lc_get_current_club_id( (int) $user_id );
 		}
 
 		return 0;
