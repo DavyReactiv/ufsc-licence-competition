@@ -232,3 +232,115 @@
 		padding: 0;
 	}
 }
+
+.ufsc-print-area {
+	counter-reset: page;
+}
+
+.ufsc-print-header {
+	border-bottom: 2px solid #1d2327;
+	padding-bottom: 10px;
+	margin-bottom: 12px;
+}
+
+.ufsc-print-header__kicker {
+	margin: 0 0 4px;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: #50575e;
+	letter-spacing: .03em;
+}
+
+.ufsc-print-header h1 {
+	margin: 0 0 10px;
+	line-height: 1.2;
+}
+
+.ufsc-print-header__generated {
+	margin: 8px 0 0;
+	font-size: 12px;
+	color: #50575e;
+}
+
+.ufsc-print-meta li {
+	display: flex;
+	gap: 6px;
+	font-size: 13px;
+}
+
+.ufsc-print-table {
+	border-collapse: collapse;
+	width: 100%;
+	margin-bottom: 14px;
+}
+
+.ufsc-print-table th,
+.ufsc-print-table td {
+	padding: 6px 8px;
+	vertical-align: top;
+	border: 1px solid #d0d3d6;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+}
+
+.ufsc-print-table th {
+	background: #f6f7f7;
+	font-weight: 600;
+}
+
+.ufsc-print-section {
+	break-inside: avoid;
+	margin-bottom: 16px;
+}
+
+.ufsc-print-footer {
+	display: flex;
+	justify-content: space-between;
+	font-size: 12px;
+	margin-top: 12px;
+	padding-top: 8px;
+	border-top: 1px solid #d0d3d6;
+}
+
+@media print {
+	@page {
+		size: A4 portrait;
+		margin: 10mm;
+	}
+
+	.ufsc-print-area.ufsc-print--a3 {
+		font-size: 12px;
+	}
+
+	.ufsc-print-area.ufsc-print--a2 {
+		font-size: 13px;
+	}
+
+	.ufsc-print-area.ufsc-print--a3,
+	.ufsc-print-area.ufsc-print--a2 {
+		width: 100%;
+	}
+
+	.ufsc-print-area.ufsc-print--a2 .ufsc-print-table--surface-overview {
+		font-size: 14px;
+	}
+
+	.ufsc-print-area.ufsc-print--a2 .ufsc-print-table--surface-overview th,
+	.ufsc-print-area.ufsc-print--a2 .ufsc-print-table--surface-overview td {
+		padding: 10px 12px;
+	}
+
+	.ufsc-print-table thead {
+		display: table-header-group;
+	}
+
+	.ufsc-print-table tr,
+	.ufsc-print-section {
+		page-break-inside: avoid;
+	}
+
+	.ufsc-print-page-number::after {
+		content: counter(page);
+	}
+}
