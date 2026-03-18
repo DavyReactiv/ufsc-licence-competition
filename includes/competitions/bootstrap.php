@@ -63,6 +63,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/TimingProfilePresetSeeder.php',
 		$base . '/Services/CompetitionScheduleEstimator.php',
 		$base . '/Services/AuditLogger.php',
+		$base . '/Services/EntryDeduplication.php',
 		// Repository helpers must be available to all repos
 		$base . '/Repositories/RepositoryHelpers.php',
 		// Repositories (ClubRepository must be loaded here)
@@ -143,6 +144,17 @@ function load_competitions_admin_dependencies(): void {
 
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
+
+add_action(
+	'init',
+	function() {
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication' )
+			&& method_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication', 'register_cli_commands' ) ) {
+			\UFSC\Competitions\Services\EntryDeduplication::register_cli_commands();
+		}
+	},
+	20
+);
 
 const AUTO_ARCHIVE_HOOK = 'ufsc_competitions_auto_archive_finished';
 

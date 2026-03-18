@@ -8,6 +8,7 @@ use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Services\EntryDeduplication;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -264,10 +265,31 @@ class EntryActions {
 		$data = apply_filters( 'ufsc_competitions_entry_payload', $data, $competition, $club_id );
 
 		if ( 'create' === $action ) {
+			$existing_entry = null;
+			if ( ! empty( $data['licensee_id'] ) && method_exists( $repo, 'find_active_by_competition_licensee' ) ) {
+				$existing_entry = $repo->find_active_by_competition_licensee( $competition_id, (int) $data['licensee_id'] );
+			}
+			if ( $existing_entry ) {
+				self::redirect_with_notice( $competition_id, 'error_duplicate_entry' );
+			}
+
 			do_action( 'ufsc_competitions_entry_before_create', $data, $competition, $club_id );
 
 			$entry_id = $repo->insert( $data );
 			if ( ! $entry_id ) {
+				global $wpdb;
+				if ( class_exists( EntryDeduplication::class ) && EntryDeduplication::is_duplicate_key_error( (string) $wpdb->last_error ) ) {
+					self::debug_log(
+						'entry_action_create_duplicate_conflict',
+						array(
+							'competition_id' => $competition_id,
+							'club_id'        => $club_id,
+							'licensee_id'    => (int) ( $data['licensee_id'] ?? 0 ),
+							'db_error'       => (string) $wpdb->last_error,
+						)
+					);
+					self::redirect_with_notice( $competition_id, 'error_duplicate_entry' );
+				}
 				self::debug_log( 'entry_action_create_failed', array( 'competition_id' => $competition_id, 'club_id' => $club_id ) );
 				self::redirect_with_notice( $competition_id, 'error' );
 			}

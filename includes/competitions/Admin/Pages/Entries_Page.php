@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Entries_Table;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Services\EntryDeduplication;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -228,6 +229,9 @@ class Entries_Page {
 		$new_id = $this->repository->insert( $data );
 		if ( ! $new_id ) {
 			global $wpdb;
+			if ( class_exists( EntryDeduplication::class ) && EntryDeduplication::is_duplicate_key_error( (string) $wpdb->last_error ) ) {
+				$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id );
+			}
 			if ( ! empty( $wpdb->last_error ) ) {
 				error_log( 'UFSC Competitions entry insert failed: ' . $wpdb->last_error );
 			}

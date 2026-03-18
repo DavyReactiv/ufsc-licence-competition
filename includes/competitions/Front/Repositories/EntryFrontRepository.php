@@ -220,6 +220,42 @@ class EntryFrontRepository {
 		return $row ?: null;
 	}
 
+	public function find_active_by_competition_licensee( int $competition_id, int $licensee_id ) {
+		global $wpdb;
+
+		$competition_id = absint( $competition_id );
+		$licensee_id = absint( $licensee_id );
+		if ( ! $competition_id || ! $licensee_id ) {
+			return null;
+		}
+
+		$licensee_column = $this->resolve_licensee_column();
+		if ( '' === $licensee_column || ! $this->has_column( 'competition_id' ) ) {
+			return null;
+		}
+
+		$table = Db::entries_table();
+		$where = array(
+			'competition_id = %d',
+			"{$licensee_column} = %d",
+		);
+
+		if ( $this->has_column( 'deleted_at' ) ) {
+			$where[] = 'deleted_at IS NULL';
+		}
+
+		$sql = $wpdb->prepare(
+			"SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id ASC LIMIT 1',
+			$competition_id,
+			$licensee_id
+		);
+
+		$row = $wpdb->get_row( $sql );
+		$this->maybe_log_db_error( __METHOD__ );
+
+		return $row ?: null;
+	}
+
 	public function insert( array $payload ): int {
 		global $wpdb;
 
