@@ -19,6 +19,7 @@ if ( class_exists( __NAMESPACE__ . '\\WeighInRepository', false ) ) {
 }
 
 class WeighInRepository {
+	private $has_table_cache = null;
 
 	/**
 	 * Check whether the weigh-ins table exists.
@@ -26,10 +27,16 @@ class WeighInRepository {
 	public function has_table(): bool {
 		global $wpdb;
 
+		if ( null !== $this->has_table_cache ) {
+			return (bool) $this->has_table_cache;
+		}
+
 		$table  = Db::weighins_table();
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 
-		return $exists === $table;
+		$this->has_table_cache = ( $exists === $table );
+
+		return (bool) $this->has_table_cache;
 	}
 
 	/**
@@ -63,6 +70,53 @@ class WeighInRepository {
 	 */
 	public function has_valid_weighin( int $competition_id, int $entry_id, float $competition_tolerance, ?float $entry_weight = null ): bool {
 		$row = $this->get_for_entry( $competition_id, $entry_id );
+		return $this->is_valid_weighin_row( $row, $competition_tolerance, $entry_weight );
+	}
+
+	/**
+	 * Batch-load weigh-ins for entry ids in one query.
+	 *
+	 * @param int   $competition_id Competition id.
+	 * @param int[] $entry_ids Entry ids.
+	 * @return array<int,object> Map entry_id => weigh-in row.
+	 */
+	public function get_for_entries( int $competition_id, array $entry_ids ): array {
+		global $wpdb;
+
+		$competition_id = absint( $competition_id );
+		$entry_ids      = array_values( array_filter( array_map( 'absint', $entry_ids ) ) );
+		if ( ! $competition_id || empty( $entry_ids ) || ! $this->has_table() ) {
+			return array();
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $entry_ids ), '%d' ) );
+		$params       = array_merge( array( $competition_id ), $entry_ids );
+		$sql          = 'SELECT * FROM ' . Db::weighins_table() . " WHERE competition_id = %d AND entry_id IN ({$placeholders})";
+		$rows         = $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+
+		$indexed = array();
+		foreach ( $rows as $row ) {
+			$key = absint( $row->entry_id ?? 0 );
+			if ( $key ) {
+				$indexed[ $key ] = $row;
+			}
+		}
+
+		return $indexed;
+	}
+
+	/**
+	 * Validate a weigh-in row according to legacy status + tolerance rules.
+	 *
+	 * @param object|null $row Weigh-in row.
+	 * @param float       $competition_tolerance Allowed delta in kg (>=0).
+	 * @param float|null  $entry_weight Optional reference weight.
+	 */
+	public function is_valid_weighin_row( $row, float $competition_tolerance, ?float $entry_weight = null ): bool {
 		if ( ! $row ) {
 			return false;
 		}

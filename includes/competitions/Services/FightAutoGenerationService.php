@@ -580,15 +580,33 @@ class FightAutoGenerationService {
 		$allow_unweighed = ! empty( $settings['allow_unweighed'] );
 		$weighin_repo    = new WeighInRepository();
 		$enforce_weighin = ! $allow_unweighed && $weighin_repo->has_table();
+		$weighins_by_entry = array();
+		if ( $enforce_weighin && method_exists( $weighin_repo, 'get_for_entries' ) ) {
+			$entry_ids = array_values(
+				array_filter(
+					array_map(
+						static function ( $entry ) {
+							return (int) ( $entry->id ?? 0 );
+						},
+						$entries
+					)
+				)
+			);
+			$weighins_by_entry = $weighin_repo->get_for_entries( $competition_id, $entry_ids );
+		}
 
 		$competition_tolerance = isset( $competition->weight_tolerance ) ? (float) $competition->weight_tolerance : 0.0;
 
 		foreach ( $entries as $entry ) {
 			$entry_id = (int) ( $entry->id ?? 0 );
 
-			$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
-				? ufsc_lc_is_entry_eligible( $entry_id, 'fights' )
-				: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
+			if ( function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
+				$eligibility = ufsc_lc_is_entry_eligible_from_entry( $entry, 'fights' );
+			} else {
+				$eligibility = function_exists( 'ufsc_lc_is_entry_eligible' )
+					? ufsc_lc_is_entry_eligible( $entry_id, 'fights' )
+					: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
+			}
 
 			if ( empty( $eligibility['eligible'] ) ) {
 				foreach ( (array) ( $eligibility['reasons'] ?? array() ) as $reason ) {
@@ -599,7 +617,10 @@ class FightAutoGenerationService {
 
 			if ( $enforce_weighin ) {
 				$entry_weight = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null;
-				$has_weighin  = $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
+				$row          = $weighins_by_entry[ $entry_id ] ?? null;
+				$has_weighin  = method_exists( $weighin_repo, 'is_valid_weighin_row' )
+					? $weighin_repo->is_valid_weighin_row( $row, $competition_tolerance, $entry_weight )
+					: $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
 				if ( ! $has_weighin ) {
 					$ineligible_reasons['weighin_missing'] = true;
 					$excluded_unweighed++;
