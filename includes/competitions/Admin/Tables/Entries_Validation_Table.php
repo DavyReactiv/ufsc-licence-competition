@@ -317,8 +317,21 @@ class Entries_Validation_Table extends \WP_List_Table {
 		$class = EntriesWorkflow::get_status_badge_class( $status );
 
 		$reason = '';
+		$explanation = '';
+		if ( 'draft' === $status ) {
+			$explanation = __( 'Brouillon club (non soumis).', 'ufsc-licence-competition' );
+		} elseif ( in_array( $status, array( 'submitted', 'pending' ), true ) ) {
+			$explanation = __( 'En attente de décision administrateur.', 'ufsc-licence-competition' );
+		} elseif ( 'approved' === $status ) {
+			$explanation = __( 'Validée : engagé officiel.', 'ufsc-licence-competition' );
+		} elseif ( 'cancelled' === $status ) {
+			$explanation = __( 'Annulée : retirée du flux.', 'ufsc-licence-competition' );
+		}
 		if ( 'rejected' === $status && ! empty( $entry->rejected_reason ) ) {
-			$reason = '<br /><small>' . esc_html( (string) $entry->rejected_reason ) . '</small>';
+			$reason = '<br /><small>' . esc_html__( 'Motif : ', 'ufsc-licence-competition' ) . esc_html( (string) $entry->rejected_reason ) . '</small>';
+		}
+		if ( '' !== $explanation ) {
+			$reason .= '<br /><small>' . esc_html( $explanation ) . '</small>';
 		}
 
 		return sprintf(

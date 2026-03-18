@@ -175,11 +175,11 @@ class EntriesModule {
 					'error' => __( 'Catégorie indisponible.', 'ufsc-licence-competition' ),
 					'weightMissing' => __( 'Poids manquant.', 'ufsc-licence-competition' ),
 					'searching' => __( 'Recherche en cours…', 'ufsc-licence-competition' ),
-					'searchEmpty' => __( 'Veuillez renseigner un nom ou un numéro de licence.', 'ufsc-licence-competition' ),
-					'searchNoResult' => __( 'Aucun licencié trouvé.', 'ufsc-licence-competition' ),
-					'searchMultiple' => __( 'Plusieurs licenciés trouvés. Sélectionnez la bonne personne.', 'ufsc-licence-competition' ),
-					'searchError' => __( 'Recherche indisponible.', 'ufsc-licence-competition' ),
-					'searchOne' => __( 'Licencié trouvé et pré-rempli.', 'ufsc-licence-competition' ),
+					'searchEmpty' => __( 'Renseignez au moins un critère (nom, n° licence ou date de naissance).', 'ufsc-licence-competition' ),
+					'searchNoResult' => __( 'Aucun licencié trouvé. Vérifiez les informations saisies ou essayez avec moins de critères.', 'ufsc-licence-competition' ),
+					'searchMultiple' => __( 'Plusieurs licenciés trouvés : sélectionnez la bonne personne avant de valider l’inscription.', 'ufsc-licence-competition' ),
+					'searchError' => __( 'Recherche licences indisponible pour le moment. Réessayez dans quelques instants.', 'ufsc-licence-competition' ),
+					'searchOne' => __( 'Licencié trouvé et pré-rempli. Vérifiez les données avant soumission.', 'ufsc-licence-competition' ),
 				),
 			)
 		);

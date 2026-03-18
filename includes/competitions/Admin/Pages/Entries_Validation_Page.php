@@ -60,6 +60,9 @@ class Entries_Validation_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ); ?></h1>
+			<p class="description">
+				<?php echo esc_html__( 'Rappel métier : la licence identifie le pratiquant, l’inscription concerne sa demande sur cette compétition, la validation engage officiellement le licencié.', 'ufsc-licence-competition' ); ?>
+			</p>
 
 			<?php if ( $notice ) : ?>
 				<?php echo $this->render_notice( $notice ); ?>
@@ -178,14 +181,14 @@ class Entries_Validation_Page {
 
 	private function render_notice( string $notice ): string {
 		$messages = array(
-			'entry_validated' => array( 'success', __( 'Inscription approuvée.', 'ufsc-licence-competition' ) ),
-			'entry_rejected' => array( 'success', __( 'Inscription rejetée.', 'ufsc-licence-competition' ) ),
-			'entry_reopened' => array( 'success', __( 'Inscription ré-ouverte.', 'ufsc-licence-competition' ) ),
+			'entry_validated' => array( 'success', __( 'Inscription approuvée : le licencié est désormais engagé sur cette compétition.', 'ufsc-licence-competition' ) ),
+			'entry_rejected' => array( 'success', __( 'Inscription rejetée : le club doit corriger les informations avant nouvelle soumission.', 'ufsc-licence-competition' ) ),
+			'entry_reopened' => array( 'success', __( 'Inscription ré-ouverte : le club peut de nouveau modifier et soumettre le dossier.', 'ufsc-licence-competition' ) ),
 			'error_forbidden' => array( 'error', __( 'Action non autorisée.', 'ufsc-licence-competition' ) ),
 			'error_not_found' => array( 'error', __( 'Inscription introuvable.', 'ufsc-licence-competition' ) ),
-			'error_invalid_status' => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
-			'error_invalid_fields' => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
-			'error_weight_required' => array( 'error', __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ) ),
+			'error_invalid_status' => array( 'error', __( 'Action impossible depuis le statut actuel de cette inscription.', 'ufsc-licence-competition' ) ),
+			'error_invalid_fields' => array( 'error', __( 'Saisie incomplète : vérifiez les champs requis avant de continuer.', 'ufsc-licence-competition' ) ),
+			'error_weight_required' => array( 'error', __( 'Validation bloquée : renseignez le poids pour déterminer la catégorie de poids.', 'ufsc-licence-competition' ) ),
 			'error' => array( 'error', __( 'Une erreur est survenue.', 'ufsc-licence-competition' ) ),
 		);
 

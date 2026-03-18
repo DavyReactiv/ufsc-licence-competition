@@ -14,9 +14,9 @@ class EntriesWorkflow {
 	public static function get_status_labels(): array {
 		$statuses = array(
 			'draft'     => __( 'Brouillon', 'ufsc-licence-competition' ),
-			'submitted' => __( 'Soumise', 'ufsc-licence-competition' ),
-			'pending'   => __( 'En attente', 'ufsc-licence-competition' ),
-			'approved'  => __( 'Approuvée', 'ufsc-licence-competition' ),
+			'submitted' => __( 'Soumise (club)', 'ufsc-licence-competition' ),
+			'pending'   => __( 'En attente admin', 'ufsc-licence-competition' ),
+			'approved'  => __( 'Validée (engagée)', 'ufsc-licence-competition' ),
 			'rejected'  => __( 'Rejetée', 'ufsc-licence-competition' ),
 			'cancelled' => __( 'Annulée', 'ufsc-licence-competition' ),
 		);
