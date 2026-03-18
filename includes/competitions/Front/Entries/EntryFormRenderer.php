@@ -834,6 +834,7 @@ class EntryFormRenderer {
 			'error_closed'             => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
 			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),
 			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
+			'error_duplicate_entry'    => array( 'error', __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_withdraw_approved'  => array( 'error', __( 'Inscription validée — pour toute modification, contactez l’administration UFSC.', 'ufsc-licence-competition' ) ),
 			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
 			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),

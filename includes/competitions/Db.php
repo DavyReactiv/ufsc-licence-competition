@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.17';
+	const DB_VERSION = '1.18';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.17';
+	const UFSC_COMP_DB_VERSION = '1.18';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -319,6 +319,11 @@ class Db {
 		}
 
 		self::maybe_upgrade_entries_indexes( $table );
+
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication' ) ) {
+			\UFSC\Competitions\Services\EntryDeduplication::maybe_backfill_licensee_id();
+			\UFSC\Competitions\Services\EntryDeduplication::maybe_add_unique_index_if_clean();
+		}
 	}
 
 	private static function maybe_upgrade_entries_indexes( string $table ): void {
