@@ -255,12 +255,23 @@ class Entries_Page {
 
 		check_ajax_referer( 'ufsc_lc_entries', 'nonce' );
 
-		$nom            = isset( $_POST['nom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['nom'] ) ) ) : '';
-		$prenom         = isset( $_POST['prenom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['prenom'] ) ) ) : '';
-		$date_naissance = isset( $_POST['date_naissance'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) ) : '';
+		$nom              = isset( $_POST['nom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['nom'] ) ) ) : '';
+		$prenom           = isset( $_POST['prenom'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['prenom'] ) ) ) : '';
+		$numero_licence   = isset( $_POST['numero_licence'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['numero_licence'] ) ) ) : '';
+		$date_naissance   = isset( $_POST['date_naissance'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) ) : '';
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
-		if ( '' === $nom && '' === $prenom && '' === $date_naissance ) {
+		if ( '' === $nom && '' === $prenom && '' === $numero_licence && '' === $date_naissance ) {
+			$this->debug_search_log(
+				'reject_empty_criteria',
+				array(
+					'nom' => $nom,
+					'prenom' => $prenom,
+					'numero_licence' => $numero_licence,
+					'date_naissance' => $date_naissance,
+					'competition_id' => $competition_id,
+				)
+			);
 			wp_send_json_error( array( 'message' => __( 'Veuillez saisir au moins un critère de recherche.', 'ufsc-licence-competition' ) ) );
 		}
 
@@ -271,29 +282,87 @@ class Entries_Page {
 
 		$licences_table = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
-		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
 		$columns        = Db::get_table_columns( $licences_table );
+		$schema         = $this->resolve_license_search_schema( $columns );
+
+		if ( '' === $schema['last_name_expr'] && '' === $schema['first_name_expr'] && empty( $schema['license_columns'] ) ) {
+			$this->debug_search_log(
+				'no_searchable_columns',
+				array(
+					'source' => $licences_table,
+					'columns_count' => count( $columns ),
+				)
+			);
+			wp_send_json_error( array( 'message' => __( 'Recherche indisponible : colonnes de licence introuvables.', 'ufsc-licence-competition' ) ), 500 );
+		}
+
 		$sex_column     = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
 		$weight_column  = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
 		$sex_select     = $sex_column ? "l.{$sex_column} AS sex," : "'' AS sex,";
 		$weight_select  = $weight_column ? "l.{$weight_column} AS weight_kg," : "NULL AS weight_kg,";
+		$birthdate_select = $schema['birthdate_column'] ? "l.{$schema['birthdate_column']} AS date_naissance" : "'' AS date_naissance";
+		$license_number_select = ! empty( $schema['license_columns'] ) ? "l.{$schema['license_columns'][0]} AS numero_licence" : "'' AS numero_licence";
+		$name_expr      = '' !== $schema['last_name_expr'] ? $schema['last_name_expr'] : "''";
+		$first_name_expr = '' !== $schema['first_name_expr'] ? $schema['first_name_expr'] : "''";
 
 		$where  = array();
 		$params = array();
 
-		if ( '' !== $nom ) {
-			$where[]  = "{$name_expr} LIKE %s";
-			$params[] = '%' . $wpdb->esc_like( $nom ) . '%';
+		$normalized_nom = $this->normalize_search_term( $nom );
+		$normalized_prenom = $this->normalize_search_term( $prenom );
+		$normalized_full_name = trim( $normalized_nom . ' ' . $normalized_prenom );
+
+		if ( '' !== $numero_licence && ! empty( $schema['license_columns'] ) ) {
+			$compact_number = $this->normalize_identifier( $numero_licence );
+			$number_clauses = array();
+			foreach ( $schema['license_columns'] as $license_column ) {
+				$number_clauses[] = "TRIM(COALESCE(l.{$license_column}, '')) = %s";
+				$params[] = $numero_licence;
+				if ( '' !== $compact_number ) {
+					$number_clauses[] = "REPLACE(REPLACE(LOWER(TRIM(COALESCE(l.{$license_column}, ''))), ' ', ''), '-', '') = %s";
+					$params[] = $compact_number;
+				}
+			}
+			$where[] = '(' . implode( ' OR ', $number_clauses ) . ')';
 		}
 
-		if ( '' !== $prenom ) {
-			$where[]  = 'l.prenom LIKE %s';
-			$params[] = '%' . $wpdb->esc_like( $prenom ) . '%';
+		$name_clauses = array();
+		if ( '' !== $nom && '' !== $name_expr ) {
+			$name_like = '%' . $wpdb->esc_like( $nom ) . '%';
+			$name_clauses[] = "{$name_expr} LIKE %s";
+			$params[] = $name_like;
+			if ( '' !== $normalized_nom ) {
+				$name_clauses[] = "LOWER({$name_expr}) LIKE %s";
+				$params[] = '%' . $wpdb->esc_like( $normalized_nom ) . '%';
+			}
+		}
+		if ( '' !== $prenom && '' !== $first_name_expr ) {
+			$first_name_like = '%' . $wpdb->esc_like( $prenom ) . '%';
+			$name_clauses[] = "{$first_name_expr} LIKE %s";
+			$params[] = $first_name_like;
+			if ( '' !== $normalized_prenom ) {
+				$name_clauses[] = "LOWER({$first_name_expr}) LIKE %s";
+				$params[] = '%' . $wpdb->esc_like( $normalized_prenom ) . '%';
+			}
+		}
+		if ( '' !== $normalized_full_name && '' !== $name_expr && '' !== $first_name_expr ) {
+			$name_clauses[] = "LOWER(CONCAT_WS(' ', {$name_expr}, {$first_name_expr})) LIKE %s";
+			$params[] = '%' . $wpdb->esc_like( $normalized_full_name ) . '%';
+			$name_clauses[] = "LOWER(CONCAT_WS(' ', {$first_name_expr}, {$name_expr})) LIKE %s";
+			$params[] = '%' . $wpdb->esc_like( $normalized_full_name ) . '%';
+		}
+		if ( $name_clauses ) {
+			$where[] = '(' . implode( ' OR ', $name_clauses ) . ')';
 		}
 
-		if ( '' !== $normalized_birthdate ) {
-			$where[]  = 'l.date_naissance = %s';
+		if ( '' !== $normalized_birthdate && $schema['birthdate_column'] ) {
+			$where[]  = "(l.{$schema['birthdate_column']} = %s OR l.{$schema['birthdate_column']} = %s)";
 			$params[] = $normalized_birthdate;
+			$params[] = $this->format_birthdate_for_storage( $normalized_birthdate );
+		}
+
+		if ( '' !== $schema['status_expr'] ) {
+			$where[] = "(l.{$schema['status_expr']} IS NULL OR l.{$schema['status_expr']} = '' OR LOWER(l.{$schema['status_expr']}) IN ('valide', 'valid', 'active', 'actif', 'approved'))";
 		}
 
 		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
@@ -311,17 +380,41 @@ class Entries_Page {
 
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 
-		$sql = "SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
+		$this->debug_search_log(
+			'query_context',
+			array(
+				'nom' => $nom,
+				'prenom' => $prenom,
+				'numero_licence' => $numero_licence,
+				'date_naissance' => $date_naissance,
+				'date_naissance_normalized' => $normalized_birthdate,
+				'source' => $licences_table,
+				'license_columns' => $schema['license_columns'],
+				'name_columns' => array( $schema['last_name_column'], $schema['first_name_column'] ),
+				'birthdate_column' => $schema['birthdate_column'],
+				'status_column' => $schema['status_expr'],
+				'scope_region' => $scope_region,
+			)
+		);
+
+		$order_first_name = '' !== $first_name_expr ? $first_name_expr : 'l.id';
+		$sql = "SELECT l.id AS licence_id, {$name_expr} AS nom, {$first_name_expr} AS prenom, {$birthdate_select}, {$license_number_select}, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 			{$where_sql}
-			ORDER BY {$name_expr} ASC, l.prenom ASC, l.id ASC
+			ORDER BY {$name_expr} ASC, {$order_first_name} ASC, l.id ASC
 			LIMIT %d";
 
 		$params[] = 20;
 		$query    = $wpdb->prepare( $sql, $params );
 		$rows     = $wpdb->get_results( $query, ARRAY_A );
 		if ( $wpdb->last_error ) {
+			$this->debug_search_log(
+				'query_error',
+				array(
+					'error' => $wpdb->last_error,
+				)
+			);
 			wp_send_json_error(
 				array(
 					'message' => __( 'Erreur interne lors de la recherche.', 'ufsc-licence-competition' ),
@@ -332,6 +425,13 @@ class Entries_Page {
 		if ( ! is_array( $rows ) ) {
 			$rows = array();
 		}
+
+		$this->debug_search_log(
+			'query_results_count',
+			array(
+				'count' => count( $rows ),
+			)
+		);
 
 		$results = array();
 		foreach ( $rows as $row ) {
@@ -351,6 +451,7 @@ class Entries_Page {
 				'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
 				'sex'                => trim( sanitize_text_field( $row['sex'] ?? '' ) ),
 				'weight_kg'          => isset( $row['weight_kg'] ) ? $this->sanitize_weight( $row['weight_kg'] ) : null,
+				'numero_licence'     => trim( sanitize_text_field( $row['numero_licence'] ?? '' ) ),
 				'category'           => $category,
 			);
 		}
@@ -383,12 +484,16 @@ class Entries_Page {
 
 		$licences_table = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
-		$name_expr      = "COALESCE(NULLIF(l.nom,''), NULLIF(l.nom_licence,''))";
 		$columns        = Db::get_table_columns( $licences_table );
+		$schema         = $this->resolve_license_search_schema( $columns );
+		$name_expr      = '' !== $schema['last_name_expr'] ? $schema['last_name_expr'] : "''";
+		$first_name_expr = '' !== $schema['first_name_expr'] ? $schema['first_name_expr'] : "''";
 		$sex_column     = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
 		$weight_column  = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
 		$sex_select     = $sex_column ? "l.{$sex_column} AS sex," : "'' AS sex,";
 		$weight_select  = $weight_column ? "l.{$weight_column} AS weight_kg," : "NULL AS weight_kg,";
+		$birthdate_select = $schema['birthdate_column'] ? "l.{$schema['birthdate_column']} AS date_naissance" : "'' AS date_naissance";
+		$license_number_select = ! empty( $schema['license_columns'] ) ? "l.{$schema['license_columns'][0]} AS numero_licence" : "'' AS numero_licence";
 
 		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
 			? ufsc_lc_competitions_get_user_scope_region()
@@ -408,7 +513,7 @@ class Entries_Page {
 
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT l.id AS licence_id, {$name_expr} AS nom, l.prenom, l.date_naissance, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
+				"SELECT l.id AS licence_id, {$name_expr} AS nom, {$first_name_expr} AS prenom, {$birthdate_select}, {$license_number_select}, {$sex_select} {$weight_select} l.club_id, c.nom AS club_nom
 				FROM {$licences_table} l
 				LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 				{$where}
@@ -438,6 +543,7 @@ class Entries_Page {
 			'club_nom'           => trim( sanitize_text_field( $row['club_nom'] ?? '' ) ),
 			'sex'                => trim( sanitize_text_field( $row['sex'] ?? '' ) ),
 			'weight_kg'          => isset( $row['weight_kg'] ) ? $this->sanitize_weight( $row['weight_kg'] ) : null,
+			'numero_licence'     => trim( sanitize_text_field( $row['numero_licence'] ?? '' ) ),
 			'category'           => $category,
 		);
 
@@ -658,12 +764,16 @@ class Entries_Page {
 										<input type="text" id="ufsc_entry_licensee_search_prenom" placeholder="<?php echo esc_attr__( 'Prénom', 'ufsc-licence-competition' ); ?>">
 									</label>
 									<label>
+										<span class="screen-reader-text"><?php esc_html_e( 'Numéro de licence', 'ufsc-licence-competition' ); ?></span>
+										<input type="text" id="ufsc_entry_licensee_search_license_number" placeholder="<?php echo esc_attr__( 'N° licence', 'ufsc-licence-competition' ); ?>">
+									</label>
+									<label>
 										<span class="screen-reader-text"><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></span>
 										<input type="date" id="ufsc_entry_licensee_search_birthdate" placeholder="<?php echo esc_attr__( 'JJ/MM/AAAA', 'ufsc-licence-competition' ); ?>">
 									</label>
 									<button type="button" class="button" id="ufsc_entry_licensee_search_button"><?php esc_html_e( 'Rechercher', 'ufsc-licence-competition' ); ?></button>
 								</div>
-								<p class="description"><?php esc_html_e( 'Recherche par nom, prénom et/ou date de naissance (formats acceptés : JJ/MM/AAAA ou AAAA-MM-JJ).', 'ufsc-licence-competition' ); ?></p>
+								<p class="description"><?php esc_html_e( 'Recherche par n° de licence, nom, prénom et/ou date de naissance (formats acceptés : JJ/MM/AAAA ou AAAA-MM-JJ).', 'ufsc-licence-competition' ); ?></p>
 								<div class="ufsc-entry-licensee-search-message" id="ufsc_entry_licensee_search_message" role="status" aria-live="polite"></div>
 								<div class="ufsc-entry-licensee-search-results" id="ufsc_entry_licensee_search_results"></div>
 								<div class="ufsc-entry-licensee-search-actions">
@@ -851,11 +961,15 @@ class Entries_Page {
 		if ( ! $columns ) {
 			return array();
 		}
+		$birthdate_column = $this->resolve_first_column( $columns, array( 'date_naissance', 'naissance', 'birthdate', 'date_of_birth' ) );
+		if ( '' === $birthdate_column ) {
+			return array();
+		}
 
 		$sex_column = $this->resolve_first_column( $columns, array( 'sexe', 'sex', 'gender' ) );
 		$weight_column = $this->resolve_first_column( $columns, array( 'poids', 'weight', 'weight_kg' ) );
 
-		$select = array( 'date_naissance' );
+		$select = array( $birthdate_column . ' AS date_naissance' );
 		if ( $sex_column ) {
 			$select[] = $sex_column . ' AS sex';
 		}
@@ -893,5 +1007,85 @@ class Entries_Page {
 			'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
 			'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
 		);
+	}
+
+	private function resolve_license_search_schema( array $columns ): array {
+		$last_name_column = $this->resolve_first_column( $columns, array( 'nom', 'nom_licence', 'last_name' ) );
+		$first_name_column = $this->resolve_first_column( $columns, array( 'prenom', 'prenom_licence', 'first_name' ) );
+		$birthdate_column = $this->resolve_first_column( $columns, array( 'date_naissance', 'naissance', 'birthdate', 'date_of_birth' ) );
+		$status_column = $this->resolve_first_column( $columns, array( 'statut', 'status' ) );
+		$license_columns = array();
+		foreach ( array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number', 'asptt_number' ) as $candidate ) {
+			if ( in_array( $candidate, $columns, true ) ) {
+				$license_columns[] = $candidate;
+			}
+		}
+
+		$last_name_expr = '';
+		if ( '' !== $last_name_column ) {
+			$last_name_parts = array();
+			foreach ( array_unique( array_filter( array( $last_name_column, in_array( 'nom_licence', $columns, true ) ? 'nom_licence' : '', in_array( 'nom', $columns, true ) ? 'nom' : '' ) ) ) as $column_name ) {
+				$last_name_parts[] = "NULLIF(l.{$column_name},'')";
+			}
+			$last_name_expr = $last_name_parts ? 'COALESCE(' . implode( ', ', $last_name_parts ) . ')' : '';
+		}
+
+		$first_name_expr = '';
+		if ( '' !== $first_name_column ) {
+			$first_name_parts = array();
+			foreach ( array_unique( array_filter( array( $first_name_column, in_array( 'prenom', $columns, true ) ? 'prenom' : '' ) ) ) as $column_name ) {
+				$first_name_parts[] = "NULLIF(l.{$column_name},'')";
+			}
+			$first_name_expr = $first_name_parts ? 'COALESCE(' . implode( ', ', $first_name_parts ) . ')' : '';
+		}
+
+		return array(
+			'last_name_column' => $last_name_column,
+			'first_name_column' => $first_name_column,
+			'birthdate_column' => $birthdate_column,
+			'status_expr' => $status_column,
+			'license_columns' => $license_columns,
+			'last_name_expr' => $last_name_expr,
+			'first_name_expr' => $first_name_expr,
+		);
+	}
+
+	private function normalize_search_term( string $value ): string {
+		$value = sanitize_text_field( $value );
+		$value = remove_accents( $value );
+		$value = preg_replace( '/\s+/u', ' ', $value );
+		$value = trim( (string) $value );
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value ) : strtolower( $value );
+	}
+
+	private function normalize_identifier( string $value ): string {
+		$value = remove_accents( sanitize_text_field( $value ) );
+		$value = preg_replace( '/[^a-zA-Z0-9]/', '', (string) $value );
+		$value = trim( (string) $value );
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value ) : strtolower( $value );
+	}
+
+	private function format_birthdate_for_storage( string $normalized_birthdate ): string {
+		$normalized_birthdate = trim( $normalized_birthdate );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized_birthdate ) ) {
+			return $normalized_birthdate;
+		}
+
+		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
+		$parsed   = \DateTimeImmutable::createFromFormat( '!Y-m-d', $normalized_birthdate, $timezone );
+		if ( ! $parsed ) {
+			return $normalized_birthdate;
+		}
+
+		return $parsed->format( 'd/m/Y' );
+	}
+
+	private function debug_search_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( sprintf( 'UFSC entries license search: %s %s', $message, $payload ) );
 	}
 }

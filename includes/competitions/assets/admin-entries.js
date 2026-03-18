@@ -13,6 +13,7 @@
 
   const nameInput = document.getElementById("ufsc_entry_licensee_search_nom");
   const firstNameInput = document.getElementById("ufsc_entry_licensee_search_prenom");
+  const licenseNumberInput = document.getElementById("ufsc_entry_licensee_search_license_number");
   const birthdateInput = document.getElementById("ufsc_entry_licensee_search_birthdate");
   const searchButton = document.getElementById("ufsc_entry_licensee_search_button");
   const resultsContainer = document.getElementById("ufsc_entry_licensee_search_results");
@@ -33,6 +34,7 @@
   if (
     !nameInput ||
     !firstNameInput ||
+    !licenseNumberInput ||
     !birthdateInput ||
     !searchButton ||
     !resultsContainer ||
@@ -223,8 +225,9 @@
         ? `${item.club_nom || "Club"} (#${item.club_id})`
         : "Club non renseigné";
       const categoryLabel = item.category ? ` · Catégorie : ${item.category}` : "";
+      const licenseNumber = item.numero_licence ? ` · Licence ${item.numero_licence}` : "";
 
-      info.textContent = `ID ${item.licence_id} · ${displayName || "—"} · ${birthdate} · ${clubLabel}${categoryLabel}`;
+      info.textContent = `ID ${item.licence_id}${licenseNumber} · ${displayName || "—"} · ${birthdate} · ${clubLabel}${categoryLabel}`;
 
       label.appendChild(radio);
       label.appendChild(info);
@@ -261,6 +264,7 @@
       nonce: config.nonce,
       nom: nameInput.value.trim(),
       prenom: firstNameInput.value.trim(),
+      numero_licence: licenseNumberInput.value.trim(),
       date_naissance: birthdateInput.value.trim(),
       competition_id: competitionSelect.value || "0",
     };
@@ -268,7 +272,12 @@
 
   async function performSearch() {
     const payload = getSearchPayload();
-    if (!payload.nom && !payload.prenom && !payload.date_naissance) {
+    if (
+      !payload.nom &&
+      !payload.prenom &&
+      !payload.numero_licence &&
+      !payload.date_naissance
+    ) {
       setMessage(config.searchErrorMessage, "warning");
       clearResults();
       return;
@@ -431,6 +440,7 @@
 
   nameInput.addEventListener("input", scheduleSearch);
   firstNameInput.addEventListener("input", scheduleSearch);
+  licenseNumberInput.addEventListener("input", scheduleSearch);
   birthdateInput.addEventListener("change", scheduleSearch);
 
   useButton.addEventListener("click", useSelectedLicensee);
