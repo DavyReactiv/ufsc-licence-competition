@@ -191,6 +191,16 @@ class EntryActions {
 			}
 		}
 
+		if ( 'create' === $action && self::is_strict_license_linkage_required( $competition, (int) $club_id, $user_id ) ) {
+			if ( ! self::is_strictly_valid_linked_license( $license, (int) $competition_id, (int) $club_id, $user_id ) ) {
+				self::redirect_with_notice(
+					$competition_id,
+					'access_denied',
+					AccessResult::deny( 'invalid_license', array( 'scope' => 'register' ) )
+				);
+			}
+		}
+
 		$prefill = $license ? array(
 			'first_name'   => $license['first_name'] ?? '',
 			'last_name'    => $license['last_name'] ?? '',
@@ -656,6 +666,154 @@ class EntryActions {
 		}
 
 		return '';
+	}
+
+	private static function is_strict_license_linkage_required( $competition, int $club_id, int $user_id ): bool {
+		$default = (bool) get_option( 'ufsc_competitions_front_strict_license_linkage', false );
+		$enabled = (bool) apply_filters(
+			'ufsc_competitions_front_create_require_license_linkage',
+			$default,
+			$competition,
+			$club_id,
+			$user_id
+		);
+
+		return $enabled;
+	}
+
+	private static function is_strictly_valid_linked_license( ?array $license, int $competition_id, int $club_id, int $user_id ): bool {
+		$license_id    = absint( $license['id'] ?? 0 );
+		$native_result = self::has_valid_license_record( $license_id, $club_id );
+		$validated     = (bool) apply_filters(
+			'ufsc_competitions_front_create_license_linkage_valid',
+			$native_result,
+			$license,
+			$competition_id,
+			$club_id,
+			$user_id
+		);
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && $native_result !== $validated ) {
+			self::strict_debug_log(
+				'entry_action_strict_license_linkage_override',
+				array(
+					'competition_id' => $competition_id,
+					'club_id'        => $club_id,
+					'user_id'        => $user_id,
+					'license_id'     => $license_id,
+					'native'         => $native_result,
+					'filtered'       => $validated,
+				)
+			);
+		}
+
+		return $validated;
+	}
+
+	private static function has_valid_license_record( int $license_id, int $club_id ): bool {
+		$license_id = absint( $license_id );
+		$club_id    = absint( $club_id );
+		if ( $license_id <= 0 || $club_id <= 0 ) {
+			return false;
+		}
+
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'ufsc_licences';
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		if ( $found !== $table ) {
+			return false;
+		}
+
+		$columns_raw = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+		$columns = is_array( $columns_raw ) ? array_map( 'strtolower', $columns_raw ) : array();
+		if ( empty( $columns ) ) {
+			return false;
+		}
+
+		$where  = array( 'id = %d' );
+		$params = array( $license_id );
+
+		if ( in_array( 'club_id', $columns, true ) ) {
+			$where[]  = 'club_id = %d';
+			$params[] = $club_id;
+		}
+
+		if ( in_array( 'deleted_at', $columns, true ) ) {
+			$where[] = "(deleted_at IS NULL OR deleted_at = '')";
+		}
+
+		$status_column = self::resolve_first_existing_column(
+			$columns,
+			array( 'status', 'statut', 'etat', 'state', 'license_status', 'licence_status' )
+		);
+		if ( '' !== $status_column ) {
+			$invalid_statuses = array(
+				'inactive',
+				'inactif',
+				'invalide',
+				'invalid',
+				'expired',
+				'expire',
+				'suspended',
+				'suspendu',
+				'cancelled',
+				'annule',
+				'deleted',
+				'supprime',
+				'rejected',
+				'refused',
+				'blocked',
+				'bloque',
+			);
+			$placeholders = implode( ', ', array_fill( 0, count( $invalid_statuses ), '%s' ) );
+			$where[] = "( {$status_column} IS NULL OR {$status_column} = '' OR LOWER({$status_column}) NOT IN ({$placeholders}) )";
+			$params  = array_merge( $params, $invalid_statuses );
+		}
+
+		$expiry_column = self::resolve_first_existing_column(
+			$columns,
+			array(
+				'date_fin_validite',
+				'date_validite',
+				'valid_until',
+				'expires_at',
+				'expiration_date',
+				'date_expiration',
+				'date_fin_licence',
+				'date_fin_licence_asptt',
+				'date_echeance',
+			)
+		);
+		if ( '' !== $expiry_column ) {
+			$where[]  = "( {$expiry_column} IS NULL OR {$expiry_column} = '' OR {$expiry_column} >= %s )";
+			$params[] = current_time( 'Y-m-d' );
+		}
+
+		$sql = "SELECT id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' LIMIT 1';
+		$sql = $wpdb->prepare( $sql, $params );
+
+		return (int) $wpdb->get_var( $sql ) > 0;
+	}
+
+	private static function resolve_first_existing_column( array $columns, array $candidates ): string {
+		foreach ( $candidates as $candidate ) {
+			$name = strtolower( (string) $candidate );
+			if ( in_array( $name, $columns, true ) ) {
+				return $name;
+			}
+		}
+
+		return '';
+	}
+
+	private static function strict_debug_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( sprintf( '[UFSC LC] %s %s', $message, $payload ) );
 	}
 
 	private static function debug_log( string $message, array $context = array() ): void {
