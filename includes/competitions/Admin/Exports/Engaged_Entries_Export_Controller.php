@@ -30,8 +30,10 @@ class Engaged_Entries_Export_Controller {
 
 		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		$status         = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'approved';
-
-		if ( ! in_array( $status, array( 'approved', 'submitted' ), true ) ) {
+		if ( 'submitted' === $status ) {
+			$status = 'review_queue';
+		}
+		if ( ! in_array( $status, array( 'approved', 'review_queue' ), true ) ) {
 			$status = 'approved';
 		}
 

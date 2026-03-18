@@ -332,7 +332,9 @@ class EntryRepository {
 
 	private function sanitize( array $data ) {
 		$table = Db::entries_table();
-		$allowed_status = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
+		$allowed_status = class_exists( EntriesWorkflow::class )
+			? EntriesWorkflow::get_storage_statuses()
+			: array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		$status = \UFSC\Competitions\Entries\EntriesWorkflow::normalize_status( (string) ( $data['status'] ?? 'draft' ) );
 		if ( ! in_array( $status, $allowed_status, true ) ) {
 			$status = 'draft';
@@ -460,7 +462,9 @@ class EntryRepository {
 
 		$status = sanitize_key( $status );
 
-		$allowed = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
+		$allowed = class_exists( EntriesWorkflow::class )
+			? EntriesWorkflow::get_storage_statuses()
+			: array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		if ( ! in_array( $status, $allowed, true ) ) {
 			return 'draft';
 		}
@@ -749,86 +753,14 @@ class EntryRepository {
 			return array();
 		}
 
-		$normalized = $this->normalize_status( $status );
-
-		$submitted_variants = array(
-			'submitted',
-			'Soumise',
-			'soumise',
-			'Soumis',
-			'soumis',
-		);
-
-		$pending_variants = array(
-			'pending',
-			'En attente',
-			'en attente',
-			'En attente validation',
-			'en attente validation',
-			'en_attente_validation',
-			'en-attente-validation',
-			'en_attente',
-			'en-attente',
-		);
-
-		$approved_variants = array(
-			'approved',
-			'Approuvée',
-			'approuvee',
-			'approuvée',
-			'validated',
-			'Validée',
-			'validee',
-			'validée',
-		);
-
-		$rejected_variants = array(
-			'rejected',
-			'Rejetée',
-			'rejetee',
-			'rejetée',
-			'Refusée',
-			'refusee',
-			'refusée',
-		);
-
-		$cancelled_variants = array(
-			'cancelled',
-			'withdrawn',
-			'Annulée',
-			'annulee',
-			'annulée',
-		);
-
-		$draft_variants = array(
-			'draft',
-			'Brouillon',
-			'brouillon',
-		);
-
-		switch ( $normalized ) {
-			case 'submitted':
-				return array_values( array_unique( array_merge( $submitted_variants, $pending_variants ) ) );
-			case 'pending':
-				return $pending_variants;
-			case 'approved':
-				return $approved_variants;
-			case 'rejected':
-				return $rejected_variants;
-			case 'cancelled':
-				return $cancelled_variants;
-			case 'draft':
-			default:
-				return $draft_variants;
+		if ( class_exists( EntriesWorkflow::class ) && method_exists( EntriesWorkflow::class, 'get_status_variants' ) ) {
+			return EntriesWorkflow::get_status_variants( $status );
 		}
+
+		return array( $this->normalize_status( $status ) );
 	}
 
 	private function normalize_status_for_count( string $status ): string {
-		$slug = $this->normalize_status_slug( $status );
-		if ( in_array( $slug, array( 'pending', 'en_attente', 'en_attente_validation' ), true ) ) {
-			return 'pending';
-		}
-
 		$normalized = $this->normalize_status( $status );
 		if ( 'validated' === $normalized ) {
 			return 'approved';

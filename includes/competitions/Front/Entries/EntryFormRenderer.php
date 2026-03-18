@@ -133,7 +133,10 @@ class EntryFormRenderer {
 				$can_export_engaged = $access_result ? (bool) $access_result->can_export_engaged : true;
 
 				$engaged_status = isset( $_GET['ufsc_engaged_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_engaged_status'] ) ) : 'approved';
-				if ( ! in_array( $engaged_status, array( 'approved', 'submitted' ), true ) ) {
+				if ( 'submitted' === $engaged_status ) {
+					$engaged_status = 'review_queue';
+				}
+				if ( ! in_array( $engaged_status, array( 'approved', 'review_queue' ), true ) ) {
 					$engaged_status = 'approved';
 				}
 

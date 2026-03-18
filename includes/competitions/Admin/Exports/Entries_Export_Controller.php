@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Admin\Exports;
 
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 
@@ -346,7 +347,8 @@ class Entries_Export_Controller {
 
 	private function get_requested_filters(): array {
 		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : '';
-		if ( '' !== $status && ! in_array( $status, array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' ), true ) ) {
+		$allowed_statuses = EntriesWorkflow::get_storage_statuses();
+		if ( '' !== $status && ! in_array( $status, $allowed_statuses, true ) ) {
 			$status = '';
 		}
 

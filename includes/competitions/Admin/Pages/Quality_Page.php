@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Admin\Tables\Quality_Table;
@@ -73,7 +74,8 @@ class Quality_Page {
 					'details'     => $competition ? DisciplineRegistry::get_label( $competition->discipline ) : '',
 				);
 			}
-			if ( 'submitted' === $entry->status ) {
+			$entry_status = EntriesWorkflow::normalize_status( (string) ( $entry->status ?? '' ) );
+			if ( in_array( $entry_status, EntriesWorkflow::get_review_queue_statuses(), true ) ) {
 				$competition = $index[ $entry->competition_id ] ?? null;
 				$issues[] = array(
 					'issue'       => __( 'Inscription en attente de validation', 'ufsc-licence-competition' ),
