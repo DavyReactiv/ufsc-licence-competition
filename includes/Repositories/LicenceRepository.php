@@ -13,8 +13,12 @@ class UFSC_LC_Licence_Repository {
 		global $wpdb;
 		$table = $wpdb->prefix . 'ufsc_licences';
 		if ( null === $this->licences_table_exists ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-			$this->licences_table_exists = ( $exists === $table );
+			if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+				$this->licences_table_exists = UFSC_LC_Schema_Cache::table_exists( $table );
+			} else {
+				$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+				$this->licences_table_exists = ( $exists === $table );
+			}
 		}
 
 		return $this->licences_table_exists ? $table : '';
@@ -24,8 +28,12 @@ class UFSC_LC_Licence_Repository {
 		global $wpdb;
 		$table = $wpdb->prefix . 'ufsc_clubs';
 		if ( null === $this->clubs_table_exists ) {
-			$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-			$this->clubs_table_exists = ( $exists === $table );
+			if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+				$this->clubs_table_exists = UFSC_LC_Schema_Cache::table_exists( $table );
+			} else {
+				$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+				$this->clubs_table_exists = ( $exists === $table );
+			}
 		}
 
 		return $this->clubs_table_exists ? $table : '';
@@ -42,15 +50,18 @@ class UFSC_LC_Licence_Repository {
 			return $this->club_region_column;
 		}
 
-		global $wpdb;
-		$column = $wpdb->get_var(
-			$wpdb->prepare(
-				"SHOW COLUMNS FROM {$table} LIKE %s",
-				'region'
-			)
-		);
-
-		$this->club_region_column = $column ? 'region' : '';
+		if ( class_exists( 'UFSC_LC_Schema_Cache' ) ) {
+			$this->club_region_column = UFSC_LC_Schema_Cache::column_exists( $table, 'region' ) ? 'region' : '';
+		} else {
+			global $wpdb;
+			$column = $wpdb->get_var(
+				$wpdb->prepare(
+					"SHOW COLUMNS FROM {$table} LIKE %s",
+					'region'
+				)
+			);
+			$this->club_region_column = $column ? 'region' : '';
+		}
 
 		return $this->club_region_column;
 	}

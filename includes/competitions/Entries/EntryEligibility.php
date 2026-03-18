@@ -38,8 +38,38 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 			return apply_filters( 'ufsc_entry_eligibility', $result, $entry_id, $context );
 		}
 
-		$result['entry'] = $entry;
-		if ( method_exists( $repo, 'get_entry_status' ) ) {
+		return ufsc_lc_is_entry_eligible_from_entry( $entry, $context, $repo, $entry_id );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
+	/**
+	 * Eligibility evaluation from an already-loaded entry object.
+	 *
+	 * @param object      $entry Loaded entry row.
+	 * @param string      $context Context (admin_entries, admin_validation, front_club, fights, exports, exports_club).
+	 * @param object|null $repo Optional repository used to resolve status.
+	 * @param int|null    $entry_id Optional id used in filter payload.
+	 * @return array{eligible:bool,status:string,entry:object|null,reasons:array}
+	 */
+	function ufsc_lc_is_entry_eligible_from_entry( $entry, string $context, $repo = null, ?int $entry_id = null ): array {
+		$context = sanitize_key( $context );
+		$resolved_entry_id = null !== $entry_id ? absint( $entry_id ) : absint( $entry->id ?? 0 );
+
+		$result = array(
+			'eligible' => false,
+			'status'   => 'draft',
+			'entry'    => $entry,
+			'reasons'  => array(),
+		);
+
+		if ( ! is_object( $entry ) ) {
+			$result['entry']      = null;
+			$result['reasons'][]  = 'entry_not_found';
+			return apply_filters( 'ufsc_entry_eligibility', $result, $resolved_entry_id, $context );
+		}
+
+		if ( $repo && method_exists( $repo, 'get_entry_status' ) ) {
 			$result['status'] = $repo->get_entry_status( $entry );
 		} else {
 			$result['status'] = class_exists( '\UFSC\Competitions\Entries\EntriesWorkflow' )
@@ -50,7 +80,7 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 		$is_deleted = ! empty( $entry->deleted_at );
 		if ( $is_deleted && ! in_array( $context, array( 'admin_entries', 'admin_validation' ), true ) ) {
 			$result['reasons'][] = 'entry_deleted';
-			return apply_filters( 'ufsc_entry_eligibility', $result, $entry_id, $context );
+			return apply_filters( 'ufsc_entry_eligibility', $result, $resolved_entry_id, $context );
 		}
 
 		$weight = null;
@@ -69,11 +99,11 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 			}
 		}
 
-		$license_id = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
+		$license_id     = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
 		$license_number = sanitize_text_field( (string) ( $entry->license_number ?? '' ) );
-		$has_license = ( $license_id > 0 ) || '' !== $license_number;
+		$has_license    = ( $license_id > 0 ) || '' !== $license_number;
 
-		$club_id = absint( $entry->club_id ?? 0 );
+		$club_id  = absint( $entry->club_id ?? 0 );
 		$has_club = ( $club_id > 0 ) || ! empty( $entry->club_name );
 
 		$eligible = true;
@@ -130,7 +160,7 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 		$result['eligible'] = $eligible;
 		$result['reasons']  = array_values( array_unique( $reasons ) );
 
-		return apply_filters( 'ufsc_entry_eligibility', $result, $entry_id, $context );
+		return apply_filters( 'ufsc_entry_eligibility', $result, $resolved_entry_id, $context );
 	}
 }
 

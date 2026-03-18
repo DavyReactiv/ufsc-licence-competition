@@ -390,7 +390,12 @@ class Entries_Export_Controller {
 						}
 					}
 
-					if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
+					if ( function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
+						$eligibility = ufsc_lc_is_entry_eligible_from_entry( $entry, 'exports' );
+						if ( empty( $eligibility['eligible'] ) ) {
+							return false;
+						}
+					} elseif ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 						$eligibility = ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'exports' );
 						if ( empty( $eligibility['eligible'] ) ) {
 							return false;

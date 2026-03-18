@@ -7,6 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class LicenseBridge {
+	private const DEFAULT_SEARCH_LIMIT = 20;
 
 	public static function register(): void {
 		// Register only if the licenses plugin/table is likely available.
@@ -247,7 +248,9 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 		$order_last  = ! empty( $last_name_columns ) ? $last_name_columns[0] : 'id';
 		$order_first = ! empty( $first_name_columns ) ? $first_name_columns[0] : $order_last;
 
-		$sql  = "SELECT {$select} FROM {$table}{$join_sql} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT 20";
+		$limit = (int) apply_filters( 'ufsc_competitions_license_search_limit', self::DEFAULT_SEARCH_LIMIT, $context );
+		$limit = max( 1, min( 100, $limit ) );
+		$sql   = "SELECT {$select} FROM {$table}{$join_sql} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT " . ( $limit + 1 );
 		$this->debug_log(
 			'license_search_sql',
 			array(
@@ -262,6 +265,11 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 		}
 
 		$items = array();
+
+		$is_truncated = count( $rows ) > $limit;
+		if ( $is_truncated ) {
+			$rows = array_slice( $rows, 0, $limit );
+		}
 
 		foreach ( $rows as $row ) {
 			$first_name = sanitize_text_field( $row['first_name'] ?? '' );
@@ -307,6 +315,8 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 			'license_search_results',
 			array(
 				'count' => count( $items ),
+				'limit' => $limit,
+				'is_truncated' => $is_truncated,
 				'has_term' => '' !== $term,
 				'has_number' => '' !== $license_number,
 				'has_birthdate' => '' !== $normalized_birthdate,
@@ -388,8 +398,11 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 	}
 
 	private function table_exists( string $table ): bool {
-		global $wpdb;
+		if ( class_exists( '\UFSC_LC_Schema_Cache' ) ) {
+			return \UFSC_LC_Schema_Cache::table_exists( $table );
+		}
 
+		global $wpdb;
 		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
 		return $found === $table;
 	}
@@ -400,6 +413,10 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 		$column = sanitize_key( $column );
 		if ( '' === $column ) {
 			return false;
+		}
+
+		if ( class_exists( '\UFSC_LC_Schema_Cache' ) ) {
+			return \UFSC_LC_Schema_Cache::column_exists( $table, $column );
 		}
 
 		$result = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $column ) );
