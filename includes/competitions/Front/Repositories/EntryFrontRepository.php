@@ -538,7 +538,9 @@ class EntryFrontRepository {
 	}
 
 	public function get_allowed_statuses(): array {
-		$statuses = array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
+		$statuses = class_exists( EntriesWorkflow::class )
+			? EntriesWorkflow::get_storage_statuses()
+			: array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
 		$statuses = apply_filters( 'ufsc_entries_allowed_statuses', $statuses );
 		if ( ! is_array( $statuses ) ) {
 			return array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );

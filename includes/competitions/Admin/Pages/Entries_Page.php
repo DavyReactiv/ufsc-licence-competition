@@ -795,13 +795,10 @@ class Entries_Page {
 					<tr>
 						<th scope="row"><label for="ufsc_entry_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-				<select name="status" id="ufsc_entry_status" class="regular-text">
-					<option value="draft" <?php selected( $values['status'], 'draft' ); ?>><?php esc_html_e( 'Brouillon', 'ufsc-licence-competition' ); ?></option>
-					<option value="submitted" <?php selected( $values['status'], 'submitted' ); ?>><?php esc_html_e( 'Soumise', 'ufsc-licence-competition' ); ?></option>
-					<option value="pending" <?php selected( $values['status'], 'pending' ); ?>><?php esc_html_e( 'En attente', 'ufsc-licence-competition' ); ?></option>
-						<option value="approved" <?php selected( $values['status'], 'approved' ); ?>><?php esc_html_e( 'Approuvée', 'ufsc-licence-competition' ); ?></option>
-					<option value="rejected" <?php selected( $values['status'], 'rejected' ); ?>><?php esc_html_e( 'Rejetée', 'ufsc-licence-competition' ); ?></option>
-					<option value="cancelled" <?php selected( $values['status'], 'cancelled' ); ?>><?php esc_html_e( 'Annulée', 'ufsc-licence-competition' ); ?></option>
+							<select name="status" id="ufsc_entry_status" class="regular-text">
+								<?php foreach ( EntriesWorkflow::get_status_labels() as $status_code => $status_label ) : ?>
+									<option value="<?php echo esc_attr( $status_code ); ?>" <?php selected( $values['status'], $status_code ); ?>><?php echo esc_html( $status_label ); ?></option>
+								<?php endforeach; ?>
 							</select>
 						</td>
 					</tr>

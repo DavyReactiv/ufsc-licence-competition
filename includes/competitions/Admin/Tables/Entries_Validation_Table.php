@@ -70,7 +70,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 		}
 
 		if ( '' === $filters['status'] ) {
-			$filters['status'] = 'submitted';
+			$filters['status'] = 'review_queue';
 		}
 
 		$this->filters = $filters;
@@ -272,7 +272,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			<label class="screen-reader-text" for="ufsc_status_filter"><?php esc_html_e( 'Filtrer par statut', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_status" id="ufsc_status_filter">
 				<option value=""><?php esc_html_e( 'Tous les statuts', 'ufsc-licence-competition' ); ?></option>
-				<?php foreach ( EntriesWorkflow::get_status_labels() as $value => $label ) : ?>
+				<?php foreach ( EntriesWorkflow::get_filter_status_labels() as $value => $label ) : ?>
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $status, $value ); ?>><?php echo esc_html( $label ); ?></option>
 				<?php endforeach; ?>
 			</select>

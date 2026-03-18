@@ -7,20 +7,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class EntriesWorkflow {
+	public static function get_storage_statuses(): array {
+		return array( 'draft', 'submitted', 'pending', 'approved', 'rejected', 'cancelled' );
+	}
+
 	public static function get_status_labels(): array {
 		$statuses = array(
-			'draft' => __( 'Brouillon', 'ufsc-licence-competition' ),
+			'draft'     => __( 'Brouillon', 'ufsc-licence-competition' ),
 			'submitted' => __( 'Soumise', 'ufsc-licence-competition' ),
-			'pending' => __( 'En attente', 'ufsc-licence-competition' ),
-			'approved' => __( 'Approuvée', 'ufsc-licence-competition' ),
-			'validated' => __( 'Validée', 'ufsc-licence-competition' ),
-			'weighed' => __( 'Pesée OK', 'ufsc-licence-competition' ),
-			'ready' => __( 'Prête au tirage', 'ufsc-licence-competition' ),
-			'rejected' => __( 'Rejetée', 'ufsc-licence-competition' ),
+			'pending'   => __( 'En attente', 'ufsc-licence-competition' ),
+			'approved'  => __( 'Approuvée', 'ufsc-licence-competition' ),
+			'rejected'  => __( 'Rejetée', 'ufsc-licence-competition' ),
 			'cancelled' => __( 'Annulée', 'ufsc-licence-competition' ),
 		);
 
-		$filtered = apply_filters( 'ufsc_entries_allowed_statuses', array_keys( $statuses ) );
+		$filtered = apply_filters( 'ufsc_entries_allowed_statuses', self::get_storage_statuses() );
 		if ( is_array( $filtered ) ) {
 			$filtered = array_map( 'sanitize_key', $filtered );
 			$statuses = array_intersect_key( $statuses, array_flip( $filtered ) );
@@ -29,10 +30,31 @@ class EntriesWorkflow {
 		return $statuses;
 	}
 
+	public static function get_filter_status_labels(): array {
+		return array(
+			'review_queue' => __( 'À valider (Soumise + En attente)', 'ufsc-licence-competition' ),
+		) + self::get_status_labels();
+	}
+
+	public static function get_review_queue_statuses(): array {
+		return array( 'submitted', 'pending' );
+	}
+
+	public static function get_allowed_transitions(): array {
+		return array(
+			'draft'     => array( 'submitted', 'cancelled' ),
+			'submitted' => array( 'pending', 'approved', 'rejected', 'draft', 'cancelled' ),
+			'pending'   => array( 'approved', 'rejected', 'draft', 'cancelled' ),
+			'approved'  => array(),
+			'rejected'  => array( 'draft' ),
+			'cancelled' => array(),
+		);
+	}
+
 	public static function normalize_status( string $status ): string {
 		$slug = self::normalize_status_slug( $status );
 
-			switch ( $slug ) {
+		switch ( $slug ) {
 			case 'soumise':
 			case 'soumis':
 			case 'submitted':
@@ -98,6 +120,75 @@ class EntriesWorkflow {
 			default:
 				return 'ufsc-badge--info';
 		}
+	}
+
+	public static function get_status_variants( string $status ): array {
+		$normalized = self::normalize_status( $status );
+		$slug       = self::normalize_status_slug( $status );
+		if ( 'review_queue' === $slug ) {
+			return array_values(
+				array_unique(
+					array_merge(
+						self::get_status_variants( 'submitted' ),
+						self::get_status_variants( 'pending' )
+					)
+				)
+			);
+		}
+
+		$variants_map = array(
+			'submitted' => array(
+				'submitted',
+				'Soumise',
+				'soumise',
+				'Soumis',
+				'soumis',
+			),
+			'pending' => array(
+				'pending',
+				'En attente',
+				'en attente',
+				'En attente validation',
+				'en attente validation',
+				'en_attente_validation',
+				'en-attente-validation',
+				'en_attente',
+				'en-attente',
+			),
+			'approved' => array(
+				'approved',
+				'Approuvée',
+				'approuvee',
+				'approuvée',
+				'validated',
+				'Validée',
+				'validee',
+				'validée',
+			),
+			'rejected' => array(
+				'rejected',
+				'Rejetée',
+				'rejetee',
+				'rejetée',
+				'Refusée',
+				'refusee',
+				'refusée',
+			),
+			'cancelled' => array(
+				'cancelled',
+				'withdrawn',
+				'Annulée',
+				'annulee',
+				'annulée',
+			),
+			'draft' => array(
+				'draft',
+				'Brouillon',
+				'brouillon',
+			),
+		);
+
+		return $variants_map[ $normalized ] ?? $variants_map['draft'];
 	}
 
 	public static function get_timeline_label( string $status ): string {
