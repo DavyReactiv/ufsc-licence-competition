@@ -541,8 +541,16 @@ class EntryRepository {
 				$license_number_expr = $this->build_license_number_expression( $licence_columns );
 				$first_name_select = in_array( 'prenom', $licence_columns, true ) ? 'l.prenom' : "''";
 				$birthdate_select = in_array( 'date_naissance', $licence_columns, true ) ? 'l.date_naissance' : "''";
+				$sex_select = "''";
+				foreach ( array( 'sex', 'sexe', 'gender' ) as $sex_column ) {
+					if ( in_array( $sex_column, $licence_columns, true ) ) {
+						$sex_select = 'l.' . $sex_column;
+						break;
+					}
+				}
 				$select .= ", {$last_name_expr} AS licensee_last_name, {$first_name_select} AS licensee_first_name";
 				$select .= ", {$birthdate_select} AS licensee_birthdate";
+				$select .= ", {$sex_select} AS licensee_sex";
 				$select .= ", {$license_number_expr} AS license_number";
 				$select .= $license_club_column ? ', l.club_id AS licensee_club_id' : ", NULL AS licensee_club_id";
 			}
