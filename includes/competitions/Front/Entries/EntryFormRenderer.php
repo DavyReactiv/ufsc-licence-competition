@@ -48,7 +48,7 @@ class EntryFormRenderer {
 		}
 
 		if ( ! empty( $license_results ) && count( $license_results ) > 1 && ! $license_id ) {
-			$license_notice = __( 'Plusieurs licenciés trouvés. Sélectionnez la bonne personne ci-dessous.', 'ufsc-licence-competition' );
+			$license_notice = __( 'Plusieurs licenciés correspondent à votre recherche. Vérifiez la date de naissance et sélectionnez la bonne personne avant de continuer.', 'ufsc-licence-competition' );
 		}
 
 		ob_start();
@@ -442,8 +442,14 @@ class EntryFormRenderer {
 												<?php echo esc_html( $status_label ); ?>
 											</span>
 
-											<?php if ( in_array( $status, array( 'submitted', 'pending' ), true ) ) : ?>
-												<br /><small><?php echo esc_html__( 'En attente validation', 'ufsc-licence-competition' ); ?></small>
+											<?php if ( 'draft' === $status ) : ?>
+												<br /><small><?php echo esc_html__( 'Brouillon : non transmis à l’administration.', 'ufsc-licence-competition' ); ?></small>
+											<?php elseif ( in_array( $status, array( 'submitted', 'pending' ), true ) ) : ?>
+												<br /><small><?php echo esc_html__( 'En attente de validation par l’administration UFSC.', 'ufsc-licence-competition' ); ?></small>
+											<?php elseif ( 'approved' === $status ) : ?>
+												<br /><small><?php echo esc_html__( 'Validée : le licencié est engagé sur la compétition.', 'ufsc-licence-competition' ); ?></small>
+											<?php elseif ( 'cancelled' === $status ) : ?>
+												<br /><small><?php echo esc_html__( 'Annulée : inscription retirée du flux de validation.', 'ufsc-licence-competition' ); ?></small>
 											<?php endif; ?>
 
 											<?php if ( 'rejected' === $status && $rejected_reason ) : ?>
@@ -544,6 +550,9 @@ class EntryFormRenderer {
 								<?php endif; ?>
 								<button type="submit" class="button"><?php echo esc_html__( 'Rechercher', 'ufsc-licence-competition' ); ?></button>
 							</form>
+							<p class="description">
+								<?php echo esc_html__( 'La recherche interroge la base licences du club. Si aucun résultat ne remonte, vérifiez l’orthographe, le numéro de licence et la date de naissance.', 'ufsc-licence-competition' ); ?>
+							</p>
 						<?php else : ?>
 							<p class="description"><?php echo esc_html__( 'Recherche de licence indisponible.', 'ufsc-licence-competition' ); ?></p>
 						<?php endif; ?>
@@ -833,19 +842,19 @@ class EntryFormRenderer {
 
 			'error'                    => array( 'error', __( 'Une erreur est survenue. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 			'error_forbidden'          => array( 'error', __( 'Accès refusé.', 'ufsc-licence-competition' ) ),
-			'error_invalid_fields'     => array( 'error', __( 'Champs invalides.', 'ufsc-licence-competition' ) ),
-			'error_closed'             => array( 'error', __( 'Compétition fermée.', 'ufsc-licence-competition' ) ),
+			'error_invalid_fields'     => array( 'error', __( 'Certaines informations sont invalides ou incomplètes. Vérifiez les champs signalés puis réessayez.', 'ufsc-licence-competition' ) ),
+			'error_closed'             => array( 'error', __( 'Inscriptions fermées pour cette compétition. Aucune nouvelle soumission n’est possible.', 'ufsc-licence-competition' ) ),
 			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),
-			'error_invalid_status'     => array( 'error', __( 'Statut invalide.', 'ufsc-licence-competition' ) ),
+			'error_invalid_status'     => array( 'error', __( 'Action impossible depuis le statut actuel de cette inscription.', 'ufsc-licence-competition' ) ),
 			'error_duplicate_entry'    => array( 'error', __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_withdraw_approved'  => array( 'error', __( 'Inscription validée — pour toute modification, contactez l’administration UFSC.', 'ufsc-licence-competition' ) ),
-			'error_locked'             => array( 'error', __( 'Inscription verrouillée.', 'ufsc-licence-competition' ) ),
-			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition.', 'ufsc-licence-competition' ) ),
-			'error_payment_required'   => array( 'error', __( 'Action indisponible actuellement.', 'ufsc-licence-competition' ) ),
-			'error_weight_required'    => array( 'error', __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ) ),
+			'error_locked'             => array( 'error', __( 'Inscription verrouillée : retirez-la puis ré-éditez-la pour la modifier.', 'ufsc-licence-competition' ) ),
+			'error_quota'              => array( 'error', __( 'Quota atteint pour cette compétition. Aucun engagement supplémentaire ne peut être soumis.', 'ufsc-licence-competition' ) ),
+			'error_payment_required'   => array( 'error', __( 'Action indisponible : vérifiez les prérequis administratifs de la compétition.', 'ufsc-licence-competition' ) ),
+			'error_weight_required'    => array( 'error', __( 'Validation bloquée : renseignez le poids pour déterminer la catégorie de poids.', 'ufsc-licence-competition' ) ),
 
-			'export_empty'             => array( 'info', __( 'Aucune inscription approuvée à exporter.', 'ufsc-licence-competition' ) ),
-			'error_export_unavailable' => array( 'error', __( 'Export indisponible. Merci de réessayer.', 'ufsc-licence-competition' ) ),
+			'export_empty'             => array( 'info', __( 'Aucune inscription validée disponible pour cet export.', 'ufsc-licence-competition' ) ),
+			'error_export_unavailable' => array( 'error', __( 'Export indisponible pour le moment. Réessayez ou contactez l’administration UFSC.', 'ufsc-licence-competition' ) ),
 		);
 
 		$messages = apply_filters( 'ufsc_competitions_front_notice_map', $messages );

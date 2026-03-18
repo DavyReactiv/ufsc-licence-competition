@@ -356,7 +356,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 				<tbody>
 					<?php if ( empty( $items ) ) : ?>
 						<tr>
-							<td colspan="7"><?php esc_html_e( 'Aucune licence trouvée.', 'ufsc-licence-competition' ); ?></td>
+							<td colspan="7">
+								<?php
+								if ( '' !== trim( (string) ( $filters['q'] ?? '' ) ) ) {
+									esc_html_e( 'Aucune licence trouvée pour cette recherche. Vérifiez le nom, le prénom ou le N° ASPTT saisi.', 'ufsc-licence-competition' );
+								} else {
+									esc_html_e( 'Aucune licence trouvée pour les filtres sélectionnés.', 'ufsc-licence-competition' );
+								}
+								?>
+							</td>
 						</tr>
 					<?php else : ?>
 						<?php foreach ( $items as $item ) : ?>
