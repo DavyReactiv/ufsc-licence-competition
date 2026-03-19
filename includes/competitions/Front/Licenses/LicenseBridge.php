@@ -100,7 +100,27 @@ class LicenseBridge {
 		}
 
 		if ( '' !== $status_column ) {
-			$where[] = "(LOWER(TRIM(COALESCE({$status_column}, ''))) IN ('valide', 'valid', 'active', 'actif', 'approved') OR {$status_column} IS NULL OR TRIM(COALESCE({$status_column}, '')) = '')";
+			$invalid_statuses = array(
+				'inactive',
+				'inactif',
+				'invalide',
+				'invalid',
+				'expired',
+				'expire',
+				'suspended',
+				'suspendu',
+				'cancelled',
+				'annule',
+				'deleted',
+				'supprime',
+				'rejected',
+				'refused',
+				'blocked',
+				'bloque',
+			);
+			$invalid_placeholders = implode( ', ', array_fill( 0, count( $invalid_statuses ), '%s' ) );
+			$where[] = "( {$status_column} IS NULL OR {$status_column} = '' OR LOWER(TRIM({$status_column})) NOT IN ({$invalid_placeholders}) )";
+			$params = array_merge( $params, $invalid_statuses );
 		}
 
 		$current_season = function_exists( 'ufsc_lc_get_current_season_end_year' ) ? (int) ufsc_lc_get_current_season_end_year() : 0;
@@ -247,6 +267,8 @@ class LicenseBridge {
 			'birthdate' => $birthdate,
 		);
 		$join      = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
+		$raw_where_sql = $where_sql;
+		$raw_params    = $params;
 		$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
 		$params    = apply_filters( 'ufsc_competitions_license_search_params', $params, $context );
 
@@ -270,17 +292,38 @@ class LicenseBridge {
 
 		$limit = (int) apply_filters( 'ufsc_competitions_license_search_limit', self::DEFAULT_SEARCH_LIMIT, $context );
 		$limit = max( 1, min( 100, $limit ) );
-		$sql   = "SELECT {$select} FROM {$table}{$join_sql} {$where_sql} ORDER BY {$order_last} ASC, {$order_first} ASC, id ASC LIMIT " . ( $limit + 1 );
+		$order_clauses = array();
+		if ( '' !== $license_number && ! empty( $license_columns ) ) {
+			foreach ( $license_columns as $license_column ) {
+				$order_clauses[] = $wpdb->prepare( "CASE WHEN TRIM(COALESCE({$license_column}, '')) = %s THEN 0 ELSE 1 END", $license_number );
+			}
+		}
+		$order_clauses[] = "{$order_last} ASC";
+		$order_clauses[] = "{$order_first} ASC";
+		$order_clauses[] = 'id ASC';
+		$order_sql = implode( ', ', $order_clauses );
+
+		$sql   = "SELECT {$select} FROM {$table}{$join_sql} {$where_sql} ORDER BY {$order_sql} LIMIT " . ( $limit + 1 );
 		$this->debug_log(
 			'license_search_sql',
 			array(
 				'sql' => $sql,
 				'params_count' => count( $params ),
+				'params_preview' => array_slice( $params, 0, 25 ),
 				'license_columns' => $license_columns,
+				'last_name_columns' => $last_name_columns,
+				'first_name_columns' => $first_name_columns,
+				'birthdate_column' => $birthdate_column,
+				'sex_column' => $sex_column,
 				'status_column' => $status_column,
 				'season_column' => $season_column,
 				'season_filter' => $enforce_current_season && $current_season > 0 && '' !== $season_column ? (string) $current_season : '',
 				'enforce_current_season' => $enforce_current_season,
+				'join_sql' => $join_sql,
+				'where_sql_before_filters' => $raw_where_sql,
+				'where_sql_after_filters' => $where_sql,
+				'where_changed_by_filter' => $raw_where_sql !== $where_sql,
+				'params_changed_by_filter' => $raw_params !== $params,
 			)
 		);
 
@@ -320,9 +363,23 @@ class LicenseBridge {
 		}
 
 		if ( empty( $items ) ) {
+			$zero_reason = '';
+			if ( ! $club_id ) {
+				$zero_reason = 'club_id_missing';
+			} elseif ( '' !== $license_number && empty( $license_columns ) ) {
+				$zero_reason = 'license_number_provided_but_no_license_column';
+			} elseif ( '' !== $term && empty( $last_name_columns ) && empty( $first_name_columns ) && empty( $license_columns ) ) {
+				$zero_reason = 'term_provided_but_no_searchable_columns';
+			} elseif ( '' !== $normalized_birthdate && '' === $birthdate_column ) {
+				$zero_reason = 'birthdate_provided_but_no_birthdate_column';
+			} else {
+				$zero_reason = 'query_returned_no_rows';
+			}
+
 			$this->debug_log(
 				'license_search_zero_results',
 				array(
+					'reason' => $zero_reason,
 					'club_scoped' => (bool) $club_id,
 					'has_term' => '' !== $term,
 					'has_number' => '' !== $license_number,
@@ -340,6 +397,12 @@ class LicenseBridge {
 			'license_search_results',
 			array(
 				'count' => count( $items ),
+				'ids' => array_map(
+					static function( $item ) {
+						return (int) ( $item['id'] ?? 0 );
+					},
+					$items
+				),
 				'limit' => $limit,
 				'is_truncated' => $is_truncated,
 				'has_term' => '' !== $term,
@@ -355,6 +418,14 @@ class LicenseBridge {
 
 	public function get_by_id( int $id, int $club_id ): ?array {
 		if ( ! $club_id || ! $id ) {
+			$this->debug_log(
+				'license_get_by_id_skipped',
+				array(
+					'id' => $id,
+					'club_id' => $club_id,
+					'reason' => ! $club_id ? 'missing_club_id' : 'missing_license_id',
+				)
+			);
 			return null;
 		}
 
@@ -390,6 +461,17 @@ class LicenseBridge {
 		);
 
 		if ( ! $row ) {
+			$this->debug_log(
+				'license_get_by_id_not_found',
+				array(
+					'id' => $id,
+					'club_id' => $club_id,
+					'license_column' => $license_column,
+					'last_name_column' => $last_name_column,
+					'first_name_column' => $first_name_column,
+					'birthdate_column' => $birthdate_column,
+				)
+			);
 			return null;
 		}
 
@@ -404,7 +486,7 @@ class LicenseBridge {
 			)
 		);
 
-		return array(
+		$item = array(
 			'id'             => absint( $row['id'] ?? 0 ),
 			'label'          => implode( ' · ', $label_bits ),
 			'first_name'     => $first_name,
@@ -413,6 +495,16 @@ class LicenseBridge {
 			'sex'            => sanitize_text_field( $row['sex'] ?? '' ),
 			'license_number' => sanitize_text_field( $row['license_number'] ?? '' ),
 		);
+		$this->debug_log(
+			'license_get_by_id_found',
+			array(
+				'id' => (int) $item['id'],
+				'club_id' => $club_id,
+				'label' => (string) $item['label'],
+			)
+		);
+
+		return $item;
 	}
 
 	private static function is_available(): bool {

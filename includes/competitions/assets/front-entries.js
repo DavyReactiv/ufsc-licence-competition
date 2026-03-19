@@ -21,9 +21,14 @@
   const licenseSelectForm = document.querySelector(".ufsc-license-select-form");
   const licenseSearchFeedback = document.querySelector(".ufsc-license-search-feedback");
 
-  if (!birthInput || !categoryInput) {
-    return;
-  }
+  const canComputeCategory = Boolean(birthInput && categoryInput);
+  const debugEnabled = Boolean(config.debug);
+  const debugLog = (...args) => {
+    if (!debugEnabled || !window.console || typeof window.console.debug !== "function") {
+      return;
+    }
+    window.console.debug("[UFSC LC front-entries]", ...args);
+  };
 
   const setStatus = (message, type = "") => {
     if (!statusNode) {
@@ -118,6 +123,10 @@
   };
 
   const computeCategory = async () => {
+    if (!canComputeCategory) {
+      return;
+    }
+
     if (!shouldCompute()) {
       setStatus(config.labels?.missing || "");
       setWeightStatus(config.labels?.weightMissing || "");
@@ -190,7 +199,7 @@
   bindInput(sexInput);
   bindInput(levelInput);
 
-  if (getValue(birthInput)) {
+  if (canComputeCategory && getValue(birthInput)) {
     debounce(computeCategory, 50);
   }
 
@@ -284,6 +293,13 @@
       const payload = new URLSearchParams({
         action: "ufsc_competitions_license_search",
         nonce: config.licenseSearchNonce || "",
+        competition_id: String(config.competitionId || ""),
+        term,
+        license_number: licenseNumber,
+        birth_date: birthDate,
+      });
+      debugLog("license_search_submit", {
+        competition_id: String(config.competitionId || ""),
         term,
         license_number: licenseNumber,
         birth_date: birthDate,
@@ -300,11 +316,16 @@
         });
         const data = await response.json();
         if (!data || !data.success) {
+          debugLog("license_search_error_payload", data);
           setLicenseFeedback(config.labels?.searchError || "", "error");
           return;
         }
 
         const results = data.data?.results || [];
+        debugLog("license_search_response", {
+          count: results.length,
+          ids: results.map((item) => Number(item.id || 0)),
+        });
         if (!results.length) {
           setLicenseFeedback(
             data.data?.message || config.labels?.searchNoResult || "",

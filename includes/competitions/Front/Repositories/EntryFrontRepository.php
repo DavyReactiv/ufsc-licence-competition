@@ -512,19 +512,43 @@ class EntryFrontRepository {
 
 	public function normalize_license_results( array $results, int $limit = 20 ): array {
 		$normalized = array();
+		$dropped = array(
+			'non_array' => 0,
+			'missing_id' => 0,
+			'missing_label' => 0,
+		);
 
 		foreach ( $results as $result ) {
 			if ( ! is_array( $result ) ) {
+				$dropped['non_array']++;
 				continue;
 			}
 			$item = $this->normalize_license_result( $result );
-			if ( empty( $item['id'] ) || '' === $item['label'] ) {
+			if ( empty( $item['id'] ) ) {
+				$dropped['missing_id']++;
+				continue;
+			}
+			if ( '' === $item['label'] ) {
+				$dropped['missing_label']++;
 				continue;
 			}
 			$normalized[] = $item;
 			if ( count( $normalized ) >= $limit ) {
 				break;
 			}
+		}
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC EntryFrontRepository normalize_license_results: ' .
+				wp_json_encode(
+					array(
+						'raw_count' => count( $results ),
+						'normalized_count' => count( $normalized ),
+						'dropped' => $dropped,
+					)
+				)
+			);
 		}
 
 		return $normalized;
