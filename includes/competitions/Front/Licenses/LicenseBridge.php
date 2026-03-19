@@ -51,11 +51,13 @@ class LicenseBridge {
 		}
 
 		// Resolve schema differences across installs.
-		$license_columns   = $this->resolve_available_columns( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number', 'asptt_number' ) );
+		$license_columns   = $this->resolve_available_columns( $table, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
 		$last_name_columns = $this->resolve_available_columns( $table, array( 'nom', 'nom_licence', 'last_name' ) );
 		$first_name_columns = $this->resolve_available_columns( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate', 'date_of_birth' ) );
 		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
+		$status_column     = $this->resolve_first_column( $table, array( 'statut', 'status' ) );
+		$season_column     = $this->resolve_first_column( $table, array( 'season_end_year', 'saison', 'season' ) );
 
 		$term           = sanitize_text_field( $term );
 		$license_number = sanitize_text_field( $license_number );
@@ -95,6 +97,16 @@ class LicenseBridge {
 		if ( $this->has_column( $table, 'club_id' ) && $club_id ) {
 			$where[] = 'club_id = %d';
 			$params[] = $club_id;
+		}
+
+		if ( '' !== $status_column ) {
+			$where[] = "(LOWER(TRIM(COALESCE({$status_column}, ''))) IN ('valide', 'valid', 'active', 'actif', 'approved') OR {$status_column} IS NULL OR TRIM(COALESCE({$status_column}, '')) = '')";
+		}
+
+		$current_season = function_exists( 'ufsc_lc_get_current_season_end_year' ) ? (int) ufsc_lc_get_current_season_end_year() : 0;
+		if ( $current_season > 0 && '' !== $season_column ) {
+			$where[] = "{$season_column} = %s";
+			$params[] = (string) $current_season;
 		}
 
 		$last_name_expr  = $this->build_coalesce_expression( $last_name_columns );
@@ -189,14 +201,18 @@ class LicenseBridge {
 
 		// Dedicated license number term (only if column exists)
 		if ( '' !== $license_number && ! empty( $license_columns ) ) {
-			$number_like = '%' . $wpdb->esc_like( $license_number ) . '%';
+			$compact_number = preg_replace( '/[^a-z0-9]/i', '', $license_number );
 			$number_clause = array();
 			foreach ( $license_columns as $license_column ) {
-				$number_clause[] = "{$license_column} LIKE %s";
-				$params[] = $number_like;
+				$number_clause[] = "TRIM(COALESCE({$license_column}, '')) = %s";
+				$params[] = $license_number;
 				if ( '' !== $normalized_number ) {
-					$number_clause[] = "LOWER({$license_column}) LIKE %s";
-					$params[] = '%' . $wpdb->esc_like( $normalized_number ) . '%';
+					$number_clause[] = "LOWER(TRIM(COALESCE({$license_column}, ''))) = %s";
+					$params[] = $normalized_number;
+				}
+				if ( '' !== $compact_number ) {
+					$number_clause[] = "REPLACE(REPLACE(LOWER(TRIM(COALESCE({$license_column}, ''))), ' ', ''), '-', '') = %s";
+					$params[] = strtolower( $compact_number );
 				}
 			}
 			$where[] = '(' . implode( ' OR ', $number_clause ) . ')';
@@ -256,6 +272,10 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 			array(
 				'sql' => $sql,
 				'params_count' => count( $params ),
+				'license_columns' => $license_columns,
+				'status_column' => $status_column,
+				'season_column' => $season_column,
+				'season_filter' => $current_season > 0 && '' !== $season_column ? (string) $current_season : '',
 			)
 		);
 
@@ -340,7 +360,7 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 			return null;
 		}
 
-		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
 		$last_name_column  = $this->resolve_first_column( $table, array( 'nom_licence', 'nom', 'last_name' ) );
 		$first_name_column = $this->resolve_first_column( $table, array( 'prenom', 'prenom_licence', 'first_name' ) );
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
@@ -539,10 +559,6 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 
 	private function debug_log( string $message, array $context = array() ): void {
 		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
-			return;
-		}
-
-		if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
 

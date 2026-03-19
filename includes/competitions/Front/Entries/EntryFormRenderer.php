@@ -543,7 +543,7 @@ class EntryFormRenderer {
 						<?php if ( $license_search_available ) : ?>
 							<form method="get" action="<?php echo esc_url( Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) ) ); ?>#ufsc-inscriptions" class="ufsc-license-search-form">
 								<input type="text" name="ufsc_license_term" value="<?php echo esc_attr( $license_term ); ?>" placeholder="<?php echo esc_attr__( 'Nom, prénom…', 'ufsc-licence-competition' ); ?>" />
-								<input type="text" name="ufsc_license_number" value="<?php echo esc_attr( $license_number ); ?>" placeholder="<?php echo esc_attr__( 'N° licence (si connu)', 'ufsc-licence-competition' ); ?>" />
+								<input type="text" name="ufsc_license_number" value="<?php echo esc_attr( $license_number ); ?>" placeholder="<?php echo esc_attr__( 'N° ASPTT / licence (si connu)', 'ufsc-licence-competition' ); ?>" />
 								<input type="text" name="ufsc_license_birthdate" value="<?php echo esc_attr( $license_birthdate ); ?>" placeholder="<?php echo esc_attr__( 'Date de naissance (JJ/MM/AAAA)', 'ufsc-licence-competition' ); ?>" />
 								<?php if ( $editing_entry ) : ?>
 									<input type="hidden" name="ufsc_entry_edit" value="<?php echo esc_attr( (int) ( $editing_entry->id ?? 0 ) ); ?>" />
