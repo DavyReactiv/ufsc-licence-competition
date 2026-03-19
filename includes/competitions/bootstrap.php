@@ -272,6 +272,13 @@ add_action(
 			\UFSC\Competitions\Front\Entries\EntriesModule::register_actions();
 		}
 
+		// Important: admin-ajax.php runs with is_admin() = true.
+		// The license bridge must also be registered in this context, otherwise
+		// front AJAX callback receives no search filter and always returns empty.
+		if ( class_exists( '\UFSC\Competitions\Front\Licenses\LicenseBridge' ) ) {
+			\UFSC\Competitions\Front\Licenses\LicenseBridge::register();
+		}
+
 		if ( class_exists( '\UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller' ) ) {
 			( new \UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller() )->register();
 		}
