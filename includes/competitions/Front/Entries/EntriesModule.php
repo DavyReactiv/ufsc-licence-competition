@@ -327,6 +327,8 @@ class EntriesModule {
 	}
 
 	private static function get_license_search_results( string $term, string $license_number, string $birthdate, int $club_id, EntryFrontRepository $repo ): array {
+		$search_filter_priority = has_filter( 'ufsc_competitions_front_license_search_results' );
+		$by_id_filter_priority  = has_filter( 'ufsc_competitions_front_license_by_id' );
 		self::debug_log(
 			'license_search_query_received',
 			array(
@@ -334,6 +336,8 @@ class EntriesModule {
 				'term'           => $term,
 				'license_number' => $license_number,
 				'birth_date'     => $birthdate,
+				'search_filter_priority' => false === $search_filter_priority ? 0 : (int) $search_filter_priority,
+				'by_id_filter_priority' => false === $by_id_filter_priority ? 0 : (int) $by_id_filter_priority,
 			)
 		);
 		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number, $birthdate );
