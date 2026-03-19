@@ -327,6 +327,8 @@ class EntriesModule {
 	}
 
 	private static function get_license_search_results( string $term, string $license_number, string $birthdate, int $club_id, EntryFrontRepository $repo ): array {
+		$search_filter_priority = has_filter( 'ufsc_competitions_front_license_search_results' );
+		$by_id_filter_priority  = has_filter( 'ufsc_competitions_front_license_by_id' );
 		self::debug_log(
 			'license_search_query_received',
 			array(
@@ -334,6 +336,8 @@ class EntriesModule {
 				'term'           => $term,
 				'license_number' => $license_number,
 				'birth_date'     => $birthdate,
+				'search_filter_priority' => false === $search_filter_priority ? 0 : (int) $search_filter_priority,
+				'by_id_filter_priority' => false === $by_id_filter_priority ? 0 : (int) $by_id_filter_priority,
 			)
 		);
 		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number, $birthdate );
@@ -517,7 +521,18 @@ class EntriesModule {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
-		check_ajax_referer( 'ufsc_competitions_license_search', 'nonce' );
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		$nonce_valid = (bool) wp_verify_nonce( $nonce, 'ufsc_competitions_license_search' );
+		self::debug_log(
+			'license_search_nonce_validation',
+			array(
+				'nonce_present' => '' !== $nonce,
+				'nonce_valid'   => $nonce_valid,
+			)
+		);
+		if ( ! $nonce_valid ) {
+			wp_send_json_error( array( 'message' => __( 'Jeton de sécurité invalide.', 'ufsc-licence-competition' ) ), 403 );
+		}
 
 		$term = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
 		$license_number = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
@@ -568,6 +583,7 @@ class EntriesModule {
 						$results
 					)
 					: array(),
+				'message' => empty( $results ) ? 'Aucun licencié trouvé.' : '',
 			)
 		);
 

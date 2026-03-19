@@ -29,6 +29,14 @@
     }
     window.console.debug("[UFSC LC front-entries]", ...args);
   };
+  debugLog("init", {
+    has_form: Boolean(form),
+    has_license_search_form: Boolean(licenseSearchForm),
+    has_license_select_form: Boolean(licenseSelectForm),
+    has_feedback_node: Boolean(licenseSearchFeedback),
+    ajax_url: config.ajaxUrl || "",
+    competition_id: String(config.competitionId || ""),
+  });
 
   const setStatus = (message, type = "") => {
     if (!statusNode) {
@@ -205,6 +213,7 @@
 
   const applyLicensePayload = (license) => {
     if (!license) {
+      debugLog("apply_license_payload_skipped", { reason: "missing_license_object" });
       return;
     }
     const fieldMap = {
@@ -221,18 +230,22 @@
     Object.entries(fieldMap).forEach(([key, fieldId]) => {
       const field = document.getElementById(fieldId);
       if (!field) {
+        debugLog("apply_license_payload_missing_field", { key, fieldId });
         return;
       }
       const value = license[key];
       if (typeof value === "undefined" || value === null || value === "") {
+        debugLog("apply_license_payload_empty_value", { key, fieldId });
         return;
       }
       field.value = String(value);
+      debugLog("apply_license_payload_set", { key, fieldId, value: String(value) });
     });
 
     const hiddenLicenseId = form.querySelector('input[name="ufsc_license_id"]');
     if (hiddenLicenseId) {
       hiddenLicenseId.value = String(license.id || "");
+      debugLog("apply_license_payload_set_hidden_id", { id: String(license.id || "") });
     }
 
     debounce(computeCategory, 50);
@@ -303,6 +316,7 @@
         term,
         license_number: licenseNumber,
         birth_date: birthDate,
+        nonce_present: Boolean(config.licenseSearchNonce || ""),
       });
 
       try {
@@ -315,6 +329,13 @@
           body: payload.toString(),
         });
         const data = await response.json();
+        debugLog("license_search_http_response", {
+          ok: response.ok,
+          status: response.status,
+          success: Boolean(data && data.success),
+          has_data: Boolean(data && data.data),
+          keys: data && data.data ? Object.keys(data.data) : [],
+        });
         if (!data || !data.success) {
           debugLog("license_search_error_payload", data);
           setLicenseFeedback(config.labels?.searchError || "", "error");
@@ -327,6 +348,9 @@
           ids: results.map((item) => Number(item.id || 0)),
         });
         if (!results.length) {
+          debugLog("license_search_no_results", {
+            reason: data.data?.message || "empty_results_array",
+          });
           setLicenseFeedback(
             data.data?.message || config.labels?.searchNoResult || "",
             "warning"
@@ -339,6 +363,10 @@
 
         licenseResults = results;
         if (results.length === 1) {
+          debugLog("license_search_single_result_prefill", {
+            id: Number(results[0]?.id || 0),
+            label: results[0]?.label || "",
+          });
           applyLicensePayload(results[0]);
           setLicenseFeedback(config.labels?.searchOne || "", "success");
           if (licenseSelectForm) {
@@ -348,8 +376,14 @@
         }
 
         populateLicenseSelect(results);
+        debugLog("license_search_multiple_results", {
+          ids: results.map((item) => Number(item.id || 0)),
+        });
         setLicenseFeedback(config.labels?.searchMultiple || "", "info");
       } catch (error) {
+        debugLog("license_search_exception", {
+          message: error && error.message ? error.message : "unknown_error",
+        });
         setLicenseFeedback(config.labels?.searchError || "", "error");
       }
     });
@@ -359,6 +393,11 @@
     const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
     licenseSelectForm.addEventListener("submit", (event) => {
       if (!select || !select.value || !licenseResults.length) {
+        debugLog("license_select_submit_skipped", {
+          has_select: Boolean(select),
+          selected_value: select ? String(select.value || "") : "",
+          results_count: licenseResults.length,
+        });
         return;
       }
       event.preventDefault();
