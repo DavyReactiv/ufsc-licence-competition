@@ -104,7 +104,13 @@ class LicenseBridge {
 		}
 
 		$current_season = function_exists( 'ufsc_lc_get_current_season_end_year' ) ? (int) ufsc_lc_get_current_season_end_year() : 0;
-		if ( $current_season > 0 && '' !== $season_column ) {
+		$enforce_current_season = (bool) apply_filters(
+			'ufsc_competitions_front_license_enforce_current_season',
+			false,
+			$club_id,
+			$current_season
+		);
+		if ( $enforce_current_season && $current_season > 0 && '' !== $season_column ) {
 			$where[] = "{$season_column} = %s";
 			$params[] = (string) $current_season;
 		}
@@ -240,14 +246,12 @@ class LicenseBridge {
 			'license_number' => $license_number,
 			'birthdate' => $birthdate,
 		);
-		$join = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
+		$join      = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
 		$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
-$join  = apply_filters( 'ufsc_competitions_license_search_join', '', $context );
-$where_sql = apply_filters( 'ufsc_competitions_license_search_where', $where_sql, $context );
-$params = apply_filters( 'ufsc_competitions_license_search_params', $params, $context );
+		$params    = apply_filters( 'ufsc_competitions_license_search_params', $params, $context );
 
-$join = trim( (string) $join );
-$join_sql = '' !== $join ? ' ' . $join : '';
+		$join     = trim( (string) $join );
+		$join_sql = '' !== $join ? ' ' . $join : '';
 
 
 		// Select columns as normalized aliases expected by the competitions module.
@@ -275,7 +279,8 @@ $join_sql = '' !== $join ? ' ' . $join : '';
 				'license_columns' => $license_columns,
 				'status_column' => $status_column,
 				'season_column' => $season_column,
-				'season_filter' => $current_season > 0 && '' !== $season_column ? (string) $current_season : '',
+				'season_filter' => $enforce_current_season && $current_season > 0 && '' !== $season_column ? (string) $current_season : '',
+				'enforce_current_season' => $enforce_current_season,
 			)
 		);
 

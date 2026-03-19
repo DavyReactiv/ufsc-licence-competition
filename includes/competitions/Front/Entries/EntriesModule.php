@@ -502,12 +502,29 @@ class EntriesModule {
 
 		$user_id = (int) get_current_user_id();
 		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
+		self::debug_log(
+			'license_search_access_context',
+			array(
+				'user_id'        => $user_id,
+				'club_id'        => $club_id,
+				'term'           => $term,
+				'license_number' => $license_number,
+				'birth_date'     => $birth_date,
+			)
+		);
 		if ( ! $club_id ) {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
 		$repo = new EntryFrontRepository();
 		$results = self::get_license_search_results( $term, $license_number, $birth_date, $club_id, $repo );
+		self::debug_log(
+			'license_search_results',
+			array(
+				'club_id' => $club_id,
+				'count'   => is_array( $results ) ? count( $results ) : 0,
+			)
+		);
 
 		wp_send_json_success(
 			array(
@@ -516,6 +533,15 @@ class EntriesModule {
 				'message' => empty( $results ) ? __( 'Aucun licencié trouvé.', 'ufsc-licence-competition' ) : '',
 			)
 		);
+	}
+
+	private static function debug_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC Competitions EntriesModule: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 
 	private static function get_return_url( int $competition_id ): string {
