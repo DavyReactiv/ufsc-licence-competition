@@ -81,6 +81,15 @@ class EntryActions {
 
 		$user_id = (int) get_current_user_id();
 		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
+		self::debug_log(
+			'entry_action_access_context',
+			array(
+				'action'         => $action,
+				'user_id'        => $user_id,
+				'club_id'        => $club_id,
+				'competition_id' => $competition_id,
+			)
+		);
 
 		if ( ! $club_id ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
@@ -194,6 +203,15 @@ class EntryActions {
 
 		if ( 'create' === $action && self::is_strict_license_linkage_required( $competition, (int) $club_id, $user_id ) ) {
 			if ( ! self::is_strictly_valid_linked_license( $license, (int) $competition_id, (int) $club_id, $user_id ) ) {
+				self::strict_debug_log(
+					'entry_action_strict_license_linkage_rejected',
+					array(
+						'competition_id' => $competition_id,
+						'club_id'        => $club_id,
+						'user_id'        => $user_id,
+						'license_id'     => (int) ( $license['id'] ?? 0 ),
+					)
+				);
 				self::redirect_with_notice(
 					$competition_id,
 					'access_denied',
