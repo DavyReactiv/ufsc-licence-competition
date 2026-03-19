@@ -517,7 +517,18 @@ class EntriesModule {
 			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
-		check_ajax_referer( 'ufsc_competitions_license_search', 'nonce' );
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
+		$nonce_valid = (bool) wp_verify_nonce( $nonce, 'ufsc_competitions_license_search' );
+		self::debug_log(
+			'license_search_nonce_validation',
+			array(
+				'nonce_present' => '' !== $nonce,
+				'nonce_valid'   => $nonce_valid,
+			)
+		);
+		if ( ! $nonce_valid ) {
+			wp_send_json_error( array( 'message' => __( 'Jeton de sécurité invalide.', 'ufsc-licence-competition' ) ), 403 );
+		}
 
 		$term = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
 		$license_number = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
@@ -568,6 +579,7 @@ class EntriesModule {
 						$results
 					)
 					: array(),
+				'message' => empty( $results ) ? 'Aucun licencié trouvé.' : '',
 			)
 		);
 

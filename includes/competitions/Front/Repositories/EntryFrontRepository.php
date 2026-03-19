@@ -367,9 +367,20 @@ class EntryFrontRepository {
 				?? '' )
 		);
 
+		$fallback_label_parts = array_filter(
+			array(
+				trim(
+					sanitize_text_field( (string) ( $license['last_name'] ?? $license['lastname'] ?? '' ) ) . ' ' .
+					sanitize_text_field( (string) ( $license['first_name'] ?? $license['firstname'] ?? '' ) )
+				),
+				sanitize_text_field( (string) ( $license['birthdate'] ?? $license['birth_date'] ?? '' ) ),
+				$license_number ? 'Licence ' . $license_number : '',
+			)
+		);
+
 		$normalized = array(
 			'id' => absint( $license['id'] ?? 0 ),
-			'label' => sanitize_text_field( $license['label'] ?? '' ),
+			'label' => sanitize_text_field( $license['label'] ?? implode( ' · ', $fallback_label_parts ) ),
 			'first_name' => sanitize_text_field( $license['first_name'] ?? $license['firstname'] ?? '' ),
 			'last_name' => sanitize_text_field( $license['last_name'] ?? $license['lastname'] ?? '' ),
 			'birthdate' => sanitize_text_field( $license['birthdate'] ?? $license['birth_date'] ?? '' ),
@@ -382,6 +393,14 @@ class EntryFrontRepository {
 
 		if ( '' !== $normalized['birthdate'] && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized['birthdate'] ) ) {
 			$normalized['birthdate'] = '';
+		}
+
+		if ( '' === $normalized['label'] && ! empty( $normalized['id'] ) ) {
+			$normalized['label'] = sprintf(
+				/* translators: %d: licence id */
+				__( 'Licencié #%d', 'ufsc-licence-competition' ),
+				(int) $normalized['id']
+			);
 		}
 
 		return $normalized;
@@ -517,6 +536,10 @@ class EntryFrontRepository {
 			'missing_id' => 0,
 			'missing_label' => 0,
 		);
+		$dropped_samples = array(
+			'missing_id' => array(),
+			'missing_label' => array(),
+		);
 
 		foreach ( $results as $result ) {
 			if ( ! is_array( $result ) ) {
@@ -526,10 +549,25 @@ class EntryFrontRepository {
 			$item = $this->normalize_license_result( $result );
 			if ( empty( $item['id'] ) ) {
 				$dropped['missing_id']++;
+				if ( count( $dropped_samples['missing_id'] ) < 5 ) {
+					$dropped_samples['missing_id'][] = array(
+						'raw_id' => $result['id'] ?? null,
+						'raw_keys' => array_keys( $result ),
+					);
+				}
 				continue;
 			}
 			if ( '' === $item['label'] ) {
 				$dropped['missing_label']++;
+				if ( count( $dropped_samples['missing_label'] ) < 5 ) {
+					$dropped_samples['missing_label'][] = array(
+						'id' => (int) $item['id'],
+						'last_name' => (string) ( $item['last_name'] ?? '' ),
+						'first_name' => (string) ( $item['first_name'] ?? '' ),
+						'birthdate' => (string) ( $item['birthdate'] ?? '' ),
+						'license_number' => (string) ( $item['license_number'] ?? '' ),
+					);
+				}
 				continue;
 			}
 			$normalized[] = $item;
@@ -546,6 +584,13 @@ class EntryFrontRepository {
 						'raw_count' => count( $results ),
 						'normalized_count' => count( $normalized ),
 						'dropped' => $dropped,
+						'dropped_samples' => $dropped_samples,
+						'normalized_ids' => array_map(
+							static function( $item ) {
+								return (int) ( $item['id'] ?? 0 );
+							},
+							$normalized
+						),
 					)
 				)
 			);
