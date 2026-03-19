@@ -42,6 +42,19 @@ class EntryFormRenderer {
 		if ( ! $competition ) {
 			return '';
 		}
+		self::debug_log(
+			'entry_form_render_context',
+			array(
+				'competition_id'        => (int) ( $competition->id ?? 0 ),
+				'club_id'               => $club_id,
+				'editing_entry_id'      => (int) ( $editing_entry->id ?? 0 ),
+				'license_term'          => $license_term,
+				'license_number'        => $license_number,
+				'license_birthdate'     => $license_birthdate,
+				'license_id'            => $license_id,
+				'license_results_count' => is_array( $license_results ) ? count( $license_results ) : 0,
+			)
+		);
 
 		if ( '' === $return_url ) {
 			$return_url = Front::get_competition_details_url( (int) ( $competition->id ?? 0 ) );
@@ -932,6 +945,15 @@ class EntryFormRenderer {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private static function debug_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC Competitions EntryFormRenderer: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 
 	private static function get_birth_year( string $birthdate ): string {

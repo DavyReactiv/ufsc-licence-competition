@@ -70,6 +70,14 @@ class EntriesModule {
 		}
 
 		$club_id = (int) ( $register_result->context['club_id'] ?? 0 );
+		self::debug_log(
+			'render_context',
+			array(
+				'user_id'        => $user_id,
+				'club_id'        => $club_id,
+				'competition_id' => (int) ( $competition->id ?? 0 ),
+			)
+		);
 
 		$entries = array();
 		$editing_entry = null;
@@ -164,6 +172,7 @@ class EntriesModule {
 			$handle,
 			'ufscCompetitionsFront',
 			array(
+				'debug' => ( defined( 'WP_DEBUG' ) && WP_DEBUG ),
 				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
 				'nonce' => wp_create_nonce( 'ufsc_competitions_compute_category' ),
 				'licenseSearchNonce' => wp_create_nonce( 'ufsc_competitions_license_search' ),
@@ -318,12 +327,37 @@ class EntriesModule {
 	}
 
 	private static function get_license_search_results( string $term, string $license_number, string $birthdate, int $club_id, EntryFrontRepository $repo ): array {
+		self::debug_log(
+			'license_search_query_received',
+			array(
+				'club_id'        => $club_id,
+				'term'           => $term,
+				'license_number' => $license_number,
+				'birth_date'     => $birthdate,
+			)
+		);
 		$results = apply_filters( 'ufsc_competitions_front_license_search_results', array(), $term, $club_id, $license_number, $birthdate );
 		if ( ! is_array( $results ) ) {
 			$results = array();
 		}
 
-		return $repo->normalize_license_results( $results, 20 );
+		$normalized = $repo->normalize_license_results( $results, 20 );
+		self::debug_log(
+			'license_search_query_normalized',
+			array(
+				'club_id'           => $club_id,
+				'raw_count'         => count( $results ),
+				'normalized_count'  => count( $normalized ),
+				'normalized_ids'    => array_map(
+					static function( $row ) {
+						return (int) ( $row['id'] ?? 0 );
+					},
+					$normalized
+				),
+			)
+		);
+
+		return $normalized;
 	}
 
 	private static function normalize_birthdate_input( string $value ): string {
@@ -489,6 +523,7 @@ class EntriesModule {
 		$license_number = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
 		$birth_date = isset( $_POST['birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['birth_date'] ) ) : '';
 		$birth_date = self::normalize_birthdate_input( $birth_date );
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 
 		if ( '' === $term && '' === $license_number && '' === $birth_date ) {
 			wp_send_json_success(
@@ -507,6 +542,7 @@ class EntriesModule {
 			array(
 				'user_id'        => $user_id,
 				'club_id'        => $club_id,
+				'competition_id' => $competition_id,
 				'term'           => $term,
 				'license_number' => $license_number,
 				'birth_date'     => $birth_date,
@@ -522,7 +558,16 @@ class EntriesModule {
 			'license_search_results',
 			array(
 				'club_id' => $club_id,
+				'competition_id' => $competition_id,
 				'count'   => is_array( $results ) ? count( $results ) : 0,
+				'result_ids' => is_array( $results )
+					? array_map(
+						static function( $row ) {
+							return (int) ( $row['id'] ?? 0 );
+						},
+						$results
+					)
+					: array(),
 			)
 		);
 

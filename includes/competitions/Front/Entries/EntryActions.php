@@ -152,6 +152,18 @@ class EntryActions {
 		$license_birthdate = self::normalize_birthdate_input( $license_birthdate );
 
 		$license = null;
+		self::debug_log(
+			'entry_action_license_input',
+			array(
+				'action'         => $action,
+				'competition_id' => $competition_id,
+				'club_id'        => $club_id,
+				'license_id'     => $license_id,
+				'license_term'   => $license_term,
+				'license_number' => $license_number,
+				'license_birthdate' => $license_birthdate,
+			)
+		);
 
 		if ( $license_id ) {
 			$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
@@ -161,6 +173,15 @@ class EntryActions {
 		}
 
 		if ( $license_id && ! $license ) {
+			self::debug_log(
+				'entry_action_license_lookup_failed',
+				array(
+					'action'         => $action,
+					'competition_id' => $competition_id,
+					'club_id'        => $club_id,
+					'license_id'     => $license_id,
+				)
+			);
 			self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
 		}
 
@@ -177,6 +198,21 @@ class EntryActions {
 
 				if ( is_array( $results ) ) {
 					$normalized = $repo->normalize_license_results( $results, 2 );
+					self::debug_log(
+						'entry_action_license_search_fallback',
+						array(
+							'action'         => $action,
+							'competition_id' => $competition_id,
+							'club_id'        => $club_id,
+							'fallback_count' => count( $normalized ),
+							'fallback_ids'   => array_map(
+								static function( $row ) {
+									return (int) ( $row['id'] ?? 0 );
+								},
+								$normalized
+							),
+						)
+					);
 					if ( 1 === count( $normalized ) && ! empty( $normalized[0]['id'] ) ) {
 						$license_id   = (int) $normalized[0]['id'];
 						$license_data = apply_filters( 'ufsc_competitions_front_license_by_id', null, $license_id, $club_id );
@@ -231,6 +267,15 @@ class EntryActions {
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
 		if ( $payload['errors'] ) {
+			self::debug_log(
+				'entry_action_payload_invalid',
+				array(
+					'action'         => $action,
+					'competition_id' => $competition_id,
+					'club_id'        => $club_id,
+					'errors'         => array_keys( $payload['errors'] ),
+				)
+			);
 			self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
 		}
 
@@ -288,6 +333,15 @@ class EntryActions {
 				$existing_entry = $repo->find_active_by_competition_licensee( $competition_id, (int) $data['licensee_id'] );
 			}
 			if ( $existing_entry ) {
+				self::debug_log(
+					'entry_action_create_duplicate_detected',
+					array(
+						'competition_id' => $competition_id,
+						'club_id'        => $club_id,
+						'licensee_id'    => (int) ( $data['licensee_id'] ?? 0 ),
+						'existing_entry_id' => (int) ( $existing_entry->id ?? 0 ),
+					)
+				);
 				self::redirect_with_notice( $competition_id, 'error_duplicate_entry' );
 			}
 
@@ -314,6 +368,16 @@ class EntryActions {
 
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
 			do_action( 'ufsc_competitions_entry_status_changed', $entry_id, '', $new_status ?: 'draft', $competition, $club_id );
+			self::debug_log(
+				'entry_action_create_success',
+				array(
+					'entry_id'        => $entry_id,
+					'competition_id'  => $competition_id,
+					'club_id'         => $club_id,
+					'licensee_id'     => (int) ( $data['licensee_id'] ?? 0 ),
+					'license_number'  => (string) ( $data['license_number'] ?? '' ),
+				)
+			);
 
 			self::redirect_with_notice( $competition_id, 'created' );
 		}
