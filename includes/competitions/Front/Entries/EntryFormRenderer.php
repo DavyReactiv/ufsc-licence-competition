@@ -267,10 +267,10 @@ class EntryFormRenderer {
 											<td><?php echo esc_html( self::format_display_value( $engaged_name ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_club ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_birthdate ) ); ?></td>
-											<td><?php echo esc_html( self::format_display_value( $engaged_category ) ); ?></td>
+											<td><?php echo wp_kses_post( self::format_value_with_empty_badge( $engaged_category, __( 'Non renseignée', 'ufsc-licence-competition' ) ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_weight ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_weight_class ) ); ?></td>
-											<td><?php echo esc_html( self::format_display_value( $engaged_level ) ); ?></td>
+											<td><?php echo wp_kses_post( self::format_value_with_empty_badge( $engaged_level, __( 'Non défini', 'ufsc-licence-competition' ) ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_status_label ) ); ?></td>
 										</tr>
 									<?php endforeach; ?>
@@ -452,10 +452,10 @@ class EntryFormRenderer {
 										<td><?php echo esc_html( self::format_display_value( $club_name ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $birth_date ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $birth_year ) ); ?></td>
-										<td><?php echo esc_html( self::format_display_value( $category ) ); ?></td>
+										<td><?php echo wp_kses_post( self::format_value_with_empty_badge( $category, __( 'Non renseignée', 'ufsc-licence-competition' ) ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight_class ) ); ?></td>
-										<td><?php echo esc_html( self::format_display_value( $level ) ); ?></td>
+										<td><?php echo wp_kses_post( self::format_value_with_empty_badge( $level, __( 'Non défini', 'ufsc-licence-competition' ) ) ); ?></td>
 										<td>
 											<span class="ufsc-badge <?php echo esc_attr( $status_class ); ?>">
 												<?php echo esc_html( $status_label ); ?>
@@ -626,6 +626,7 @@ class EntryFormRenderer {
 					<input type="hidden" name="action" value="<?php echo esc_attr( $editing_entry ? 'ufsc_competitions_entry_update' : 'ufsc_competitions_entry_create' ); ?>" />
 					<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) ( $competition->id ?? 0 ) ); ?>" />
 					<input type="hidden" name="ufsc_return_url" value="<?php echo esc_url( $return_url ); ?>" />
+					<input type="hidden" name="category_id" value="<?php echo esc_attr( (int) ( $editing_entry->category_id ?? 0 ) ); ?>" />
 					<?php if ( $editing_entry ) : ?>
 						<input type="hidden" name="entry_id" value="<?php echo esc_attr( (int) ( $editing_entry->id ?? 0 ) ); ?>" />
 					<?php endif; ?>
@@ -763,7 +764,13 @@ class EntryFormRenderer {
 										</option>
 									<?php endif; ?>
 									<?php foreach ( $field_options as $option_value => $option_label ) : ?>
-										<option value="<?php echo esc_attr( (string) $option_value ); ?>" <?php selected( (string) $value, (string) $option_value ); ?>>
+										<?php
+										$category_option_id = 0;
+										if ( 'category' === $field_name ) {
+											$category_option_id = self::resolve_category_id_by_name( (string) $option_label, (int) ( $competition->id ?? 0 ) );
+										}
+										?>
+										<option value="<?php echo esc_attr( (string) $option_value ); ?>" <?php selected( (string) $value, (string) $option_value ); ?> <?php echo $category_option_id > 0 ? 'data-category-id="' . esc_attr( $category_option_id ) . '"' : ''; ?>>
 											<?php echo esc_html( (string) $option_label ); ?>
 										</option>
 									<?php endforeach; ?>
@@ -967,6 +974,58 @@ class EntryFormRenderer {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private static function format_value_with_empty_badge( $value, string $empty_label ): string {
+		$formatted = self::format_display_value( $value );
+		if ( '—' !== $formatted ) {
+			return esc_html( $formatted );
+		}
+
+		return sprintf(
+			'<span class="ufsc-badge ufsc-badge-warning">⚠️ %s</span>',
+			esc_html( $empty_label )
+		);
+	}
+
+	private static function resolve_category_id_by_name( string $category_name, int $competition_id ): int {
+		$category_name = trim( sanitize_text_field( $category_name ) );
+		$competition_id = absint( $competition_id );
+		if ( '' === $category_name || ! $competition_id || ! class_exists( CategoryRepository::class ) ) {
+			return 0;
+		}
+
+		static $cache = array();
+		$cache_key = $competition_id . '::' . strtolower( $category_name );
+		if ( isset( $cache[ $cache_key ] ) ) {
+			return (int) $cache[ $cache_key ];
+		}
+
+		$repo = new CategoryRepository();
+		$rows = $repo->list(
+			array(
+				'competition_id' => $competition_id,
+				'view'           => 'all',
+			),
+			500,
+			0
+		);
+
+		if ( is_array( $rows ) ) {
+			foreach ( $rows as $row ) {
+				$row_name = trim( sanitize_text_field( (string) ( $row->name ?? '' ) ) );
+				if ( '' === $row_name ) {
+					continue;
+				}
+				if ( 0 === strcasecmp( $row_name, $category_name ) ) {
+					$cache[ $cache_key ] = (int) ( $row->id ?? 0 );
+					return (int) $cache[ $cache_key ];
+				}
+			}
+		}
+
+		$cache[ $cache_key ] = 0;
+		return 0;
 	}
 
 	private static function debug_log( string $message, array $context = array() ): void {

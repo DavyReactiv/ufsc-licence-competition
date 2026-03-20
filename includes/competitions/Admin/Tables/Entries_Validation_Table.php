@@ -225,7 +225,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			case 'birth_year':
 				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) ) );
 			case 'category':
-				return esc_html( $this->format_fallback( $this->resolve_category_label( $item ) ) );
+				return $this->format_with_empty_badge( $this->resolve_category_label( $item ), __( 'Non renseignée', 'ufsc-licence-competition' ) );
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'club':
@@ -235,7 +235,10 @@ class Entries_Validation_Table extends \WP_List_Table {
 			case 'weight_class':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
 			case 'level':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'level', 'class', 'classe' ) ) ) );
+				return $this->format_with_empty_badge(
+					$this->get_item_value_from_keys( $item, array( 'level', 'class', 'classe' ) ),
+					__( 'Non défini', 'ufsc-licence-competition' )
+				);
 			case 'status':
 				return $this->format_status( $item );
 			case 'submitted':
@@ -442,6 +445,18 @@ class Entries_Validation_Table extends \WP_List_Table {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private function format_with_empty_badge( $value, string $empty_label ): string {
+		$formatted = $this->format_fallback( $value );
+		if ( '—' !== $formatted ) {
+			return esc_html( $formatted );
+		}
+
+		return sprintf(
+			'<span class="ufsc-badge ufsc-badge-warning">⚠️ %s</span>',
+			esc_html( $empty_label )
+		);
 	}
 
 	public function get_column_count(): int {

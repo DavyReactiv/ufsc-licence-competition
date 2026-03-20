@@ -267,6 +267,38 @@ class EntryActions {
 		) : array();
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
+		$category_from_post = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+		if ( '' === $category_from_post && isset( $_POST['category_name'] ) ) {
+			$category_from_post = sanitize_text_field( wp_unslash( $_POST['category_name'] ) );
+		}
+		$category_id_from_post = isset( $_POST['category_id'] ) ? intval( $_POST['category_id'] ) : 0;
+		$level_from_post       = isset( $_POST['level'] ) ? sanitize_text_field( wp_unslash( $_POST['level'] ) ) : '';
+		if ( '' === $level_from_post && isset( $_POST['classe'] ) ) {
+			$level_from_post = sanitize_text_field( wp_unslash( $_POST['classe'] ) );
+		}
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC DEBUG ENTRY ACTION CATEGORY: ' . print_r(
+					array(
+						'category'    => $category_from_post,
+						'category_id' => $category_id_from_post ?: null,
+						'level'       => $level_from_post,
+					),
+					true
+				)
+			);
+		}
+
+		if ( '' !== $category_from_post ) {
+			$payload['data']['category'] = $category_from_post;
+		}
+		if ( $category_id_from_post > 0 ) {
+			$payload['data']['category_id'] = $category_id_from_post;
+		}
+		if ( '' !== $level_from_post ) {
+			$payload['data']['level'] = $level_from_post;
+		}
 		self::debug_log(
 			'entry_action_payload_received',
 			array(

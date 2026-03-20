@@ -281,6 +281,9 @@ class EntryFrontRepository {
 		);
 
 		$table = Db::entries_table();
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC INSERT PAYLOAD: ' . print_r( $data, true ) );
+		}
 		$inserted = $wpdb->insert( $table, $data, $this->build_formats( $data ) );
 
 		$this->maybe_log_db_error( __METHOD__ . ':insert' );
@@ -909,10 +912,10 @@ class EntryFrontRepository {
 		$weight_class = $this->sanitize_text_value( $payload['weight_class'] ?? '' );
 		$this->map_string_value( $data, $weight_class, array( 'weight_class', 'weight_cat', 'weight_category' ) );
 
-		$category = $this->sanitize_text_value( $payload['category'] ?? '' );
+		$category = $this->sanitize_text_value( $payload['category'] ?? $payload['category_name'] ?? '' );
 		$this->map_string_value( $data, $category, array( 'category', 'category_name' ) );
 
-		$level = $this->sanitize_text_value( $payload['level'] ?? '' );
+		$level = $this->sanitize_text_value( $payload['level'] ?? $payload['class'] ?? $payload['classe'] ?? '' );
 		$this->map_string_value( $data, $level, array( 'level', 'class', 'classe' ) );
 
 		$license_number = $this->sanitize_text_value( $payload['license_number'] ?? $payload['licence_number'] ?? '' );
