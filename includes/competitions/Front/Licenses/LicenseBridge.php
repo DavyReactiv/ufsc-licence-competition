@@ -10,14 +10,37 @@ class LicenseBridge {
 	private const DEFAULT_SEARCH_LIMIT = 20;
 
 	public static function register(): void {
+		static $registered = false;
+		if ( $registered ) {
+			return;
+		}
+
 		// Register only if the licenses plugin/table is likely available.
 		// We still guard at query-time with table/columns checks.
 		if ( ! self::is_available() ) {
+			self::debug_static_log(
+				'license_bridge_register_skipped',
+				array(
+					'reason' => 'not_available',
+					'has_plugin_class' => class_exists( 'UFSC_LC_Plugin' ),
+					'has_legacy_table_class' => class_exists( 'UFSC_LC_Competition_Licences_List_Table' ),
+					'has_club_shortcode_class' => class_exists( 'UFSC_LC_Club_Licences_Shortcode' ),
+				)
+			);
 			return;
 		}
 
 		add_filter( 'ufsc_competitions_front_license_search_results', array( __CLASS__, 'filter_search_results' ), 10, 5 );
 		add_filter( 'ufsc_competitions_front_license_by_id', array( __CLASS__, 'filter_license_by_id' ), 10, 3 );
+		$registered = true;
+		self::debug_static_log(
+			'license_bridge_registered',
+			array(
+				'context_is_admin' => is_admin(),
+				'search_filter_priority' => has_filter( 'ufsc_competitions_front_license_search_results', array( __CLASS__, 'filter_search_results' ) ),
+				'by_id_filter_priority' => has_filter( 'ufsc_competitions_front_license_by_id', array( __CLASS__, 'filter_license_by_id' ) ),
+			)
+		);
 	}
 
 	/**
@@ -512,6 +535,15 @@ class LicenseBridge {
 		return class_exists( 'UFSC_LC_Plugin' )
 			|| class_exists( 'UFSC_LC_Competition_Licences_List_Table' )
 			|| class_exists( 'UFSC_LC_Club_Licences_Shortcode' );
+	}
+
+	private static function debug_static_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC Competitions LicenseBridge: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 
 	private function table_exists( string $table ): bool {

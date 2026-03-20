@@ -263,6 +263,22 @@ class EntryFrontRepository {
 		if ( empty( $data ) ) {
 			return 0;
 		}
+		$this->debug_payload_log(
+			'insert_prepared_payload',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'prepared_keys' => array_keys( $data ),
+				'licensee_id' => (int) ( $data['licensee_id'] ?? $data['licence_id'] ?? 0 ),
+				'first_name' => (string) ( $data['first_name'] ?? $data['prenom'] ?? '' ),
+				'last_name' => (string) ( $data['last_name'] ?? $data['nom'] ?? '' ),
+				'birth_date' => (string) ( $data['birth_date'] ?? $data['birthdate'] ?? '' ),
+				'birth_year' => (string) ( $data['birth_year'] ?? $data['annee_naissance'] ?? '' ),
+				'license_number' => (string) ( $data['license_number'] ?? $data['licence_number'] ?? '' ),
+				'category' => (string) ( $data['category'] ?? $data['category_name'] ?? '' ),
+				'weight' => (string) ( $data['weight'] ?? $data['weight_kg'] ?? '' ),
+				'weight_class' => (string) ( $data['weight_class'] ?? $data['weight_cat'] ?? '' ),
+			)
+		);
 
 		$table = Db::entries_table();
 		$inserted = $wpdb->insert( $table, $data, $this->build_formats( $data ) );
@@ -367,9 +383,20 @@ class EntryFrontRepository {
 				?? '' )
 		);
 
+		$fallback_label_parts = array_filter(
+			array(
+				trim(
+					sanitize_text_field( (string) ( $license['last_name'] ?? $license['lastname'] ?? '' ) ) . ' ' .
+					sanitize_text_field( (string) ( $license['first_name'] ?? $license['firstname'] ?? '' ) )
+				),
+				sanitize_text_field( (string) ( $license['birthdate'] ?? $license['birth_date'] ?? '' ) ),
+				$license_number ? 'Licence ' . $license_number : '',
+			)
+		);
+
 		$normalized = array(
 			'id' => absint( $license['id'] ?? 0 ),
-			'label' => sanitize_text_field( $license['label'] ?? '' ),
+			'label' => sanitize_text_field( $license['label'] ?? implode( ' · ', $fallback_label_parts ) ),
 			'first_name' => sanitize_text_field( $license['first_name'] ?? $license['firstname'] ?? '' ),
 			'last_name' => sanitize_text_field( $license['last_name'] ?? $license['lastname'] ?? '' ),
 			'birthdate' => sanitize_text_field( $license['birthdate'] ?? $license['birth_date'] ?? '' ),
@@ -382,6 +409,14 @@ class EntryFrontRepository {
 
 		if ( '' !== $normalized['birthdate'] && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized['birthdate'] ) ) {
 			$normalized['birthdate'] = '';
+		}
+
+		if ( '' === $normalized['label'] && ! empty( $normalized['id'] ) ) {
+			$normalized['label'] = sprintf(
+				/* translators: %d: licence id */
+				__( 'Licencié #%d', 'ufsc-licence-competition' ),
+				(int) $normalized['id']
+			);
 		}
 
 		return $normalized;
@@ -517,6 +552,10 @@ class EntryFrontRepository {
 			'missing_id' => 0,
 			'missing_label' => 0,
 		);
+		$dropped_samples = array(
+			'missing_id' => array(),
+			'missing_label' => array(),
+		);
 
 		foreach ( $results as $result ) {
 			if ( ! is_array( $result ) ) {
@@ -526,10 +565,25 @@ class EntryFrontRepository {
 			$item = $this->normalize_license_result( $result );
 			if ( empty( $item['id'] ) ) {
 				$dropped['missing_id']++;
+				if ( count( $dropped_samples['missing_id'] ) < 5 ) {
+					$dropped_samples['missing_id'][] = array(
+						'raw_id' => $result['id'] ?? null,
+						'raw_keys' => array_keys( $result ),
+					);
+				}
 				continue;
 			}
 			if ( '' === $item['label'] ) {
 				$dropped['missing_label']++;
+				if ( count( $dropped_samples['missing_label'] ) < 5 ) {
+					$dropped_samples['missing_label'][] = array(
+						'id' => (int) $item['id'],
+						'last_name' => (string) ( $item['last_name'] ?? '' ),
+						'first_name' => (string) ( $item['first_name'] ?? '' ),
+						'birthdate' => (string) ( $item['birthdate'] ?? '' ),
+						'license_number' => (string) ( $item['license_number'] ?? '' ),
+					);
+				}
 				continue;
 			}
 			$normalized[] = $item;
@@ -546,6 +600,13 @@ class EntryFrontRepository {
 						'raw_count' => count( $results ),
 						'normalized_count' => count( $normalized ),
 						'dropped' => $dropped,
+						'dropped_samples' => $dropped_samples,
+						'normalized_ids' => array_map(
+							static function( $item ) {
+								return (int) ( $item['id'] ?? 0 );
+							},
+							$normalized
+						),
 					)
 				)
 			);
@@ -834,6 +895,10 @@ class EntryFrontRepository {
 
 		$birth_date = $this->sanitize_date_value( $payload['birth_date'] ?? '' );
 		$this->map_string_value( $data, $birth_date, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
+			$birth_year = substr( $birth_date, 0, 4 );
+			$this->map_string_value( $data, $birth_year, array( 'birth_year', 'year_of_birth', 'annee_naissance', 'year' ) );
+		}
 
 		$sex = $this->sanitize_text_value( $payload['sex'] ?? '' );
 		$this->map_string_value( $data, $sex, array( 'sex', 'gender' ) );
@@ -884,6 +949,15 @@ class EntryFrontRepository {
 		}
 
 		return $data;
+	}
+
+	private function debug_payload_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC EntryFrontRepository payload: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 
 	private function map_string_value( array &$data, string $value, array $candidates ): void {

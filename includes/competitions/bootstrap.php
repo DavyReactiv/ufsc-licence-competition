@@ -81,6 +81,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Front/Entries/EntryActions.php',
 		$base . '/Front/Entries/EntryFormRenderer.php',
 		$base . '/Front/Entries/EntriesModule.php',
+		$base . '/Front/Licenses/LicenseBridge.php',
 		$base . '/Front/Exports/Club_Entries_Export_Controller.php',
 		$base . '/Front/Exports/Engaged_Entries_Export_Controller.php',
 		$base . '/Front/Repositories/EntryFrontRepository.php',
@@ -270,6 +271,26 @@ add_action(
 
 		if ( class_exists( '\UFSC\Competitions\Front\Entries\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register_actions();
+		}
+
+		// Important: admin-ajax.php runs with is_admin() = true.
+		// The license bridge must also be registered in this context, otherwise
+		// front AJAX callback receives no search filter and always returns empty.
+		if ( class_exists( '\UFSC\Competitions\Front\Licenses\LicenseBridge' ) ) {
+			\UFSC\Competitions\Front\Licenses\LicenseBridge::register();
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) {
+			$search_filter_priority = has_filter( 'ufsc_competitions_front_license_search_results' );
+			$by_id_filter_priority  = has_filter( 'ufsc_competitions_front_license_by_id' );
+			error_log(
+				'UFSC Competitions Bootstrap: license_bridge_registered_in_ajax ' . wp_json_encode(
+					array(
+						'registered' => false !== $search_filter_priority || false !== $by_id_filter_priority,
+						'search_filter_priority' => false === $search_filter_priority ? 0 : (int) $search_filter_priority,
+						'by_id_filter_priority' => false === $by_id_filter_priority ? 0 : (int) $by_id_filter_priority,
+					)
+				)
+			);
 		}
 
 		if ( class_exists( '\UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller' ) ) {
