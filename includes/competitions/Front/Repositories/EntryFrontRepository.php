@@ -263,6 +263,22 @@ class EntryFrontRepository {
 		if ( empty( $data ) ) {
 			return 0;
 		}
+		$this->debug_payload_log(
+			'insert_prepared_payload',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'prepared_keys' => array_keys( $data ),
+				'licensee_id' => (int) ( $data['licensee_id'] ?? $data['licence_id'] ?? 0 ),
+				'first_name' => (string) ( $data['first_name'] ?? $data['prenom'] ?? '' ),
+				'last_name' => (string) ( $data['last_name'] ?? $data['nom'] ?? '' ),
+				'birth_date' => (string) ( $data['birth_date'] ?? $data['birthdate'] ?? '' ),
+				'birth_year' => (string) ( $data['birth_year'] ?? $data['annee_naissance'] ?? '' ),
+				'license_number' => (string) ( $data['license_number'] ?? $data['licence_number'] ?? '' ),
+				'category' => (string) ( $data['category'] ?? $data['category_name'] ?? '' ),
+				'weight' => (string) ( $data['weight'] ?? $data['weight_kg'] ?? '' ),
+				'weight_class' => (string) ( $data['weight_class'] ?? $data['weight_cat'] ?? '' ),
+			)
+		);
 
 		$table = Db::entries_table();
 		$inserted = $wpdb->insert( $table, $data, $this->build_formats( $data ) );
@@ -879,6 +895,10 @@ class EntryFrontRepository {
 
 		$birth_date = $this->sanitize_date_value( $payload['birth_date'] ?? '' );
 		$this->map_string_value( $data, $birth_date, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
+			$birth_year = substr( $birth_date, 0, 4 );
+			$this->map_string_value( $data, $birth_year, array( 'birth_year', 'year_of_birth', 'annee_naissance', 'year' ) );
+		}
 
 		$sex = $this->sanitize_text_value( $payload['sex'] ?? '' );
 		$this->map_string_value( $data, $sex, array( 'sex', 'gender' ) );
@@ -929,6 +949,15 @@ class EntryFrontRepository {
 		}
 
 		return $data;
+	}
+
+	private function debug_payload_log( string $message, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		$payload = $context ? wp_json_encode( $context ) : '';
+		error_log( 'UFSC EntryFrontRepository payload: ' . $message . ( $payload ? ' ' . $payload : '' ) );
 	}
 
 	private function map_string_value( array &$data, string $value, array $candidates ): void {
