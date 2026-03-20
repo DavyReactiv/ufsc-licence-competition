@@ -55,6 +55,11 @@
   let searchTimeout = null;
   let searchController = null;
   let weightClassTouched = false;
+  const categoryOptions = Array.from(categorySelect.options || []).map((option) => ({
+    value: option.value,
+    label: option.textContent || "",
+    competitionId: option.dataset ? option.dataset.competitionId || "" : "",
+  }));
 
   function setMessage(text, type = "") {
     messageContainer.textContent = text || "";
@@ -141,6 +146,61 @@
     if (keepValue) {
       weightClassSelect.value = keepValue;
     }
+  }
+
+  function syncCategoryOptions() {
+    const selectedValue = categorySelect.value || "0";
+    const competitionId = competitionSelect.value || "0";
+    const currentLabel =
+      categorySelect.options[categorySelect.selectedIndex]?.textContent || "";
+
+    categorySelect.innerHTML = "";
+
+    categoryOptions.forEach((item) => {
+      if (item.value === "0") {
+        const option = document.createElement("option");
+        option.value = "0";
+        option.textContent = item.label;
+        categorySelect.appendChild(option);
+        return;
+      }
+
+      if (competitionId !== "0" && item.competitionId !== competitionId) {
+        return;
+      }
+
+      const option = document.createElement("option");
+      option.value = item.value;
+      option.textContent = item.label;
+      option.dataset.competitionId = item.competitionId;
+      categorySelect.appendChild(option);
+    });
+
+    const hasSelectedValue = Array.from(categorySelect.options).some(
+      (option) => option.value === selectedValue
+    );
+
+    if (selectedValue && hasSelectedValue) {
+      categorySelect.value = selectedValue;
+      return;
+    }
+
+    if (
+      selectedValue &&
+      selectedValue !== "0" &&
+      currentLabel &&
+      !hasSelectedValue
+    ) {
+      const option = document.createElement("option");
+      option.value = selectedValue;
+      option.textContent = currentLabel;
+      option.dataset.competitionId = competitionId;
+      categorySelect.appendChild(option);
+      categorySelect.value = selectedValue;
+      return;
+    }
+
+    categorySelect.value = "0";
   }
 
   async function resolveWeightClass() {
@@ -455,6 +515,7 @@
   });
 
   competitionSelect.addEventListener("change", () => {
+    syncCategoryOptions();
     if (lastSelected && lastSelected.licence_id) {
       fetchLicenseeById(lastSelected.licence_id);
     } else {
@@ -491,6 +552,7 @@
   });
 
   const initialId = parseInt(licenseeInput.value || "0", 10);
+  syncCategoryOptions();
   if (initialId) {
     fetchLicenseeById(initialId);
   } else {

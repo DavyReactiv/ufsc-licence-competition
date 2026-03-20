@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Entries_Table;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Front\Entries\EntriesModule;
 use UFSC\Competitions\Services\EntryDeduplication;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 
@@ -206,6 +207,7 @@ class Entries_Page {
 
 		$data['weight_kg'] = $weight_kg;
 		$data['weight_class'] = '' !== $weight_class ? $weight_class : null;
+		$data = $this->resolve_category_payload( $data, $licensee_data );
 
 		if ( in_array( $data['status'], array( 'submitted', 'approved' ), true )
 			&& WeightCategoryResolver::requires_weight( $weight_context )
@@ -724,7 +726,13 @@ class Entries_Page {
 							<select name="category_id" id="ufsc_entry_category" class="regular-text">
 								<option value="0"><?php esc_html_e( 'Auto / non assignée', 'ufsc-licence-competition' ); ?></option>
 								<?php foreach ( $categories as $category ) : ?>
-									<option value="<?php echo esc_attr( $category->id ); ?>" <?php selected( $values['category_id'], $category->id ); ?>><?php echo esc_html( $category->name ); ?></option>
+									<option
+										value="<?php echo esc_attr( $category->id ); ?>"
+										data-competition-id="<?php echo esc_attr( (int) ( $category->competition_id ?? 0 ) ); ?>"
+										<?php selected( $values['category_id'], $category->id ); ?>
+									>
+										<?php echo esc_html( $category->name ); ?>
+									</option>
 								<?php endforeach; ?>
 							</select>
 							<p class="description ufsc-entry-auto-category" id="ufsc_entry_auto_category_preview"></p>
@@ -811,6 +819,54 @@ class Entries_Page {
 			</form>
 		</div>
 		<?php
+	}
+
+	private function resolve_category_payload( array $data, array $licensee_data ): array {
+		$competition_id = absint( $data['competition_id'] ?? 0 );
+		if ( ! $competition_id ) {
+			$data['category_id'] = 0;
+			$data['category'] = null;
+			return $data;
+		}
+
+		$category_id = absint( $data['category_id'] ?? 0 );
+		$category_label = '';
+
+		if ( $category_id > 0 ) {
+			$selected_category = $this->category_repository->get( $category_id, true );
+			$selected_competition_id = absint( $selected_category->competition_id ?? 0 );
+			if ( $selected_category && $selected_competition_id === $competition_id ) {
+				$category_label = sanitize_text_field( (string) ( $selected_category->name ?? '' ) );
+			} else {
+				$category_id = 0;
+			}
+		}
+
+		if ( 0 === $category_id ) {
+			$competition = $this->competition_repository->get( $competition_id, true );
+			$birthdate = (string) ( $licensee_data['birthdate'] ?? '' );
+			if ( $competition && '' !== $birthdate && class_exists( EntriesModule::class ) ) {
+				$computed_label = EntriesModule::get_category_from_birthdate(
+					$birthdate,
+					array(
+						'sex' => (string) ( $licensee_data['sex'] ?? '' ),
+						'weight' => $data['weight_kg'] ?? null,
+					),
+					$competition
+				);
+				$category_label = sanitize_text_field( $computed_label );
+				if ( '' !== $category_label ) {
+					$category_match = $this->category_repository->get_by_competition_and_name( $competition_id, $category_label, true );
+					if ( $category_match ) {
+						$category_id = absint( $category_match->id ?? 0 );
+					}
+				}
+			}
+		}
+
+		$data['category_id'] = $category_id;
+		$data['category'] = '' !== $category_label ? $category_label : null;
+		return $data;
 	}
 
 	private function redirect_with_notice( $page, $notice, $id = 0 ) {

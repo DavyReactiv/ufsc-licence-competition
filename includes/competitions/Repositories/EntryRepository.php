@@ -370,6 +370,17 @@ class EntryRepository {
 			$payload['weight_class'] = '' !== $weight_class ? $weight_class : null;
 		}
 
+		$category_label = isset( $data['category'] ) ? sanitize_text_field( (string) $data['category'] ) : '';
+		if ( '' === $category_label && isset( $data['category_name'] ) ) {
+			$category_label = sanitize_text_field( (string) $data['category_name'] );
+		}
+		if ( Db::has_table_column( $table, 'category' ) ) {
+			$payload['category'] = '' !== $category_label ? $category_label : null;
+		}
+		if ( Db::has_table_column( $table, 'category_name' ) ) {
+			$payload['category_name'] = '' !== $category_label ? $category_label : null;
+		}
+
 		return $payload;
 	}
 
