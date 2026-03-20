@@ -239,6 +239,7 @@ class EntryFormRenderer {
 										<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 										<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
 										<th><?php echo esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ); ?></th>
+										<th><?php echo esc_html__( 'Niveau / Classe', 'ufsc-licence-competition' ); ?></th>
 										<th><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?></th>
 									</tr>
 								</thead>
@@ -256,6 +257,7 @@ class EntryFormRenderer {
 										$engaged_category     = self::resolve_category_label( $entry, $competition );
 										$engaged_weight       = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 										$engaged_weight_class = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
+										$engaged_level        = self::get_entry_value( $entry, array( 'level', 'class', 'classe' ) );
 										$engaged_club         = (string) ( $entry->club_name ?? $club_label );
 										$engaged_status_raw   = (string) $repo->get_entry_status( $entry );
 										$engaged_status_norm  = EntriesWorkflow::normalize_status( $engaged_status_raw );
@@ -268,6 +270,7 @@ class EntryFormRenderer {
 											<td><?php echo esc_html( self::format_display_value( $engaged_category ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_weight ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_weight_class ) ); ?></td>
+											<td><?php echo esc_html( self::format_display_value( $engaged_level ) ); ?></td>
 											<td><?php echo esc_html( self::format_display_value( $engaged_status_label ) ); ?></td>
 										</tr>
 									<?php endforeach; ?>
@@ -383,6 +386,7 @@ class EntryFormRenderer {
 									<th><?php echo esc_html__( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Poids', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Catégorie poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php echo esc_html__( 'Niveau / Classe', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Dernière maj.', 'ufsc-licence-competition' ); ?></th>
 									<th><?php echo esc_html__( 'Actions', 'ufsc-licence-competition' ); ?></th>
@@ -411,6 +415,7 @@ class EntryFormRenderer {
 									$category       = self::resolve_category_label( $entry, $competition );
 									$weight         = self::get_entry_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
 									$weight_class   = self::get_entry_value( $entry, array( 'weight_class', 'weight_cat', 'weight_category', 'weight_class_label', 'weight_category_label', 'weight_cat_label' ) );
+									$level          = self::get_entry_value( $entry, array( 'level', 'class', 'classe' ) );
 									$license_number = $show_license_column ? $get_license_number( $entry ) : '';
 									$club_name      = $club_label ?: (string) ( $entry->club_name ?? '' );
 
@@ -450,6 +455,7 @@ class EntryFormRenderer {
 										<td><?php echo esc_html( self::format_display_value( $category ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight ) ); ?></td>
 										<td><?php echo esc_html( self::format_display_value( $weight_class ) ); ?></td>
+										<td><?php echo esc_html( self::format_display_value( $level ) ); ?></td>
 										<td>
 											<span class="ufsc-badge <?php echo esc_attr( $status_class ); ?>">
 												<?php echo esc_html( $status_label ); ?>
@@ -472,7 +478,7 @@ class EntryFormRenderer {
 										<td><?php echo esc_html( self::format_display_value( $updated_at ) ); ?></td>
 										<td>
 											<?php if ( 'approved' === $status || 'validated' === $status || 'valid' === $status || 'valide' === $status ) : ?>
-												<span class="ufsc-entry-action-disabled">
+												<span class="ufsc-entry-action-disabled ufsc-entry-action-disabled--locked">
 													<?php echo esc_html__( 'Inscription validée — pour toute modification, contactez l’administration UFSC.', 'ufsc-licence-competition' ); ?>
 												</span>
 											<?php elseif ( $registration_open ) : ?>
