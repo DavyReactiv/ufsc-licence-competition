@@ -266,6 +266,25 @@ class EntryActions {
 		) : array();
 
 		$payload = self::build_payload_from_request( $competition, $prefill );
+		self::debug_log(
+			'entry_action_payload_received',
+			array(
+				'action'            => $action,
+				'competition_id'    => $competition_id,
+				'club_id'           => $club_id,
+				'posted_license_id' => $license_id,
+				'posted_fields'     => array(
+					'first_name'     => (string) ( $payload['data']['first_name'] ?? '' ),
+					'last_name'      => (string) ( $payload['data']['last_name'] ?? '' ),
+					'birth_date'     => (string) ( $payload['data']['birth_date'] ?? '' ),
+					'sex'            => (string) ( $payload['data']['sex'] ?? '' ),
+					'license_number' => (string) ( $payload['data']['license_number'] ?? '' ),
+					'category'       => (string) ( $payload['data']['category'] ?? '' ),
+					'weight'         => (string) ( $payload['data']['weight'] ?? '' ),
+					'weight_class'   => (string) ( $payload['data']['weight_class'] ?? '' ),
+				),
+			)
+		);
 		if ( $payload['errors'] ) {
 			self::debug_log(
 				'entry_action_payload_invalid',
@@ -290,6 +309,22 @@ class EntryActions {
 		if ( $license ) {
 			$data = $repo->merge_license_payload( $data, $license );
 		}
+
+		self::debug_log(
+			'entry_action_payload_merged',
+			array(
+				'action'         => $action,
+				'competition_id' => $competition_id,
+				'club_id'        => $club_id,
+				'licensee_id'    => (int) ( $data['licensee_id'] ?? 0 ),
+				'license_id'     => (int) ( $license['id'] ?? 0 ),
+				'license_number' => (string) ( $data['license_number'] ?? '' ),
+				'first_name'     => (string) ( $data['first_name'] ?? '' ),
+				'last_name'      => (string) ( $data['last_name'] ?? '' ),
+				'birth_date'     => (string) ( $data['birth_date'] ?? '' ),
+				'category'       => (string) ( $data['category'] ?? '' ),
+			)
+		);
 
 		if ( empty( $data['category'] ) && ! empty( $data['birth_date'] ) ) {
 			$category = EntriesModule::get_category_from_birthdate( $data['birth_date'], $data, $competition );
