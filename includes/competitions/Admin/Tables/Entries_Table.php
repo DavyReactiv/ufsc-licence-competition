@@ -373,6 +373,11 @@ class Entries_Table extends \WP_List_Table {
 			}
 		}
 
+		$category = $this->category_repository->get( (int) $category_id, true );
+		if ( $category ) {
+			return (string) ( $category->name ?? '' );
+		}
+
 		return '';
 	}
 
