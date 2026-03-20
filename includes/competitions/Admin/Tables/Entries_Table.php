@@ -116,6 +116,7 @@ class Entries_Table extends \WP_List_Table {
 			'category'   => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'weight'     => __( 'Poids', 'ufsc-licence-competition' ),
 			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
+			'level'      => __( 'Niveau / Classe', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
 			'updated'    => __( 'Mise à jour', 'ufsc-licence-competition' ),
 			'actions'    => __( 'Actions', 'ufsc-licence-competition' ),
@@ -250,6 +251,8 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
+			case 'level':
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'level', 'class', 'classe' ) ) ) );
 			case 'status':
 				return $this->format_status( $item );
 			case 'updated':

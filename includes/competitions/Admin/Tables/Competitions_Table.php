@@ -392,7 +392,7 @@ class Competitions_Table extends \WP_List_Table {
 			case 'type':
 				return esc_html( (string) ( $item->type ?? '' ) );
 			case 'season':
-				return esc_html( (string) ( $item->season ?? '' ) );
+				return esc_html( $this->format_season_display( (string) ( $item->season ?? '' ), (string) ( $item->event_start_datetime ?? '' ) ) );
 			case 'status':
 				return esc_html( (string) ( $item->status ?? '' ) );
 			case 'event':
@@ -404,6 +404,33 @@ class Competitions_Table extends \WP_List_Table {
 		}
 
 		return '';
+	}
+
+	private function format_season_display( string $season, string $event_start_datetime = '' ): string {
+		$season = trim( $season );
+		if ( '' !== $season ) {
+			if ( preg_match( '/^\d{4}$/', $season ) ) {
+				$end_year = (int) $season;
+				return sprintf( '%d/%d', $end_year - 1, $end_year );
+			}
+			if ( preg_match( '/^(\d{4})\s*[-\/]\s*(\d{4})$/', $season, $matches ) ) {
+				return $matches[1] . '/' . $matches[2];
+			}
+
+			return $season;
+		}
+
+		if ( preg_match( '/^(\d{4})-\d{2}-\d{2}/', $event_start_datetime, $matches ) ) {
+			$end_year = (int) $matches[1];
+			$month = (int) substr( $event_start_datetime, 5, 2 );
+			if ( $month >= 8 ) {
+				return sprintf( '%d/%d', $end_year, $end_year + 1 );
+			}
+
+			return sprintf( '%d/%d', $end_year - 1, $end_year );
+		}
+
+		return '—';
 	}
 
 	public function get_bulk_actions() {

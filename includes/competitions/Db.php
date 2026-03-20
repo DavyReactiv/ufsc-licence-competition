@@ -203,6 +203,7 @@ class Db {
 				category_id bigint(20) unsigned NULL,
 				weight_kg decimal(6,2) NULL,
 				weight_class varchar(20) NULL,
+				level varchar(50) NULL,
 				status varchar(50) NOT NULL DEFAULT 'draft',
 				admin_note text NULL,
 				rejected_reason text NULL,
@@ -299,6 +300,7 @@ class Db {
 			'updated_by'      => "ALTER TABLE {$table} ADD COLUMN updated_by bigint(20) unsigned NULL",
 			'weight_kg'       => "ALTER TABLE {$table} ADD COLUMN weight_kg decimal(6,2) NULL",
 			'weight_class'    => "ALTER TABLE {$table} ADD COLUMN weight_class varchar(20) NULL",
+			'level'           => "ALTER TABLE {$table} ADD COLUMN level varchar(50) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
