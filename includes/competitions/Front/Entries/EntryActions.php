@@ -8,6 +8,7 @@ use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Services\EntryDeduplication;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -331,6 +332,14 @@ class EntryActions {
 			if ( '' !== $category ) {
 				$data['category'] = $category;
 			}
+		}
+
+		$resolved_category_id = self::resolve_category_id_from_label(
+			(string) ( $data['category'] ?? '' ),
+			(int) ( $competition->id ?? 0 )
+		);
+		if ( $resolved_category_id > 0 ) {
+			$data['category_id'] = $resolved_category_id;
 		}
 
 		if ( empty( $data['weight_class'] ) && ! empty( $data['birth_date'] ) && ! empty( $data['weight'] ) ) {
@@ -758,6 +767,49 @@ class EntryActions {
 		if ( ! $nonce || ! wp_verify_nonce( $nonce, $action ) ) {
 			self::redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
+	}
+
+	private static function resolve_category_id_from_label( string $category_label, int $competition_id ): int {
+		$category_label = trim( sanitize_text_field( $category_label ) );
+		$competition_id = absint( $competition_id );
+		if ( '' === $category_label || ! $competition_id || ! class_exists( CategoryRepository::class ) ) {
+			return 0;
+		}
+
+		$repo = new CategoryRepository();
+		$categories = $repo->list(
+			array(
+				'competition_id' => $competition_id,
+				'view'           => 'all',
+			),
+			500,
+			0
+		);
+
+		if ( ! is_array( $categories ) || empty( $categories ) ) {
+			return 0;
+		}
+
+		$normalized_label = self::normalize_category_label( $category_label );
+		foreach ( $categories as $category ) {
+			$candidate = trim( sanitize_text_field( (string) ( $category->name ?? '' ) ) );
+			if ( '' === $candidate ) {
+				continue;
+			}
+			if ( self::normalize_category_label( $candidate ) === $normalized_label ) {
+				return (int) ( $category->id ?? 0 );
+			}
+		}
+
+		return 0;
+	}
+
+	private static function normalize_category_label( string $value ): string {
+		$value = strtolower( trim( $value ) );
+		$value = function_exists( 'remove_accents' ) ? remove_accents( $value ) : $value;
+		$value = preg_replace( '/\s+/', ' ', $value );
+
+		return is_string( $value ) ? $value : '';
 	}
 
 	private static function redirect_admin_with_notice( string $notice ): void {

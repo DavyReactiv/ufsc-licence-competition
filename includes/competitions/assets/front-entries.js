@@ -127,6 +127,39 @@
 
   let timeout;
 
+  const resetAfterCreationIfNeeded = () => {
+    const params = new URLSearchParams(window.location.search || "");
+    const notice = String(params.get("ufsc_notice") || "");
+    const isEditing = params.has("ufsc_entry_edit");
+    const shouldReset = ["created", "entry_created"].includes(notice) && !isEditing;
+
+    if (!shouldReset) {
+      return;
+    }
+
+    if (licenseSearchForm) {
+      licenseSearchForm.reset();
+    }
+
+    if (licenseSelectForm) {
+      licenseSelectForm.style.display = "none";
+      const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+      if (select) {
+        select.value = "";
+      }
+    }
+
+    const hiddenLicenseId = entryForm.querySelector('input[name="ufsc_license_id"]');
+    if (hiddenLicenseId) {
+      hiddenLicenseId.value = "";
+    }
+
+    licenseResults = [];
+    setLicenseFeedback("");
+    setStatus("");
+    setWeightStatus("");
+  };
+
   const debounce = (fn, delay = 400) => {
     clearTimeout(timeout);
     timeout = setTimeout(fn, delay);
@@ -363,6 +396,8 @@
     licenseSearchFeedback.textContent = message || "";
     licenseSearchFeedback.dataset.status = type;
   };
+
+  resetAfterCreationIfNeeded();
 
   const populateLicenseSelect = (results, selectedId = "") => {
     if (!licenseSelectForm) {

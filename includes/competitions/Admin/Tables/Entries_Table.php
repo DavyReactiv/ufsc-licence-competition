@@ -251,7 +251,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'weight_class':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
 			case 'status':
-				return esc_html( $this->format_fallback( $this->format_status( $item ) ) );
+				return $this->format_status( $item );
 			case 'updated':
 				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
 			case 'updated_at':
@@ -441,7 +441,7 @@ class Entries_Table extends \WP_List_Table {
 		return '' !== $value ? $value : '—';
 	}
 
-	private function format_status( $entry ) {
+	private function format_status( $entry ): string {
 		$status = '';
 		if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {
 			$eligibility = ufsc_lc_is_entry_eligible( (int) ( $entry->id ?? 0 ), 'admin_entries' );
@@ -451,7 +451,14 @@ class Entries_Table extends \WP_List_Table {
 			$status = $this->repository->get_entry_status( $entry );
 		}
 
-		return EntriesWorkflow::get_status_label( $status );
+		$label = EntriesWorkflow::get_status_label( $status );
+		$class = EntriesWorkflow::get_status_badge_class( $status );
+
+		return sprintf(
+			'<span class="ufsc-badge %s">%s</span>',
+			esc_attr( $class ),
+			esc_html( $label )
+		);
 	}
 
 	private function format_datetime( $date ) {
