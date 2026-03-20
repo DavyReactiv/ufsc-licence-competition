@@ -549,8 +549,9 @@ class EntryFormRenderer {
 					<?php echo esc_html( $timeline_label ); ?>
 				</p>
 
-				<?php if ( $club_id ) : ?>
-					<div class="ufsc-competition-license-prefill">
+				<div class="ufsc-competition-entry-grid">
+					<?php if ( $club_id ) : ?>
+						<div class="ufsc-competition-license-prefill">
 						<label><?php echo esc_html__( 'Licencié UFSC (pré-remplir)', 'ufsc-licence-competition' ); ?></label>
 
 						<?php if ( $license_search_available ) : ?>
@@ -602,19 +603,20 @@ class EntryFormRenderer {
 							<button type="submit" class="button"><?php echo esc_html__( 'Pré-remplir', 'ufsc-licence-competition' ); ?></button>
 						</form>
 					</div>
-				<?php endif; ?>
+					<?php endif; ?>
 
-				<?php if ( ! $registration_open ) : ?>
-					<p class="ufsc-competition-entries-closed"><?php echo esc_html__( 'Les inscriptions sont fermées pour cette compétition.', 'ufsc-licence-competition' ); ?></p>
-				<?php endif; ?>
+					<div class="ufsc-entries-form-content">
+						<?php if ( ! $registration_open ) : ?>
+							<p class="ufsc-competition-entries-closed"><?php echo esc_html__( 'Les inscriptions sont fermées pour cette compétition.', 'ufsc-licence-competition' ); ?></p>
+						<?php endif; ?>
 
-				<?php if ( $editing_locked ) : ?>
-					<p class="ufsc-competition-entries-locked">
-						<?php echo esc_html__( 'Cette inscription est verrouillée. Retirez ou ré-éditez-la pour la modifier.', 'ufsc-licence-competition' ); ?>
-					</p>
-				<?php endif; ?>
+						<?php if ( $editing_locked ) : ?>
+							<p class="ufsc-competition-entries-locked">
+								<?php echo esc_html__( 'Cette inscription est verrouillée. Retirez ou ré-éditez-la pour la modifier.', 'ufsc-licence-competition' ); ?>
+							</p>
+						<?php endif; ?>
 
-				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<input type="hidden" name="action" value="<?php echo esc_attr( $editing_entry ? 'ufsc_competitions_entry_update' : 'ufsc_competitions_entry_create' ); ?>" />
 					<input type="hidden" name="competition_id" value="<?php echo esc_attr( (int) ( $competition->id ?? 0 ) ); ?>" />
 					<input type="hidden" name="ufsc_return_url" value="<?php echo esc_url( $return_url ); ?>" />
@@ -688,6 +690,7 @@ class EntryFormRenderer {
 
 					$current_section = '';
 					?>
+					<div class="ufsc-entries-sections">
 
 					<?php foreach ( $schema as $field ) : ?>
 						<?php
@@ -723,11 +726,19 @@ class EntryFormRenderer {
 
 						if ( $field_section && $field_section !== $current_section ) {
 							if ( '' !== $current_section ) {
-								echo '</div>';
+								echo '</div></div>';
 							}
 							$current_section = $field_section;
 							echo '<div class="ufsc-entries-section">';
+							echo '<div class="ufsc-entries-section-title">';
 							echo '<h5>' . esc_html( $section_titles[ $field_section ] ?? $field_section ) . '</h5>';
+							if ( 'identity' === $field_section ) {
+								echo '<p class="description">' . esc_html__( 'Vérifiez les données d’état civil avant validation.', 'ufsc-licence-competition' ) . '</p>';
+							}
+							if ( 'category' === $field_section ) {
+								echo '<p class="description">' . esc_html__( 'La catégorie est assistée automatiquement à partir des données sportives.', 'ufsc-licence-competition' ) . '</p>';
+							}
+							echo '</div><div class="ufsc-entries-section-fields">';
 						}
 						?>
 
@@ -784,13 +795,18 @@ class EntryFormRenderer {
 					<?php endforeach; ?>
 
 					<?php if ( '' !== $current_section ) : ?>
-						</div>
+						</div></div>
 					<?php endif; ?>
+					</div>
 
-					<button type="submit" class="button" <?php echo ( $registration_open && ! $editing_locked ) ? '' : 'disabled'; ?>>
-						<?php echo $editing_entry ? esc_html__( 'Mettre à jour', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter', 'ufsc-licence-competition' ); ?>
-					</button>
-				</form>
+							<div class="ufsc-competition-entry-actions">
+								<button type="submit" class="button button-primary" <?php echo ( $registration_open && ! $editing_locked ) ? '' : 'disabled'; ?>>
+									<?php echo $editing_entry ? esc_html__( 'Mettre à jour', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter', 'ufsc-licence-competition' ); ?>
+								</button>
+							</div>
+						</form>
+					</div>
+				</div>
 			</div>
 		</div>
 		<?php

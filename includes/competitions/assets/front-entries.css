@@ -1,0 +1,188 @@
+.ufsc-competition-entries {
+	display: grid;
+	gap: 20px;
+}
+
+.ufsc-competition-entries h3,
+.ufsc-competition-entries h4,
+.ufsc-competition-entries h5 {
+	margin: 0;
+}
+
+.ufsc-competition-entry-form,
+.ufsc-competition-entries-list,
+.ufsc-competition-engaged-table {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	padding: 16px;
+}
+
+.ufsc-competition-entry-form form {
+	display: grid;
+	gap: 16px;
+}
+
+.ufsc-competition-entry-grid {
+	display: grid;
+	gap: 16px;
+	grid-template-columns: minmax(260px, 1fr) minmax(320px, 2fr);
+	align-items: start;
+}
+
+.ufsc-competition-license-prefill {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+	padding: 12px;
+}
+
+.ufsc-license-search-form,
+.ufsc-license-select-form {
+	display: grid;
+	gap: 8px;
+}
+
+.ufsc-license-search-form .button,
+.ufsc-license-select-form .button {
+	justify-self: start;
+}
+
+.ufsc-license-search-feedback {
+	margin: 0;
+	font-size: 13px;
+	color: #3858e9;
+	min-height: 1.2em;
+}
+
+.ufsc-license-search-feedback[data-status="success"] {
+	color: #046b35;
+}
+
+.ufsc-license-search-feedback[data-status="warning"],
+.ufsc-license-search-feedback[data-status="info"] {
+	color: #8a4b08;
+}
+
+.ufsc-license-search-feedback[data-status="error"] {
+	color: #b32d2e;
+}
+
+.ufsc-entries-sections {
+	display: grid;
+	gap: 12px;
+}
+
+.ufsc-entries-section {
+	display: grid;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+}
+
+.ufsc-entries-section-title {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.ufsc-entries-section-title .description {
+	margin: 0;
+	font-size: 12px;
+}
+
+.ufsc-entries-section-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(180px, 1fr));
+	gap: 10px 12px;
+}
+
+.ufsc-field {
+	display: grid;
+	gap: 4px;
+}
+
+.ufsc-field-input {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.ufsc-field input,
+.ufsc-field select,
+.ufsc-license-search-form input,
+.ufsc-license-select-form select {
+	width: 100%;
+	max-width: 100%;
+}
+
+.ufsc-entry-category-status[data-status="success"],
+.ufsc-entry-weight-status[data-status="success"] {
+	color: #046b35;
+}
+
+.ufsc-entry-category-status[data-status="error"],
+.ufsc-entry-weight-status[data-status="error"] {
+	color: #b32d2e;
+}
+
+.ufsc-entry-category-status[data-status="loading"],
+.ufsc-entry-weight-status[data-status="loading"] {
+	color: #646970;
+}
+
+.ufsc-competition-entry-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+}
+
+.ufsc-competition-entries-table,
+.ufsc-competition-engaged-table {
+	overflow-x: auto;
+}
+
+.ufsc-competition-entries-table table,
+.ufsc-competition-engaged-table table {
+	width: 100%;
+	border-collapse: collapse;
+	min-width: 860px;
+}
+
+.ufsc-competition-entries-table th,
+.ufsc-competition-entries-table td,
+.ufsc-competition-engaged-table th,
+.ufsc-competition-engaged-table td {
+	padding: 10px 8px;
+	border-bottom: 1px solid #e5e7eb;
+	vertical-align: top;
+	text-align: left;
+}
+
+.ufsc-competition-entries-table thead th,
+.ufsc-competition-engaged-table thead th {
+	background: #f6f7f7;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: .02em;
+	color: #50575e;
+}
+
+.ufsc-competition-entries-table tbody tr:nth-child(even),
+.ufsc-competition-engaged-table tbody tr:nth-child(even) {
+	background: #fcfcfd;
+}
+
+@media (max-width: 900px) {
+	.ufsc-competition-entry-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.ufsc-entries-section-fields {
+		grid-template-columns: 1fr;
+	}
+}

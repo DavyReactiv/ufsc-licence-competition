@@ -344,3 +344,24 @@
 		content: counter(page);
 	}
 }
+
+.ufsc-competitions-admin .wp-list-table thead th {
+	background: #f6f7f7;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: .02em;
+}
+
+.ufsc-competitions-admin .wp-list-table td {
+	padding-top: 10px;
+	padding-bottom: 10px;
+	vertical-align: top;
+}
+
+.ufsc-competitions-admin .wp-list-table tbody tr:nth-child(even) td {
+	background: #fcfcfd;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge {
+	font-weight: 600;
+}

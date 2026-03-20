@@ -163,9 +163,17 @@ class EntriesModule {
 		}
 
 		$handle = 'ufsc-competitions-front-entries';
+		$style_handle = 'ufsc-competitions-front-entries-style';
 		$asset_path = UFSC_LC_DIR . 'includes/competitions/assets/front-entries.js';
 		$asset_url = UFSC_LC_URL . 'includes/competitions/assets/front-entries.js';
+		$style_path = UFSC_LC_DIR . 'includes/competitions/assets/front-entries.css';
+		$style_url = UFSC_LC_URL . 'includes/competitions/assets/front-entries.css';
 		$version = file_exists( $asset_path ) ? (string) filemtime( $asset_path ) : '1.0.0';
+		$style_version = file_exists( $style_path ) ? (string) filemtime( $style_path ) : '1.0.0';
+
+		if ( file_exists( $style_path ) ) {
+			wp_enqueue_style( $style_handle, $style_url, array(), $style_version );
+		}
 
 		wp_enqueue_script( $handle, $asset_url, array(), $version, true );
 		wp_localize_script(
