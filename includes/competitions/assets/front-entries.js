@@ -25,12 +25,14 @@
 
   const canComputeCategory = Boolean(birthInput && categoryInput);
   const debugEnabled = Boolean(config.debug);
+
   const debugLog = (...args) => {
     if (!debugEnabled || !window.console || typeof window.console.debug !== "function") {
       return;
     }
     window.console.debug("[UFSC LC front-entries]", ...args);
   };
+
   debugLog("init", {
     has_form: Boolean(entryForm),
     has_license_search_form: Boolean(licenseSearchForm),
@@ -58,6 +60,7 @@
 
   let licenseResults = [];
   let timeout;
+
   const debounce = (fn, delay = 400) => {
     clearTimeout(timeout);
     timeout = setTimeout(fn, delay);
@@ -84,16 +87,19 @@
     if (!label) {
       return;
     }
+
     if (categoryInput.tagName === "SELECT") {
       let option = Array.from(categoryInput.options).find(
         (opt) => opt.value === label
       );
+
       if (!option) {
         option = document.createElement("option");
         option.value = label;
         option.textContent = label;
         categoryInput.appendChild(option);
       }
+
       categoryInput.value = label;
     } else {
       categoryInput.value = label;
@@ -104,12 +110,15 @@
     if (!weightClassInput) {
       return;
     }
+
     if (weightClassInput.tagName === "SELECT") {
       weightClassInput.innerHTML = "";
+
       const placeholder = document.createElement("option");
       placeholder.value = "";
       placeholder.textContent = "—";
       weightClassInput.appendChild(placeholder);
+
       if (options && options.length) {
         options.forEach((optionValue) => {
           const option = document.createElement("option");
@@ -118,17 +127,21 @@
           weightClassInput.appendChild(option);
         });
       }
+
       if (label && !options.includes(label)) {
         const option = document.createElement("option");
         option.value = label;
         option.textContent = label;
         weightClassInput.appendChild(option);
       }
+
       if (label) {
         weightClassInput.value = label;
       }
+
       return;
     }
+
     weightClassInput.value = label || "";
   };
 
@@ -172,22 +185,29 @@
       }
 
       const data = await response.json();
+
       if (!data || !data.success) {
         setStatus(data?.data?.message || config.labels?.error || "", "error");
-        setWeightStatus(data?.data?.message || config.labels?.weightMissing || "", "error");
+        setWeightStatus(
+          data?.data?.message || config.labels?.weightMissing || "",
+          "error"
+        );
         return;
       }
 
       const label = data.data?.category_age || data.data?.label || "";
       const weightClass = data.data?.suggested_weight_class || data.data?.weight_class || "";
       const weightClasses = data.data?.weight_classes || [];
+
       applyCategory(label);
       applyWeightClass(weightClass, weightClasses);
-      setStatus(label ? label : "", "success");
+
+      setStatus(label || "", "success");
+
       if (data.data?.weight_message) {
         setWeightStatus(data.data.weight_message, data.data.weight_status || "");
       } else {
-        setWeightStatus(weightClass ? weightClass : "", "success");
+        setWeightStatus(weightClass || "", "success");
       }
     } catch (error) {
       setStatus(config.labels?.error || "", "error");
@@ -218,6 +238,7 @@
       debugLog("apply_license_payload_skipped", { reason: "missing_license_object" });
       return;
     }
+
     const fieldMap = {
       first_name: "ufsc-entry-first_name",
       last_name: "ufsc-entry-last_name",
@@ -235,11 +256,13 @@
         debugLog("apply_license_payload_missing_field", { key, fieldId });
         return;
       }
+
       const value = license[key];
       if (typeof value === "undefined" || value === null || value === "") {
         debugLog("apply_license_payload_empty_value", { key, fieldId });
         return;
       }
+
       field.value = String(value);
       debugLog("apply_license_payload_set", { key, fieldId, value: String(value) });
     });
@@ -279,24 +302,30 @@
     if (!licenseSelectForm) {
       return;
     }
+
     const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
     if (!select) {
       return;
     }
+
     select.innerHTML = "";
+
     const placeholder = document.createElement("option");
     placeholder.value = "";
     placeholder.textContent = "Sélectionner un licencié";
     select.appendChild(placeholder);
+
     results.forEach((result) => {
       const option = document.createElement("option");
       option.value = String(result.id || "");
       option.textContent = result.label || "";
       select.appendChild(option);
     });
+
     if (selectedId) {
       select.value = String(selectedId);
     }
+
     licenseSelectForm.style.display = "";
     licenseResults = results;
   };
@@ -304,7 +333,10 @@
   if (licenseSearchForm) {
     licenseSearchForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const term = getValue(licenseSearchForm.querySelector("input[name='ufsc_license_term']"));
+
+      const term = getValue(
+        licenseSearchForm.querySelector("input[name='ufsc_license_term']")
+      );
       const licenseNumber = getValue(
         licenseSearchForm.querySelector("input[name='ufsc_license_number']")
       );
@@ -327,6 +359,7 @@
         license_number: licenseNumber,
         birth_date: birthDate,
       });
+
       debugLog("license_search_submit", {
         competition_id: String(config.competitionId || ""),
         term,
@@ -344,7 +377,9 @@
           },
           body: payload.toString(),
         });
+
         const data = await response.json();
+
         debugLog("license_search_http_response", {
           ok: response.ok,
           status: response.status,
@@ -352,6 +387,7 @@
           has_data: Boolean(data && data.data),
           keys: data && data.data ? Object.keys(data.data) : [],
         });
+
         if (!data || !data.success) {
           debugLog("license_search_error_payload", data);
           setLicenseFeedback(config.labels?.searchError || "", "error");
@@ -359,42 +395,53 @@
         }
 
         const results = data.data?.results || [];
+
         debugLog("license_search_response", {
           count: results.length,
           ids: results.map((item) => Number(item.id || 0)),
         });
+
         if (!results.length) {
           debugLog("license_search_no_results", {
             reason: data.data?.message || "empty_results_array",
           });
+
           setLicenseFeedback(
             data.data?.message || config.labels?.searchNoResult || "",
             "warning"
           );
+
           if (licenseSelectForm) {
             licenseSelectForm.style.display = "none";
           }
+
           return;
         }
 
         licenseResults = results;
+
         if (results.length === 1) {
           debugLog("license_search_single_result_prefill", {
             id: Number(results[0]?.id || 0),
             label: results[0]?.label || "",
           });
+
           applyLicensePayload(results[0]);
           setLicenseFeedback(config.labels?.searchOne || "", "success");
+
           if (licenseSelectForm) {
             licenseSelectForm.style.display = "none";
           }
+
           return;
         }
 
         populateLicenseSelect(results);
+
         debugLog("license_search_multiple_results", {
           ids: results.map((item) => Number(item.id || 0)),
         });
+
         setLicenseFeedback(config.labels?.searchMultiple || "", "info");
       } catch (error) {
         debugLog("license_search_exception", {
@@ -407,6 +454,7 @@
 
   if (licenseSelectForm) {
     const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+
     licenseSelectForm.addEventListener("submit", (event) => {
       if (!select || !select.value || !licenseResults.length) {
         debugLog("license_select_submit_skipped", {
@@ -416,13 +464,17 @@
         });
         return;
       }
+
       event.preventDefault();
+
       const selected = licenseResults.find(
         (item) => String(item.id) === String(select.value)
       );
+
       if (selected) {
         applyLicensePayload(selected);
       }
+
       setLicenseFeedback(config.labels?.searchOne || "", "success");
     });
   }
