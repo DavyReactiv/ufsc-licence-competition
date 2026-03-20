@@ -64,9 +64,11 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/CompetitionScheduleEstimator.php',
 		$base . '/Services/AuditLogger.php',
 		$base . '/Services/EntryDeduplication.php',
-		// Repository helpers must be available to all repos
+
+		// Repository helpers must be available to all repos.
 		$base . '/Repositories/RepositoryHelpers.php',
-		// Repositories (ClubRepository must be loaded here)
+
+		// Repositories.
 		$base . '/Repositories/CompetitionRepository.php',
 		$base . '/Repositories/CategoryRepository.php',
 		$base . '/Repositories/EntryRepository.php',
@@ -75,7 +77,8 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Repositories/ClubRepository.php',
 		$base . '/Repositories/TimingProfileRepository.php',
 		$base . '/Repositories/WeighInRepository.php',
-		// Front repositories and handlers required for admin-post actions.
+
+		// Front repositories / handlers required for front + ajax/admin-post.
 		$base . '/Front/Access/ClubAccess.php',
 		$base . '/Front/Access/ClubAccessHelpers.php',
 		$base . '/Front/Entries/EntryActions.php',
@@ -149,8 +152,10 @@ load_competitions_core_dependencies();
 add_action(
 	'init',
 	function() {
-		if ( class_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication' )
-			&& method_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication', 'register_cli_commands' ) ) {
+		if (
+			class_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication' ) &&
+			method_exists( '\\UFSC\\Competitions\\Services\\EntryDeduplication', 'register_cli_commands' )
+		) {
 			\UFSC\Competitions\Services\EntryDeduplication::register_cli_commands();
 		}
 	},
@@ -204,7 +209,7 @@ add_action(
 add_action(
 	'plugins_loaded',
 	function() {
-		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Db' ) && method_exists( '\\UFSC\\Competitions\\Db', 'maybe_upgrade' ) ) {
 			try {
 				\UFSC\Competitions\Db::maybe_upgrade();
 			} catch ( \Throwable $e ) {
@@ -219,32 +224,32 @@ add_action(
 add_action(
 	'admin_init',
 	function() {
-		// ensure core loaded
-		if ( function_exists( '\UFSC\Competitions\load_competitions_core_dependencies' ) ) {
+		// Ensure core loaded.
+		if ( function_exists( '\\UFSC\\Competitions\\load_competitions_core_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_core_dependencies();
 		}
 
-		// Load admin dependencies only on admin
-		if ( is_admin() && function_exists( '\UFSC\Competitions\load_competitions_admin_dependencies' ) ) {
+		// Load admin dependencies only on admin.
+		if ( is_admin() && function_exists( '\\UFSC\\Competitions\\load_competitions_admin_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_admin_dependencies();
 		}
 
-		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Exports\Entries_Export_Controller' ) ) {
+		if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Exports\\Entries_Export_Controller' ) ) {
 			$controller = new \UFSC\Competitions\Admin\Exports\Entries_Export_Controller();
 			$controller->register();
 		}
 
-		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Exports\Engaged_Entries_Export_Controller' ) ) {
+		if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Exports\\Engaged_Entries_Export_Controller' ) ) {
 			$controller = new \UFSC\Competitions\Admin\Exports\Engaged_Entries_Export_Controller();
 			$controller->register();
 		}
 
-		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
+		if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Pages\\Bouts_AutoGeneration' ) ) {
 			\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::register_actions();
 		}
 
-		// Call maybe_upgrade if available, defensively
-		if ( class_exists( '\UFSC\Competitions\Db' ) && method_exists( '\UFSC\Competitions\Db', 'maybe_upgrade' ) ) {
+		// Call maybe_upgrade if available, defensively.
+		if ( class_exists( '\\UFSC\\Competitions\\Db' ) && method_exists( '\\UFSC\\Competitions\\Db', 'maybe_upgrade' ) ) {
 			try {
 				\UFSC\Competitions\Db::maybe_upgrade();
 			} catch ( \Throwable $e ) {
@@ -258,51 +263,53 @@ add_action(
 /**
  * Register the module (menus/pages) on init, defensively.
  */
-	add_action(
+add_action(
 	'init',
 	function() {
-		// ensure core and admin deps are loaded when registering module
-		if ( function_exists( '\UFSC\Competitions\load_competitions_core_dependencies' ) ) {
+		// Ensure core and admin deps are loaded when registering module.
+		if ( function_exists( '\\UFSC\\Competitions\\load_competitions_core_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_core_dependencies();
 		}
-		if ( is_admin() && function_exists( '\UFSC\Competitions\load_competitions_admin_dependencies' ) ) {
+		if ( is_admin() && function_exists( '\\UFSC\\Competitions\\load_competitions_admin_dependencies' ) ) {
 			\UFSC\Competitions\load_competitions_admin_dependencies();
 		}
 
-		if ( class_exists( '\UFSC\Competitions\Front\Entries\EntriesModule' ) ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Entries\\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register_actions();
 		}
 
 		// Important: admin-ajax.php runs with is_admin() = true.
 		// The license bridge must also be registered in this context, otherwise
 		// front AJAX callback receives no search filter and always returns empty.
-		if ( class_exists( '\UFSC\Competitions\Front\Licenses\LicenseBridge' ) ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Licenses\\LicenseBridge' ) ) {
 			\UFSC\Competitions\Front\Licenses\LicenseBridge::register();
 		}
+
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) {
 			$search_filter_priority = has_filter( 'ufsc_competitions_front_license_search_results' );
 			$by_id_filter_priority  = has_filter( 'ufsc_competitions_front_license_by_id' );
+
 			error_log(
 				'UFSC Competitions Bootstrap: license_bridge_registered_in_ajax ' . wp_json_encode(
 					array(
-						'registered' => false !== $search_filter_priority || false !== $by_id_filter_priority,
+						'registered'             => false !== $search_filter_priority || false !== $by_id_filter_priority,
 						'search_filter_priority' => false === $search_filter_priority ? 0 : (int) $search_filter_priority,
-						'by_id_filter_priority' => false === $by_id_filter_priority ? 0 : (int) $by_id_filter_priority,
+						'by_id_filter_priority'  => false === $by_id_filter_priority ? 0 : (int) $by_id_filter_priority,
 					)
 				)
 			);
 		}
 
-		if ( class_exists( '\UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller' ) ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Exports\\Club_Entries_Export_Controller' ) ) {
 			( new \UFSC\Competitions\Front\Exports\Club_Entries_Export_Controller() )->register();
 		}
 
-		if ( class_exists( '\UFSC\Competitions\Front\Exports\Engaged_Entries_Export_Controller' ) ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Front\\Exports\\Engaged_Entries_Export_Controller' ) ) {
 			( new \UFSC\Competitions\Front\Exports\Engaged_Entries_Export_Controller() )->register();
 		}
 
-		// Register admin menu only if class exists
-		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Menu' ) ) {
+		// Register admin menu only if class exists.
+		if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Menu' ) ) {
 			try {
 				$menu = new \UFSC\Competitions\Admin\Menu();
 				$menu->register();
@@ -311,7 +318,7 @@ add_action(
 			}
 		}
 
-		if ( is_admin() && class_exists( '\UFSC\Competitions\Admin\Entries_Validation_Menu' ) ) {
+		if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Entries_Validation_Menu' ) ) {
 			try {
 				$menu = new \UFSC\Competitions\Admin\Entries_Validation_Menu();
 				$menu->register();
@@ -320,11 +327,14 @@ add_action(
 			}
 		}
 
-		if ( ! is_admin() && class_exists( '\UFSC\Competitions\Front\Front' ) ) {
+		if ( ! is_admin() && class_exists( '\\UFSC\\Competitions\\Front\\Front' ) ) {
 			\UFSC\Competitions\Front\Front::init();
 		}
 
-		if ( class_exists( '\UFSC\Competitions\Services\AuditLogger' ) && method_exists( '\UFSC\Competitions\Services\AuditLogger', 'register_hooks' ) ) {
+		if (
+			class_exists( '\\UFSC\\Competitions\\Services\\AuditLogger' ) &&
+			method_exists( '\\UFSC\\Competitions\\Services\\AuditLogger', 'register_hooks' )
+		) {
 			\UFSC\Competitions\Services\AuditLogger::register_hooks();
 		}
 	}
