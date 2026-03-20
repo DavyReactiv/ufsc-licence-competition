@@ -42,6 +42,73 @@
     competition_id: String(config.competitionId || ""),
   });
 
+  let licenseResults = [];
+
+  const resetEntryState = ({ clearIdentity = false } = {}) => {
+    if (licenseSearchForm) {
+      ["ufsc_license_term", "ufsc_license_number", "ufsc_license_birthdate"].forEach((name) => {
+        const input = licenseSearchForm.querySelector(`input[name='${name}']`);
+        if (input) {
+          input.value = "";
+        }
+      });
+    }
+
+    if (licenseSelectForm) {
+      ["ufsc_license_term", "ufsc_license_number", "ufsc_license_birthdate"].forEach((name) => {
+        const hidden = licenseSelectForm.querySelector(`input[name='${name}']`);
+        if (hidden) {
+          hidden.value = "";
+        }
+      });
+
+      const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+      if (select) {
+        select.value = "";
+      }
+
+      licenseSelectForm.style.display = "none";
+    }
+
+    const hiddenLicenseId = entryForm.querySelector('input[name="ufsc_license_id"]');
+    if (hiddenLicenseId) {
+      hiddenLicenseId.value = "";
+    }
+
+    if (clearIdentity) {
+      [
+        "first_name",
+        "last_name",
+        "birth_date",
+        "sex",
+        "license_number",
+        "category",
+        "weight",
+        "weight_class",
+        "level",
+      ].forEach((name) => {
+        const input = entryForm.querySelector(`input[name='${name}'], select[name='${name}']`);
+        if (input) {
+          input.value = "";
+        }
+      });
+    }
+
+    licenseResults = [];
+
+    if (licenseSearchFeedback) {
+      licenseSearchFeedback.textContent = "";
+      licenseSearchFeedback.dataset.status = "";
+    }
+
+    debugLog("entry_state_reset", { clearIdentity });
+  };
+
+  const urlParams = new URLSearchParams(window.location.search || "");
+  if (urlParams.get("ufsc_notice") === "created") {
+    resetEntryState({ clearIdentity: true });
+  }
+
   const setStatus = (message, type = "") => {
     if (!statusNode) {
       return;
@@ -58,7 +125,6 @@
     weightStatusNode.dataset.status = type;
   };
 
-  let licenseResults = [];
   let timeout;
 
   const debounce = (fn, delay = 400) => {
