@@ -246,13 +246,16 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $this->get_competition_discipline( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'category':
 				$category_name = $this->resolve_category_label( $item );
-				return esc_html( $this->format_fallback( $category_name ) );
+				return $this->format_with_empty_badge( $category_name, __( 'Non renseignée', 'ufsc-licence-competition' ) );
 			case 'weight':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight_class', 'weight_category' ) ) ) );
 			case 'level':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'level', 'class', 'classe' ) ) ) );
+				return $this->format_with_empty_badge(
+					$this->get_item_value_from_keys( $item, array( 'level', 'class', 'classe' ) ),
+					__( 'Non défini', 'ufsc-licence-competition' )
+				);
 			case 'status':
 				return $this->format_status( $item );
 			case 'updated':
@@ -442,6 +445,18 @@ class Entries_Table extends \WP_List_Table {
 		$value = trim( $value );
 
 		return '' !== $value ? $value : '—';
+	}
+
+	private function format_with_empty_badge( $value, string $empty_label ): string {
+		$formatted = $this->format_fallback( $value );
+		if ( '—' !== $formatted ) {
+			return esc_html( $formatted );
+		}
+
+		return sprintf(
+			'<span class="ufsc-badge ufsc-badge-warning">⚠️ %s</span>',
+			esc_html( $empty_label )
+		);
 	}
 
 	private function format_status( $entry ): string {

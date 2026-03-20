@@ -17,6 +17,7 @@
   const sexInput = document.getElementById("ufsc-entry-sex");
   const levelInput = document.getElementById("ufsc-entry-level");
   const categoryInput = document.getElementById("ufsc-entry-category");
+  const categoryIdInput = entryForm.querySelector('input[name="category_id"]');
   const statusNode = document.querySelector(".ufsc-entry-category-status");
   const weightStatusNode = document.querySelector(".ufsc-entry-weight-status");
   const licenseSearchForm = document.querySelector(".ufsc-license-search-form");
@@ -200,10 +201,30 @@
       }
 
       categoryInput.value = label;
+      const selectedOption = categoryInput.options[categoryInput.selectedIndex];
+      if (categoryIdInput) {
+        categoryIdInput.value = selectedOption?.dataset?.categoryId || "";
+      }
     } else {
       categoryInput.value = label;
+      if (categoryIdInput) {
+        categoryIdInput.value = "";
+      }
     }
   };
+
+  const syncCategoryIdFromSelection = () => {
+    if (!categoryInput || !categoryIdInput || categoryInput.tagName !== "SELECT") {
+      return;
+    }
+    const selectedOption = categoryInput.options[categoryInput.selectedIndex];
+    categoryIdInput.value = selectedOption?.dataset?.categoryId || "";
+  };
+
+  if (categoryInput && categoryInput.tagName === "SELECT") {
+    categoryInput.addEventListener("change", syncCategoryIdFromSelection);
+    syncCategoryIdFromSelection();
+  }
 
   const applyWeightClass = (label, options = []) => {
     if (!weightClassInput) {

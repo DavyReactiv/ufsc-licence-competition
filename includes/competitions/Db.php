@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.18';
+	const DB_VERSION = '1.19';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.18';
+	const UFSC_COMP_DB_VERSION = '1.19';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -201,6 +201,8 @@ class Db {
 				club_id bigint(20) unsigned NULL,
 				licensee_id bigint(20) unsigned NOT NULL,
 				category_id bigint(20) unsigned NULL,
+				category varchar(100) NULL,
+				category_name varchar(100) NULL,
 				weight_kg decimal(6,2) NULL,
 				weight_class varchar(20) NULL,
 				level varchar(50) NULL,
@@ -290,6 +292,9 @@ class Db {
 		}
 
 		$desired = array(
+			'category_id'     => "ALTER TABLE {$table} ADD COLUMN category_id bigint(20) unsigned NULL",
+			'category'        => "ALTER TABLE {$table} ADD COLUMN category varchar(100) NULL",
+			'category_name'   => "ALTER TABLE {$table} ADD COLUMN category_name varchar(100) NULL",
 			'status'          => "ALTER TABLE {$table} ADD COLUMN status varchar(50) NOT NULL DEFAULT 'draft'",
 			'assigned_at'     => "ALTER TABLE {$table} ADD COLUMN assigned_at datetime NULL",
 			'admin_note'      => "ALTER TABLE {$table} ADD COLUMN admin_note text NULL",
