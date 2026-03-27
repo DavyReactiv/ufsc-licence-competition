@@ -17,10 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Entries_Import_Page {
-	private const IMPORT_ACTION = 'ufsc_competitions_entries_import_csv';
+	private const IMPORT_ACTION   = 'ufsc_competitions_entries_import_csv';
 	private const TEMPLATE_ACTION = 'ufsc_competitions_entries_import_template';
-	private const NONCE_ACTION = 'ufsc_competitions_entries_import_csv';
-	private const MAX_FILE_SIZE = 5242880;
+	private const NONCE_ACTION    = 'ufsc_competitions_entries_import_csv';
+	private const MAX_FILE_SIZE   = 5242880;
 
 	/** @var CompetitionRepository */
 	private $competition_repository;
@@ -59,7 +59,7 @@ class Entries_Import_Page {
 		}
 		$competitions = $this->competition_repository->list( $competition_filters, 500, 0 );
 
-		$report = $this->get_report();
+		$report                  = $this->get_report();
 		$selected_competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -114,46 +114,46 @@ class Entries_Import_Page {
 		$headers = $this->get_supported_headers();
 		$rows    = array(
 			array(
-				'nom' => 'DUPONT',
-				'prenom' => 'Alice',
-				'sexe' => 'F',
-				'date_naissance' => '2006-04-21',
-				'club_nom' => 'UFSC Exemple',
-				'club_id' => '',
-				'discipline' => 'kickboxing',
-				'niveau' => 'intermediaire',
-				'categorie' => '',
-				'poids' => '57.2',
-				'categorie_poids' => '',
-				'numero_licence' => 'UFSC-001122',
-				'numero_licence_asptt' => '',
-				'email' => 'alice@example.test',
-				'telephone' => '0600000000',
-				'certificat_medical' => 'oui',
-				'autorisation_parentale' => 'oui',
-				'statut_dossier' => 'submitted',
-				'commentaire' => 'Exemple import avec licence',
+				'nom'                     => 'DUPONT',
+				'prenom'                  => 'Alice',
+				'sexe'                    => 'F',
+				'date_naissance'          => '2006-04-21',
+				'club_nom'                => 'UFSC Exemple',
+				'club_id'                 => '',
+				'discipline'              => 'kickboxing',
+				'niveau'                  => 'intermediaire',
+				'categorie'               => '',
+				'poids'                   => '57.2',
+				'categorie_poids'         => '',
+				'numero_licence'          => 'UFSC-001122',
+				'numero_licence_asptt'    => '',
+				'email'                   => 'alice@example.test',
+				'telephone'               => '0600000000',
+				'certificat_medical'      => 'oui',
+				'autorisation_parentale'  => 'oui',
+				'statut_dossier'          => 'submitted',
+				'commentaire'             => 'Exemple import avec licence',
 			),
 			array(
-				'nom' => 'MARTIN',
-				'prenom' => 'Noah',
-				'sexe' => 'M',
-				'date_naissance' => '2008-10-12',
-				'club_nom' => '',
-				'club_id' => '',
-				'discipline' => 'kickboxing',
-				'niveau' => '',
-				'categorie' => '',
-				'poids' => '63',
-				'categorie_poids' => '',
-				'numero_licence' => '',
-				'numero_licence_asptt' => '',
-				'email' => '',
-				'telephone' => '',
-				'certificat_medical' => '1',
-				'autorisation_parentale' => '0',
-				'statut_dossier' => 'draft',
-				'commentaire' => 'Exemple open sans licence',
+				'nom'                     => 'MARTIN',
+				'prenom'                  => 'Noah',
+				'sexe'                    => 'M',
+				'date_naissance'          => '2008-10-12',
+				'club_nom'                => '',
+				'club_id'                 => '',
+				'discipline'              => 'kickboxing',
+				'niveau'                  => '',
+				'categorie'               => '',
+				'poids'                   => '63',
+				'categorie_poids'         => '',
+				'numero_licence'          => '',
+				'numero_licence_asptt'    => '',
+				'email'                   => '',
+				'telephone'               => '',
+				'certificat_medical'      => '1',
+				'autorisation_parentale'  => '0',
+				'statut_dossier'          => 'draft',
+				'commentaire'             => 'Exemple open sans licence',
 			),
 		);
 
@@ -191,13 +191,13 @@ class Entries_Import_Page {
 		if ( ! $competition_id ) {
 			$this->redirect_with_report(
 				array(
-					'total' => 0,
+					'total'    => 0,
 					'imported' => 0,
-					'skipped' => 0,
-					'rows' => array(
+					'skipped'  => 0,
+					'rows'     => array(
 						array(
-							'line' => 0,
-							'status' => 'error',
+							'line'    => 0,
+							'status'  => 'error',
 							'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 						),
 					),
@@ -216,13 +216,13 @@ class Entries_Import_Page {
 		if ( ! $competition ) {
 			$this->redirect_with_report(
 				array(
-					'total' => 0,
+					'total'    => 0,
 					'imported' => 0,
-					'skipped' => 0,
-					'rows' => array(
+					'skipped'  => 0,
+					'rows'     => array(
 						array(
-							'line' => 0,
-							'status' => 'error',
+							'line'    => 0,
+							'status'  => 'error',
 							'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 						),
 					),
@@ -231,18 +231,18 @@ class Entries_Import_Page {
 			);
 		}
 
-		$file = $_FILES['entries_csv'] ?? array();
+		$file             = $_FILES['entries_csv'] ?? array();
 		$validation_error = $this->validate_uploaded_csv( $file );
 		if ( is_wp_error( $validation_error ) ) {
 			$this->redirect_with_report(
 				array(
-					'total' => 0,
+					'total'    => 0,
 					'imported' => 0,
-					'skipped' => 0,
-					'rows' => array(
+					'skipped'  => 0,
+					'rows'     => array(
 						array(
-							'line' => 0,
-							'status' => 'error',
+							'line'    => 0,
+							'status'  => 'error',
 							'message' => $validation_error->get_error_message(),
 						),
 					),
@@ -255,13 +255,13 @@ class Entries_Import_Page {
 		if ( is_wp_error( $parsed ) ) {
 			$this->redirect_with_report(
 				array(
-					'total' => 0,
+					'total'    => 0,
 					'imported' => 0,
-					'skipped' => 0,
-					'rows' => array(
+					'skipped'  => 0,
+					'rows'     => array(
 						array(
-							'line' => 0,
-							'status' => 'error',
+							'line'    => 0,
+							'status'  => 'error',
 							'message' => $parsed->get_error_message(),
 						),
 					),
@@ -314,7 +314,7 @@ class Entries_Import_Page {
 		$delimiter = ';';
 		if ( is_string( $first_line ) ) {
 			$semicolon_count = substr_count( $first_line, ';' );
-			$comma_count = substr_count( $first_line, ',' );
+			$comma_count     = substr_count( $first_line, ',' );
 			if ( $comma_count > $semicolon_count ) {
 				$delimiter = ',';
 			}
@@ -331,7 +331,7 @@ class Entries_Import_Page {
 			$headers[0] = preg_replace( '/^\xEF\xBB\xBF/u', '', (string) $headers[0] );
 		}
 
-		$rows = array();
+		$rows        = array();
 		$line_number = 1;
 		while ( false !== ( $row = fgetcsv( $handle, 0, $delimiter ) ) ) {
 			$line_number++;
@@ -357,39 +357,47 @@ class Entries_Import_Page {
 
 		return array(
 			'headers' => $headers,
-			'rows' => $rows,
+			'rows'    => $rows,
 		);
 	}
 
 	private function import_rows( $competition, array $rows ): array {
 		$report = array(
-			'total' => count( $rows ),
+			'total'    => count( $rows ),
 			'imported' => 0,
-			'skipped' => 0,
-			'rows' => array(),
+			'skipped'  => 0,
+			'rows'     => array(),
 		);
 
-		$competition_id = (int) ( $competition->id ?? 0 );
-		$require_valid_license = $this->competition_requires_license( $competition_id );
+		$competition_id         = (int) ( $competition->id ?? 0 );
+		$require_valid_license  = $this->competition_requires_license( $competition_id );
 		$competition_discipline = sanitize_key( (string) ( $competition->discipline ?? '' ) );
-		$season_end_year = isset( $competition->season ) ? (int) $competition->season : 0;
+		$season_end_year        = isset( $competition->season ) ? (int) $competition->season : 0;
 
 		foreach ( $rows as $row ) {
 			$line = (int) ( $row['line'] ?? 0 );
 			$data = is_array( $row['data'] ?? null ) ? $row['data'] : array();
 
-			$normalized = $this->normalize_import_data( $data, $competition_discipline );
+			$normalized       = $this->normalize_import_data( $data, $competition_discipline );
 			$validation_error = $this->validate_minimal_row( $normalized );
 			if ( '' !== $validation_error ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'error', 'message' => $validation_error );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'error',
+					'message' => $validation_error,
+				);
 				continue;
 			}
 
 			$birthdate = $this->normalize_birthdate( (string) $normalized['date_naissance'] );
 			if ( '' === $birthdate ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'error', 'message' => __( 'Date de naissance invalide.', 'ufsc-licence-competition' ) );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'error',
+					'message' => __( 'Date de naissance invalide.', 'ufsc-licence-competition' ),
+				);
 				continue;
 			}
 			$normalized['date_naissance'] = $birthdate;
@@ -397,42 +405,58 @@ class Entries_Import_Page {
 			$club_resolution = $this->resolve_club( $normalized );
 			if ( ! empty( $club_resolution['error'] ) ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'error', 'message' => $club_resolution['error'] );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'error',
+					'message' => $club_resolution['error'],
+				);
 				continue;
 			}
 			$club_id = (int) ( $club_resolution['club_id'] ?? 0 );
 
 			$license_lookup = $this->resolve_license( $normalized, $club_id );
-			$licensee_id = (int) ( $license_lookup['licensee_id'] ?? 0 );
+			$licensee_id    = (int) ( $license_lookup['licensee_id'] ?? 0 );
 			$license_number = (string) ( $license_lookup['license_number'] ?? $normalized['numero_licence'] );
 
 			if ( $require_valid_license && ! $licensee_id ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'error', 'message' => __( 'Licence requise pour cette compétition.', 'ufsc-licence-competition' ) );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'error',
+					'message' => __( 'Licence requise pour cette compétition.', 'ufsc-licence-competition' ),
+				);
 				continue;
 			}
 
 			if ( $licensee_id && $this->entry_repository->get_by_competition_licensee( $competition_id, $licensee_id ) ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'ignored', 'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ) );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'ignored',
+					'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ),
+				);
 				continue;
 			}
 
 			if ( $this->has_duplicate_identity_entry( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate ) ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'ignored', 'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ) );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'ignored',
+					'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ),
+				);
 				continue;
 			}
 
-			$weight_kg = $this->sanitize_weight( $normalized['poids'] );
+			$weight_kg    = $this->sanitize_weight( $normalized['poids'] );
 			$weight_class = $this->normalize_text( $normalized['categorie_poids'] );
 			if ( '' === $weight_class && null !== $weight_kg ) {
 				$weight_context = array(
-					'discipline' => $competition_discipline,
-					'age_reference' => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+					'discipline'      => $competition_discipline,
+					'age_reference'   => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
 					'season_end_year' => $season_end_year,
 				);
-				$resolved = WeightCategoryResolver::resolve_with_details( $birthdate, $normalized['sexe'], $weight_kg, $weight_context );
+				$resolved     = WeightCategoryResolver::resolve_with_details( $birthdate, $normalized['sexe'], $weight_kg, $weight_context );
 				$weight_class = sanitize_text_field( (string) ( $resolved['label'] ?? '' ) );
 			}
 
@@ -445,31 +469,39 @@ class Entries_Import_Page {
 
 			$payload = array(
 				'competition_id' => $competition_id,
-				'club_id' => $club_id,
-				'licensee_id' => $licensee_id,
-				'status' => $status,
-				'first_name' => $normalized['prenom'],
-				'last_name' => $normalized['nom'],
-				'birth_date' => $birthdate,
-				'sex' => $normalized['sexe'],
-				'weight' => null !== $weight_kg ? (string) $weight_kg : '',
-				'weight_class' => $weight_class,
-				'category' => $category,
-				'level' => $this->normalize_text( $normalized['niveau'] ),
+				'club_id'        => $club_id,
+				'licensee_id'    => $licensee_id,
+				'status'         => $status,
+				'first_name'     => $normalized['prenom'],
+				'last_name'      => $normalized['nom'],
+				'birth_date'     => $birthdate,
+				'sex'            => $normalized['sexe'],
+				'weight'         => null !== $weight_kg ? (string) $weight_kg : '',
+				'weight_class'   => $weight_class,
+				'category'       => $category,
+				'level'          => $this->normalize_text( $normalized['niveau'] ),
 				'license_number' => $license_number,
 			);
 
 			$entry_id = $this->entry_front_repository->insert( $payload );
 			if ( ! $entry_id ) {
 				$report['skipped']++;
-				$report['rows'][] = array( 'line' => $line, 'status' => 'error', 'message' => __( 'Erreur insertion SQL', 'ufsc-licence-competition' ) );
+				$report['rows'][] = array(
+					'line'    => $line,
+					'status'  => 'error',
+					'message' => __( 'Erreur insertion SQL', 'ufsc-licence-competition' ),
+				);
 				continue;
 			}
 
 			$this->persist_optional_csv_fields( $entry_id, $normalized );
 
 			$report['imported']++;
-			$report['rows'][] = array( 'line' => $line, 'status' => 'imported', 'message' => __( 'Importé', 'ufsc-licence-competition' ) );
+			$report['rows'][] = array(
+				'line'    => $line,
+				'status'  => 'imported',
+				'message' => __( 'Importé', 'ufsc-licence-competition' ),
+			);
 		}
 
 		return $report;
@@ -483,7 +515,7 @@ class Entries_Import_Page {
 			return;
 		}
 
-		$table = Db::entries_table();
+		$table   = Db::entries_table();
 		$columns = Db::get_table_columns( $table );
 		if ( ! is_array( $columns ) || empty( $columns ) ) {
 			return;
@@ -538,20 +570,20 @@ class Entries_Import_Page {
 	private function has_duplicate_identity_entry( int $competition_id, string $nom, string $prenom, string $birthdate ): bool {
 		global $wpdb;
 
-		$table = Db::entries_table();
+		$table   = Db::entries_table();
 		$columns = Db::get_table_columns( $table );
 		if ( ! is_array( $columns ) || empty( $columns ) ) {
 			return false;
 		}
 
 		$first_col = $this->resolve_first_column( $columns, array( 'first_name', 'firstname', 'prenom', 'given_name' ) );
-		$last_col = $this->resolve_first_column( $columns, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
+		$last_col  = $this->resolve_first_column( $columns, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
 		$birth_col = $this->resolve_first_column( $columns, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
 		if ( '' === $first_col || '' === $last_col || '' === $birth_col ) {
 			return false;
 		}
 
-		$where = array(
+		$where  = array(
 			'competition_id = %d',
 			"LOWER(TRIM({$last_col})) = LOWER(TRIM(%s))",
 			"LOWER(TRIM({$first_col})) = LOWER(TRIM(%s))",
@@ -563,7 +595,7 @@ class Entries_Import_Page {
 			$where[] = 'deleted_at IS NULL';
 		}
 
-		$sql = $wpdb->prepare( "SELECT id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' LIMIT 1', $params );
+		$sql   = $wpdb->prepare( "SELECT id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' LIMIT 1', $params );
 		$found = $wpdb->get_var( $sql );
 
 		return ! empty( $found );
@@ -575,7 +607,7 @@ class Entries_Import_Page {
 		$table = $wpdb->prefix . 'ufsc_licences';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
 			return array(
-				'licensee_id' => 0,
+				'licensee_id'    => 0,
 				'license_number' => $this->normalize_text( $normalized['numero_licence'] ?? '' ),
 			);
 		}
@@ -586,36 +618,39 @@ class Entries_Import_Page {
 		}
 
 		$license_number = $this->normalize_text( $normalized['numero_licence'] ?? '' );
-		$asptt_number = $this->normalize_text( $normalized['numero_licence_asptt'] ?? '' );
+		$asptt_number   = $this->normalize_text( $normalized['numero_licence_asptt'] ?? '' );
 
 		$search_column = '';
-		$search_value = '';
+		$search_value  = '';
 		if ( '' !== $asptt_number ) {
 			$search_column = $this->resolve_first_column( $columns, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number' ) );
-			$search_value = $asptt_number;
+			$search_value  = $asptt_number;
 		}
 		if ( '' === $search_column && '' !== $license_number ) {
 			$search_column = $this->resolve_first_column( $columns, array( 'numero_licence', 'numero_licence_delegataire', 'num_licence', 'licence_number' ) );
-			$search_value = $license_number;
+			$search_value  = $license_number;
 		}
 
 		if ( '' === $search_column || '' === $search_value ) {
-			return array( 'licensee_id' => 0, 'license_number' => $license_number );
+			return array(
+				'licensee_id'    => 0,
+				'license_number' => $license_number,
+			);
 		}
 
-		$where = array( "{$search_column} = %s" );
+		$where  = array( "{$search_column} = %s" );
 		$params = array( $search_value );
 
 		if ( $club_id > 0 && in_array( 'club_id', $columns, true ) ) {
-			$where[] = 'club_id = %d';
+			$where[]  = 'club_id = %d';
 			$params[] = $club_id;
 		}
 
-		$sql = $wpdb->prepare( "SELECT id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id ASC LIMIT 1', $params );
+		$sql         = $wpdb->prepare( "SELECT id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id ASC LIMIT 1', $params );
 		$licensee_id = (int) $wpdb->get_var( $sql );
 
 		return array(
-			'licensee_id' => $licensee_id,
+			'licensee_id'    => $licensee_id,
 			'license_number' => $license_number,
 		);
 	}
@@ -623,7 +658,7 @@ class Entries_Import_Page {
 	private function resolve_club( array $normalized ): array {
 		global $wpdb;
 
-		$club_id = absint( $normalized['club_id'] ?? 0 );
+		$club_id   = absint( $normalized['club_id'] ?? 0 );
 		$club_name = $this->normalize_text( $normalized['club_nom'] ?? '' );
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
@@ -636,7 +671,10 @@ class Entries_Import_Page {
 			if ( $found > 0 ) {
 				return array( 'club_id' => $found );
 			}
-			return array( 'club_id' => 0, 'error' => __( 'Club introuvable', 'ufsc-licence-competition' ) );
+			return array(
+				'club_id' => 0,
+				'error'   => __( 'Club introuvable', 'ufsc-licence-competition' ),
+			);
 		}
 
 		if ( '' === $club_name ) {
@@ -648,13 +686,16 @@ class Entries_Import_Page {
 			return array( 'club_id' => $exact );
 		}
 
-		$like = '%' . $wpdb->esc_like( $club_name ) . '%';
+		$like    = '%' . $wpdb->esc_like( $club_name ) . '%';
 		$partial = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE nom LIKE %s ORDER BY id ASC LIMIT 1", $like ) );
 		if ( $partial > 0 ) {
 			return array( 'club_id' => $partial );
 		}
 
-		return array( 'club_id' => 0, 'error' => __( 'Club introuvable', 'ufsc-licence-competition' ) );
+		return array(
+			'club_id' => 0,
+			'error'   => __( 'Club introuvable', 'ufsc-licence-competition' ),
+		);
 	}
 
 	private function competition_requires_license( int $competition_id ): bool {
@@ -670,11 +711,11 @@ class Entries_Import_Page {
 
 	private function validate_minimal_row( array $normalized ): string {
 		$required = array(
-			'nom' => __( 'Nom absent', 'ufsc-licence-competition' ),
-			'prenom' => __( 'Prénom absent', 'ufsc-licence-competition' ),
-			'sexe' => __( 'Sexe absent', 'ufsc-licence-competition' ),
+			'nom'            => __( 'Nom absent', 'ufsc-licence-competition' ),
+			'prenom'         => __( 'Prénom absent', 'ufsc-licence-competition' ),
+			'sexe'           => __( 'Sexe absent', 'ufsc-licence-competition' ),
 			'date_naissance' => __( 'Date de naissance absente', 'ufsc-licence-competition' ),
-			'discipline' => __( 'Discipline absente', 'ufsc-licence-competition' ),
+			'discipline'     => __( 'Discipline absente', 'ufsc-licence-competition' ),
 		);
 
 		foreach ( $required as $key => $error_message ) {
@@ -693,7 +734,7 @@ class Entries_Import_Page {
 		}
 
 		$normalized['discipline'] = $this->normalize_discipline( $normalized['discipline'], $competition_discipline );
-		$normalized['sexe'] = $this->normalize_sex( $normalized['sexe'] );
+		$normalized['sexe']       = $this->normalize_sex( $normalized['sexe'] );
 
 		return $normalized;
 	}
@@ -766,7 +807,7 @@ class Entries_Import_Page {
 		}
 
 		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
-		$formats = array( 'Y-m-d', 'd/m/Y', 'd-m-Y' );
+		$formats  = array( 'Y-m-d', 'd/m/Y', 'd-m-Y' );
 		foreach ( $formats as $format ) {
 			$parsed = \DateTimeImmutable::createFromFormat( '!' . $format, $raw, $timezone );
 			if ( $parsed && $parsed->format( $format ) === $raw ) {
@@ -860,7 +901,7 @@ class Entries_Import_Page {
 
 		$url = add_query_arg(
 			array(
-				'page' => Menu::PAGE_ENTRIES_IMPORT,
+				'page'           => Menu::PAGE_ENTRIES_IMPORT,
 				'competition_id' => $competition_id,
 			),
 			admin_url( 'admin.php' )
@@ -871,7 +912,7 @@ class Entries_Import_Page {
 	}
 
 	private function get_report(): ?array {
-		$key = $this->get_report_transient_key();
+		$key    = $this->get_report_transient_key();
 		$report = get_transient( $key );
 		if ( is_array( $report ) ) {
 			delete_transient( $key );
@@ -886,10 +927,10 @@ class Entries_Import_Page {
 	}
 
 	private function render_report( array $report ): void {
-		$total = (int) ( $report['total'] ?? 0 );
+		$total    = (int) ( $report['total'] ?? 0 );
 		$imported = (int) ( $report['imported'] ?? 0 );
-		$skipped = (int) ( $report['skipped'] ?? 0 );
-		$rows = is_array( $report['rows'] ?? null ) ? $report['rows'] : array();
+		$skipped  = (int) ( $report['skipped'] ?? 0 );
+		$rows     = is_array( $report['rows'] ?? null ) ? $report['rows'] : array();
 		?>
 		<h2><?php esc_html_e( 'Rapport d’import', 'ufsc-licence-competition' ); ?></h2>
 		<ul>
