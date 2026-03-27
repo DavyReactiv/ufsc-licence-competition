@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\EntryDeduplication;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -362,6 +363,8 @@ class Entries_Import_Page {
 	}
 
 	private function import_rows( $competition, array $rows ): array {
+		global $wpdb;
+
 		$report = array(
 			'total'    => count( $rows ),
 			'imported' => 0,
@@ -458,6 +461,10 @@ class Entries_Import_Page {
 
 			$status = $this->normalize_status( $normalized['statut_dossier'] );
 
+			if ( ! $licensee_id && ! $require_valid_license ) {
+				$licensee_id = $this->build_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
+			}
+
 			$payload = array(
 				'competition_id' => $competition_id,
 				'club_id'        => $club_id,
@@ -474,15 +481,44 @@ class Entries_Import_Page {
 				'license_number' => $license_number,
 			);
 
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC entries CSV import insert start: ' . wp_json_encode(
+						array(
+							'competition_id' => $competition_id,
+							'licensee_id'    => $licensee_id,
+							'club_id'        => $club_id,
+							'line'           => $line,
+						)
+					)
+				);
+			}
+
 			$entry_id = $this->entry_front_repository->insert( $payload );
 			if ( ! $entry_id ) {
 				$report['skipped']++;
+
+				$message    = __( 'Erreur lors de l’enregistrement en base.', 'ufsc-licence-competition' );
+				$last_error = is_string( $wpdb->last_error ) ? trim( $wpdb->last_error ) : '';
+
+				if ( '' !== $last_error && class_exists( EntryDeduplication::class ) && EntryDeduplication::is_duplicate_key_error( $last_error ) ) {
+					$message = __( 'Doublon détecté (contrainte compétition/licencié).', 'ufsc-licence-competition' );
+				}
+
 				$report['rows'][] = array(
 					'line'    => $line,
 					'status'  => 'error',
-					'message' => __( 'Erreur lors de l’enregistrement en base.', 'ufsc-licence-competition' ),
+					'message' => $message,
 				);
+
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC entries CSV import insert failed: ' . $last_error );
+				}
 				continue;
+			}
+
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC entries CSV import insert success: entry_id=' . (int) $entry_id . ' line=' . (int) $line );
 			}
 
 			$this->persist_optional_csv_fields( $entry_id, $normalized );
@@ -496,6 +532,13 @@ class Entries_Import_Page {
 		}
 
 		return $report;
+	}
+
+	private function build_fallback_licensee_id( int $competition_id, string $nom, string $prenom, string $birthdate ): int {
+		$key  = strtolower( trim( $competition_id . '|' . $nom . '|' . $prenom . '|' . $birthdate ) );
+		$hash = abs( (int) sprintf( '%u', crc32( $key ) ) );
+
+		return 1000000000 + ( $hash % 1000000000 );
 	}
 
 	private function persist_optional_csv_fields( int $entry_id, array $normalized ): void {
@@ -824,6 +867,7 @@ class Entries_Import_Page {
 		}
 		$value = wp_check_invalid_utf8( (string) $value );
 		$value = trim( (string) $value );
+
 		return preg_replace( '/\s+/u', ' ', $value );
 	}
 
@@ -832,6 +876,7 @@ class Entries_Import_Page {
 		$header = wp_check_invalid_utf8( $header );
 		$header = trim( $header );
 		$header = str_replace( array( ' ', '-' ), '_', $header );
+
 		return sanitize_key( $header );
 	}
 
@@ -855,6 +900,7 @@ class Entries_Import_Page {
 				return $candidate;
 			}
 		}
+
 		return '';
 	}
 
