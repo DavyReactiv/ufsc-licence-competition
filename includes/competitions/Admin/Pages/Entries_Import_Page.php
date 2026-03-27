@@ -403,16 +403,7 @@ class Entries_Import_Page {
 			$normalized['date_naissance'] = $birthdate;
 
 			$club_resolution = $this->resolve_club( $normalized );
-			if ( ! empty( $club_resolution['error'] ) ) {
-				$report['skipped']++;
-				$report['rows'][] = array(
-					'line'    => $line,
-					'status'  => 'error',
-					'message' => $club_resolution['error'],
-				);
-				continue;
-			}
-			$club_id = (int) ( $club_resolution['club_id'] ?? 0 );
+			$club_id         = (int) ( $club_resolution['club_id'] ?? 0 );
 
 			$license_lookup = $this->resolve_license( $normalized, $club_id );
 			$licensee_id    = (int) ( $license_lookup['licensee_id'] ?? 0 );
@@ -672,10 +663,7 @@ class Entries_Import_Page {
 			if ( $found > 0 ) {
 				return array( 'club_id' => $found );
 			}
-			return array(
-				'club_id' => 0,
-				'error'   => __( 'Club introuvable', 'ufsc-licence-competition' ),
-			);
+			$club_id = 0;
 		}
 
 		if ( '' === $club_name ) {
@@ -693,10 +681,7 @@ class Entries_Import_Page {
 			return array( 'club_id' => $partial );
 		}
 
-		return array(
-			'club_id' => 0,
-			'error'   => __( 'Club introuvable', 'ufsc-licence-competition' ),
-		);
+		return array( 'club_id' => 0 );
 	}
 
 	private function competition_requires_license( int $competition_id ): bool {
