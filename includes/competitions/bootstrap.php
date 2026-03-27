@@ -126,6 +126,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Competitions_Page.php',
 		$base . '/Admin/Pages/Categories_Page.php',
 		$base . '/Admin/Pages/Entries_Page.php',
+		$base . '/Admin/Pages/Entries_Import_Page.php',
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
 		$base . '/Admin/Pages/Bouts_AutoGeneration.php',
