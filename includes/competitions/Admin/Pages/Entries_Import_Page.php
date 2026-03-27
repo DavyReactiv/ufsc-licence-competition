@@ -114,46 +114,46 @@ class Entries_Import_Page {
 		$headers = $this->get_supported_headers();
 		$rows    = array(
 			array(
-				'nom'                     => 'DUPONT',
-				'prenom'                  => 'Alice',
-				'sexe'                    => 'F',
-				'date_naissance'          => '2006-04-21',
-				'club_nom'                => 'UFSC Exemple',
-				'club_id'                 => '',
-				'discipline'              => 'kickboxing',
-				'niveau'                  => 'intermediaire',
-				'categorie'               => '',
-				'poids'                   => '57.2',
-				'categorie_poids'         => '',
-				'numero_licence'          => 'UFSC-001122',
-				'numero_licence_asptt'    => '',
-				'email'                   => 'alice@example.test',
-				'telephone'               => '0600000000',
-				'certificat_medical'      => 'oui',
-				'autorisation_parentale'  => 'oui',
-				'statut_dossier'          => 'submitted',
-				'commentaire'             => 'Exemple import avec licence',
+				'nom'                    => 'DUPONT',
+				'prenom'                 => 'Alice',
+				'sexe'                   => 'F',
+				'date_naissance'         => '2006-04-21',
+				'club_nom'               => 'UFSC Exemple',
+				'club_id'                => '',
+				'discipline'             => 'kickboxing',
+				'niveau'                 => 'intermediaire',
+				'categorie'              => '',
+				'poids'                  => '57.2',
+				'categorie_poids'        => '',
+				'numero_licence'         => 'UFSC-001122',
+				'numero_licence_asptt'   => '',
+				'email'                  => 'alice@example.test',
+				'telephone'              => '0600000000',
+				'certificat_medical'     => 'oui',
+				'autorisation_parentale' => 'oui',
+				'statut_dossier'         => 'submitted',
+				'commentaire'            => 'Exemple import avec licence',
 			),
 			array(
-				'nom'                     => 'MARTIN',
-				'prenom'                  => 'Noah',
-				'sexe'                    => 'M',
-				'date_naissance'          => '2008-10-12',
-				'club_nom'                => '',
-				'club_id'                 => '',
-				'discipline'              => 'kickboxing',
-				'niveau'                  => '',
-				'categorie'               => '',
-				'poids'                   => '63',
-				'categorie_poids'         => '',
-				'numero_licence'          => '',
-				'numero_licence_asptt'    => '',
-				'email'                   => '',
-				'telephone'               => '',
-				'certificat_medical'      => '1',
-				'autorisation_parentale'  => '0',
-				'statut_dossier'          => 'draft',
-				'commentaire'             => 'Exemple open sans licence',
+				'nom'                    => 'MARTIN',
+				'prenom'                 => 'Noah',
+				'sexe'                   => 'M',
+				'date_naissance'         => '2008-10-12',
+				'club_nom'               => '',
+				'club_id'                => '',
+				'discipline'             => 'kickboxing',
+				'niveau'                 => '',
+				'categorie'              => '',
+				'poids'                  => '63',
+				'categorie_poids'        => '',
+				'numero_licence'         => '',
+				'numero_licence_asptt'   => '',
+				'email'                  => '',
+				'telephone'              => '',
+				'certificat_medical'     => '1',
+				'autorisation_parentale' => '0',
+				'statut_dossier'         => 'draft',
+				'commentaire'            => 'Exemple open sans licence',
 			),
 		);
 
@@ -433,7 +433,7 @@ class Entries_Import_Page {
 				$report['rows'][] = array(
 					'line'    => $line,
 					'status'  => 'ignored',
-					'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ),
+					'message' => __( 'Doublon détecté (ligne ignorée).', 'ufsc-licence-competition' ),
 				);
 				continue;
 			}
@@ -443,7 +443,7 @@ class Entries_Import_Page {
 				$report['rows'][] = array(
 					'line'    => $line,
 					'status'  => 'ignored',
-					'message' => __( 'Doublon détecté', 'ufsc-licence-competition' ),
+					'message' => __( 'Doublon détecté (ligne ignorée).', 'ufsc-licence-competition' ),
 				);
 				continue;
 			}
@@ -489,7 +489,7 @@ class Entries_Import_Page {
 				$report['rows'][] = array(
 					'line'    => $line,
 					'status'  => 'error',
-					'message' => __( 'Erreur insertion SQL', 'ufsc-licence-competition' ),
+					'message' => __( 'Erreur lors de l’enregistrement en base.', 'ufsc-licence-competition' ),
 				);
 				continue;
 			}
@@ -666,6 +666,7 @@ class Entries_Import_Page {
 			return array( 'club_id' => $club_id );
 		}
 
+		// Priorité métier : utiliser club_id avant toute tentative via club_nom.
 		if ( $club_id > 0 ) {
 			$found = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE id = %d LIMIT 1", $club_id ) );
 			if ( $found > 0 ) {
