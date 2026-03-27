@@ -20,6 +20,7 @@ class Menu {
 	public const PAGE_COMPETITIONS = 'ufsc-competitions';
 	public const PAGE_CATEGORIES   = 'ufsc-competitions-categories';
 	public const PAGE_ENTRIES      = 'ufsc-competitions-entries';
+	public const PAGE_ENTRIES_IMPORT = 'ufsc-competitions-entries-import';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
 	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
@@ -72,6 +73,14 @@ class Menu {
 			__( 'Inscriptions', 'ufsc-licence-competition' ),
 			__( 'Inscriptions', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
+			self::PAGE_ENTRIES_IMPORT,
+			__( 'Import CSV', 'ufsc-licence-competition' ),
+			__( 'Import CSV', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Entries_Import_Page'
 		);
 
 		$this->add_submenu_safe(
@@ -192,6 +201,7 @@ class Menu {
 		$page_classes = array(
 			'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Entries_Import_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',
