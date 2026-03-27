@@ -233,13 +233,13 @@ class Entries_Table extends \WP_List_Table {
 			case 'licensee':
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value( $item, 'license_number' ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club', 'club_label' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label' ) ) ) );
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'discipline':
@@ -428,6 +428,13 @@ class Entries_Table extends \WP_List_Table {
 
 		if ( '' !== $name ) {
 			return $name;
+		}
+
+		$entry_last = $this->get_item_value_from_keys( $item, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
+		$entry_first = $this->get_item_value_from_keys( $item, array( 'first_name', 'firstname', 'prenom', 'given_name' ) );
+		$entry_name = trim( $entry_last . ' ' . $entry_first );
+		if ( '' !== $entry_name ) {
+			return $entry_name;
 		}
 
 		foreach ( array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) as $key ) {
