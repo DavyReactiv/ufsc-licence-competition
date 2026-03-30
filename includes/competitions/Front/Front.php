@@ -24,6 +24,7 @@ class Front {
 
 		self::register_shortcodes();
 		self::register_rewrite_rules();
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 
 		if ( class_exists( '\\UFSC\\Competitions\\Front\\Entries\\EntriesModule' ) ) {
 			\UFSC\Competitions\Front\Entries\EntriesModule::register();
@@ -154,5 +155,19 @@ class Front {
 				require_once $file;
 			}
 		}
+	}
+
+	public static function enqueue_assets(): void {
+		$style_path = UFSC_LC_DIR . 'includes/competitions/assets/front.css';
+		if ( ! file_exists( $style_path ) ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'ufsc-competitions-front',
+			UFSC_LC_URL . 'includes/competitions/assets/front.css',
+			array(),
+			(string) filemtime( $style_path )
+		);
 	}
 }
