@@ -214,23 +214,25 @@ class CompetitionsListShortcode {
 
 			$rows .= sprintf(
 				'<tr>
+					<td data-label="%s"><strong>%s</strong>%s</td>
 					<td data-label="%s">%s</td>
 					<td data-label="%s">%s</td>
 					<td data-label="%s">%s</td>
+					<td data-label="%s"><span class="ufsc-status-badge ufsc-status-badge--%s">%s</span></td>
 					<td data-label="%s">%s</td>
-					<td data-label="%s">%s</td>
-					<td data-label="%s">%s</td>
-					<td data-label="%s"><a class="button" href="%s">%s</a></td>
+					<td data-label="%s"><a class="button button-primary" href="%s">%s</a></td>
 				</tr>',
 				esc_attr__( 'Nom', 'ufsc-licence-competition' ),
-				esc_html( (string) ( $item->name ?? '' ) ) . $restricted_badge,
+				esc_html( (string) ( $item->name ?? '' ) ),
+				$restricted_badge,
 				esc_attr__( 'Discipline', 'ufsc-licence-competition' ),
-				esc_html( CompetitionFilters::get_discipline_label( (string) ( $item->discipline ?? '' ) ) ),
+				'<span class="ufsc-pill">' . esc_html( CompetitionFilters::get_discipline_label( (string) ( $item->discipline ?? '' ) ) ) . '</span>',
 				esc_attr__( 'Type', 'ufsc-licence-competition' ),
-				esc_html( CompetitionFilters::get_type_label( (string) ( $item->type ?? '' ) ) ),
+				'<span class="ufsc-pill ufsc-pill--soft">' . esc_html( CompetitionFilters::get_type_label( (string) ( $item->type ?? '' ) ) ) . '</span>',
 				esc_attr__( 'Saison', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->season ?? '' ) ),
 				esc_attr__( 'Statut', 'ufsc-licence-competition' ),
+				esc_attr( sanitize_key( (string) ( $item->status ?? '' ) ) ),
 				esc_html( CompetitionFilters::get_status_label( (string) ( $item->status ?? '' ) ) ),
 				esc_attr__( 'Début', 'ufsc-licence-competition' ),
 				esc_html( (string) ( $item->event_start_datetime ?? '' ) ),
@@ -241,7 +243,7 @@ class CompetitionsListShortcode {
 		}
 
 		return sprintf(
-			'<div class="ufsc-competitions-table-wrapper">
+			'<div class="ufsc-panel ufsc-competitions-table-wrapper">
 				<table class="ufsc-competitions-table wp-list-table widefat striped">
 					<thead>
 						<tr>

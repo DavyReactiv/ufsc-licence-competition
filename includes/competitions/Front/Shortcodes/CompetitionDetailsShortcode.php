@@ -147,18 +147,22 @@ class CompetitionDetailsShortcode {
 		$club_notes = (string) ( $competition->club_notes ?? '' );
 		?>
 		<div class="ufsc-competition-details">
-			<?php if ( $photo_html ) : ?>
-				<div class="ufsc-competition-photo-wrapper">
-					<?php echo wp_kses_post( $photo_html ); ?>
+			<section class="ufsc-competition-hero">
+				<?php if ( $photo_html ) : ?>
+					<div class="ufsc-competition-photo-wrapper">
+						<?php echo wp_kses_post( $photo_html ); ?>
+					</div>
+				<?php endif; ?>
+				<div class="ufsc-competition-hero__content">
+					<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
+					<div class="ufsc-competition-main">
+						<span class="ufsc-pill"><?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></span>
+						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></span>
+						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></span>
+						<span class="ufsc-status-badge ufsc-status-badge--<?php echo esc_attr( sanitize_key( (string) ( $competition->status ?? '' ) ) ); ?>"><?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?></span>
+					</div>
 				</div>
-			<?php endif; ?>
-			<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
-			<ul class="ufsc-competition-main">
-				<li><strong><?php echo esc_html__( 'Discipline', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Type', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Saison', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?></li>
-			</ul>
+			</section>
 
 			<?php if ( $registration_deadline ) : ?>
 				<p class="ufsc-competition-deadline" style="color:#b32d2e;font-weight:600;">
@@ -168,7 +172,7 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $info_rows ) : ?>
-				<div class="ufsc-competition-practical">
+				<div class="ufsc-competition-practical ufsc-panel">
 					<h3><?php echo esc_html__( 'Infos pratiques', 'ufsc-licence-competition' ); ?></h3>
 					<ul>
 						<?php foreach ( $info_rows as $label => $value ) : ?>
@@ -179,13 +183,13 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $club_notes ) : ?>
-				<div class="ufsc-competition-notes notice notice-info">
+				<div class="ufsc-competition-notes ufsc-panel">
 					<h3><?php echo esc_html__( 'Notes clubs', 'ufsc-licence-competition' ); ?></h3>
 					<p><?php echo esc_html( $club_notes ); ?></p>
 				</div>
 			<?php endif; ?>
 
-			<div class="ufsc-competition-regulations notice notice-info">
+			<div class="ufsc-competition-regulations ufsc-panel">
 				<h3><?php echo esc_html__( 'Règlement & obligations', 'ufsc-licence-competition' ); ?></h3>
 				<ul>
 					<li><?php echo esc_html__( 'Passeport sportif obligatoire pour les compétitions fédérales (disponible dans la Boutique Club).', 'ufsc-licence-competition' ); ?></li>
@@ -203,7 +207,7 @@ class CompetitionDetailsShortcode {
 
 			<?php do_action( 'ufsc_competitions_front_after_details', $competition ); ?>
 
-			<div class="ufsc-competition-registration">
+			<div class="ufsc-competition-registration ufsc-panel">
 				<p><?php echo esc_html__( 'Inscriptions clubs UFSC.', 'ufsc-licence-competition' ); ?></p>
 				<p><?php echo esc_html__( 'Pour toute information, contactez le secrétariat UFSC :', 'ufsc-licence-competition' ); ?>
 					<a href="mailto:secretaire@ufsc-france.org">secretaire@ufsc-france.org</a>

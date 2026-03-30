@@ -69,7 +69,7 @@ class EntryFormRenderer {
 		<div class="ufsc-competition-entries" id="ufsc-inscriptions">
 			<span id="ufsc-competition-entries"></span>
 
-			<h3><?php echo esc_html__( 'Inscriptions', 'ufsc-licence-competition' ); ?></h3>
+			<h3 class="ufsc-section-title"><?php echo esc_html__( 'Inscriptions', 'ufsc-licence-competition' ); ?></h3>
 
 			<p class="ufsc-competition-entries-status">
 				<?php if ( $registration_open ) : ?>
@@ -87,7 +87,7 @@ class EntryFormRenderer {
 			endif;
 			?>
 
-			<div class="ufsc-competition-entries-list">
+			<div class="ufsc-competition-entries-list ufsc-panel">
 				<h4><?php echo esc_html__( 'Vos inscriptions', 'ufsc-licence-competition' ); ?></h4>
 
 				<?php
@@ -225,7 +225,7 @@ class EntryFormRenderer {
 				<?php endif; ?>
 
 				<?php if ( $engaged_view ) : ?>
-					<div class="ufsc-competition-engaged-table">
+					<div class="ufsc-competition-engaged-table ufsc-panel">
 						<h4><?php echo esc_html__( 'Licenciés engagés', 'ufsc-licence-competition' ); ?></h4>
 						<?php if ( empty( $engaged_entries ) ) : ?>
 							<p><?php echo esc_html__( 'Aucun licencié engagé trouvé.', 'ufsc-licence-competition' ); ?></p>
@@ -305,7 +305,7 @@ class EntryFormRenderer {
 				<?php endif; ?>
 
 				<?php if ( empty( $entries ) ) : ?>
-					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
+					<div class="ufsc-empty-state"><p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p></div>
 				<?php else : ?>
 					<?php
 					// Compatibilité large : différentes sources / versions peuvent exposer des clés différentes.
@@ -537,7 +537,7 @@ class EntryFormRenderer {
 				<?php endif; ?>
 			</div>
 
-			<div class="ufsc-competition-entry-form" id="ufsc-entry-form">
+			<div class="ufsc-competition-entry-form ufsc-panel" id="ufsc-entry-form">
 				<h4>
 					<?php echo $editing_entry ? esc_html__( 'Modifier une inscription', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter une inscription', 'ufsc-licence-competition' ); ?>
 				</h4>
@@ -557,7 +557,7 @@ class EntryFormRenderer {
 
 				<div class="ufsc-competition-entry-grid">
 					<?php if ( $club_id ) : ?>
-						<div class="ufsc-competition-license-prefill">
+						<div class="ufsc-competition-license-prefill ufsc-panel ufsc-panel--soft">
 						<label><?php echo esc_html__( 'Licencié UFSC (pré-remplir)', 'ufsc-licence-competition' ); ?></label>
 
 						<?php if ( $license_search_available ) : ?>
