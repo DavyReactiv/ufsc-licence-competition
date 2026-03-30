@@ -120,6 +120,11 @@ class Competitions_Page {
 		$list_table = new \UFSC\Competitions\Admin\Tables\Competitions_Table();
 
 		$list_table->prepare_items();
+		$total_competitions  = method_exists( $this->repository, 'count' ) ? (int) $this->repository->count( array( 'view' => 'all' ) ) : 0;
+		$open_competitions   = method_exists( $this->repository, 'count' ) ? (int) $this->repository->count( array( 'view' => 'all', 'status' => 'open' ) ) : 0;
+		$archived_competions = method_exists( $this->repository, 'count' ) ? (int) $this->repository->count( array( 'view' => 'archived' ) ) : 0;
+		$entries_count       = class_exists( '\\UFSC\\Competitions\\Repositories\\EntryRepository' ) ? ( new \UFSC\Competitions\Repositories\EntryRepository() )->count( array( 'view' => 'all' ) ) : 0;
+		$fights_count        = class_exists( '\\UFSC\\Competitions\\Repositories\\FightRepository' ) ? ( new \UFSC\Competitions\Repositories\FightRepository() )->count( array( 'view' => 'all' ) ) : 0;
 
 		$current_view = isset( $_GET['ufsc_view'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_view'] ) ) : 'all';
 		$search       = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
@@ -127,18 +132,31 @@ class Competitions_Page {
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Pilotage compétition UFSC', 'ufsc-licence-competition' ); ?></p>
+					<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Gérez les compétitions, leur statut, leur discipline et leur préparation opérationnelle.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+				<div class="ufsc-admin-page-actions">
+					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary">
+						<?php esc_html_e( 'Ajouter une compétition', 'ufsc-licence-competition' ); ?>
+					</a>
+				</div>
+			</header>
 
-			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action">
-				<?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?>
-			</a>
-
-			<hr class="wp-header-end">
+			<section class="ufsc-kpis ufsc-kpis--premium" aria-label="<?php esc_attr_e( 'Synthèse compétitions', 'ufsc-licence-competition' ); ?>">
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Total compétitions', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $total_competitions ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Compétitions ouvertes', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $open_competitions ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Compétitions archivées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $archived_competions ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Inscriptions liées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $entries_count ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Combats générés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $fights_count ) ); ?></strong></article>
+			</section>
 
 			<?php $list_table->views(); ?>
 
 			<!-- Search (GET) -->
-			<form method="get" style="margin: 8px 0 12px;">
+			<form method="get" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::MENU_SLUG ); ?>" />
 				<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-search' ); ?>

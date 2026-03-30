@@ -257,6 +257,115 @@
 	line-height: 1.2;
 }
 
+.ufsc-admin-page-header {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	align-items: flex-start;
+	padding: 18px 20px;
+	margin: 12px 0 14px;
+	border: 1px solid #d8dee6;
+	border-radius: 12px;
+	background: linear-gradient(160deg, #ffffff 0%, #f6f8fc 100%);
+}
+
+.ufsc-admin-page-kicker {
+	margin: 0 0 6px;
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+	color: #0a4b78;
+}
+
+.ufsc-admin-page-description {
+	margin: 6px 0 0;
+	color: #475467;
+	max-width: 780px;
+}
+
+.ufsc-admin-page-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.ufsc-kpis--premium {
+	margin-top: 0;
+}
+
+.ufsc-kpis--premium .ufsc-kpi {
+	border-radius: 10px;
+	border-color: #d7dde7;
+	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.ufsc-admin-toolbar {
+	background: #fff;
+	border: 1px solid #d8dee6;
+	border-radius: 10px;
+	padding: 12px;
+	margin: 10px 0 14px;
+}
+
+.ufsc-admin-surface {
+	background: #fff;
+	border: 1px solid #d8dee6;
+	border-radius: 12px;
+	padding: 16px;
+	margin-bottom: 16px;
+}
+
+.ufsc-empty-state {
+	padding: 26px 20px;
+	border: 1px dashed #bfd2e8;
+	border-radius: 12px;
+	background: #f8fbff;
+	text-align: center;
+}
+
+.ufsc-table-premium th {
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: .03em;
+}
+
+.ufsc-competitions-admin .wp-list-table th,
+.ufsc-competitions-admin .wp-list-table td {
+	padding-top: 10px;
+	padding-bottom: 10px;
+}
+
+.ufsc-competitions-admin .wp-list-table thead th {
+	position: sticky;
+	top: 32px;
+	z-index: 2;
+	background: #f8fafc;
+}
+
+.ufsc-competitions-admin .wp-list-table tbody tr:nth-child(even) {
+	background: #fcfcfd;
+}
+
+.ufsc-competitions-admin .wp-list-table tbody tr:hover {
+	background: #f5f9ff;
+}
+
+.ufsc-competitions-admin .button.button-secondary {
+	border-color: #c7d1de;
+	color: #1f2937;
+}
+
+.ufsc-competitions-admin .button-link.delete {
+	color: #b42318;
+}
+
+@media (max-width: 960px) {
+	.ufsc-admin-page-header {
+		flex-direction: column;
+	}
+}
+
 .ufsc-print-header__generated {
 	margin: 8px 0 0;
 	font-size: 12px;

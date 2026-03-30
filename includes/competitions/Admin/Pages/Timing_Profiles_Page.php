@@ -48,10 +48,20 @@ class Timing_Profiles_Page {
 		$type_choices = CompetitionFilters::get_type_choices();
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php esc_html_e( 'Timing Profiles', 'ufsc-licence-competition' ); ?></h1>
-			<p><?php esc_html_e( 'Définissez les durées par discipline et tranche d’âge. Les combats utilisent ces profils en mode "Par catégories".', 'ufsc-licence-competition' ); ?></p>
 			<?php $profiles_count = method_exists( $repo, 'count' ) ? $repo->count() : count( $profiles ); ?>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin:12px 0;">
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Référentiel timing', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Timing Profiles', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Définissez les durées par discipline et tranche d’âge. Les combats utilisent ces profils en mode "Par catégories".', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
+			<section class="ufsc-kpis ufsc-kpis--premium">
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Profils enregistrés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $profiles_count ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Disciplines couvertes', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( count( $disciplines ) ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Types de compétition', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( count( $type_choices ) ) ); ?></strong></article>
+			</section>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-admin-toolbar">
 				<?php wp_nonce_field( 'ufsc_competitions_seed_timing_profiles' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_seed_timing_profiles">
 				<button type="submit" class="button button-secondary">
@@ -60,7 +70,7 @@ class Timing_Profiles_Page {
 			</form>
 
 			<h2><?php echo $editing ? esc_html__( 'Modifier un profil', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter un profil', 'ufsc-licence-competition' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-admin-surface">
 				<?php wp_nonce_field( 'ufsc_competitions_save_timing_profile' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_timing_profile">
 				<?php if ( $editing ) : ?>
@@ -149,7 +159,7 @@ class Timing_Profiles_Page {
 			<?php if ( empty( $profiles ) ) : ?>
 				<p><?php esc_html_e( 'Aucun profil défini.', 'ufsc-licence-competition' ); ?></p>
 			<?php else : ?>
-				<table class="widefat striped">
+				<table class="widefat striped ufsc-table-premium">
 					<thead>
 						<tr>
 							<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
