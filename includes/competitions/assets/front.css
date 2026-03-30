@@ -37,15 +37,35 @@
 
 .ufsc-status-badge--open,
 .ufsc-status-badge--approved,
-.ufsc-status-badge--completed { background: #dcfce7; color: #166534; }
+.ufsc-status-badge--completed {
+	background: #dcfce7;
+	color: #166534;
+}
+
 .ufsc-status-badge--draft,
-.ufsc-status-badge--scheduled { background: #e2e8f0; color: #334155; }
+.ufsc-status-badge--scheduled {
+	background: #e2e8f0;
+	color: #334155;
+}
+
 .ufsc-status-badge--submitted,
 .ufsc-status-badge--review_queue,
-.ufsc-status-badge--running { background: #fef3c7; color: #92400e; }
+.ufsc-status-badge--running {
+	background: #fef3c7;
+	color: #92400e;
+}
+
 .ufsc-status-badge--rejected,
 .ufsc-status-badge--closed,
-.ufsc-status-badge--cancelled { background: #fee2e2; color: #991b1b; }
+.ufsc-status-badge--cancelled {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.ufsc-status-badge--pending {
+	background: #e0f2fe;
+	color: #075985;
+}
 
 .ufsc-competitions-filters {
 	margin: 12px 0;
@@ -94,6 +114,9 @@
 	font-size: 12px;
 	text-transform: uppercase;
 	letter-spacing: .03em;
+	position: sticky;
+	top: 0;
+	z-index: 1;
 }
 
 .ufsc-competition-hero {
@@ -125,7 +148,75 @@
 	margin-bottom: 10px;
 }
 
+.ufsc-entry-stepper__title {
+	display: inline-block;
+	font-weight: 700;
+	margin-bottom: 6px;
+}
+
+.ufsc-entry-stepper__list {
+	margin: 0;
+	padding-left: 18px;
+	display: grid;
+	gap: 4px;
+}
+
+.ufsc-entry-stepper__list .is-current {
+	font-weight: 700;
+	color: #0a4b78;
+}
+
+.ufsc-entry-stepper__status {
+	margin: 10px 0 0;
+}
+
+.ufsc-entry-form-summary {
+	margin-bottom: 14px;
+	padding: 10px 12px;
+	border: 1px solid #dbe8f5;
+	background: #f8fbff;
+	border-radius: 10px;
+}
+
+.ufsc-entry-form-summary ul {
+	margin: 6px 0 0;
+	padding-left: 18px;
+}
+
+.ufsc-info-cards {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(220px, 1fr));
+	gap: 12px;
+}
+
+.ufsc-info-card {
+	background: #fff;
+	border: 1px solid #e4e7ec;
+	border-radius: 10px;
+	padding: 12px;
+}
+
+.ufsc-doc-links {
+	margin: 0;
+	padding-left: 16px;
+	display: grid;
+	gap: 6px;
+}
+
+.ufsc-competition-entry-actions .button {
+	min-height: 36px;
+}
+
 @media (max-width: 980px) {
-	.ufsc-competitions-filters__row { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
-	.ufsc-competition-hero { grid-template-columns: 1fr; }
+	.ufsc-competitions-filters__row {
+		grid-template-columns: repeat(2, minmax(160px, 1fr));
+	}
+
+	.ufsc-competition-hero {
+		grid-template-columns: 1fr;
+	}
+
+	.ufsc-info-cards {
+		grid-template-columns: 1fr;
+	}
 }

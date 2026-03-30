@@ -174,6 +174,7 @@
 	background: #fff;
 	padding: 16px;
 	border: 1px solid #ccd0d4;
+	counter-reset: page;
 }
 
 .ufsc-print-header h1 {
@@ -212,29 +213,6 @@
 	display: block;
 	margin-bottom: 8px;
 	border-radius: 4px;
-}
-
-@media print {
-	#adminmenuwrap,
-	#adminmenuback,
-	#wpadminbar,
-	.update-nag,
-	.notice,
-	.page-title-action,
-	.ufsc-competitions-print-filter,
-	.nav-tab-wrapper,
-	#wpfooter {
-		display: none !important;
-	}
-
-	.ufsc-print-area {
-		border: none;
-		padding: 0;
-	}
-}
-
-.ufsc-print-area {
-	counter-reset: page;
 }
 
 .ufsc-print-header {
@@ -336,10 +314,39 @@
 	padding-bottom: 10px;
 }
 
-@media (max-width: 960px) {
-	.ufsc-admin-page-header {
-		flex-direction: column;
-	}
+.ufsc-competitions-admin .wp-list-table thead th {
+	position: sticky;
+	top: 32px;
+	z-index: 2;
+	background: #f8fafc;
+	font-size: 12px;
+	text-transform: uppercase;
+	letter-spacing: .02em;
+}
+
+.ufsc-competitions-admin .wp-list-table td {
+	vertical-align: top;
+}
+
+.ufsc-competitions-admin .wp-list-table tbody tr:nth-child(even) td {
+	background: #fcfcfd;
+}
+
+.ufsc-competitions-admin .wp-list-table tbody tr:hover td {
+	background: #f5f9ff;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge {
+	font-weight: 600;
+}
+
+.ufsc-competitions-admin .button.button-secondary {
+	border-color: #c7d1de;
+	color: #1f2937;
+}
+
+.ufsc-competitions-admin .button-link.delete {
+	color: #b42318;
 }
 
 .ufsc-print-header__generated {
@@ -388,7 +395,30 @@
 	border-top: 1px solid #d0d3d6;
 }
 
+@media (max-width: 960px) {
+	.ufsc-admin-page-header {
+		flex-direction: column;
+	}
+}
+
 @media print {
+	#adminmenuwrap,
+	#adminmenuback,
+	#wpadminbar,
+	.update-nag,
+	.notice,
+	.page-title-action,
+	.ufsc-competitions-print-filter,
+	.nav-tab-wrapper,
+	#wpfooter {
+		display: none !important;
+	}
+
+	.ufsc-print-area {
+		border: none;
+		padding: 0;
+	}
+
 	@page {
 		size: A4 portrait;
 		margin: 10mm;
@@ -428,25 +458,4 @@
 	.ufsc-print-page-number::after {
 		content: counter(page);
 	}
-}
-
-.ufsc-competitions-admin .wp-list-table thead th {
-	background: #f6f7f7;
-	font-size: 12px;
-	text-transform: uppercase;
-	letter-spacing: .02em;
-}
-
-.ufsc-competitions-admin .wp-list-table td {
-	padding-top: 10px;
-	padding-bottom: 10px;
-	vertical-align: top;
-}
-
-.ufsc-competitions-admin .wp-list-table tbody tr:nth-child(even) td {
-	background: #fcfcfd;
-}
-
-.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge {
-	font-weight: 600;
 }
