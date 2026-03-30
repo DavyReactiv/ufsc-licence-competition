@@ -64,12 +64,21 @@ class EntryFormRenderer {
 			$license_notice = __( 'Plusieurs licenciés correspondent à votre recherche. Vérifiez la date de naissance et sélectionnez la bonne personne avant de continuer.', 'ufsc-licence-competition' );
 		}
 
+		$workflow_status = $editing_entry ? EntriesWorkflow::normalize_status( (string) $repo->get_entry_status( $editing_entry ) ) : 'draft';
+		$workflow_steps  = array(
+			'draft'       => __( 'Brouillon', 'ufsc-licence-competition' ),
+			'submitted'   => __( 'Soumise', 'ufsc-licence-competition' ),
+			'approved'    => __( 'Approuvée', 'ufsc-licence-competition' ),
+			'rejected'    => __( 'Rejetée', 'ufsc-licence-competition' ),
+			'review_queue'=> __( 'En validation', 'ufsc-licence-competition' ),
+		);
+
 		ob_start();
 		?>
 		<div class="ufsc-competition-entries" id="ufsc-inscriptions">
 			<span id="ufsc-competition-entries"></span>
 
-			<h3><?php echo esc_html__( 'Inscriptions', 'ufsc-licence-competition' ); ?></h3>
+			<h3 class="ufsc-section-title"><?php echo esc_html__( 'Inscriptions', 'ufsc-licence-competition' ); ?></h3>
 
 			<p class="ufsc-competition-entries-status">
 				<?php if ( $registration_open ) : ?>
@@ -78,6 +87,21 @@ class EntryFormRenderer {
 					<span class="ufsc-badge ufsc-badge-closed"><?php echo esc_html__( 'Inscriptions fermées', 'ufsc-licence-competition' ); ?></span>
 				<?php endif; ?>
 			</p>
+			<div class="ufsc-entry-stepper ufsc-panel ufsc-panel--soft" aria-label="<?php esc_attr_e( 'Parcours inscription', 'ufsc-licence-competition' ); ?>">
+				<span class="ufsc-entry-stepper__title"><?php echo esc_html__( 'Parcours inscription', 'ufsc-licence-competition' ); ?></span>
+				<ol class="ufsc-entry-stepper__list">
+					<li class="is-current"><?php echo esc_html__( '1. Recherche licencié UFSC', 'ufsc-licence-competition' ); ?></li>
+					<li><?php echo esc_html__( '2. Vérification identité', 'ufsc-licence-competition' ); ?></li>
+					<li><?php echo esc_html__( '3. Données sportives', 'ufsc-licence-competition' ); ?></li>
+					<li><?php echo esc_html__( '4. Validation club', 'ufsc-licence-competition' ); ?></li>
+				</ol>
+				<p class="ufsc-entry-stepper__status">
+					<?php echo esc_html__( 'Statut courant :', 'ufsc-licence-competition' ) . ' '; ?>
+					<span class="ufsc-status-badge ufsc-status-badge--<?php echo esc_attr( $workflow_status ); ?>">
+						<?php echo esc_html( $workflow_steps[ $workflow_status ] ?? EntriesWorkflow::get_status_label( $workflow_status ) ); ?>
+					</span>
+				</p>
+			</div>
 
 			<?php if ( ! $club_id ) : ?>
 				<p><?php echo esc_html__( 'Accès réservé aux clubs affiliés.', 'ufsc-licence-competition' ); ?></p>
@@ -87,7 +111,7 @@ class EntryFormRenderer {
 			endif;
 			?>
 
-			<div class="ufsc-competition-entries-list">
+			<div class="ufsc-competition-entries-list ufsc-panel">
 				<h4><?php echo esc_html__( 'Vos inscriptions', 'ufsc-licence-competition' ); ?></h4>
 
 				<?php
@@ -225,7 +249,7 @@ class EntryFormRenderer {
 				<?php endif; ?>
 
 				<?php if ( $engaged_view ) : ?>
-					<div class="ufsc-competition-engaged-table">
+					<div class="ufsc-competition-engaged-table ufsc-panel">
 						<h4><?php echo esc_html__( 'Licenciés engagés', 'ufsc-licence-competition' ); ?></h4>
 						<?php if ( empty( $engaged_entries ) ) : ?>
 							<p><?php echo esc_html__( 'Aucun licencié engagé trouvé.', 'ufsc-licence-competition' ); ?></p>
@@ -305,7 +329,10 @@ class EntryFormRenderer {
 				<?php endif; ?>
 
 				<?php if ( empty( $entries ) ) : ?>
-					<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
+					<div class="ufsc-empty-state">
+						<p><?php echo esc_html__( 'Aucune inscription trouvée.', 'ufsc-licence-competition' ); ?></p>
+						<a href="#ufsc-entry-form" class="button button-primary"><?php echo esc_html__( 'Ajouter une inscription', 'ufsc-licence-competition' ); ?></a>
+					</div>
 				<?php else : ?>
 					<?php
 					// Compatibilité large : différentes sources / versions peuvent exposer des clés différentes.
@@ -537,10 +564,18 @@ class EntryFormRenderer {
 				<?php endif; ?>
 			</div>
 
-			<div class="ufsc-competition-entry-form" id="ufsc-entry-form">
+				<div class="ufsc-competition-entry-form ufsc-panel" id="ufsc-entry-form">
 				<h4>
 					<?php echo $editing_entry ? esc_html__( 'Modifier une inscription', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter une inscription', 'ufsc-licence-competition' ); ?>
 				</h4>
+				<div class="ufsc-entry-form-summary">
+					<strong><?php echo esc_html__( 'Avant validation :', 'ufsc-licence-competition' ); ?></strong>
+					<ul>
+						<li><?php echo esc_html__( 'Vérifier identité (nom, prénom, naissance).', 'ufsc-licence-competition' ); ?></li>
+						<li><?php echo esc_html__( 'Compléter poids, catégorie et niveau.', 'ufsc-licence-competition' ); ?></li>
+						<li><?php echo esc_html__( 'Contrôler le statut avant soumission.', 'ufsc-licence-competition' ); ?></li>
+					</ul>
+				</div>
 
 				<?php
 				$editing_status = $editing_entry ? (string) $repo->get_entry_status( $editing_entry ) : 'draft';
@@ -557,7 +592,7 @@ class EntryFormRenderer {
 
 				<div class="ufsc-competition-entry-grid">
 					<?php if ( $club_id ) : ?>
-						<div class="ufsc-competition-license-prefill">
+						<div class="ufsc-competition-license-prefill ufsc-panel ufsc-panel--soft">
 						<label><?php echo esc_html__( 'Licencié UFSC (pré-remplir)', 'ufsc-licence-competition' ); ?></label>
 
 						<?php if ( $license_search_available ) : ?>
@@ -816,6 +851,7 @@ class EntryFormRenderer {
 								<button type="submit" class="button button-primary" <?php echo ( $registration_open && ! $editing_locked ) ? '' : 'disabled'; ?>>
 									<?php echo $editing_entry ? esc_html__( 'Mettre à jour', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter', 'ufsc-licence-competition' ); ?>
 								</button>
+								<a href="#ufsc-inscriptions" class="button button-secondary"><?php echo esc_html__( 'Retour à mes inscriptions', 'ufsc-licence-competition' ); ?></a>
 							</div>
 						</form>
 					</div>
