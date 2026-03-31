@@ -37,16 +37,35 @@
 
 .ufsc-status-badge--open,
 .ufsc-status-badge--approved,
-.ufsc-status-badge--completed { background: #dcfce7; color: #166534; }
+.ufsc-status-badge--completed {
+	background: #dcfce7;
+	color: #166534;
+}
+
 .ufsc-status-badge--draft,
-.ufsc-status-badge--scheduled { background: #e2e8f0; color: #334155; }
+.ufsc-status-badge--scheduled {
+	background: #e2e8f0;
+	color: #334155;
+}
+
 .ufsc-status-badge--submitted,
 .ufsc-status-badge--review_queue,
-.ufsc-status-badge--running { background: #fef3c7; color: #92400e; }
+.ufsc-status-badge--running {
+	background: #fef3c7;
+	color: #92400e;
+}
+
 .ufsc-status-badge--rejected,
 .ufsc-status-badge--closed,
-.ufsc-status-badge--cancelled { background: #fee2e2; color: #991b1b; }
-.ufsc-status-badge--pending { background: #e0f2fe; color: #075985; }
+.ufsc-status-badge--cancelled {
+	background: #fee2e2;
+	color: #991b1b;
+}
+
+.ufsc-status-badge--pending {
+	background: #e0f2fe;
+	color: #075985;
+}
 
 .ufsc-competitions-filters {
 	margin: 12px 0;
@@ -189,7 +208,15 @@
 }
 
 @media (max-width: 980px) {
-	.ufsc-competitions-filters__row { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
-	.ufsc-competition-hero { grid-template-columns: 1fr; }
-	.ufsc-info-cards { grid-template-columns: 1fr; }
+	.ufsc-competitions-filters__row {
+		grid-template-columns: repeat(2, minmax(160px, 1fr));
+	}
+
+	.ufsc-competition-hero {
+		grid-template-columns: 1fr;
+	}
+
+	.ufsc-info-cards {
+		grid-template-columns: 1fr;
+	}
 }
