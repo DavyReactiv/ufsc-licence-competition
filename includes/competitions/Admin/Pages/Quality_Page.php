@@ -2,11 +2,11 @@
 
 namespace UFSC\Competitions\Admin\Pages;
 
+use UFSC\Competitions\Admin\Tables\Quality_Table;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Entries\EntriesWorkflow;
-use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
-use UFSC\Competitions\Admin\Tables\Quality_Table;
+use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {

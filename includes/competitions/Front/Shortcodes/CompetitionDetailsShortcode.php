@@ -82,7 +82,7 @@ class CompetitionDetailsShortcode {
 		}
 
 		if ( $weighin_start || $weighin_end ) {
-			$label                                             = trim( $weighin_start . ( $weighin_end ? ' → ' . $weighin_end : '' ) );
+			$label = trim( $weighin_start . ( $weighin_end ? ' → ' . $weighin_end : '' ) );
 			$info_rows[ __( 'Pesée', 'ufsc-licence-competition' ) ] = $label;
 		}
 
@@ -157,7 +157,6 @@ class CompetitionDetailsShortcode {
 						<?php echo wp_kses_post( $photo_html ); ?>
 					</div>
 				<?php endif; ?>
-
 				<div class="ufsc-competition-hero__content">
 					<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
 					<div class="ufsc-competition-main">

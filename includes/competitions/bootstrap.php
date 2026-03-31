@@ -70,6 +70,8 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/UfscReference/UfscObligationRules.php',
 		$base . '/Services/UfscReference/UfscReferenceRepository.php',
 		$base . '/Services/UfscReference/UfscReferenceFallback.php',
+		$base . '/Services/UfscReference/UfscReferenceDateResolver.php',
+		$base . '/Services/UfscReference/UfscReferenceNormalizer.php',
 		$base . '/Services/UfscReference/UfscReferenceFacade.php',
 
 		// Repository helpers must be available to all repos.
