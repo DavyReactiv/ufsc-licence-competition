@@ -406,7 +406,17 @@ class Entries_Page {
 		}
 
 		if ( '' !== $schema['status_expr'] ) {
-			$where[] = "(l.{$schema['status_expr']} IS NULL OR l.{$schema['status_expr']} = '' OR LOWER(l.{$schema['status_expr']}) IN ('valide', 'valid', 'active', 'actif', 'approved'))";
+			$excluded_statuses = function_exists( 'ufsc_lc_get_excluded_licence_statuses' )
+				? ufsc_lc_get_excluded_licence_statuses()
+				: array( 'inactive', 'inactif', 'invalide', 'invalid', 'expired', 'expire', 'desactive', 'suspended', 'suspendu', 'cancelled', 'annule', 'deleted', 'supprime', 'rejected', 'refused', 'refuse', 'blocked', 'bloque' );
+			$excluded_statuses = array_values( array_filter( array_map( 'sanitize_key', (array) $excluded_statuses ) ) );
+
+			if ( ! empty( $excluded_statuses ) ) {
+				$status_expr = "LOWER(REPLACE(REPLACE(TRIM(l.{$schema['status_expr']}), '-', '_'), ' ', '_'))";
+				$placeholders = implode( ', ', array_fill( 0, count( $excluded_statuses ), '%s' ) );
+				$where[] = "(l.{$schema['status_expr']} IS NULL OR l.{$schema['status_expr']} = '' OR {$status_expr} NOT IN ({$placeholders}))";
+				$params  = array_merge( $params, $excluded_statuses );
+			}
 		}
 
 		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
