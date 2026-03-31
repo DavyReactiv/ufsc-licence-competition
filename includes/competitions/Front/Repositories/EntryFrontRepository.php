@@ -442,6 +442,12 @@ class EntryFrontRepository {
 	}
 
 	private function normalize_entry_for_display( object $entry ): object {
+		$participant_type = isset( $entry->participant_type ) ? sanitize_key( (string) $entry->participant_type ) : '';
+		if ( ! in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
+			$participant_type = 'licensed_ufsc';
+		}
+		$entry->participant_type = $participant_type;
+
 		$license_last = $this->get_entry_value(
 			$entry,
 			array( 'licensee_last_name', 'last_name', 'lastname', 'nom' )
