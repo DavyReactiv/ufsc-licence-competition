@@ -722,14 +722,17 @@ class FightAutoGenerationService {
 		$next_no  = $start_no;
 
 		if ( class_exists( FightGenerationPremiumPlanner::class ) ) {
-			$premium_plan = FightGenerationPremiumPlanner::plan(
-				$entries,
-				array(
-					'competition_id' => $competition_id,
-					'category_id' => $category_id,
-					'start_no' => $start_no,
-				)
-			);
+				$premium_plan = FightGenerationPremiumPlanner::plan(
+					$entries,
+					array(
+						'competition_id' => $competition_id,
+						'category_id' => $category_id,
+						'start_no' => $start_no,
+						'format' => 'auto',
+						'require_weight_data' => true,
+						'require_category_data' => true,
+					)
+				);
 
 			if ( is_array( $premium_plan ) ) {
 				$premium_anomalies = isset( $premium_plan['anomalies'] ) && is_array( $premium_plan['anomalies'] )
@@ -760,6 +763,23 @@ class FightAutoGenerationService {
 					return array(
 						'fights'  => $premium_fights,
 						'next_no' => max( $next_no, $max_no + 1 ),
+					);
+				}
+
+				$fallback_reason = sanitize_key( (string) ( $premium_plan['fallback_reason'] ?? '' ) );
+				if ( '' !== $fallback_reason ) {
+					do_action(
+						'ufsc_competitions_fight_generation_anomalies',
+						$competition_id,
+						$category_id,
+						array(
+							array(
+								'code' => 'planner_incomplete',
+								'blocking' => true,
+								'severity' => 'error',
+								'meta' => array( 'fallback_reason' => $fallback_reason ),
+							),
+						)
 					);
 				}
 			}

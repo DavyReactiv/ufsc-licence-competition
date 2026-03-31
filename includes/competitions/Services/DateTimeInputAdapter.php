@@ -39,20 +39,30 @@ class DateTimeInputAdapter {
 		}
 
 		$raw = preg_replace( '/\s+/', ' ', $raw );
-		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $raw ) ) {
-			$raw .= ' 00:00:00';
-		}
-		if ( preg_match( '/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/', $raw ) ) {
-			$raw .= ':00';
+		$raw = str_replace( 'T', ' ', $raw );
+
+		$formats = array(
+			'Y-m-d H:i:s',
+			'Y-m-d H:i',
+			'Y-m-d',
+			'd/m/Y H:i:s',
+			'd/m/Y H:i',
+			'd/m/Y',
+		);
+
+		foreach ( $formats as $format ) {
+			$date = date_create_from_format( $format, $raw );
+			if ( ! $date instanceof \DateTimeInterface ) {
+				continue;
+			}
+
+			$normalized = $date->format( 'Y-m-d H:i:s' );
+			$check = $date->format( $format );
+			if ( $check === $raw ) {
+				return $normalized;
+			}
 		}
 
-		$date = date_create_from_format( 'Y-m-d H:i:s', $raw );
-		if ( ! $date instanceof \DateTimeInterface ) {
-			return '';
-		}
-
-		$normalized = $date->format( 'Y-m-d H:i:s' );
-
-		return $normalized === $raw ? $normalized : '';
+		return '';
 	}
 }
