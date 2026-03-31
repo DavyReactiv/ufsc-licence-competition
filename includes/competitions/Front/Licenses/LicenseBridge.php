@@ -80,7 +80,7 @@ class LicenseBridge {
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate', 'date_of_birth' ) );
 		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
 		$status_column     = $this->resolve_first_column( $table, array( 'statut', 'status' ) );
-		$season_column     = $this->resolve_first_column( $table, array( 'season_end_year', 'saison', 'season' ) );
+		$season_column     = $this->resolve_first_column( $table, array( 'season_end_year', 'paid_season', 'saison', 'season' ) );
 
 		$term           = sanitize_text_field( $term );
 		$license_number = sanitize_text_field( $license_number );
@@ -117,33 +117,39 @@ class LicenseBridge {
 		$where  = array();
 		$params = array();
 
-		if ( $this->has_column( $table, 'club_id' ) && $club_id ) {
+		if ( ! $club_id ) {
+			$this->debug_log(
+				'license_search_missing_club_scope',
+				array(
+					'reason' => 'missing_club_id',
+				)
+			);
+			return array();
+		}
+
+		if ( ! $this->has_column( $table, 'club_id' ) ) {
+			$this->debug_log(
+				'license_search_missing_club_scope',
+				array(
+					'reason' => 'club_id_column_missing',
+				)
+			);
+			return array();
+		}
+
+		if ( $club_id ) {
 			$where[] = 'club_id = %d';
 			$params[] = $club_id;
 		}
 
 		if ( '' !== $status_column ) {
-			$invalid_statuses = array(
-				'inactive',
-				'inactif',
-				'invalide',
-				'invalid',
-				'expired',
-				'expire',
-				'suspended',
-				'suspendu',
-				'cancelled',
-				'annule',
-				'deleted',
-				'supprime',
-				'rejected',
-				'refused',
-				'blocked',
-				'bloque',
-			);
-			$invalid_placeholders = implode( ', ', array_fill( 0, count( $invalid_statuses ), '%s' ) );
-			$where[] = "( {$status_column} IS NULL OR {$status_column} = '' OR LOWER(TRIM({$status_column})) NOT IN ({$invalid_placeholders}) )";
-			$params = array_merge( $params, $invalid_statuses );
+			$invalid_statuses = $this->get_excluded_license_statuses();
+			if ( ! empty( $invalid_statuses ) ) {
+				$invalid_placeholders = implode( ', ', array_fill( 0, count( $invalid_statuses ), '%s' ) );
+				$status_expr = "LOWER(REPLACE(REPLACE(TRIM({$status_column}), '-', '_'), ' ', '_'))";
+				$where[] = "( {$status_column} IS NULL OR {$status_column} = '' OR {$status_expr} NOT IN ({$invalid_placeholders}) )";
+				$params = array_merge( $params, $invalid_statuses );
+			}
 		}
 
 		$current_season = function_exists( 'ufsc_lc_get_current_season_end_year' ) ? (int) ufsc_lc_get_current_season_end_year() : 0;
@@ -684,6 +690,33 @@ class LicenseBridge {
 	private function build_compact_expression( string $expression ): string {
 		$replaced = "REPLACE(REPLACE(REPLACE({$expression}, '-', ''), \"'\", ''), '’', '')";
 		return "LOWER({$replaced})";
+	}
+
+	private function get_excluded_license_statuses(): array {
+		if ( function_exists( 'ufsc_lc_get_excluded_licence_statuses' ) ) {
+			return array_values( array_filter( array_map( 'sanitize_key', (array) ufsc_lc_get_excluded_licence_statuses() ) ) );
+		}
+
+		return array(
+			'inactive',
+			'inactif',
+			'invalide',
+			'invalid',
+			'expired',
+			'expire',
+			'desactive',
+			'suspended',
+			'suspendu',
+			'cancelled',
+			'annule',
+			'deleted',
+			'supprime',
+			'rejected',
+			'refused',
+			'refuse',
+			'blocked',
+			'bloque',
+		);
 	}
 
 	private function debug_log( string $message, array $context = array() ): void {
