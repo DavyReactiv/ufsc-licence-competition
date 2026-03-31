@@ -147,18 +147,22 @@ class CompetitionDetailsShortcode {
 		$club_notes = (string) ( $competition->club_notes ?? '' );
 		?>
 		<div class="ufsc-competition-details">
-			<?php if ( $photo_html ) : ?>
-				<div class="ufsc-competition-photo-wrapper">
-					<?php echo wp_kses_post( $photo_html ); ?>
+			<section class="ufsc-competition-hero">
+				<?php if ( $photo_html ) : ?>
+					<div class="ufsc-competition-photo-wrapper">
+						<?php echo wp_kses_post( $photo_html ); ?>
+					</div>
+				<?php endif; ?>
+				<div class="ufsc-competition-hero__content">
+					<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
+					<div class="ufsc-competition-main">
+						<span class="ufsc-pill"><?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></span>
+						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></span>
+						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></span>
+						<span class="ufsc-status-badge ufsc-status-badge--<?php echo esc_attr( sanitize_key( (string) ( $competition->status ?? '' ) ) ); ?>"><?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?></span>
+					</div>
 				</div>
-			<?php endif; ?>
-			<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
-			<ul class="ufsc-competition-main">
-				<li><strong><?php echo esc_html__( 'Discipline', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Type', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Saison', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></li>
-				<li><strong><?php echo esc_html__( 'Statut', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?></li>
-			</ul>
+			</section>
 
 			<?php if ( $registration_deadline ) : ?>
 				<p class="ufsc-competition-deadline" style="color:#b32d2e;font-weight:600;">
@@ -168,7 +172,7 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $info_rows ) : ?>
-				<div class="ufsc-competition-practical">
+				<div class="ufsc-competition-practical ufsc-panel">
 					<h3><?php echo esc_html__( 'Infos pratiques', 'ufsc-licence-competition' ); ?></h3>
 					<ul>
 						<?php foreach ( $info_rows as $label => $value ) : ?>
@@ -179,31 +183,38 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $club_notes ) : ?>
-				<div class="ufsc-competition-notes notice notice-info">
+				<div class="ufsc-competition-notes ufsc-panel">
 					<h3><?php echo esc_html__( 'Notes clubs', 'ufsc-licence-competition' ); ?></h3>
 					<p><?php echo esc_html( $club_notes ); ?></p>
 				</div>
 			<?php endif; ?>
 
-			<div class="ufsc-competition-regulations notice notice-info">
-				<h3><?php echo esc_html__( 'Règlement & obligations', 'ufsc-licence-competition' ); ?></h3>
-				<ul>
-					<li><?php echo esc_html__( 'Passeport sportif obligatoire pour les compétitions fédérales (disponible dans la Boutique Club).', 'ufsc-licence-competition' ); ?></li>
-					<li><?php echo esc_html__( 'Certificat médical requis selon l’engagement (Loisir / Assaut / Combat) conformément à la réglementation en vigueur.', 'ufsc-licence-competition' ); ?></li>
-					<li><?php echo esc_html__( 'Autorisation parentale obligatoire pour les mineurs.', 'ufsc-licence-competition' ); ?></li>
-					<li><?php echo esc_html__( 'Respect strict des catégories de poids et des catégories d’âge.', 'ufsc-licence-competition' ); ?></li>
-				</ul>
-				<p>
-					<?php echo esc_html__( 'Un rappel complet est disponible dans les documents officiels UFSC :', 'ufsc-licence-competition' ); ?>
-					<a href="<?php echo esc_url( 'https://ufsc-france.fr/documents-clubs-a-telecharger/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Documents clubs', 'ufsc-licence-competition' ); ?></a>
-					· <a href="<?php echo esc_url( 'https://ufsc-france.fr/ufsc-reglements-sportifs-techniques-interieur/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Règlements UFSC', 'ufsc-licence-competition' ); ?></a>
-					· <a href="<?php echo esc_url( 'https://ufsc-france.fr/wp-content/uploads/2025/06/CATEGORIES-DE-POIDS-2024-2024.pdf' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Catégories de poids (PDF)', 'ufsc-licence-competition' ); ?></a>
-				</p>
+			<div class="ufsc-competition-regulations ufsc-panel">
+				<div class="ufsc-info-cards">
+					<section class="ufsc-info-card">
+						<h3><?php echo esc_html__( 'Règlement & obligations', 'ufsc-licence-competition' ); ?></h3>
+						<ul>
+							<li><?php echo esc_html__( 'Passeport sportif obligatoire pour les compétitions fédérales (disponible dans la Boutique Club).', 'ufsc-licence-competition' ); ?></li>
+							<li><?php echo esc_html__( 'Certificat médical requis selon l’engagement (Loisir / Assaut / Combat) conformément à la réglementation en vigueur.', 'ufsc-licence-competition' ); ?></li>
+							<li><?php echo esc_html__( 'Autorisation parentale obligatoire pour les mineurs.', 'ufsc-licence-competition' ); ?></li>
+							<li><?php echo esc_html__( 'Respect strict des catégories de poids et des catégories d’âge.', 'ufsc-licence-competition' ); ?></li>
+						</ul>
+					</section>
+					<section class="ufsc-info-card">
+						<h3><?php echo esc_html__( 'Documents utiles', 'ufsc-licence-competition' ); ?></h3>
+						<ul class="ufsc-doc-links">
+							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/documents-clubs-a-telecharger/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Documents clubs', 'ufsc-licence-competition' ); ?></a></li>
+							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/ufsc-reglements-sportifs-techniques-interieur/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Règlements UFSC', 'ufsc-licence-competition' ); ?></a></li>
+							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/wp-content/uploads/2025/06/CATEGORIES-DE-POIDS-2024-2024.pdf' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Catégories de poids (PDF)', 'ufsc-licence-competition' ); ?></a></li>
+						</ul>
+					</section>
+				</div>
 			</div>
 
 			<?php do_action( 'ufsc_competitions_front_after_details', $competition ); ?>
 
-			<div class="ufsc-competition-registration">
+			<div class="ufsc-competition-registration ufsc-panel">
+				<h3><?php echo esc_html__( 'Inscrire votre club', 'ufsc-licence-competition' ); ?></h3>
 				<p><?php echo esc_html__( 'Inscriptions clubs UFSC.', 'ufsc-licence-competition' ); ?></p>
 				<p><?php echo esc_html__( 'Pour toute information, contactez le secrétariat UFSC :', 'ufsc-licence-competition' ); ?>
 					<a href="mailto:secretaire@ufsc-france.org">secretaire@ufsc-france.org</a>

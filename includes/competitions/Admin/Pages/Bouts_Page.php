@@ -60,12 +60,29 @@ class Bouts_Page {
 		$list_table = new Fights_Table();
 		$this->maybe_handle_bulk_actions( $list_table, Menu::PAGE_BOUTS );
 		$list_table->prepare_items();
+		$total_fights = (int) $this->repository->count( array( 'view' => 'all' ) );
+		$scheduled_fights = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'scheduled' ) );
+		$running_fights = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'running' ) );
+		$completed_fights = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'completed' ) );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'Combats', 'ufsc-licence-competition' ); ?></h1>
-			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
-			<hr class="wp-header-end">
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Tableaux de combat', 'ufsc-licence-competition' ); ?></p>
+					<h1 class="wp-heading-inline"><?php esc_html_e( 'Combats', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Générez, planifiez et suivez les combats par surface avec une lecture opérationnelle claire.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+				<div class="ufsc-admin-page-actions">
+					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary"><?php esc_html_e( 'Ajouter un combat', 'ufsc-licence-competition' ); ?></a>
+				</div>
+			</header>
+			<section class="ufsc-kpis ufsc-kpis--premium">
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Total combats', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $total_fights ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Planifiés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $scheduled_fights ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'En cours', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $running_fights ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Terminés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $completed_fights ) ); ?></strong></article>
+			</section>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
 			<?php
 			if ( class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
@@ -73,9 +90,12 @@ class Bouts_Page {
 			}
 			?>
 			<?php $list_table->views(); ?>
-			<form method="post">
+			<form method="post" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-fights-search' ); ?>
+			</form>
+			<form method="post">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />
 				<div class="ufsc-competitions-table-wrap">
 					<?php $list_table->display(); ?>
 				</div>

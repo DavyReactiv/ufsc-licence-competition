@@ -37,6 +37,22 @@ class WeightCategoryResolver {
 		$missing_sex = '' === $sex;
 
 		$context = self::normalize_context( $context );
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\UfscReference\\UfscReferenceFacade' ) ) {
+			$reference = \UFSC\Competitions\Services\UfscReference\UfscReferenceFacade::resolve_weight_category(
+				(string) $dob,
+				(string) $sex,
+				(float) $weight_kg,
+				$context
+			);
+			if ( is_array( $reference ) && ! empty( $reference['label'] ) ) {
+				return array(
+					'label' => (string) $reference['label'],
+					'message' => '',
+					'status' => 'ok',
+				);
+			}
+		}
+
 		$rules = self::get_rules();
 		$discipline = $context['discipline'];
 		$table = $context['table'];
