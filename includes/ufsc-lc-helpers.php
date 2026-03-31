@@ -246,7 +246,11 @@ if ( ! function_exists( 'ufsc_lc_get_excluded_licence_statuses' ) ) {
 		 * Keep this list strictly limited to clearly invalid statuses to avoid
 		 * hiding valid or pending licences from legacy datasets.
 		 */
-		return apply_filters( 'ufsc_lc_excluded_licence_statuses', $statuses );
+		$statuses = apply_filters( 'ufsc_lc_excluded_licence_statuses', $statuses );
+		$statuses = array_map( 'sanitize_key', (array) $statuses );
+		$statuses = array_values( array_filter( array_unique( $statuses ) ) );
+
+		return $statuses;
 	}
 }
 
