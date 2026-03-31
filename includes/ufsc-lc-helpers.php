@@ -214,6 +214,42 @@ if ( ! function_exists( 'ufsc_lc_normalize_discipline' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_lc_get_excluded_licence_statuses' ) ) {
+	function ufsc_lc_get_excluded_licence_statuses(): array {
+		$statuses = array(
+			'inactive',
+			'inactif',
+			'invalide',
+			'invalid',
+			'expired',
+			'expire',
+			'desactive',
+			'suspended',
+			'suspendu',
+			'cancelled',
+			'annule',
+			'deleted',
+			'supprime',
+			'rejected',
+			'refused',
+			'refuse',
+			'blocked',
+			'bloque',
+		);
+
+		$statuses = array_map( 'sanitize_key', $statuses );
+		$statuses = array_values( array_filter( array_unique( $statuses ) ) );
+
+		/**
+		 * Filter the list of licence statuses that should be excluded by default.
+		 *
+		 * Keep this list strictly limited to clearly invalid statuses to avoid
+		 * hiding valid or pending licences from legacy datasets.
+		 */
+		return apply_filters( 'ufsc_lc_excluded_licence_statuses', $statuses );
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	function ufsc_lc_extract_club_disciplines( $club ): array {
 		if ( ! is_object( $club ) ) {
