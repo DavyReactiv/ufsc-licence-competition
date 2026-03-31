@@ -677,6 +677,56 @@ class EntryFormRenderer {
 							<?php endif; ?>
 
 							<?php wp_nonce_field( $editing_entry ? 'ufsc_competitions_entry_update' : 'ufsc_competitions_entry_create' ); ?>
+							<?php
+							$participant_type = is_object( $editing_entry ) ? self::get_entry_value( $editing_entry, array( 'participant_type' ) ) : '';
+							if ( '' === $participant_type ) {
+								$participant_type = isset( $_REQUEST['participant_type'] ) ? sanitize_key( wp_unslash( $_REQUEST['participant_type'] ) ) : 'licensed_ufsc';
+							}
+							if ( ! in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
+								$participant_type = 'licensed_ufsc';
+							}
+							?>
+							<div class="ufsc-entry-participant-type">
+								<label for="ufsc_participant_type"><strong><?php echo esc_html__( 'Type de participant', 'ufsc-licence-competition' ); ?></strong></label>
+								<select name="participant_type" id="ufsc_participant_type">
+									<option value="licensed_ufsc" <?php selected( $participant_type, 'licensed_ufsc' ); ?>><?php echo esc_html__( 'Licencié UFSC', 'ufsc-licence-competition' ); ?></option>
+									<option value="external_non_licensed" <?php selected( $participant_type, 'external_non_licensed' ); ?>><?php echo esc_html__( 'Participant non licencié UFSC', 'ufsc-licence-competition' ); ?></option>
+								</select>
+								<p class="description"><?php echo esc_html__( 'Le mode licencié UFSC reste le parcours par défaut.', 'ufsc-licence-competition' ); ?></p>
+							</div>
+
+							<details class="ufsc-entry-external-fields">
+								<summary><?php echo esc_html__( 'Informations complémentaires non licencié UFSC', 'ufsc-licence-competition' ); ?></summary>
+								<p class="description"><?php echo esc_html__( 'À renseigner uniquement pour un participant non licencié UFSC.', 'ufsc-licence-competition' ); ?></p>
+								<p>
+									<label for="external_club_name"><?php echo esc_html__( 'Club / structure', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="text" name="external_club_name" id="external_club_name" value="" />
+								</p>
+								<p>
+									<label for="external_structure_name"><?php echo esc_html__( 'Structure (optionnel)', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="text" name="external_structure_name" id="external_structure_name" value="" />
+								</p>
+								<p>
+									<label for="external_city"><?php echo esc_html__( 'Ville', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="text" name="external_city" id="external_city" value="" />
+								</p>
+								<p>
+									<label for="external_medical_notes"><?php echo esc_html__( 'Informations médicales', 'ufsc-licence-competition' ); ?></label><br />
+									<textarea name="external_medical_notes" id="external_medical_notes" rows="2"></textarea>
+								</p>
+								<p>
+									<label for="external_legal_guardian_name"><?php echo esc_html__( 'Responsable légal (si mineur)', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="text" name="external_legal_guardian_name" id="external_legal_guardian_name" value="" />
+								</p>
+								<p>
+									<label for="external_legal_guardian_phone"><?php echo esc_html__( 'Téléphone responsable légal', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="text" name="external_legal_guardian_phone" id="external_legal_guardian_phone" value="" />
+								</p>
+								<p>
+									<label for="external_legal_guardian_email"><?php echo esc_html__( 'Email responsable légal', 'ufsc-licence-competition' ); ?></label><br />
+									<input type="email" name="external_legal_guardian_email" id="external_legal_guardian_email" value="" />
+								</p>
+							</details>
 
 							<?php
 							$schema = EntriesModule::get_fields_schema( $competition );
