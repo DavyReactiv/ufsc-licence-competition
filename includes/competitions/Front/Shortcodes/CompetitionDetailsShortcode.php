@@ -30,23 +30,23 @@ class CompetitionDetailsShortcode {
 		$id = absint( $atts['id'] );
 		if ( ! $id ) {
 			$request_id = Front::get_competition_id_from_request();
-			$id = $request_id ? $request_id : 0;
+			$id         = $request_id ? $request_id : 0;
 		}
 
 		if ( ! $id ) {
 			return $this->render_notice( esc_html__( 'Aucune compétition sélectionnée.', 'ufsc-licence-competition' ) );
 		}
 
-		$repository = new CompetitionReadRepository();
+		$repository  = new CompetitionReadRepository();
 		$competition = $repository->get( $id );
 
 		if ( ! $competition ) {
 			return $this->render_notice( esc_html__( 'Compétition introuvable.', 'ufsc-licence-competition' ) );
 		}
 
-		$access = new CompetitionAccess();
-		$user_id = is_user_logged_in() ? (int) get_current_user_id() : 0;
-		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
+		$access      = new CompetitionAccess();
+		$user_id     = is_user_logged_in() ? (int) get_current_user_id() : 0;
+		$club_id     = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 		$view_result = $access->can_view_competition( (int) $competition->id, $club_id, $user_id );
 
 		if ( ! $view_result->can_view_details ) {
@@ -57,9 +57,11 @@ class CompetitionDetailsShortcode {
 		}
 
 		ob_start();
-		$info_rows = array();
+
+		$info_rows  = array();
 		$photo_html = '';
-		$photo_id = absint( $competition->photo_evenement_id ?? 0 );
+		$photo_id   = absint( $competition->photo_evenement_id ?? 0 );
+
 		if ( $photo_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_id ) ) {
 			$photo_html = wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'ufsc-competition-photo' ) );
 		}
@@ -73,10 +75,12 @@ class CompetitionDetailsShortcode {
 
 		$weighin_start = (string) ( $competition->weighin_start ?? '' );
 		$weighin_end   = (string) ( $competition->weighin_end ?? '' );
+
 		if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
 			$weighin_start = ufsc_lc_format_datetime( $weighin_start, '' );
-			$weighin_end = ufsc_lc_format_datetime( $weighin_end, '' );
+			$weighin_end   = ufsc_lc_format_datetime( $weighin_end, '' );
 		}
+
 		if ( $weighin_start || $weighin_end ) {
 			$label = trim( $weighin_start . ( $weighin_end ? ' → ' . $weighin_end : '' ) );
 			$info_rows[ __( 'Pesée', 'ufsc-licence-competition' ) ] = $label;
@@ -159,7 +163,9 @@ class CompetitionDetailsShortcode {
 						<span class="ufsc-pill"><?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></span>
 						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></span>
 						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></span>
-						<span class="ufsc-status-badge ufsc-status-badge--<?php echo esc_attr( sanitize_key( (string) ( $competition->status ?? '' ) ) ); ?>"><?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?></span>
+						<span class="ufsc-status-badge ufsc-status-badge--<?php echo esc_attr( sanitize_key( (string) ( $competition->status ?? '' ) ) ); ?>">
+							<?php echo esc_html( CompetitionFilters::get_status_label( (string) ( $competition->status ?? '' ) ) ); ?>
+						</span>
 					</div>
 				</div>
 			</section>
@@ -200,12 +206,25 @@ class CompetitionDetailsShortcode {
 							<li><?php echo esc_html__( 'Respect strict des catégories de poids et des catégories d’âge.', 'ufsc-licence-competition' ); ?></li>
 						</ul>
 					</section>
+
 					<section class="ufsc-info-card">
 						<h3><?php echo esc_html__( 'Documents utiles', 'ufsc-licence-competition' ); ?></h3>
 						<ul class="ufsc-doc-links">
-							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/documents-clubs-a-telecharger/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Documents clubs', 'ufsc-licence-competition' ); ?></a></li>
-							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/ufsc-reglements-sportifs-techniques-interieur/' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Règlements UFSC', 'ufsc-licence-competition' ); ?></a></li>
-							<li><a href="<?php echo esc_url( 'https://ufsc-france.fr/wp-content/uploads/2025/06/CATEGORIES-DE-POIDS-2024-2024.pdf' ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Catégories de poids (PDF)', 'ufsc-licence-competition' ); ?></a></li>
+							<li>
+								<a href="<?php echo esc_url( 'https://ufsc-france.fr/documents-clubs-a-telecharger/' ); ?>" target="_blank" rel="noopener noreferrer">
+									<?php echo esc_html__( 'Documents clubs', 'ufsc-licence-competition' ); ?>
+								</a>
+							</li>
+							<li>
+								<a href="<?php echo esc_url( 'https://ufsc-france.fr/ufsc-reglements-sportifs-techniques-interieur/' ); ?>" target="_blank" rel="noopener noreferrer">
+									<?php echo esc_html__( 'Règlements UFSC', 'ufsc-licence-competition' ); ?>
+								</a>
+							</li>
+							<li>
+								<a href="<?php echo esc_url( 'https://ufsc-france.fr/wp-content/uploads/2025/06/CATEGORIES-DE-POIDS-2024-2024.pdf' ); ?>" target="_blank" rel="noopener noreferrer">
+									<?php echo esc_html__( 'Catégories de poids (PDF)', 'ufsc-licence-competition' ); ?>
+								</a>
+							</li>
 						</ul>
 					</section>
 				</div>
@@ -216,10 +235,12 @@ class CompetitionDetailsShortcode {
 			<div class="ufsc-competition-registration ufsc-panel">
 				<h3><?php echo esc_html__( 'Inscrire votre club', 'ufsc-licence-competition' ); ?></h3>
 				<p><?php echo esc_html__( 'Inscriptions clubs UFSC.', 'ufsc-licence-competition' ); ?></p>
-				<p><?php echo esc_html__( 'Pour toute information, contactez le secrétariat UFSC :', 'ufsc-licence-competition' ); ?>
+				<p>
+					<?php echo esc_html__( 'Pour toute information, contactez le secrétariat UFSC :', 'ufsc-licence-competition' ); ?>
 					<a href="mailto:secretaire@ufsc-france.org">secretaire@ufsc-france.org</a>
 					<?php echo esc_html__( 'ou via le formulaire de contact.', 'ufsc-licence-competition' ); ?>
 				</p>
+
 				<?php
 				$register_result = $access->can_register( (int) $competition->id, $club_id, $user_id );
 				if ( $register_result->allowed ) :
@@ -233,6 +254,7 @@ class CompetitionDetailsShortcode {
 			</div>
 		</div>
 		<?php
+
 		return (string) ob_get_clean();
 	}
 
@@ -244,9 +266,9 @@ class CompetitionDetailsShortcode {
 	}
 
 	private function render_restricted_notice( $access_result ): string {
-		$message = __( 'Inscriptions non disponibles pour votre club.', 'ufsc-licence-competition' );
+		$message        = __( 'Inscriptions non disponibles pour votre club.', 'ufsc-licence-competition' );
 		$reason_message = '';
-		$list_url = function_exists( 'ufsc_lc_get_competitions_list_url' ) ? ufsc_lc_get_competitions_list_url() : '';
+		$list_url       = function_exists( 'ufsc_lc_get_competitions_list_url' ) ? ufsc_lc_get_competitions_list_url() : '';
 
 		$buttons = array();
 		if ( $list_url ) {
@@ -258,31 +280,39 @@ class CompetitionDetailsShortcode {
 		}
 
 		$reason_code = is_object( $access_result ) ? (string) ( $access_result->reason_code ?? '' ) : '';
+
 		switch ( $reason_code ) {
 			case 'club_not_allowed':
 			case 'not_affiliated':
 			case 'not_allowed_by_rule':
 				$reason_message = __( 'Votre club n’est pas éligible pour cette compétition.', 'ufsc-licence-competition' );
 				break;
+
 			case 'club_not_linked':
 			case 'club_not_resolved':
 				$reason_message = __( 'Votre compte n’est pas rattaché à un club UFSC.', 'ufsc-licence-competition' );
 				break;
+
 			case 'region_mismatch':
 				$reason_message = __( 'Compétition réservée à certaines régions.', 'ufsc-licence-competition' );
 				break;
+
 			case 'club_region_missing':
 				$reason_message = __( 'Votre région club n’est pas renseignée.', 'ufsc-licence-competition' );
 				break;
+
 			case 'discipline_mismatch':
 				$reason_message = __( 'Compétition réservée à certaines disciplines.', 'ufsc-licence-competition' );
 				break;
+
 			case 'registration_closed':
 				$reason_message = __( 'Les inscriptions sont actuellement closes.', 'ufsc-licence-competition' );
 				break;
+
 			case 'invalid_license':
 				$reason_message = __( 'Une licence valide est requise pour s’inscrire.', 'ufsc-licence-competition' );
 				break;
+
 			default:
 				break;
 		}

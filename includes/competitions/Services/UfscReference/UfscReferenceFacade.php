@@ -25,26 +25,29 @@ class UfscReferenceFacade {
 			return UfscReferenceFallback::none();
 		}
 
-		$sex = UfscReferenceNormalizer::normalize_sex( $sex );
+		$sex   = UfscReferenceNormalizer::normalize_sex( $sex );
 		$rules = self::repo()->get_age_rules();
+
 		foreach ( $rules as $rule ) {
 			$min = isset( $rule['age_min'] ) ? (int) $rule['age_min'] : null;
 			$max = isset( $rule['age_max'] ) ? (int) $rule['age_max'] : null;
+
 			if ( null !== $min && $age < $min ) {
 				continue;
 			}
 			if ( null !== $max && $age > $max ) {
 				continue;
 			}
+
 			$rule_sex = isset( $rule['sex'] ) ? (string) $rule['sex'] : 'neutral';
 			if ( 'neutral' !== $rule_sex && $sex && $sex !== $rule_sex ) {
 				continue;
 			}
 
 			return array(
-				'key' => (string) ( $rule['key'] ?? '' ),
+				'key'   => (string) ( $rule['key'] ?? '' ),
 				'label' => (string) ( $rule['label'] ?? '' ),
-				'age' => $age,
+				'age'   => $age,
 			);
 		}
 
@@ -55,42 +58,51 @@ class UfscReferenceFacade {
 		if ( ! self::is_enabled() ) {
 			return UfscReferenceFallback::none();
 		}
+
 		if ( $weight_kg <= 0 ) {
 			return UfscReferenceFallback::none();
 		}
 
-		$context = UfscReferenceNormalizer::normalize_context( $context );
+		$context    = UfscReferenceNormalizer::normalize_context( $context );
 		$discipline = $context['discipline'];
-		$sex = UfscReferenceNormalizer::normalize_sex( $sex );
-		$age_group = isset( $context['age_group'] ) ? sanitize_key( (string) $context['age_group'] ) : '';
+		$sex        = UfscReferenceNormalizer::normalize_sex( $sex );
+		$age_group  = isset( $context['age_group'] ) ? sanitize_key( (string) $context['age_group'] ) : '';
+
 		if ( '' === $age_group ) {
-			$age = self::calculate_age( $birth_date, $context );
+			$age       = self::calculate_age( $birth_date, $context );
 			$age_group = self::resolve_age_group_key( $age );
 		}
 
 		$weights_rules = self::repo()->get_weight_rules();
-		$set = $weights_rules[ $discipline ] ?? $weights_rules['default'] ?? array();
+		$set           = $weights_rules[ $discipline ] ?? $weights_rules['default'] ?? array();
+
 		if ( empty( $set ) ) {
 			return UfscReferenceFallback::none();
 		}
 
 		$thresholds = array();
+
 		if ( isset( $set['age_groups'] ) && is_array( $set['age_groups'] ) ) {
 			$group_set = $set['age_groups'][ $age_group ] ?? $set['age_groups']['default'] ?? array();
 			if ( is_array( $group_set ) ) {
 				$thresholds = $group_set[ $sex ] ?? $group_set['neutral'] ?? array();
 			}
 		}
+
 		if ( empty( $thresholds ) ) {
 			$thresholds = $set[ $sex ] ?? $set['neutral'] ?? array();
 		}
 
 		foreach ( (array) $thresholds as $threshold ) {
 			$threshold = (float) $threshold;
+
 			if ( -1000.0 === $threshold || $weight_kg <= abs( $threshold ) ) {
-				$label = -1000.0 === $threshold ? '+100' : '-' . rtrim( rtrim( number_format( abs( $threshold ), 1, '.', '' ), '0' ), '.' );
+				$label = -1000.0 === $threshold
+					? '+100'
+					: '-' . rtrim( rtrim( number_format( abs( $threshold ), 1, '.', '' ), '0' ), '.' );
+
 				return array(
-					'label' => $label,
+					'label'  => $label,
 					'source' => 'ufsc_reference',
 				);
 			}
@@ -104,13 +116,15 @@ class UfscReferenceFacade {
 			return UfscReferenceFallback::none();
 		}
 
-		$context = UfscReferenceNormalizer::normalize_context( $context );
+		$context    = UfscReferenceNormalizer::normalize_context( $context );
 		$discipline = $context['discipline'];
-		$format = $context['format'];
-		$level = $context['level'];
-		$age_group = isset( $context['age_group'] ) ? sanitize_key( (string) $context['age_group'] ) : 'default';
-		$rules = self::repo()->get_timing_rules();
+		$format     = $context['format'];
+		$level      = $context['level'];
+		$age_group  = isset( $context['age_group'] ) ? sanitize_key( (string) $context['age_group'] ) : 'default';
+
+		$rules  = self::repo()->get_timing_rules();
 		$timing = $rules[ $discipline ] ?? $rules['default'] ?? array();
+
 		if ( empty( $timing ) ) {
 			return UfscReferenceFallback::none();
 		}
@@ -129,11 +143,11 @@ class UfscReferenceFacade {
 		}
 
 		return array(
-			'rounds' => (int) ( $timing['rounds'] ?? 1 ),
+			'rounds'         => (int) ( $timing['rounds'] ?? 1 ),
 			'round_duration' => (float) ( $timing['round_duration'] ?? 2.0 ),
 			'break_duration' => (float) ( $timing['break_duration'] ?? 1.0 ),
-			'fight_pause' => (float) ( $timing['fight_pause'] ?? 0.0 ),
-			'source' => 'ufsc_reference',
+			'fight_pause'    => (float) ( $timing['fight_pause'] ?? 0.0 ),
+			'source'         => 'ufsc_reference',
 		);
 	}
 
@@ -142,16 +156,19 @@ class UfscReferenceFacade {
 			return UfscReferenceFallback::none();
 		}
 
-		$context = UfscReferenceNormalizer::normalize_context( $context );
+		$context    = UfscReferenceNormalizer::normalize_context( $context );
 		$discipline = $context['discipline'];
+
 		$rules = self::repo()->get_obligation_rules();
-		$rule = $rules[ $discipline ] ?? $rules['default'] ?? array();
+		$rule  = $rules[ $discipline ] ?? $rules['default'] ?? array();
+
 		if ( empty( $rule ) ) {
 			return UfscReferenceFallback::none();
 		}
 
-		$age = isset( $context['age'] ) ? (int) $context['age'] : 0;
+		$age      = isset( $context['age'] ) ? (int) $context['age'] : 0;
 		$warnings = array();
+
 		if ( ! empty( $rule['certificate_medical'] ) && empty( $context['certificate_medical'] ) ) {
 			$warnings[] = 'certificate_missing';
 		}
@@ -164,8 +181,8 @@ class UfscReferenceFacade {
 
 		return array(
 			'warnings' => array_values( array_unique( $warnings ) ),
-			'rules' => $rule,
-			'source' => 'ufsc_reference',
+			'rules'    => $rule,
+			'source'   => 'ufsc_reference',
 		);
 	}
 
@@ -174,9 +191,11 @@ class UfscReferenceFacade {
 		if ( '' === $birth_date ) {
 			return null;
 		}
+
 		try {
-			$birth = new \DateTimeImmutable( $birth_date );
+			$birth     = new \DateTimeImmutable( $birth_date );
 			$reference = UfscReferenceDateResolver::resolve( $context );
+
 			return (int) $birth->diff( $reference )->y;
 		} catch ( \Exception $e ) {
 			return null;
