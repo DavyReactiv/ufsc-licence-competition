@@ -55,6 +55,7 @@ class Entries_Table extends \WP_List_Table {
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
 			'status'         => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
+			'participant_type' => isset( $_REQUEST['ufsc_participant_type'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_participant_type'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
@@ -113,6 +114,7 @@ class Entries_Table extends \WP_List_Table {
 			'club'       => __( 'Club', 'ufsc-licence-competition' ),
 			'competition'=> __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
+			'participant_type' => __( 'Type participant', 'ufsc-licence-competition' ),
 			'category'   => __( 'Catégorie', 'ufsc-licence-competition' ),
 			'weight'     => __( 'Poids', 'ufsc-licence-competition' ),
 			'weight_class' => __( 'Catégorie poids', 'ufsc-licence-competition' ),
@@ -244,6 +246,12 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'discipline':
 				return esc_html( $this->format_fallback( $this->get_competition_discipline( $this->get_item_value( $item, 'competition_id' ) ) ) );
+			case 'participant_type':
+				$type = sanitize_key( (string) $this->get_item_value_from_keys( $item, array( 'participant_type' ) ) );
+				if ( 'external_non_licensed' === $type ) {
+					return esc_html__( 'Non licencié UFSC', 'ufsc-licence-competition' );
+				}
+				return esc_html__( 'Licencié UFSC', 'ufsc-licence-competition' );
 			case 'category':
 				$category_name = $this->resolve_category_label( $item );
 				return $this->format_with_empty_badge( $category_name, __( 'Non renseignée', 'ufsc-licence-competition' ) );
@@ -294,6 +302,7 @@ class Entries_Table extends \WP_List_Table {
 		$current = $this->filters['competition_id'] ?? 0;
 		$status = $this->filters['status'] ?? '';
 		$discipline = $this->filters['discipline'] ?? '';
+		$participant_type = $this->filters['participant_type'] ?? '';
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
@@ -317,6 +326,12 @@ class Entries_Table extends \WP_List_Table {
 				<?php foreach ( $disciplines as $value => $label ) : ?>
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline, $value ); ?>><?php echo esc_html( $label ); ?></option>
 				<?php endforeach; ?>
+			</select>
+			<label class="screen-reader-text" for="ufsc_participant_type_filter"><?php esc_html_e( 'Filtrer par type participant', 'ufsc-licence-competition' ); ?></label>
+			<select name="ufsc_participant_type" id="ufsc_participant_type_filter">
+				<option value=""><?php esc_html_e( 'Tous types', 'ufsc-licence-competition' ); ?></option>
+				<option value="licensed_ufsc" <?php selected( $participant_type, 'licensed_ufsc' ); ?>><?php esc_html_e( 'Licencié UFSC', 'ufsc-licence-competition' ); ?></option>
+				<option value="external_non_licensed" <?php selected( $participant_type, 'external_non_licensed' ); ?>><?php esc_html_e( 'Non licencié UFSC', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 		</div>
