@@ -149,6 +149,34 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 					$eligible  = false;
 					$reasons[] = 'club_missing';
 				}
+				if ( class_exists( '\\UFSC\\Competitions\\Services\\UfscReference\\UfscReferenceFacade' ) ) {
+					$age_from_birthdate = 0;
+					if ( ! empty( $entry->birth_date ) ) {
+						$birthdate_obj = date_create( (string) $entry->birth_date );
+						if ( $birthdate_obj instanceof \DateTimeInterface ) {
+							$age_from_birthdate = (int) $birthdate_obj->diff( date_create( 'now' ) )->y;
+						}
+					}
+					$reference = \UFSC\Competitions\Services\UfscReference\UfscReferenceFacade::resolve_obligations(
+						array(
+							'discipline' => sanitize_key( (string) ( $entry->discipline ?? '' ) ),
+							'age' => $age_from_birthdate,
+							'certificate_medical' => ! empty( $entry->certificate_medical ),
+							'fundus' => ! empty( $entry->fundus ),
+							'ecg' => ! empty( $entry->ecg ),
+						)
+					);
+					if ( is_array( $reference ) ) {
+						$warnings = isset( $reference['warnings'] ) && is_array( $reference['warnings'] ) ? $reference['warnings'] : array();
+						foreach ( $warnings as $warning ) {
+							$reasons[] = 'reference_' . sanitize_key( (string) $warning );
+						}
+						$strict = (bool) apply_filters( 'ufsc_competitions_reference_obligations_strict', false, $entry, $context );
+						if ( $strict && ! empty( $warnings ) ) {
+							$eligible = false;
+						}
+					}
+				}
 				break;
 			case 'front_club':
 			case 'admin_entries':

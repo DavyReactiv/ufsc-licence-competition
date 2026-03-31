@@ -974,8 +974,8 @@ class EntryFormRenderer {
 		if ( $category_id && class_exists( CategoryRepository::class ) ) {
 			static $cache = array();
 			if ( ! array_key_exists( $category_id, $cache ) ) {
-				$repo              = new CategoryRepository();
-				$category          = $repo->get( $category_id, true );
+				$repo                 = new CategoryRepository();
+				$category             = $repo->get( $category_id, true );
 				$cache[ $category_id ] = $category ? (string) ( $category->name ?? '' ) : '';
 			}
 
