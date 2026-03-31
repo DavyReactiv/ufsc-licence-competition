@@ -8,9 +8,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Db {
 	// Module DB version (bump when schema/index changes)
-	const DB_VERSION = '1.19';
+	const DB_VERSION = '1.20';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
-	const UFSC_COMP_DB_VERSION = '1.19';
+	const UFSC_COMP_DB_VERSION = '1.20';
 
 	// Backwards-compatible constants (do not remove)
 	const VERSION = '1.1.0';
@@ -49,6 +49,11 @@ class Db {
 	public static function weighins_table() {
 		global $wpdb;
 		return $wpdb->prefix . 'ufsc_competition_weighins';
+	}
+
+	public static function external_participants_table() {
+		global $wpdb;
+		return $wpdb->prefix . 'ufsc_competition_external_participants';
 	}
 
 	/**
@@ -118,6 +123,7 @@ class Db {
 		$fights_table           = self::fights_table();
 		$timing_profiles_table  = self::timing_profiles_table();
 		$weighins_table         = self::weighins_table();
+		$external_participants_table = self::external_participants_table();
 
 		// Note: avoid SQL comments inside the CREATE TABLE string (dbDelta sensitivity)
 		$competitions_sql = "CREATE TABLE {$competitions_table} (
@@ -275,6 +281,40 @@ class Db {
 		) {$charset_collate};";
 
 		dbDelta( $weighins_sql );
+
+		$external_participants_sql = "CREATE TABLE {$external_participants_table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			entry_id bigint(20) unsigned NOT NULL,
+			participant_type varchar(50) NOT NULL DEFAULT 'licensed_ufsc',
+			first_name varchar(190) NULL,
+			last_name varchar(190) NULL,
+			birth_date date NULL,
+			sex varchar(20) NULL,
+			club_name varchar(190) NULL,
+			structure_name varchar(190) NULL,
+			city varchar(190) NULL,
+			discipline varchar(190) NULL,
+			category_label varchar(190) NULL,
+			weight_kg decimal(6,2) NULL,
+			weight_class varchar(50) NULL,
+			level varchar(50) NULL,
+			medical_notes text NULL,
+			legal_guardian_name varchar(190) NULL,
+			legal_guardian_phone varchar(50) NULL,
+			legal_guardian_email varchar(190) NULL,
+			validation_status varchar(50) NOT NULL DEFAULT 'draft',
+			anomaly_flags text NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY (id),
+			UNIQUE KEY uniq_entry_id (entry_id),
+			KEY idx_participant_type (participant_type),
+			KEY idx_validation_status (validation_status),
+			KEY idx_birth_date (birth_date),
+			KEY idx_discipline (discipline)
+		) {$charset_collate};";
+
+		dbDelta( $external_participants_sql );
 	}
 
 	private static function maybe_upgrade_entries_table(): void {
