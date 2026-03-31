@@ -531,6 +531,25 @@ class EntryRepository {
 			}
 		}
 
+		$external_table = Db::external_participants_table();
+		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		if ( $external_exists ) {
+			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
+			if ( ! $count ) {
+				$select .= ", COALESCE(NULLIF(ep.participant_type, ''), 'licensed_ufsc') AS participant_type";
+			}
+
+			if ( ! empty( $filters['participant_type'] ) ) {
+				$participant_type = sanitize_key( (string) $filters['participant_type'] );
+				if ( in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
+					$where[] = $wpdb->prepare(
+						"COALESCE(NULLIF(ep.participant_type, ''), 'licensed_ufsc') = %s",
+						$participant_type
+					);
+				}
+			}
+		}
+
 		$licences_table = $this->get_licences_table();
 		$licence_columns = $licences_table ? Db::get_table_columns( $licences_table ) : array();
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );

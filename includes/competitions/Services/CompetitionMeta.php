@@ -88,6 +88,7 @@ class CompetitionMeta {
 			'require_affiliated'      => true,
 			'require_logged_in_club'  => true,
 			'require_valid_license'   => false,
+			'allow_external_non_licensed' => false,
 		);
 	}
 
@@ -164,6 +165,9 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['require_valid_license'] ) ) {
 			$out['require_valid_license'] = (bool) $data['require_valid_license'];
+		}
+		if ( isset( $data['allow_external_non_licensed'] ) ) {
+			$out['allow_external_non_licensed'] = (bool) $data['allow_external_non_licensed'];
 		}
 
 		return $out;
