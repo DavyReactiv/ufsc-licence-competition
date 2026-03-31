@@ -30,14 +30,33 @@ class Quality_Page {
 		$issues = $this->collect_issues();
 		$table = new Quality_Table( $issues );
 		$table->prepare_items();
+		$issues_count = count( $issues );
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php esc_html_e( 'Contrôles qualité', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Contrôle métier', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Contrôles qualité', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Détectez en un coup d’œil les anomalies qui bloquent validations, génération de combats ou conformité.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
+			<section class="ufsc-kpis ufsc-kpis--premium">
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Anomalies détectées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $issues_count ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Priorité', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( $issues_count > 0 ? __( 'Action requise', 'ufsc-licence-competition' ) : __( 'OK', 'ufsc-licence-competition' ) ); ?></strong></article>
+			</section>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Détecter anomalies licences, catégories incohérentes, poids manquants.', 'ufsc-licence-competition' ); ?></p></div>
-			<div class="ufsc-competitions-table-wrap">
-				<?php $table->display(); ?>
-			</div>
+				<?php if ( 0 === $issues_count ) : ?>
+					<div class="ufsc-empty-state">
+						<h2><?php esc_html_e( 'Aucune anomalie détectée', 'ufsc-licence-competition' ); ?></h2>
+						<p><?php esc_html_e( 'Tous les contrôles actuels sont conformes. Vous pouvez poursuivre la préparation des tableaux.', 'ufsc-licence-competition' ); ?></p>
+						<p><a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=ufsc-competitions-entries' ) ); ?>"><?php esc_html_e( 'Consulter les inscriptions', 'ufsc-licence-competition' ); ?></a></p>
+					</div>
+				<?php else : ?>
+				<div class="ufsc-competitions-table-wrap">
+					<?php $table->display(); ?>
+				</div>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

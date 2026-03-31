@@ -64,6 +64,15 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/CompetitionScheduleEstimator.php',
 		$base . '/Services/AuditLogger.php',
 		$base . '/Services/EntryDeduplication.php',
+		$base . '/Services/UfscReference/UfscAgeCategoryRules.php',
+		$base . '/Services/UfscReference/UfscWeightRules.php',
+		$base . '/Services/UfscReference/UfscTimingRules.php',
+		$base . '/Services/UfscReference/UfscObligationRules.php',
+		$base . '/Services/UfscReference/UfscReferenceRepository.php',
+		$base . '/Services/UfscReference/UfscReferenceFallback.php',
+		$base . '/Services/UfscReference/UfscReferenceDateResolver.php',
+		$base . '/Services/UfscReference/UfscReferenceNormalizer.php',
+		$base . '/Services/UfscReference/UfscReferenceFacade.php',
 
 		// Repository helpers must be available to all repos.
 		$base . '/Repositories/RepositoryHelpers.php',

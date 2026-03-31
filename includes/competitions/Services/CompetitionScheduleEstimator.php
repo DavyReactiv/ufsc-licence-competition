@@ -80,6 +80,25 @@ class CompetitionScheduleEstimator {
 	}
 
 	private function resolve_duration_minutes( $fight ): float {
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\UfscReference\\UfscReferenceFacade' ) ) {
+			$discipline = is_array( $fight ) ? (string) ( $fight['discipline'] ?? '' ) : (string) ( $fight->discipline ?? '' );
+			$reference_timing = \UFSC\Competitions\Services\UfscReference\UfscReferenceFacade::resolve_timing(
+				array(
+					'discipline' => $discipline,
+				)
+			);
+			if ( is_array( $reference_timing ) ) {
+				$rounds = (int) ( $reference_timing['rounds'] ?? 1 );
+				$round_duration = (float) ( $reference_timing['round_duration'] ?? 0 );
+				$break_duration = (float) ( $reference_timing['break_duration'] ?? 0 );
+				$fight_pause = (float) ( $reference_timing['fight_pause'] ?? 0 );
+				$total = ( $rounds * $round_duration ) + ( max( 0, $rounds - 1 ) * $break_duration ) + $fight_pause;
+				if ( $total > 0 ) {
+					return (float) $total;
+				}
+			}
+		}
+
 		if ( is_array( $fight ) ) {
 			$fight_duration = isset( $fight['fight_duration'] ) ? (float) $fight['fight_duration'] : 0;
 			$fight_pause = isset( $fight['fight_pause'] ) ? (float) $fight['fight_pause'] : 0;

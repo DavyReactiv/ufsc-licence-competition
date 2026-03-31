@@ -8,6 +8,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CategoryAssigner {
 	public function match_category( array $categories, array $licensee, array $rules = array() ) {
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\UfscReference\\UfscReferenceFacade' ) ) {
+			$reference = \UFSC\Competitions\Services\UfscReference\UfscReferenceFacade::resolve_age_category(
+				(string) ( $licensee['birth_date'] ?? '' ),
+				(string) ( $licensee['sex'] ?? '' ),
+				array(
+					'reference_date' => (string) ( $rules['reference_date'] ?? '' ),
+					'competition_date' => (string) ( $rules['competition_date'] ?? '' ),
+					'event_start_datetime' => (string) ( $rules['event_start_datetime'] ?? '' ),
+					'age_reference_date' => (string) ( $rules['age_reference_date'] ?? '' ),
+					'season_end_year' => isset( $rules['season_end_year'] ) ? (int) $rules['season_end_year'] : 0,
+					'age_reference' => (string) ( $rules['age_reference'] ?? '12-31' ),
+				)
+			);
+			if ( is_array( $reference ) && ! empty( $reference['label'] ) ) {
+				$reference_label = sanitize_text_field( (string) $reference['label'] );
+				foreach ( $categories as $candidate ) {
+					$candidate_name = sanitize_text_field( (string) ( $candidate['name'] ?? '' ) );
+					if ( '' !== $candidate_name && 0 === strcasecmp( $candidate_name, $reference_label ) ) {
+						return $candidate;
+					}
+				}
+			}
+		}
+
 		$age_ref = $rules['age_reference'] ?? '12-31';
 		$age     = $this->calculate_age( $licensee['birth_date'] ?? '', $age_ref );
 		$weight  = isset( $licensee['weight'] ) ? (float) $licensee['weight'] : null;
