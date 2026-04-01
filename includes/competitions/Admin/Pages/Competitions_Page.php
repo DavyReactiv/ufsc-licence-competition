@@ -153,6 +153,7 @@ class Competitions_Page {
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Combats générés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $fights_count ) ); ?></strong></article>
 			</section>
 
+			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
 
 			<!-- Search (GET) -->
@@ -174,6 +175,7 @@ class Competitions_Page {
 				$list_table->display();
 				?>
 			</form>
+			</section>
 
 			<?php if ( $is_edit && class_exists( Entries_Export_Controller::class ) ) : ?>
 				<?php

@@ -357,6 +357,112 @@
 	align-items: center;
 }
 
+.ufsc-competitions-admin .ufsc-admin-listing-surface {
+	padding: 16px;
+}
+
+.ufsc-competitions-admin .ufsc-admin-generation-surface {
+	border-left: 4px solid var(--ufsc-accent);
+}
+
+.ufsc-competitions-admin .ufsc-section-title {
+	margin: 18px 0 10px;
+	color: var(--ufsc-text);
+}
+
+.ufsc-competitions-admin .ufsc-admin-form-surface .form-table {
+	margin-top: 0;
+}
+
+.ufsc-competitions-admin .ufsc-admin-form-surface .form-table tr:not(:last-child) th,
+.ufsc-competitions-admin .ufsc-admin-form-surface .form-table tr:not(:last-child) td {
+	border-bottom: 1px solid #eef2f7;
+}
+
+.ufsc-competitions-admin .ufsc-admin-form-surface .form-table th {
+	color: #344054;
+	font-weight: 600;
+}
+
+.ufsc-competitions-admin .ufsc-admin-form-surface input[type="text"],
+.ufsc-competitions-admin .ufsc-admin-form-surface input[type="number"],
+.ufsc-competitions-admin .ufsc-admin-form-surface input[type="datetime-local"],
+.ufsc-competitions-admin .ufsc-admin-form-surface input[type="file"],
+.ufsc-competitions-admin .ufsc-admin-form-surface select,
+.ufsc-competitions-admin .ufsc-admin-form-surface textarea {
+	border-color: #c8d2e1;
+	border-radius: 8px;
+}
+
+.ufsc-competitions-admin .ufsc-admin-toolbar .search-box {
+	float: none;
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+.ufsc-competitions-admin .ufsc-admin-toolbar .search-box input[type="search"] {
+	min-width: 280px;
+	border-radius: 8px;
+}
+
+.ufsc-competitions-admin .subsubsub {
+	margin: 0 0 10px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #e8edf4;
+}
+
+.ufsc-competitions-admin .subsubsub a {
+	padding: 2px 0;
+}
+
+.ufsc-competitions-admin .tablenav {
+	margin: 12px 0;
+}
+
+.ufsc-competitions-admin .tablenav.top {
+	padding: 10px;
+	background: #f8faff;
+	border: 1px solid #dde5f1;
+	border-radius: 10px;
+}
+
+.ufsc-competitions-admin .tablenav .actions select,
+.ufsc-competitions-admin .tablenav .actions input[type="text"],
+.ufsc-competitions-admin .tablenav .actions input[type="search"] {
+	border-radius: 8px;
+	border-color: #c8d2e1;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-primary strong,
+.ufsc-competitions-admin .wp-list-table td strong {
+	color: #1d2939;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-date,
+.ufsc-competitions-admin .wp-list-table .column-created_at,
+.ufsc-competitions-admin .wp-list-table .column-updated_at {
+	color: #475467;
+	font-size: 12px;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge--success {
+	background: #e7f6ec;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge--warning {
+	background: #fff6dd;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge--danger {
+	background: #fdeceb;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge--muted {
+	background: #eef3f8;
+}
+
 .ufsc-competitions-admin .form-table td,
 .ufsc-competitions-admin .form-table th {
 	padding-top: 10px;
@@ -483,6 +589,15 @@
 @media (max-width: 960px) {
 	.ufsc-competitions-admin .ufsc-admin-page-header {
 		flex-direction: column;
+	}
+
+	.ufsc-competitions-admin .ufsc-admin-toolbar .search-box {
+		justify-content: flex-start;
+	}
+
+	.ufsc-competitions-admin .ufsc-admin-toolbar .search-box input[type="search"] {
+		min-width: 0;
+		flex: 1 1 240px;
 	}
 }
 

@@ -64,12 +64,19 @@ class Entries_Import_Page {
 		$selected_competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php esc_html_e( 'Import CSV des athlètes', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Intégration de données', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Import CSV des athlètes', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Sélectionnez une compétition, importez le CSV, puis vérifiez le rapport détaillé pour confirmer les dossiers traités.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Sélectionnez une compétition, importez le CSV, puis consultez le rapport détaillé.', 'ufsc-licence-competition' ); ?></p></div>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="ufsc-competitions-form">
 				<?php wp_nonce_field( self::NONCE_ACTION ); ?>
 				<input type="hidden" name="action" value="<?php echo esc_attr( self::IMPORT_ACTION ); ?>" />
+				<div class="ufsc-admin-surface ufsc-admin-form-surface">
 				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><label for="ufsc_entries_import_competition_id"><?php esc_html_e( 'Compétition cible', 'ufsc-licence-competition' ); ?></label></th>
@@ -92,6 +99,7 @@ class Entries_Import_Page {
 						</td>
 					</tr>
 				</table>
+				</div>
 				<p class="submit">
 					<button type="submit" class="button button-primary"><?php esc_html_e( 'Importer', 'ufsc-licence-competition' ); ?></button>
 					<a class="button" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'action' => self::TEMPLATE_ACTION ), admin_url( 'admin-post.php' ) ), self::NONCE_ACTION ) ); ?>"><?php esc_html_e( 'Télécharger le modèle CSV', 'ufsc-licence-competition' ); ?></a>

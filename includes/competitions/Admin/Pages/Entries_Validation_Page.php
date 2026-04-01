@@ -59,17 +59,21 @@ class Entries_Validation_Page {
 		}
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php echo esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description">
-				<?php echo esc_html__( 'Rappel métier : la licence identifie le pratiquant, l’inscription concerne sa demande sur cette compétition, la validation engage officiellement le licencié.', 'ufsc-licence-competition' ); ?>
-			</p>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Contrôle & conformité', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php echo esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php echo esc_html__( 'Rappel métier : la licence identifie le pratiquant, l’inscription concerne sa demande sur cette compétition, la validation engage officiellement le licencié.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 
 			<?php if ( $notice ) : ?>
 				<?php echo $this->render_notice( $notice ); ?>
 			<?php endif; ?>
 
+			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $table->views(); ?>
-			<form method="get">
+			<form method="get" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Entries_Validation_Menu::PAGE_SLUG ); ?>" />
 				<?php if ( $current_view ) : ?>
 					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
@@ -102,6 +106,39 @@ class Entries_Validation_Page {
 					<input type="hidden" name="paged" value="<?php echo esc_attr( $paged ); ?>" />
 				<?php endif; ?>
 				<?php $table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-entry-validation' ); ?>
+			</form>
+			<form method="get">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Entries_Validation_Menu::PAGE_SLUG ); ?>" />
+				<?php if ( $current_view ) : ?>
+					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_view ) : ?>
+					<input type="hidden" name="view" value="<?php echo esc_attr( $legacy_view ); ?>" />
+				<?php endif; ?>
+				<?php if ( $competition_id ) : ?>
+					<input type="hidden" name="ufsc_competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_competition_id ) : ?>
+					<input type="hidden" name="competition_id" value="<?php echo esc_attr( $legacy_competition_id ); ?>" />
+				<?php endif; ?>
+				<?php if ( $status ) : ?>
+					<input type="hidden" name="ufsc_status" value="<?php echo esc_attr( $status ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_status ) : ?>
+					<input type="hidden" name="status" value="<?php echo esc_attr( $legacy_status ); ?>" />
+				<?php endif; ?>
+				<?php if ( $discipline ) : ?>
+					<input type="hidden" name="ufsc_discipline" value="<?php echo esc_attr( $discipline ); ?>" />
+				<?php endif; ?>
+				<?php if ( $legacy_discipline ) : ?>
+					<input type="hidden" name="discipline" value="<?php echo esc_attr( $legacy_discipline ); ?>" />
+				<?php endif; ?>
+				<?php if ( $search ) : ?>
+					<input type="hidden" name="s" value="<?php echo esc_attr( $search ); ?>" />
+				<?php endif; ?>
+				<?php if ( $paged ) : ?>
+					<input type="hidden" name="paged" value="<?php echo esc_attr( $paged ); ?>" />
+				<?php endif; ?>
 				<?php
 				if ( '' !== trim( $table_output ) ) {
 					echo $table_output;
@@ -110,6 +147,7 @@ class Entries_Validation_Page {
 				}
 				?>
 			</form>
+			</section>
 			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
 				<!-- UFSC entries debug: display_called=1 items=<?php echo esc_attr( (string) $items_count ); ?> -->
 			<?php endif; ?>
@@ -146,7 +184,12 @@ class Entries_Validation_Page {
 		$back_url = admin_url( 'admin.php?page=' . Entries_Validation_Menu::PAGE_SLUG );
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php echo esc_html__( 'Rejeter une inscription', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Validation des dossiers', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php echo esc_html__( 'Rejeter une inscription', 'ufsc-licence-competition' ); ?></h1>
+				</div>
+			</header>
 			<p>
 				<?php echo esc_html__( 'Compétition :', 'ufsc-licence-competition' ); ?>
 				<strong><?php echo esc_html( $competition_name ?: '#' . $competition_id ); ?></strong>
@@ -155,7 +198,7 @@ class Entries_Validation_Page {
 				<?php echo esc_html__( 'Inscription ID :', 'ufsc-licence-competition' ); ?>
 				<strong><?php echo esc_html( (string) $entry_id ); ?></strong>
 			</p>
-			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
+			<form method="post" action="<?php echo esc_url( $action_url ); ?>" class="ufsc-admin-surface ufsc-admin-form-surface">
 				<input type="hidden" name="action" value="ufsc_entry_admin_reject" />
 				<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
 				<input type="hidden" name="redirect_to" value="<?php echo esc_attr( $back_url ); ?>" />

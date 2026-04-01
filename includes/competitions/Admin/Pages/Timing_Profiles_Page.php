@@ -69,7 +69,7 @@ class Timing_Profiles_Page {
 				</button>
 			</form>
 
-			<h2><?php echo $editing ? esc_html__( 'Modifier un profil', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter un profil', 'ufsc-licence-competition' ); ?></h2>
+			<h2 class="ufsc-section-title"><?php echo $editing ? esc_html__( 'Modifier un profil', 'ufsc-licence-competition' ) : esc_html__( 'Ajouter un profil', 'ufsc-licence-competition' ); ?></h2>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-admin-surface">
 				<?php wp_nonce_field( 'ufsc_competitions_save_timing_profile' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_timing_profile">
@@ -153,12 +153,14 @@ class Timing_Profiles_Page {
 				<?php submit_button( $editing ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Ajouter', 'ufsc-licence-competition' ) ); ?>
 			</form>
 
-			<hr />
-
-			<h2><?php esc_html_e( 'Profils existants', 'ufsc-licence-competition' ); ?></h2>
+			<h2 class="ufsc-section-title"><?php esc_html_e( 'Profils existants', 'ufsc-licence-competition' ); ?></h2>
 			<?php if ( empty( $profiles ) ) : ?>
-				<p><?php esc_html_e( 'Aucun profil défini.', 'ufsc-licence-competition' ); ?></p>
+				<div class="ufsc-admin-empty-state">
+					<p><?php esc_html_e( 'Aucun profil défini.', 'ufsc-licence-competition' ); ?></p>
+					<p><?php esc_html_e( 'Ajoutez un premier profil ou installez les presets UFSC pour démarrer rapidement.', 'ufsc-licence-competition' ); ?></p>
+				</div>
 			<?php else : ?>
+				<div class="ufsc-admin-surface ufsc-admin-listing-surface">
 				<table class="widefat striped ufsc-table-premium">
 					<thead>
 						<tr>
@@ -214,6 +216,7 @@ class Timing_Profiles_Page {
 						<?php endforeach; ?>
 					</tbody>
 				</table>
+				</div>
 			<?php endif; ?>
 		</div>
 		<?php
