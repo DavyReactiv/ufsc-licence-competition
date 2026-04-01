@@ -102,6 +102,10 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 		$license_id     = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
 		$license_number = sanitize_text_field( (string) ( $entry->license_number ?? '' ) );
 		$has_license    = ( $license_id > 0 ) || '' !== $license_number;
+		$participant_type = sanitize_key( (string) ( $entry->participant_type ?? 'licensed_ufsc' ) );
+		if ( ! in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
+			$participant_type = 'licensed_ufsc';
+		}
 
 		$club_id  = absint( $entry->club_id ?? 0 );
 		$has_club = ( $club_id > 0 ) || ! empty( $entry->club_name );
@@ -141,9 +145,36 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 					$eligible  = false;
 					$reasons[] = 'weight_class_missing';
 				}
-				if ( ! $has_license ) {
+				if ( 'licensed_ufsc' === $participant_type && ! $has_license ) {
 					$eligible  = false;
 					$reasons[] = 'license_missing';
+				}
+				if ( 'external_non_licensed' === $participant_type ) {
+					if ( class_exists( '\\UFSC\\Competitions\\Services\\ExternalParticipantEligibility' ) ) {
+						$competition_meta = array( 'allow_external_non_licensed' => true );
+						$competition_id = absint( $entry->competition_id ?? 0 );
+						if ( $competition_id && class_exists( '\\UFSC\\Competitions\\Services\\CompetitionMeta' ) ) {
+							$competition_meta = \UFSC\Competitions\Services\CompetitionMeta::get( $competition_id );
+						}
+						$external_check = \UFSC\Competitions\Services\ExternalParticipantEligibility::validate_for_competition(
+							$entry,
+							is_array( $competition_meta ) ? $competition_meta : array(),
+							array( 'require_sport_data' => true )
+						);
+						if ( is_array( $external_check ) && ! empty( $external_check['reasons'] ) ) {
+							$eligible = false;
+							$reasons = array_merge( $reasons, array_map( 'sanitize_key', (array) $external_check['reasons'] ) );
+						}
+					} else {
+						$first_name = sanitize_text_field( (string) ( $entry->first_name ?? $entry->licensee_first_name ?? '' ) );
+						$last_name  = sanitize_text_field( (string) ( $entry->last_name ?? $entry->licensee_last_name ?? '' ) );
+						$birth_date = sanitize_text_field( (string) ( $entry->birth_date ?? $entry->licensee_birthdate ?? '' ) );
+						$sex_value  = sanitize_key( (string) ( $entry->sex ?? $entry->licensee_sex ?? '' ) );
+						if ( '' === $first_name || '' === $last_name || '' === $birth_date || '' === $sex_value ) {
+							$eligible  = false;
+							$reasons[] = 'external_identity_incomplete';
+						}
+					}
 				}
 				if ( ! $has_club ) {
 					$eligible  = false;

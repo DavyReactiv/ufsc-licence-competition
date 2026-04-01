@@ -8,8 +8,13 @@ use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\EntryFrontRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Entries\ParticipantTypes;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Services\EntryDeduplication;
+use UFSC\Competitions\Services\ExternalParticipantEligibility;
+use UFSC\Competitions\Services\ExternalParticipantService;
+use UFSC\Competitions\Services\ExternalParticipantValidator;
+use UFSC\Competitions\Services\CompetitionMeta;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -238,7 +243,22 @@ class EntryActions {
 			}
 		}
 
-		if ( 'create' === $action && self::is_strict_license_linkage_required( $competition, (int) $club_id, $user_id ) ) {
+		$participant_type = class_exists( ParticipantTypes::class )
+			? ParticipantTypes::normalize( (string) ( $_POST['participant_type'] ?? ParticipantTypes::get_default() ) )
+			: 'licensed_ufsc';
+
+		$is_external_participant = class_exists( ParticipantTypes::class )
+			? ParticipantTypes::is_external( $participant_type )
+			: false;
+
+		if ( $is_external_participant && class_exists( CompetitionMeta::class ) && class_exists( ExternalParticipantEligibility::class ) ) {
+			$competition_meta = CompetitionMeta::get( (int) $competition_id );
+			if ( ! ExternalParticipantEligibility::is_external_entry_allowed( $competition_meta ) ) {
+				self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
+			}
+		}
+
+		if ( 'create' === $action && ! $is_external_participant && self::is_strict_license_linkage_required( $competition, (int) $club_id, $user_id ) ) {
 			if ( ! self::is_strictly_valid_linked_license( $license, (int) $competition_id, (int) $club_id, $user_id ) ) {
 				self::strict_debug_log(
 					'entry_action_strict_license_linkage_rejected',
@@ -336,6 +356,7 @@ class EntryActions {
 			array(
 				'competition_id' => $competition_id,
 				'club_id'        => $club_id,
+				'participant_type' => $participant_type,
 			)
 		);
 
@@ -402,6 +423,24 @@ class EntryActions {
 		}
 
 		$data = apply_filters( 'ufsc_competitions_entry_payload', $data, $competition, $club_id );
+		$external_payload = array();
+		if ( $is_external_participant ) {
+			$external_payload = self::collect_external_participant_payload( $payload['data'], $competition );
+			if ( class_exists( ExternalParticipantValidator::class ) ) {
+				$external_errors = ExternalParticipantValidator::validate( $external_payload );
+				if ( ! empty( $external_errors ) ) {
+					self::debug_log(
+						'entry_action_external_validation_failed',
+						array(
+							'action' => $action,
+							'competition_id' => $competition_id,
+							'errors' => $external_errors,
+						)
+					);
+					self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
+				}
+			}
+		}
 
 		if ( 'create' === $action ) {
 			$existing_entry = null;
@@ -443,6 +482,10 @@ class EntryActions {
 			}
 
 			do_action( 'ufsc_competitions_entry_after_create', $entry_id, $data, $competition, $club_id );
+			if ( $is_external_participant && class_exists( ExternalParticipantService::class ) ) {
+				$external_service = new ExternalParticipantService();
+				$external_service->save_external_participant( (int) $entry_id, $external_payload );
+			}
 			do_action( 'ufsc_competitions_entry_status_changed', $entry_id, '', $new_status ?: 'draft', $competition, $club_id );
 			self::debug_log(
 				'entry_action_create_success',
@@ -460,6 +503,10 @@ class EntryActions {
 
 		$result = $repo->update( $entry_id, $data );
 		if ( $result ) {
+			if ( $is_external_participant && class_exists( ExternalParticipantService::class ) ) {
+				$external_service = new ExternalParticipantService();
+				$external_service->save_external_participant( (int) $entry_id, $external_payload );
+			}
 			do_action( 'ufsc_competitions_entry_after_update', $entry_id, $data, $competition, $club_id, $entry );
 		}
 
@@ -762,6 +809,31 @@ class EntryActions {
 			'data'   => $data,
 			'errors' => $errors,
 		);
+	}
+
+	private static function collect_external_participant_payload( array $data, $competition ): array {
+		$payload = array(
+			'participant_type' => 'external_non_licensed',
+			'first_name' => sanitize_text_field( (string) ( $data['first_name'] ?? '' ) ),
+			'last_name' => sanitize_text_field( (string) ( $data['last_name'] ?? '' ) ),
+			'birth_date' => sanitize_text_field( (string) ( $data['birth_date'] ?? '' ) ),
+			'sex' => sanitize_key( (string) ( $data['sex'] ?? '' ) ),
+			'club_name' => isset( $_POST['external_club_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_club_name'] ) ) : '',
+			'structure_name' => isset( $_POST['external_structure_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_structure_name'] ) ) : '',
+			'city' => isset( $_POST['external_city'] ) ? sanitize_text_field( wp_unslash( $_POST['external_city'] ) ) : '',
+			'discipline' => sanitize_text_field( (string) ( $competition->discipline ?? '' ) ),
+			'category_label' => sanitize_text_field( (string) ( $data['category'] ?? '' ) ),
+			'weight_kg' => isset( $data['weight'] ) ? (float) str_replace( ',', '.', (string) $data['weight'] ) : null,
+			'weight_class' => sanitize_text_field( (string) ( $data['weight_class'] ?? '' ) ),
+			'level' => sanitize_text_field( (string) ( $data['level'] ?? '' ) ),
+			'medical_notes' => isset( $_POST['external_medical_notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['external_medical_notes'] ) ) : '',
+			'legal_guardian_name' => isset( $_POST['external_legal_guardian_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_legal_guardian_name'] ) ) : '',
+			'legal_guardian_phone' => isset( $_POST['external_legal_guardian_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['external_legal_guardian_phone'] ) ) : '',
+			'legal_guardian_email' => isset( $_POST['external_legal_guardian_email'] ) ? sanitize_email( wp_unslash( $_POST['external_legal_guardian_email'] ) ) : '',
+			'validation_status' => 'draft',
+		);
+
+		return $payload;
 	}
 
 	private static function redirect_with_notice( int $competition_id, string $notice, ?AccessResult $access_result = null ): void {
