@@ -26,7 +26,7 @@ class Entries_Validation_Menu {
 				return;
 			}
 
-			echo '<div class="wrap"><h1>' . esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ) . '</h1></div>';
+			echo '<div class="wrap ufsc-competitions-admin"><h1>' . esc_html__( 'Inscriptions (Validation)', 'ufsc-licence-competition' ) . '</h1></div>';
 		};
 
 		$hook_suffix = add_submenu_page(
