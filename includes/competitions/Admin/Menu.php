@@ -174,7 +174,7 @@ class Menu {
 				}
 			}
 
-			echo '<div class="wrap">';
+			echo '<div class="wrap ufsc-competitions-admin">';
 			echo '<h1>' . esc_html__( 'Compétitions', 'ufsc-licence-competition' ) . '</h1>';
 			echo '<p><strong>' . esc_html__( 'Sous-menu non chargé :', 'ufsc-licence-competition' ) . '</strong> ' . esc_html( $page_class ) . '</p>';
 			echo '<p>' . esc_html__( 'Vérifie que la classe existe et expose une méthode render() ou output().', 'ufsc-licence-competition' ) . '</p>';
@@ -220,9 +220,14 @@ class Menu {
 	}
 
 	public function render_root(): void {
-		echo '<div class="wrap">';
+		echo '<div class="wrap ufsc-competitions-admin">';
+		echo '<header class="ufsc-admin-page-header">';
+		echo '<div>';
+		echo '<p class="ufsc-admin-page-kicker">' . esc_html__( 'Centre de pilotage', 'ufsc-licence-competition' ) . '</p>';
 		echo '<h1>' . esc_html__( 'Compétitions', 'ufsc-licence-competition' ) . '</h1>';
-		echo '<p>' . esc_html__( 'Menu Compétitions actif. Utilise les sous-menus pour accéder aux pages.', 'ufsc-licence-competition' ) . '</p>';
+		echo '<p class="ufsc-admin-page-description">' . esc_html__( 'Menu Compétitions actif. Utilise les sous-menus pour accéder aux pages.', 'ufsc-licence-competition' ) . '</p>';
+		echo '</div>';
+		echo '</header>';
 		echo '</div>';
 	}
 }

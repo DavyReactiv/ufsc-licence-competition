@@ -235,34 +235,60 @@
 	line-height: 1.2;
 }
 
-.ufsc-admin-page-header {
+.ufsc-competitions-admin {
+	--ufsc-surface: #ffffff;
+	--ufsc-surface-muted: #f6f8fc;
+	--ufsc-border: #d8dee8;
+	--ufsc-text: #1d2939;
+	--ufsc-text-muted: #475467;
+	--ufsc-accent: #1f5f99;
+	--ufsc-accent-soft: #eaf2fb;
+	--ufsc-success: #067647;
+	--ufsc-success-soft: #ecfdf3;
+	--ufsc-warning: #9a6700;
+	--ufsc-warning-soft: #fffaeb;
+	--ufsc-danger: #b42318;
+	--ufsc-danger-soft: #fef3f2;
+	--ufsc-neutral: #344054;
+	--ufsc-neutral-soft: #eef2f6;
+}
+
+.ufsc-competitions-admin .ufsc-admin-page-header {
 	display: flex;
 	justify-content: space-between;
 	gap: 16px;
 	align-items: flex-start;
-	padding: 18px 20px;
-	margin: 12px 0 14px;
-	border: 1px solid #d8dee6;
+	padding: 20px 22px;
+	margin: 12px 0 16px;
+	border: 1px solid var(--ufsc-border);
 	border-radius: 12px;
-	background: linear-gradient(160deg, #ffffff 0%, #f6f8fc 100%);
+	background: linear-gradient(160deg, var(--ufsc-surface) 0%, var(--ufsc-surface-muted) 100%);
+	box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
 }
 
-.ufsc-admin-page-kicker {
+.ufsc-competitions-admin .ufsc-admin-page-header h1 {
+	margin: 0;
+	color: var(--ufsc-text);
+	font-size: 24px;
+	line-height: 1.25;
+}
+
+.ufsc-competitions-admin .ufsc-admin-page-kicker {
 	margin: 0 0 6px;
 	font-size: 12px;
 	font-weight: 700;
 	letter-spacing: .04em;
 	text-transform: uppercase;
-	color: #0a4b78;
+	color: var(--ufsc-accent);
 }
 
-.ufsc-admin-page-description {
+.ufsc-competitions-admin .ufsc-admin-page-description {
 	margin: 6px 0 0;
-	color: #475467;
+	color: var(--ufsc-text-muted);
 	max-width: 780px;
 }
 
-.ufsc-admin-page-actions {
+.ufsc-competitions-admin .ufsc-admin-page-actions {
 	display: flex;
 	gap: 8px;
 	flex-wrap: wrap;
@@ -273,33 +299,68 @@
 }
 
 .ufsc-kpis--premium .ufsc-kpi {
-	border-radius: 10px;
-	border-color: #d7dde7;
-	box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+	border-radius: 12px;
+	border-color: var(--ufsc-border);
+	box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06);
+	border-top: 3px solid var(--ufsc-accent);
+	padding: 18px;
 }
 
-.ufsc-admin-toolbar {
+.ufsc-competitions-admin .ufsc-kpis--premium .ufsc-kpi__value {
+	font-size: 28px;
+	letter-spacing: -0.02em;
+}
+
+.ufsc-competitions-admin .ufsc-admin-toolbar {
 	background: #fff;
-	border: 1px solid #d8dee6;
+	border: 1px solid var(--ufsc-border);
 	border-radius: 10px;
 	padding: 12px;
 	margin: 10px 0 14px;
 }
 
-.ufsc-admin-surface {
-	background: #fff;
-	border: 1px solid #d8dee6;
+.ufsc-competitions-admin .ufsc-admin-surface,
+.ufsc-competitions-admin .ufsc-admin-section-card {
+	background: var(--ufsc-surface);
+	border: 1px solid var(--ufsc-border);
 	border-radius: 12px;
-	padding: 16px;
+	padding: 18px;
 	margin-bottom: 16px;
+	box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
 
-.ufsc-empty-state {
+.ufsc-competitions-admin .ufsc-admin-section-card > h2 {
+	margin-top: 0;
+	margin-bottom: 12px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #e6ebf2;
+}
+
+.ufsc-competitions-admin .ufsc-empty-state,
+.ufsc-competitions-admin .ufsc-admin-empty-state {
 	padding: 26px 20px;
 	border: 1px dashed #bfd2e8;
 	border-radius: 12px;
-	background: #f8fbff;
+	background: var(--ufsc-accent-soft);
 	text-align: center;
+	color: #1e4f7d;
+}
+
+.ufsc-competitions-admin .ufsc-admin-filter-panel {
+	margin-bottom: 0;
+}
+
+.ufsc-competitions-admin .ufsc-admin-inline-actions {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.ufsc-competitions-admin .form-table td,
+.ufsc-competitions-admin .form-table th {
+	padding-top: 10px;
+	padding-bottom: 10px;
 }
 
 .ufsc-table-premium th {
@@ -315,13 +376,11 @@
 }
 
 .ufsc-competitions-admin .wp-list-table thead th {
-	position: sticky;
-	top: 32px;
-	z-index: 2;
-	background: #f8fafc;
+	background: #f4f7fb;
 	font-size: 12px;
 	text-transform: uppercase;
 	letter-spacing: .02em;
+	color: #344054;
 }
 
 .ufsc-competitions-admin .wp-list-table td {
@@ -340,6 +399,10 @@
 	font-weight: 600;
 }
 
+.ufsc-competitions-admin .wp-list-table .row-actions {
+	color: #667085;
+}
+
 .ufsc-competitions-admin .button.button-secondary {
 	border-color: #c7d1de;
 	color: #1f2937;
@@ -348,6 +411,28 @@
 .ufsc-competitions-admin .button-link.delete {
 	color: #b42318;
 }
+
+.ufsc-competitions-admin .button:focus,
+.ufsc-competitions-admin a:focus,
+.ufsc-competitions-admin input:focus,
+.ufsc-competitions-admin select:focus,
+.ufsc-competitions-admin textarea:focus {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+	box-shadow: none;
+}
+
+.ufsc-competitions-admin .ufsc-badge {
+	font-weight: 600;
+	padding: 3px 9px;
+	border: 1px solid transparent;
+}
+
+.ufsc-competitions-admin .ufsc-badge--success { background: var(--ufsc-success-soft); color: var(--ufsc-success); border-color: #abefc6; }
+.ufsc-competitions-admin .ufsc-badge--warning { background: var(--ufsc-warning-soft); color: var(--ufsc-warning); border-color: #fedf89; }
+.ufsc-competitions-admin .ufsc-badge--danger { background: var(--ufsc-danger-soft); color: var(--ufsc-danger); border-color: #fecdca; }
+.ufsc-competitions-admin .ufsc-badge--info { background: var(--ufsc-accent-soft); color: var(--ufsc-accent); border-color: #b2ddff; }
+.ufsc-competitions-admin .ufsc-badge--muted { background: var(--ufsc-neutral-soft); color: var(--ufsc-neutral); border-color: #d0d5dd; }
 
 .ufsc-print-header__generated {
 	margin: 8px 0 0;
@@ -396,7 +481,7 @@
 }
 
 @media (max-width: 960px) {
-	.ufsc-admin-page-header {
+	.ufsc-competitions-admin .ufsc-admin-page-header {
 		flex-direction: column;
 	}
 }

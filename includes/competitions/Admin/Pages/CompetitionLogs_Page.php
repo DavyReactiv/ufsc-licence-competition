@@ -30,60 +30,79 @@ class CompetitionLogs_Page {
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php esc_html_e( 'Logs', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Journalisation', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Logs', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Consultez, filtrez et exportez les événements clés pour le suivi opérationnel des compétitions.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 
-			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="ufsc-competitions-form" style="margin-bottom: 12px;">
-				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_LOGS ); ?>">
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><label for="ufsc_log_competition"><?php esc_html_e( 'Competition ID', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input type="number" id="ufsc_log_competition" name="competition_id" value="<?php echo esc_attr( $filters['competition_id'] ); ?>" class="small-text"></td>
-						<th scope="row"><label for="ufsc_log_club"><?php esc_html_e( 'Club ID', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input type="number" id="ufsc_log_club" name="club_id" value="<?php echo esc_attr( $filters['club_id'] ); ?>" class="small-text"></td>
-						<th scope="row"><label for="ufsc_log_action"><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></label></th>
-						<td><?php $this->render_action_filter( $filters['action'] ); ?></td>
-					</tr>
-				</table>
-				<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
-				<a class="button" href="<?php echo esc_url( $download_url ); ?>"><?php esc_html_e( 'Télécharger CSV', 'ufsc-licence-competition' ); ?></a>
-			</form>
-
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom: 16px;">
-				<?php wp_nonce_field( 'ufsc_competitions_purge_logs' ); ?>
-				<input type="hidden" name="action" value="ufsc_competitions_purge_logs">
-				<?php submit_button( __( 'Purger', 'ufsc-licence-competition' ), 'delete' ); ?>
-			</form>
-
-			<table class="widefat striped">
-				<thead>
-					<tr>
-						<th><?php esc_html_e( 'Date', 'ufsc-licence-competition' ); ?></th>
-						<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
-						<th><?php esc_html_e( 'Competition', 'ufsc-licence-competition' ); ?></th>
-						<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
-						<th><?php esc_html_e( 'Entry', 'ufsc-licence-competition' ); ?></th>
-						<th><?php esc_html_e( 'User', 'ufsc-licence-competition' ); ?></th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php if ( empty( $logs ) ) : ?>
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Filtres et export', 'ufsc-licence-competition' ); ?></h2>
+				<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>" class="ufsc-competitions-form ufsc-admin-filter-panel">
+					<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_LOGS ); ?>">
+					<table class="form-table" role="presentation">
 						<tr>
-							<td colspan="6"><?php esc_html_e( 'Aucun log.', 'ufsc-licence-competition' ); ?></td>
+							<th scope="row"><label for="ufsc_log_competition"><?php esc_html_e( 'Competition ID', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input type="number" id="ufsc_log_competition" name="competition_id" value="<?php echo esc_attr( $filters['competition_id'] ); ?>" class="small-text"></td>
+							<th scope="row"><label for="ufsc_log_club"><?php esc_html_e( 'Club ID', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input type="number" id="ufsc_log_club" name="club_id" value="<?php echo esc_attr( $filters['club_id'] ); ?>" class="small-text"></td>
+							<th scope="row"><label for="ufsc_log_action"><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></label></th>
+							<td><?php $this->render_action_filter( $filters['action'] ); ?></td>
 						</tr>
-					<?php else : ?>
-						<?php foreach ( $logs as $row ) : ?>
+					</table>
+					<div class="ufsc-admin-inline-actions">
+						<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<a class="button" href="<?php echo esc_url( $download_url ); ?>"><?php esc_html_e( 'Télécharger CSV', 'ufsc-licence-competition' ); ?></a>
+					</div>
+				</form>
+			</section>
+
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Maintenance', 'ufsc-licence-competition' ); ?></h2>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_competitions_purge_logs' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_purge_logs">
+					<?php submit_button( __( 'Purger', 'ufsc-licence-competition' ), 'delete' ); ?>
+				</form>
+			</section>
+
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Historique des événements', 'ufsc-licence-competition' ); ?></h2>
+				<div class="ufsc-competitions-table-wrap">
+					<table class="widefat striped">
+						<thead>
 							<tr>
-								<td><?php echo esc_html( function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $row['timestamp'] ?? '' ) : ( $row['timestamp'] ?? '' ) ); ?></td>
-								<td><?php echo esc_html( $row['action'] ?? '' ); ?></td>
-								<td><?php echo esc_html( (string) ( $row['competition_id'] ?? '' ) ); ?></td>
-								<td><?php echo esc_html( (string) ( $row['club_id'] ?? '' ) ); ?></td>
-								<td><?php echo esc_html( (string) ( $row['entry_id'] ?? '' ) ); ?></td>
-								<td><?php echo esc_html( (string) ( $row['user_id'] ?? '' ) ); ?></td>
+								<th><?php esc_html_e( 'Date', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'Competition', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'Entry', 'ufsc-licence-competition' ); ?></th>
+								<th><?php esc_html_e( 'User', 'ufsc-licence-competition' ); ?></th>
 							</tr>
-						<?php endforeach; ?>
-					<?php endif; ?>
-				</tbody>
-			</table>
+						</thead>
+						<tbody>
+							<?php if ( empty( $logs ) ) : ?>
+								<tr>
+									<td colspan="6"><div class="ufsc-admin-empty-state"><?php esc_html_e( 'Aucun log.', 'ufsc-licence-competition' ); ?></div></td>
+								</tr>
+							<?php else : ?>
+								<?php foreach ( $logs as $row ) : ?>
+									<tr>
+										<td><?php echo esc_html( function_exists( 'ufsc_lc_format_datetime' ) ? ufsc_lc_format_datetime( $row['timestamp'] ?? '' ) : ( $row['timestamp'] ?? '' ) ); ?></td>
+										<td><?php echo esc_html( $row['action'] ?? '' ); ?></td>
+										<td><?php echo esc_html( (string) ( $row['competition_id'] ?? '' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $row['club_id'] ?? '' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $row['entry_id'] ?? '' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $row['user_id'] ?? '' ) ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							<?php endif; ?>
+						</tbody>
+					</table>
+				</div>
+			</section>
 		</div>
 		<?php
 	}

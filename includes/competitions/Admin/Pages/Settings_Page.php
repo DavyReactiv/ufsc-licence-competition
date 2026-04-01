@@ -36,84 +36,94 @@ class Settings_Page {
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php esc_html_e( 'Paramètres', 'ufsc-licence-competition' ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Configuration', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Paramètres', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Pilotez les disciplines, la journalisation et le référentiel UFSC dans une interface structurée et lisible.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Configurer les disciplines et charger le référentiel UFSC.', 'ufsc-licence-competition' ); ?></p></div>
 
-			<h2><?php esc_html_e( 'Logs', 'ufsc-licence-competition' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
-				<?php wp_nonce_field( 'ufsc_competitions_save_log_settings' ); ?>
-				<input type="hidden" name="action" value="ufsc_competitions_save_log_settings">
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Activer logs', 'ufsc-licence-competition' ); ?></th>
-						<td><label><input type="checkbox" name="audit_enabled" value="1" <?php checked( $audit_enabled ); ?>> <?php esc_html_e( 'Activer la traçabilité des actions.', 'ufsc-licence-competition' ); ?></label></td>
-					</tr>
-					<tr>
-						<th scope="row"><label for="ufsc_audit_retention"><?php esc_html_e( 'Rétention (jours)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input type="number" id="ufsc_audit_retention" name="audit_retention_days" value="<?php echo esc_attr( $audit_retention ); ?>" min="1" class="small-text"></td>
-					</tr>
-				</table>
-				<?php submit_button( __( 'Enregistrer les logs', 'ufsc-licence-competition' ) ); ?>
-			</form>
-
-			<hr />
-
-			<h2><?php esc_html_e( 'Disciplines', 'ufsc-licence-competition' ); ?></h2>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
-				<?php wp_nonce_field( 'ufsc_competitions_save_settings' ); ?>
-				<input type="hidden" name="action" value="ufsc_competitions_save_settings">
-				<table class="widefat striped ufsc-competitions-table">
-					<thead>
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Logs', 'ufsc-licence-competition' ); ?></h2>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
+					<?php wp_nonce_field( 'ufsc_competitions_save_log_settings' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_save_log_settings">
+					<table class="form-table" role="presentation">
 						<tr>
-							<th><?php esc_html_e( 'Slug', 'ufsc-licence-competition' ); ?></th>
-							<th><?php esc_html_e( 'Libellé', 'ufsc-licence-competition' ); ?></th>
-							<th><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></th>
+							<th scope="row"><?php esc_html_e( 'Activer logs', 'ufsc-licence-competition' ); ?></th>
+							<td><label><input type="checkbox" name="audit_enabled" value="1" <?php checked( $audit_enabled ); ?>> <?php esc_html_e( 'Activer la traçabilité des actions.', 'ufsc-licence-competition' ); ?></label></td>
 						</tr>
-					</thead>
-					<tbody>
-						<?php foreach ( $disciplines as $key => $discipline ) : ?>
-							<tr>
-								<td><input type="text" name="disciplines[<?php echo esc_attr( $key ); ?>][key]" value="<?php echo esc_attr( $key ); ?>" class="regular-text" readonly></td>
-								<td><input type="text" name="disciplines[<?php echo esc_attr( $key ); ?>][label]" value="<?php echo esc_attr( $discipline['label'] ); ?>" class="regular-text"></td>
-								<td><?php $this->render_type_select( "disciplines[{$key}][type]", $discipline['type'] ); ?></td>
-							</tr>
-						<?php endforeach; ?>
-						<?php for ( $i = 0; $i < 3; $i++ ) : ?>
-							<tr>
-								<td><input type="text" name="disciplines[new_<?php echo esc_attr( $i ); ?>][key]" value="" class="regular-text" placeholder="<?php esc_attr_e( 'slug', 'ufsc-licence-competition' ); ?>"></td>
-								<td><input type="text" name="disciplines[new_<?php echo esc_attr( $i ); ?>][label]" value="" class="regular-text" placeholder="<?php esc_attr_e( 'Libellé', 'ufsc-licence-competition' ); ?>"></td>
-								<td><?php $this->render_type_select( "disciplines[new_{$i}][type]", DisciplineRegistry::TYPE_TATAMI ); ?></td>
-							</tr>
-						<?php endfor; ?>
-					</tbody>
-				</table>
-				<p class="description"><?php esc_html_e( 'Les slugs existants sont verrouillés pour préserver les compétitions enregistrées.', 'ufsc-licence-competition' ); ?></p>
-				<?php submit_button( __( 'Enregistrer les disciplines', 'ufsc-licence-competition' ) ); ?>
-			</form>
+						<tr>
+							<th scope="row"><label for="ufsc_audit_retention"><?php esc_html_e( 'Rétention (jours)', 'ufsc-licence-competition' ); ?></label></th>
+							<td><input type="number" id="ufsc_audit_retention" name="audit_retention_days" value="<?php echo esc_attr( $audit_retention ); ?>" min="1" class="small-text"></td>
+						</tr>
+					</table>
+					<?php submit_button( __( 'Enregistrer les logs', 'ufsc-licence-competition' ) ); ?>
+				</form>
+			</section>
 
-			<hr />
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Disciplines', 'ufsc-licence-competition' ); ?></h2>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
+					<?php wp_nonce_field( 'ufsc_competitions_save_settings' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_save_settings">
+					<div class="ufsc-competitions-table-wrap">
+						<table class="widefat striped ufsc-competitions-table">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Slug', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Libellé', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $disciplines as $key => $discipline ) : ?>
+									<tr>
+										<td><input type="text" name="disciplines[<?php echo esc_attr( $key ); ?>][key]" value="<?php echo esc_attr( $key ); ?>" class="regular-text" readonly></td>
+										<td><input type="text" name="disciplines[<?php echo esc_attr( $key ); ?>][label]" value="<?php echo esc_attr( $discipline['label'] ); ?>" class="regular-text"></td>
+										<td><?php $this->render_type_select( "disciplines[{$key}][type]", $discipline['type'] ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+								<?php for ( $i = 0; $i < 3; $i++ ) : ?>
+									<tr>
+										<td><input type="text" name="disciplines[new_<?php echo esc_attr( $i ); ?>][key]" value="" class="regular-text" placeholder="<?php esc_attr_e( 'slug', 'ufsc-licence-competition' ); ?>"></td>
+										<td><input type="text" name="disciplines[new_<?php echo esc_attr( $i ); ?>][label]" value="" class="regular-text" placeholder="<?php esc_attr_e( 'Libellé', 'ufsc-licence-competition' ); ?>"></td>
+										<td><?php $this->render_type_select( "disciplines[new_{$i}][type]", DisciplineRegistry::TYPE_TATAMI ); ?></td>
+									</tr>
+								<?php endfor; ?>
+							</tbody>
+						</table>
+					</div>
+					<p class="description"><?php esc_html_e( 'Les slugs existants sont verrouillés pour préserver les compétitions enregistrées.', 'ufsc-licence-competition' ); ?></p>
+					<?php submit_button( __( 'Enregistrer les disciplines', 'ufsc-licence-competition' ) ); ?>
+				</form>
+			</section>
 
-			<h2><?php esc_html_e( 'Référentiel catégories UFSC', 'ufsc-licence-competition' ); ?></h2>
-			<p>
-				<?php if ( $loaded_version ) : ?>
-					<?php
-					printf(
-						'%s %s · %s %s',
-						esc_html__( 'Version chargée :', 'ufsc-licence-competition' ),
-						esc_html( $loaded_version ),
-						esc_html__( 'Mise à jour :', 'ufsc-licence-competition' ),
-						esc_html( $updated_at )
-					);
-					?>
-				<?php else : ?>
-					<?php esc_html_e( 'Aucun référentiel UFSC chargé.', 'ufsc-licence-competition' ); ?>
-				<?php endif; ?>
-			</p>
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<?php wp_nonce_field( 'ufsc_competitions_load_presets' ); ?>
-				<input type="hidden" name="action" value="ufsc_competitions_load_presets">
-				<?php submit_button( __( 'Charger/Mettre à jour le référentiel UFSC 2024/2025', 'ufsc-licence-competition' ), 'secondary' ); ?>
-			</form>
+			<section class="ufsc-admin-section-card">
+				<h2><?php esc_html_e( 'Référentiel catégories UFSC', 'ufsc-licence-competition' ); ?></h2>
+				<p>
+					<?php if ( $loaded_version ) : ?>
+						<?php
+						printf(
+							'%s %s · %s %s',
+							esc_html__( 'Version chargée :', 'ufsc-licence-competition' ),
+							esc_html( $loaded_version ),
+							esc_html__( 'Mise à jour :', 'ufsc-licence-competition' ),
+							esc_html( $updated_at )
+						);
+						?>
+					<?php else : ?>
+						<span class="ufsc-admin-empty-state"><?php esc_html_e( 'Aucun référentiel UFSC chargé.', 'ufsc-licence-competition' ); ?></span>
+					<?php endif; ?>
+				</p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_competitions_load_presets' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_load_presets">
+					<?php submit_button( __( 'Charger/Mettre à jour le référentiel UFSC 2024/2025', 'ufsc-licence-competition' ), 'secondary' ); ?>
+				</form>
+			</section>
 		</div>
 		<?php
 	}
