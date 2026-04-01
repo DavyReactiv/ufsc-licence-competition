@@ -122,6 +122,7 @@ class Entries_Page {
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Rejetées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $rejected_entries ) ); ?></strong></article>
 			</section>
 			<?php $this->render_helper_notice( __( 'Ajouter/valider les inscrits, contrôler doublons, gérer la forclusion.', 'ufsc-licence-competition' ) ); ?>
+			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
 			<form method="post" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_ENTRIES ); ?>" />
@@ -178,6 +179,7 @@ class Entries_Page {
 					?>
 				</div>
 			</form>
+			</section>
 			<?php if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) : ?>
 				<!-- UFSC entries debug: display_called=1 items=<?php echo esc_attr( (string) $items_count ); ?> -->
 			<?php endif; ?>

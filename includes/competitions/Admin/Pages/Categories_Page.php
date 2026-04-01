@@ -55,18 +55,30 @@ class Categories_Page {
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'Catégories & formats', 'ufsc-licence-competition' ); ?></h1>
-			<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_CATEGORIES, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action"><?php esc_html_e( 'Ajouter', 'ufsc-licence-competition' ); ?></a>
-			<hr class="wp-header-end">
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Référentiels compétition', 'ufsc-licence-competition' ); ?></p>
+					<h1 class="wp-heading-inline"><?php esc_html_e( 'Catégories & formats', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Structurez les catégories par discipline, âge, poids et niveau pour fiabiliser inscriptions et génération des combats.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+				<div class="ufsc-admin-page-actions">
+					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_CATEGORIES, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary"><?php esc_html_e( 'Ajouter une catégorie', 'ufsc-licence-competition' ); ?></a>
+				</div>
+			</header>
 			<?php $this->render_helper_notice( __( 'Définir âge/poids/sexe/niveau + format poules/élimination.', 'ufsc-licence-competition' ) ); ?>
+			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
-			<form method="post">
+			<form method="post" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_CATEGORIES ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-categories-search' ); ?>
+			</form>
+			<form method="post">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_CATEGORIES ); ?>" />
 				<div class="ufsc-competitions-table-wrap">
 					<?php $list_table->display(); ?>
 				</div>
 			</form>
+			</section>
 		</div>
 		<?php
 	}
@@ -189,12 +201,19 @@ class Categories_Page {
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer la catégorie', 'ufsc-licence-competition' );
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la catégorie', 'ufsc-licence-competition' ) : __( 'Nouvelle catégorie', 'ufsc-licence-competition' ) ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Référentiel catégories', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php echo esc_html( $values['id'] ? __( 'Modifier la catégorie', 'ufsc-licence-competition' ) : __( 'Nouvelle catégorie', 'ufsc-licence-competition' ) ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Renseignez les paramètres sportifs essentiels utilisés dans les listes, filtres et workflows de compétition.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 			<?php $this->render_helper_notice( __( 'Définir âge/poids/sexe/niveau + format poules/élimination.', 'ufsc-licence-competition' ) ); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_category' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_category">
 				<input type="hidden" name="id" value="<?php echo esc_attr( $values['id'] ); ?>">
+				<div class="ufsc-admin-surface ufsc-admin-form-surface">
 				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><label for="ufsc_category_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
@@ -257,6 +276,7 @@ class Categories_Page {
 						<td><input name="format" type="text" id="ufsc_category_format" class="regular-text" value="<?php echo esc_attr( $values['format'] ); ?>" placeholder="poule / élimination"></td>
 					</tr>
 				</table>
+				</div>
 				<?php submit_button( $action_label ); ?>
 			</form>
 		</div>

@@ -84,11 +84,14 @@ class Bouts_Page {
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Terminés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $completed_fights ) ); ?></strong></article>
 			</section>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
-			<?php
-			if ( class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
-				\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::render_panel( $competition_id );
-			}
-			?>
+			<div class="ufsc-admin-surface ufsc-admin-generation-surface">
+				<?php
+				if ( class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
+					\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::render_panel( $competition_id );
+				}
+				?>
+			</div>
+			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
 			<form method="post" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />
@@ -100,6 +103,7 @@ class Bouts_Page {
 					<?php $list_table->display(); ?>
 				</div>
 			</form>
+			</section>
 		</div>
 		<?php
 	}
@@ -212,12 +216,19 @@ class Bouts_Page {
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer le combat', 'ufsc-licence-competition' );
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier le combat', 'ufsc-licence-competition' ) : __( 'Nouveau combat', 'ufsc-licence-competition' ) ); ?></h1>
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Gestion des combats', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php echo esc_html( $values['id'] ? __( 'Modifier le combat', 'ufsc-licence-competition' ) : __( 'Nouveau combat', 'ufsc-licence-competition' ) ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Renseignez les paramètres clés du combat sans altérer les flux de planification et de résultats.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_fight' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_fight">
 				<input type="hidden" name="id" value="<?php echo esc_attr( $values['id'] ); ?>">
+				<div class="ufsc-admin-surface ufsc-admin-form-surface">
 				<table class="form-table" role="presentation">
 					<tr>
 						<th scope="row"><label for="ufsc_fight_competition"><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></label></th>
@@ -295,6 +306,7 @@ class Bouts_Page {
 						<td><input name="scheduled_at" type="datetime-local" id="ufsc_fight_scheduled" value="<?php echo esc_attr( $values['scheduled_at'] ); ?>"></td>
 					</tr>
 				</table>
+				</div>
 				<?php submit_button( $action_label ); ?>
 			</form>
 		</div>
