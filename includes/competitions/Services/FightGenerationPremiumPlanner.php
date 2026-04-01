@@ -116,6 +116,10 @@ class FightGenerationPremiumPlanner {
 	}
 
 	private static function build_fight_payload( array $context, int $fight_no, $red_entry, $blue_entry, int $round_no, string $format ): array {
+		$has_red = $red_entry && ! empty( $red_entry->id );
+		$has_blue = $blue_entry && ! empty( $blue_entry->id );
+		$is_bye = ( $has_red xor $has_blue );
+
 		return array(
 			'competition_id'     => (int) $context['competition_id'],
 			'category_id'        => (int) $context['category_id'],
@@ -124,8 +128,8 @@ class FightGenerationPremiumPlanner {
 			'round_no'           => $round_no,
 			'red_entry_id'       => $red_entry ? (int) ( $red_entry->id ?? 0 ) : null,
 			'blue_entry_id'      => $blue_entry ? (int) ( $blue_entry->id ?? 0 ) : null,
-			'winner_entry_id'    => null,
-			'status'             => 'scheduled',
+			'winner_entry_id'    => $is_bye ? ( $has_red ? (int) $red_entry->id : (int) $blue_entry->id ) : null,
+			'status'             => $is_bye ? 'bye' : 'scheduled',
 			'result_method'      => '',
 			'score_red'          => '',
 			'score_blue'         => '',
@@ -137,6 +141,7 @@ class FightGenerationPremiumPlanner {
 			'fight_pause'        => null,
 			'fight_duration'     => null,
 			'planner_format'     => $format,
+			'planner_bye'        => $is_bye ? 1 : 0,
 		);
 	}
 
