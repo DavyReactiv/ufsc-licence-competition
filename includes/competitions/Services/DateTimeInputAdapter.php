@@ -48,11 +48,18 @@ class DateTimeInputAdapter {
 			'd/m/Y H:i:s',
 			'd/m/Y H:i',
 			'd/m/Y',
+			'd-m-Y H:i:s',
+			'd-m-Y H:i',
+			'd-m-Y',
 		);
 
 		foreach ( $formats as $format ) {
 			$date = date_create_from_format( $format, $raw );
 			if ( ! $date instanceof \DateTimeInterface ) {
+				continue;
+			}
+			$errors = \DateTime::getLastErrors();
+			if ( is_array( $errors ) && ( ! empty( $errors['warning_count'] ) || ! empty( $errors['error_count'] ) ) ) {
 				continue;
 			}
 

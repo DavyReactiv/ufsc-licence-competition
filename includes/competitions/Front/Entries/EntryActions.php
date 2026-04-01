@@ -254,7 +254,7 @@ class EntryActions {
 		if ( $is_external_participant && class_exists( CompetitionMeta::class ) && class_exists( ExternalParticipantEligibility::class ) ) {
 			$competition_meta = CompetitionMeta::get( (int) $competition_id );
 			if ( ! ExternalParticipantEligibility::is_external_entry_allowed( $competition_meta ) ) {
-				self::redirect_with_notice( $competition_id, 'error_invalid_fields' );
+				self::redirect_with_notice( $competition_id, 'error_external_not_allowed' );
 			}
 		}
 
