@@ -61,7 +61,7 @@ class Club_Entries_Export_Controller {
 
 		// Repo should already scope to competition + club; we still enforce ownership defensively below.
 		$entries = $entry_repo->list_by_competition_and_club( $competition_id, $club_id );
-		$entries = $this->filter_validated_entries( is_array( $entries ) ? $entries : array(), $entry_repo, $club_id );
+		$entries = $this->filter_validated_entries( is_array( $entries ) ? $entries : array(), $entry_repo, $club_id, $competition_id );
 
 		if ( empty( $entries ) ) {
 			$this->redirect_with_notice( $competition_id, 'export_empty' );
@@ -182,13 +182,13 @@ class Club_Entries_Export_Controller {
 		return $out;
 	}
 
-	private function filter_validated_entries( array $entries, EntryFrontRepository $repo, int $club_id ): array {
+	private function filter_validated_entries( array $entries, EntryFrontRepository $repo, int $club_id, int $competition_id ): array {
 		$filtered = array();
 
 		foreach ( $entries as $entry ) {
 			// Defensive ownership check even if repo already scopes.
 			if ( absint( $entry->club_id ?? 0 ) !== $club_id ) {
-				$this->redirect_with_notice( 0, 'error_forbidden' );
+				$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 			}
 
 			if ( function_exists( 'ufsc_lc_is_entry_eligible' ) ) {

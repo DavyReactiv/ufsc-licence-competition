@@ -67,12 +67,13 @@ class Db {
 		}
 		$did_run = true;
 
-		$option              = get_option( self::DB_VERSION_OPTION, '' );
+		$option                = get_option( self::DB_VERSION_OPTION, '' );
 		$needs_version_upgrade = ( $option !== self::DB_VERSION );
 		$needs_fights_upgrade  = self::get_cached_fights_schema_needs_upgrade();
+		$needs_entries_upgrade = self::entries_schema_needs_upgrade();
 
 		// Nothing to do: release lock & exit.
-		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade ) {
+		if ( ! $needs_version_upgrade && ! $needs_fights_upgrade && ! $needs_entries_upgrade ) {
 			return;
 		}
 
@@ -80,11 +81,13 @@ class Db {
 		if ( get_transient( $lock_key ) ) {
 			return;
 		}
-		set_transient( $lock_key, 1, 10 );
+		set_transient( $lock_key, 1, 120 );
 
 		try {
 			if ( $needs_version_upgrade ) {
 				self::create_tables();
+			}
+			if ( $needs_version_upgrade || $needs_entries_upgrade ) {
 				self::maybe_upgrade_entries_table();
 			}
 
@@ -97,6 +100,7 @@ class Db {
 			}
 
 			self::set_fights_schema_upgrade_cache( false );
+			self::mark_entries_schema_healthy();
 		} catch ( \Throwable $e ) {
 			// Never fatal: log and continue
 			error_log( 'UFSC Competitions DB upgrade failed: ' . $e->getMessage() );
@@ -104,6 +108,51 @@ class Db {
 		} finally {
 			delete_transient( $lock_key );
 		}
+	}
+
+	private static function entries_schema_needs_upgrade(): bool {
+		$cache_key = 'ufsc_competitions_entries_schema_ok';
+		if ( '1' === get_transient( $cache_key ) ) {
+			return false;
+		}
+
+		$table = self::entries_table();
+		if ( ! self::table_exists( $table ) ) {
+			return true;
+		}
+
+		$required_columns = array(
+			'competition_id',
+			'status',
+			'assigned_at',
+			'category_id',
+			'updated_at',
+		);
+
+		foreach ( $required_columns as $column ) {
+			if ( ! self::has_table_column( $table, $column ) ) {
+				return true;
+			}
+		}
+
+		$has_licensee_column = self::has_table_column( $table, 'licensee_id' ) || self::has_table_column( $table, 'licence_id' );
+		if ( ! $has_licensee_column ) {
+			return true;
+		}
+
+		self::mark_entries_schema_healthy();
+		return false;
+	}
+
+	private static function mark_entries_schema_healthy(): void {
+		set_transient( 'ufsc_competitions_entries_schema_ok', '1', DAY_IN_SECONDS );
+	}
+
+	private static function table_exists( string $table ): bool {
+		global $wpdb;
+
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
+		return ( $exists === $table );
 	}
 
 	/**
