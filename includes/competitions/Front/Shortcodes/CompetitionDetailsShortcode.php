@@ -6,6 +6,7 @@ use UFSC\Competitions\Access\CompetitionAccess;
 use UFSC\Competitions\Front\Front;
 use UFSC\Competitions\Front\Repositories\CompetitionReadRepository;
 use UFSC\Competitions\Services\CompetitionFilters;
+use UFSC\Competitions\Services\DateTimeDisplay;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -76,10 +77,8 @@ class CompetitionDetailsShortcode {
 		$weighin_start = (string) ( $competition->weighin_start ?? '' );
 		$weighin_end   = (string) ( $competition->weighin_end ?? '' );
 
-		if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-			$weighin_start = ufsc_lc_format_datetime( $weighin_start, '' );
-			$weighin_end   = ufsc_lc_format_datetime( $weighin_end, '' );
-		}
+		$weighin_start = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $weighin_start, '', 'datetime' ) : $weighin_start;
+		$weighin_end   = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $weighin_end, '', 'datetime' ) : $weighin_end;
 
 		if ( $weighin_start || $weighin_end ) {
 			$label = trim( $weighin_start . ( $weighin_end ? ' → ' . $weighin_end : '' ) );
@@ -88,50 +87,38 @@ class CompetitionDetailsShortcode {
 
 		if ( ! empty( $competition->briefing_time ) ) {
 			$briefing = (string) $competition->briefing_time;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$briefing = ufsc_lc_format_datetime( $briefing, $briefing );
-			}
+			$briefing = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $briefing, $briefing, 'datetime' ) : $briefing;
 			$info_rows[ __( 'Briefing', 'ufsc-licence-competition' ) ] = $briefing;
 		}
 
 		if ( ! empty( $competition->fights_start ) ) {
 			$fights_start = (string) $competition->fights_start;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$fights_start = ufsc_lc_format_datetime( $fights_start, $fights_start );
-			}
+			$fights_start = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $fights_start, $fights_start, 'datetime' ) : $fights_start;
 			$info_rows[ __( 'Début combats', 'ufsc-licence-competition' ) ] = $fights_start;
 		}
 
 		if ( ! empty( $competition->event_start_datetime ) ) {
 			$event_start = (string) $competition->event_start_datetime;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$event_start = ufsc_lc_format_datetime( $event_start, $event_start );
-			}
+			$event_start = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $event_start, $event_start, 'datetime' ) : $event_start;
 			$info_rows[ __( 'Début événement', 'ufsc-licence-competition' ) ] = $event_start;
 		}
 
 		if ( ! empty( $competition->event_end_datetime ) ) {
 			$event_end = (string) $competition->event_end_datetime;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$event_end = ufsc_lc_format_datetime( $event_end, $event_end );
-			}
+			$event_end = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $event_end, $event_end, 'datetime' ) : $event_end;
 			$info_rows[ __( 'Fin événement', 'ufsc-licence-competition' ) ] = $event_end;
 		}
 
 		if ( ! empty( $competition->event_end_estimated ) ) {
 			$event_estimated = (string) $competition->event_end_estimated;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$event_estimated = ufsc_lc_format_datetime( $event_estimated, $event_estimated );
-			}
+			$event_estimated = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $event_estimated, $event_estimated, 'datetime' ) : $event_estimated;
 			$info_rows[ __( 'Fin prévisionnelle', 'ufsc-licence-competition' ) ] = $event_estimated;
 		}
 
 		$registration_deadline = '';
 		if ( ! empty( $competition->registration_deadline ) ) {
 			$registration_deadline = (string) $competition->registration_deadline;
-			if ( function_exists( 'ufsc_lc_format_datetime' ) ) {
-				$registration_deadline = ufsc_lc_format_datetime( $registration_deadline, $registration_deadline );
-			}
+			$registration_deadline = class_exists( DateTimeDisplay::class ) ? DateTimeDisplay::format( $registration_deadline, $registration_deadline, 'datetime' ) : $registration_deadline;
 		}
 
 		$contact_bits = array();
