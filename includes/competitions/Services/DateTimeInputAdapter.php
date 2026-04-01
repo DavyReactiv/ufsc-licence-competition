@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class DateTimeInputAdapter {
 	public static function to_sql_datetime( string $date, string $time = '' ): string {
 		$date = trim( $date );
-		$time = trim( $time );
+		$time = self::normalize_time_input( $time );
 
 		if ( '' === $date ) {
 			return '';
@@ -17,7 +17,7 @@ class DateTimeInputAdapter {
 
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
 			$time = '' !== $time ? $time : '00:00';
-			return self::normalize_sql_datetime( $date . ' ' . $time . ':00' );
+			return self::normalize_sql_datetime( $date . ' ' . $time );
 		}
 
 		if ( preg_match( '/^\d{2}\/\d{2}\/\d{4}$/', $date ) ) {
@@ -25,7 +25,7 @@ class DateTimeInputAdapter {
 			if ( 3 === count( $parts ) ) {
 				$iso_date = sprintf( '%04d-%02d-%02d', (int) $parts[2], (int) $parts[1], (int) $parts[0] );
 				$time = '' !== $time ? $time : '00:00';
-				return self::normalize_sql_datetime( $iso_date . ' ' . $time . ':00' );
+				return self::normalize_sql_datetime( $iso_date . ' ' . $time );
 			}
 		}
 
@@ -64,5 +64,22 @@ class DateTimeInputAdapter {
 		}
 
 		return '';
+	}
+
+	private static function normalize_time_input( string $time ): string {
+		$time = trim( $time );
+		if ( '' === $time ) {
+			return '';
+		}
+
+		if ( preg_match( '/^\d{2}:\d{2}$/', $time ) ) {
+			return $time . ':00';
+		}
+
+		if ( preg_match( '/^\d{2}:\d{2}:\d{2}$/', $time ) ) {
+			return $time;
+		}
+
+		return $time;
 	}
 }
