@@ -22,6 +22,7 @@ class Entries_Import_Page {
 	private const TEMPLATE_ACTION = 'ufsc_competitions_entries_import_template';
 	private const NONCE_ACTION    = 'ufsc_competitions_entries_import_csv';
 	private const MAX_FILE_SIZE   = 5242880;
+	private const NO_CLUB_LABEL   = 'noclub';
 
 	/** @var CompetitionRepository */
 	private $competition_repository;
@@ -374,10 +375,12 @@ class Entries_Import_Page {
 		global $wpdb;
 
 		$report = array(
-			'total'    => count( $rows ),
-			'imported' => 0,
-			'skipped'  => 0,
-			'rows'     => array(),
+			'total'                 => count( $rows ),
+			'imported'              => 0,
+			'skipped'               => 0,
+			'non_affiliated_clubs'  => 0,
+			'noclub_fallbacks'      => 0,
+			'rows'                  => array(),
 		);
 
 		$competition_id         = (int) ( $competition->id ?? 0 );
@@ -529,13 +532,20 @@ class Entries_Import_Page {
 				error_log( 'UFSC entries CSV import insert success: entry_id=' . (int) $entry_id . ' line=' . (int) $line );
 			}
 
-			$this->persist_optional_csv_fields( $entry_id, $normalized );
+			$this->persist_optional_csv_fields( $entry_id, $normalized, $club_resolution );
+
+			if ( ! empty( $club_resolution['is_non_affiliated'] ) ) {
+				$report['non_affiliated_clubs']++;
+			}
+			if ( ! empty( $club_resolution['is_noclub'] ) ) {
+				$report['noclub_fallbacks']++;
+			}
 
 			$report['imported']++;
 			$report['rows'][] = array(
 				'line'    => $line,
 				'status'  => 'imported',
-				'message' => __( 'Importé', 'ufsc-licence-competition' ),
+				'message' => $this->build_import_message( $club_resolution ),
 			);
 		}
 
@@ -549,7 +559,7 @@ class Entries_Import_Page {
 		return 1000000000 + ( $hash % 1000000000 );
 	}
 
-	private function persist_optional_csv_fields( int $entry_id, array $normalized ): void {
+	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution ): void {
 		global $wpdb;
 
 		$entry_id = absint( $entry_id );
@@ -569,7 +579,18 @@ class Entries_Import_Page {
 		$this->maybe_map_column( $updates, $columns, $normalized, 'telephone', array( 'telephone', 'phone' ) );
 		$this->maybe_map_column( $updates, $columns, $normalized, 'commentaire', array( 'commentaire', 'comment', 'notes' ) );
 		$this->maybe_map_column( $updates, $columns, $normalized, 'discipline', array( 'discipline' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'club_nom', array( 'club_name' ) );
+		$club_label_from_import = $this->normalize_text( $club_resolution['club_nom'] ?? '' );
+		if ( '' !== $club_label_from_import ) {
+			if ( in_array( 'club_nom', $columns, true ) ) {
+				$updates['club_nom'] = $club_label_from_import;
+			}
+			$this->maybe_map_column( $updates, $columns, array( 'club_nom' => $club_label_from_import ), 'club_nom', array( 'club_name' ) );
+		}
+
+		$club_source = sanitize_key( (string) ( $club_resolution['club_source'] ?? '' ) );
+		if ( '' !== $club_source ) {
+			$this->maybe_map_column( $updates, $columns, array( 'club_source' => $club_source ), 'club_source', array( 'club_source', 'club_status' ) );
+		}
 
 		$this->maybe_map_bool_column( $updates, $columns, $normalized, 'certificat_medical', array( 'certificat_medical' ) );
 		$this->maybe_map_bool_column( $updates, $columns, $normalized, 'autorisation_parentale', array( 'autorisation_parentale' ) );
@@ -705,34 +726,74 @@ class Entries_Import_Page {
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) !== $table ) {
-			return array( 'club_id' => $club_id );
+			if ( '' === $club_name ) {
+				$club_name = self::NO_CLUB_LABEL;
+			}
+			return array(
+				'club_id'            => $club_id ?: 0,
+				'club_nom'           => $club_name,
+				'club_source'        => self::NO_CLUB_LABEL === $club_name ? 'noclub' : 'csv',
+				'is_non_affiliated'  => ( 0 === $club_id && self::NO_CLUB_LABEL !== $club_name ),
+				'is_noclub'          => ( self::NO_CLUB_LABEL === $club_name ),
+			);
 		}
 
 		// Priorité métier : utiliser club_id avant toute tentative via club_nom.
 		if ( $club_id > 0 ) {
 			$found = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE id = %d LIMIT 1", $club_id ) );
 			if ( $found > 0 ) {
-				return array( 'club_id' => $found );
+				$resolved_name = (string) $wpdb->get_var( $wpdb->prepare( "SELECT nom FROM {$table} WHERE id = %d LIMIT 1", $found ) );
+				return array(
+					'club_id'            => $found,
+					'club_nom'           => $this->normalize_text( $resolved_name ),
+					'club_source'        => 'affiliated',
+					'is_non_affiliated'  => false,
+					'is_noclub'          => false,
+				);
 			}
 			$club_id = 0;
 		}
 
 		if ( '' === $club_name ) {
-			return array( 'club_id' => 0 );
+			return array(
+				'club_id'            => 0,
+				'club_nom'           => self::NO_CLUB_LABEL,
+				'club_source'        => 'noclub',
+				'is_non_affiliated'  => false,
+				'is_noclub'          => true,
+			);
 		}
 
-		$exact = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE nom = %s LIMIT 1", $club_name ) );
-		if ( $exact > 0 ) {
-			return array( 'club_id' => $exact );
+		$exact = $wpdb->get_row( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE nom = %s LIMIT 1", $club_name ) );
+		if ( $exact && ! empty( $exact->id ) ) {
+			return array(
+				'club_id'            => (int) $exact->id,
+				'club_nom'           => $this->normalize_text( (string) ( $exact->nom ?? $club_name ) ),
+				'club_source'        => 'affiliated',
+				'is_non_affiliated'  => false,
+				'is_noclub'          => false,
+			);
 		}
 
 		$like    = '%' . $wpdb->esc_like( $club_name ) . '%';
-		$partial = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$table} WHERE nom LIKE %s ORDER BY id ASC LIMIT 1", $like ) );
-		if ( $partial > 0 ) {
-			return array( 'club_id' => $partial );
+		$partial = $wpdb->get_row( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE nom LIKE %s ORDER BY id ASC LIMIT 1", $like ) );
+		if ( $partial && ! empty( $partial->id ) ) {
+			return array(
+				'club_id'            => (int) $partial->id,
+				'club_nom'           => $this->normalize_text( (string) ( $partial->nom ?? $club_name ) ),
+				'club_source'        => 'affiliated',
+				'is_non_affiliated'  => false,
+				'is_noclub'          => false,
+			);
 		}
 
-		return array( 'club_id' => 0 );
+		return array(
+			'club_id'            => 0,
+			'club_nom'           => $club_name,
+			'club_source'        => 'csv',
+			'is_non_affiliated'  => true,
+			'is_noclub'          => false,
+		);
 	}
 
 	private function competition_requires_license( int $competition_id ): bool {
@@ -761,7 +822,31 @@ class Entries_Import_Page {
 			}
 		}
 
+		if ( ! $this->has_exploitable_category_data( $normalized ) ) {
+			return __( 'Catégorie/poids absent : au moins une donnée de catégorie est requise.', 'ufsc-licence-competition' );
+		}
+
 		return '';
+	}
+
+	private function has_exploitable_category_data( array $normalized ): bool {
+		$category = $this->normalize_text( $normalized['categorie'] ?? '' );
+		$weight_class = $this->normalize_text( $normalized['categorie_poids'] ?? '' );
+		$weight = $this->normalize_text( $normalized['poids'] ?? '' );
+
+		return '' !== $category || '' !== $weight_class || '' !== $weight;
+	}
+
+	private function build_import_message( array $club_resolution ): string {
+		$club_source = sanitize_key( (string) ( $club_resolution['club_source'] ?? '' ) );
+		if ( 'csv' === $club_source ) {
+			return __( 'Importé (club non affilié conservé).', 'ufsc-licence-competition' );
+		}
+		if ( 'noclub' === $club_source ) {
+			return __( 'Importé (club remplacé par noclub).', 'ufsc-licence-competition' );
+		}
+
+		return __( 'Importé', 'ufsc-licence-competition' );
 	}
 
 	private function normalize_import_data( array $data, string $competition_discipline ): array {
@@ -970,6 +1055,8 @@ class Entries_Import_Page {
 		$total    = (int) ( $report['total'] ?? 0 );
 		$imported = (int) ( $report['imported'] ?? 0 );
 		$skipped  = (int) ( $report['skipped'] ?? 0 );
+		$non_affiliated_clubs = (int) ( $report['non_affiliated_clubs'] ?? 0 );
+		$noclub_fallbacks     = (int) ( $report['noclub_fallbacks'] ?? 0 );
 		$rows     = is_array( $report['rows'] ?? null ) ? $report['rows'] : array();
 		?>
 		<h2><?php esc_html_e( 'Rapport d’import', 'ufsc-licence-competition' ); ?></h2>
@@ -977,6 +1064,8 @@ class Entries_Import_Page {
 			<li><?php echo esc_html( sprintf( __( 'Lignes totales : %d', 'ufsc-licence-competition' ), $total ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'Lignes importées : %d', 'ufsc-licence-competition' ), $imported ) ); ?></li>
 			<li><?php echo esc_html( sprintf( __( 'Lignes ignorées/refusées : %d', 'ufsc-licence-competition' ), $skipped ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'Clubs non affiliés conservés : %d', 'ufsc-licence-competition' ), $non_affiliated_clubs ) ); ?></li>
+			<li><?php echo esc_html( sprintf( __( 'Clubs remplacés par noclub : %d', 'ufsc-licence-competition' ), $noclub_fallbacks ) ); ?></li>
 		</ul>
 
 		<table class="widefat striped">

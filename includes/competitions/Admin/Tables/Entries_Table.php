@@ -241,7 +241,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'birth_year':
 				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label' ) ) ) );
+				return $this->format_club_display( $item );
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'discipline':
@@ -484,6 +484,28 @@ class Entries_Table extends \WP_List_Table {
 			'<span class="ufsc-badge ufsc-badge-warning">⚠️ %s</span>',
 			esc_html( $empty_label )
 		);
+	}
+
+	private function format_club_display( $item ): string {
+		$club_name = $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label' ) ) );
+		$club_id   = absint( $this->get_item_value( $item, 'club_id' ) );
+		$source    = sanitize_key( (string) $this->get_item_value_from_keys( $item, array( 'club_source', 'club_status' ) ) );
+		$lowered   = function_exists( 'mb_strtolower' ) ? mb_strtolower( $club_name ) : strtolower( $club_name );
+
+		$badge = '';
+		if ( 0 === $club_id && 'noclub' === $lowered ) {
+			$badge = sprintf(
+				' <span class="ufsc-badge ufsc-badge--muted">%s</span>',
+				esc_html__( 'Sans club', 'ufsc-licence-competition' )
+			);
+		} elseif ( 0 === $club_id && in_array( $source, array( 'csv', 'external', 'invited' ), true ) ) {
+			$badge = sprintf(
+				' <span class="ufsc-badge ufsc-badge--warning">%s</span>',
+				esc_html__( 'Club non affilié', 'ufsc-licence-competition' )
+			);
+		}
+
+		return esc_html( $club_name ) . $badge;
 	}
 
 	private function format_status( $entry ): string {

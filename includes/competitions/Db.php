@@ -254,6 +254,8 @@ class Db {
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				competition_id bigint(20) unsigned NOT NULL,
 				club_id bigint(20) unsigned NULL,
+				club_nom varchar(190) NULL,
+				club_source varchar(50) NULL,
 				licensee_id bigint(20) unsigned NOT NULL,
 				category_id bigint(20) unsigned NULL,
 				category varchar(100) NULL,
@@ -395,6 +397,8 @@ class Db {
 			'weight_kg'       => "ALTER TABLE {$table} ADD COLUMN weight_kg decimal(6,2) NULL",
 			'weight_class'    => "ALTER TABLE {$table} ADD COLUMN weight_class varchar(20) NULL",
 			'level'           => "ALTER TABLE {$table} ADD COLUMN level varchar(50) NULL",
+			'club_nom'        => "ALTER TABLE {$table} ADD COLUMN club_nom varchar(190) NULL",
+			'club_source'     => "ALTER TABLE {$table} ADD COLUMN club_source varchar(50) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
