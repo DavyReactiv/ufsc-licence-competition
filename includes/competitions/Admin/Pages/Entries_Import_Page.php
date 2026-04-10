@@ -20,6 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Entries_Import_Page {
 	private const IMPORT_ACTION   = 'ufsc_competitions_entries_import_csv';
 	private const TEMPLATE_ACTION = 'ufsc_competitions_entries_import_template';
+	private const UNDO_ACTION     = 'ufsc_competitions_entries_import_undo_last';
 	private const NONCE_ACTION    = 'ufsc_competitions_entries_import_csv';
 	private const MAX_FILE_SIZE   = 5242880;
 	private const NO_CLUB_LABEL   = 'noclub';
@@ -48,6 +49,7 @@ class Entries_Import_Page {
 
 		add_action( 'admin_post_' . self::IMPORT_ACTION, array( $this, 'handle_import' ) );
 		add_action( 'admin_post_' . self::TEMPLATE_ACTION, array( $this, 'handle_template_download' ) );
+		add_action( 'admin_post_' . self::UNDO_ACTION, array( $this, 'handle_undo_last_import' ) );
 	}
 
 	public function render(): void {
@@ -63,6 +65,7 @@ class Entries_Import_Page {
 
 		$report                  = $this->get_report();
 		$selected_competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$last_import             = $selected_competition_id ? $this->get_last_import_batch( $selected_competition_id ) : null;
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<header class="ufsc-admin-page-header">
@@ -73,6 +76,29 @@ class Entries_Import_Page {
 				</div>
 			</header>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Sélectionnez une compétition, importez le CSV, puis consultez le rapport détaillé.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php if ( is_array( $last_import ) ) : ?>
+				<div class="notice notice-warning">
+					<p>
+						<strong><?php esc_html_e( 'Dernier import détecté', 'ufsc-licence-competition' ); ?></strong><br/>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: 1: datetime, 2: count */
+								__( 'Batch du %1$s · %2$d lignes importées.', 'ufsc-licence-competition' ),
+								(string) ( $last_import['imported_at'] ?? '' ),
+								(int) ( $last_import['rows_count'] ?? 0 )
+							)
+						);
+						?>
+					</p>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Confirmer l’annulation du dernier import ? Cette action supprimera uniquement les lignes de ce lot.', 'ufsc-licence-competition' ) ); ?>');">
+						<?php wp_nonce_field( self::UNDO_ACTION ); ?>
+						<input type="hidden" name="action" value="<?php echo esc_attr( self::UNDO_ACTION ); ?>" />
+						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $selected_competition_id ); ?>" />
+						<button type="submit" class="button button-secondary"><?php esc_html_e( 'Annuler le dernier import', 'ufsc-licence-competition' ); ?></button>
+					</form>
+				</div>
+			<?php endif; ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" enctype="multipart/form-data" class="ufsc-competitions-form">
 				<?php wp_nonce_field( self::NONCE_ACTION ); ?>
@@ -284,6 +310,83 @@ class Entries_Import_Page {
 		$this->redirect_with_report( $report, $competition_id );
 	}
 
+	public function handle_undo_last_import(): void {
+		if ( ! Capabilities::user_can_manage_entries() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( self::UNDO_ACTION );
+
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$last_import    = $competition_id ? $this->get_last_import_batch( $competition_id ) : null;
+		if ( ! $competition_id || ! is_array( $last_import ) ) {
+			$this->redirect_with_report(
+				array(
+					'total'    => 0,
+					'imported' => 0,
+					'skipped'  => 0,
+					'rows'     => array(
+						array(
+							'line'    => 0,
+							'status'  => 'error',
+							'message' => __( 'Aucun dernier import annulable trouvé.', 'ufsc-licence-competition' ),
+						),
+					),
+				),
+				$competition_id
+			);
+		}
+
+		$batch_id = sanitize_text_field( (string) ( $last_import['import_batch_id'] ?? '' ) );
+		if ( '' === $batch_id ) {
+			$this->redirect_with_report( array( 'total' => 0, 'imported' => 0, 'skipped' => 0, 'rows' => array() ), $competition_id );
+		}
+
+		if ( $this->batch_has_fights_linked( $competition_id, $batch_id ) ) {
+			$this->redirect_with_report(
+				array(
+					'total'    => 0,
+					'imported' => 0,
+					'skipped'  => 0,
+					'rows'     => array(
+						array(
+							'line'    => 0,
+							'status'  => 'error',
+							'message' => __( 'Annulation bloquée : des combats sont déjà liés à ce lot importé.', 'ufsc-licence-competition' ),
+						),
+					),
+				),
+				$competition_id
+			);
+		}
+
+		global $wpdb;
+		$entries_table = Db::entries_table();
+		$deleted       = $wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$entries_table} WHERE competition_id = %d AND import_batch_id = %s",
+				$competition_id,
+				$batch_id
+			)
+		);
+
+		$this->redirect_with_report(
+			array(
+				'total'    => (int) $deleted,
+				'imported' => 0,
+				'skipped'  => 0,
+				'rows'     => array(
+					array(
+						'line'    => 0,
+						'status'  => 'imported',
+						'message' => sprintf( __( 'Dernier import annulé (%d lignes supprimées).', 'ufsc-licence-competition' ), (int) $deleted ),
+					),
+				),
+			),
+			$competition_id
+		);
+	}
+
 	private function validate_uploaded_csv( array $file ) {
 		if ( empty( $file ) || empty( $file['tmp_name'] ) ) {
 			return new \WP_Error( 'missing_file', __( 'Fichier CSV manquant.', 'ufsc-licence-competition' ) );
@@ -373,6 +476,7 @@ class Entries_Import_Page {
 
 	private function import_rows( $competition, array $rows ): array {
 		global $wpdb;
+		$import_batch_id = 'imp_' . gmdate( 'YmdHis' ) . '_' . wp_generate_password( 6, false, false );
 
 		$report = array(
 			'total'                 => count( $rows ),
@@ -532,7 +636,7 @@ class Entries_Import_Page {
 				error_log( 'UFSC entries CSV import insert success: entry_id=' . (int) $entry_id . ' line=' . (int) $line );
 			}
 
-			$this->persist_optional_csv_fields( $entry_id, $normalized, $club_resolution );
+			$this->persist_optional_csv_fields( $entry_id, $normalized, $club_resolution, $import_batch_id );
 
 			if ( ! empty( $club_resolution['is_non_affiliated'] ) ) {
 				$report['non_affiliated_clubs']++;
@@ -559,7 +663,7 @@ class Entries_Import_Page {
 		return 1000000000 + ( $hash % 1000000000 );
 	}
 
-	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution ): void {
+	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution, string $import_batch_id ): void {
 		global $wpdb;
 
 		$entry_id = absint( $entry_id );
@@ -590,6 +694,13 @@ class Entries_Import_Page {
 		$club_source = sanitize_key( (string) ( $club_resolution['club_source'] ?? '' ) );
 		if ( '' !== $club_source ) {
 			$this->maybe_map_column( $updates, $columns, array( 'club_source' => $club_source ), 'club_source', array( 'club_source', 'club_status' ) );
+		}
+		$this->maybe_map_column( $updates, $columns, array( 'group_label' => $import_batch_id ), 'group_label', array( 'group_label' ) );
+		$this->maybe_map_column( $updates, $columns, array( 'import_batch_id' => $import_batch_id ), 'import_batch_id', array( 'import_batch_id' ) );
+		$this->maybe_map_column( $updates, $columns, array( 'import_source' => 'csv_admin' ), 'import_source', array( 'import_source' ) );
+		$this->maybe_map_column( $updates, $columns, array( 'created_by_import' => '1' ), 'created_by_import', array( 'created_by_import' ) );
+		if ( in_array( 'imported_at', $columns, true ) ) {
+			$updates['imported_at'] = current_time( 'mysql' );
 		}
 
 		$this->maybe_map_bool_column( $updates, $columns, $normalized, 'certificat_medical', array( 'certificat_medical' ) );
@@ -1049,6 +1160,71 @@ class Entries_Import_Page {
 
 	private function get_report_transient_key(): string {
 		return 'ufsc_entries_import_report_' . get_current_user_id();
+	}
+
+	private function get_last_import_batch( int $competition_id ): ?array {
+		global $wpdb;
+
+		$entries_table = Db::entries_table();
+		$columns       = Db::get_table_columns( $entries_table );
+		if ( ! is_array( $columns ) || ! in_array( 'import_batch_id', $columns, true ) ) {
+			return null;
+		}
+
+		$imported_col = in_array( 'imported_at', $columns, true ) ? 'imported_at' : 'created_at';
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT import_batch_id, MAX({$imported_col}) AS imported_at, COUNT(*) AS rows_count
+				FROM {$entries_table}
+				WHERE competition_id = %d AND import_batch_id IS NOT NULL AND import_batch_id <> ''
+				GROUP BY import_batch_id
+				ORDER BY imported_at DESC
+				LIMIT 1",
+				$competition_id
+			),
+			ARRAY_A
+		);
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	private function batch_has_fights_linked( int $competition_id, string $import_batch_id ): bool {
+		global $wpdb;
+		$fights_table  = Db::fights_table();
+		$entries_table = Db::entries_table();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $fights_table ) ) !== $fights_table ) {
+			return false;
+		}
+
+		$fight_columns = Db::get_table_columns( $fights_table );
+		if ( ! is_array( $fight_columns ) ) {
+			return false;
+		}
+
+		$entry_links = array();
+		foreach ( array( 'entry_id', 'red_entry_id', 'blue_entry_id', 'winner_entry_id' ) as $candidate ) {
+			if ( in_array( $candidate, $fight_columns, true ) ) {
+				$entry_links[] = $candidate;
+			}
+		}
+		if ( empty( $entry_links ) ) {
+			return false;
+		}
+
+		$or_links = array();
+		foreach ( $entry_links as $column ) {
+			$or_links[] = "{$column} IN (SELECT id FROM {$entries_table} WHERE competition_id = %d AND import_batch_id = %s)";
+		}
+		$sql = "SELECT id FROM {$fights_table} WHERE competition_id = %d AND (" . implode( ' OR ', $or_links ) . ') LIMIT 1';
+
+		$params = array( $competition_id );
+		foreach ( $entry_links as $_ ) {
+			$params[] = $competition_id;
+			$params[] = $import_batch_id;
+		}
+
+		$found = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+		return ! empty( $found );
 	}
 
 	private function render_report( array $report ): void {

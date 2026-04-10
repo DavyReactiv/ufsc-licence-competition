@@ -56,6 +56,8 @@ class Entries_Table extends \WP_List_Table {
 			'status'         => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 			'participant_type' => isset( $_REQUEST['ufsc_participant_type'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_participant_type'] ) ) : '',
+			'group_label'    => isset( $_REQUEST['ufsc_group_label'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_group_label'] ) ) : '',
+			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
 
@@ -108,6 +110,8 @@ class Entries_Table extends \WP_List_Table {
 		$columns = array(
 			'cb'         => '<input type="checkbox" />',
 			'licensee'   => __( 'Licencié', 'ufsc-licence-competition' ),
+			'last_name'  => __( 'Nom', 'ufsc-licence-competition' ),
+			'first_name' => __( 'Prénom', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
 			'birthdate'  => __( 'Date de naissance', 'ufsc-licence-competition' ),
 			'birth_year' => __( 'Année de naissance', 'ufsc-licence-competition' ),
@@ -165,6 +169,12 @@ class Entries_Table extends \WP_List_Table {
 			}
 		} else {
 			$actions['trash'] = __( 'Mettre à la corbeille', 'ufsc-licence-competition' );
+			$actions['set_draft'] = __( 'Passer en brouillon', 'ufsc-licence-competition' );
+			$actions['set_submitted'] = __( 'Passer à valider', 'ufsc-licence-competition' );
+			$actions['set_approved'] = __( 'Approuver', 'ufsc-licence-competition' );
+			$actions['set_rejected'] = __( 'Rejeter', 'ufsc-licence-competition' );
+			$actions['set_group'] = __( 'Affecter un groupe', 'ufsc-licence-competition' );
+			$actions['clear_group'] = __( 'Retirer du groupe', 'ufsc-licence-competition' );
 		}
 
 		return $actions;
@@ -236,6 +246,10 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) ) ) );
+			case 'last_name':
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) ) ) );
+			case 'first_name':
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom' ) ) ) );
 			case 'birthdate':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) );
 			case 'birth_year':
@@ -303,6 +317,8 @@ class Entries_Table extends \WP_List_Table {
 		$status = $this->filters['status'] ?? '';
 		$discipline = $this->filters['discipline'] ?? '';
 		$participant_type = $this->filters['participant_type'] ?? '';
+		$group_label = $this->filters['group_label'] ?? '';
+		$club_affiliation = $this->filters['club_affiliation'] ?? '';
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
@@ -332,6 +348,12 @@ class Entries_Table extends \WP_List_Table {
 				<option value=""><?php esc_html_e( 'Tous types', 'ufsc-licence-competition' ); ?></option>
 				<option value="licensed_ufsc" <?php selected( $participant_type, 'licensed_ufsc' ); ?>><?php esc_html_e( 'Licencié UFSC', 'ufsc-licence-competition' ); ?></option>
 				<option value="external_non_licensed" <?php selected( $participant_type, 'external_non_licensed' ); ?>><?php esc_html_e( 'Non licencié UFSC', 'ufsc-licence-competition' ); ?></option>
+			</select>
+			<input type="text" name="ufsc_group_label" value="<?php echo esc_attr( $group_label ); ?>" placeholder="<?php echo esc_attr__( 'Groupe / lot', 'ufsc-licence-competition' ); ?>" />
+			<select name="ufsc_club_affiliation" id="ufsc_club_affiliation_filter">
+				<option value=""><?php esc_html_e( 'Tous les clubs', 'ufsc-licence-competition' ); ?></option>
+				<option value="non_affiliated" <?php selected( $club_affiliation, 'non_affiliated' ); ?>><?php esc_html_e( 'Club non affilié', 'ufsc-licence-competition' ); ?></option>
+				<option value="noclub" <?php selected( $club_affiliation, 'noclub' ); ?>><?php esc_html_e( 'Sans club (noclub)', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 		</div>
