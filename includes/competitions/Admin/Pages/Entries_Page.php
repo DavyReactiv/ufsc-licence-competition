@@ -141,6 +141,12 @@ class Entries_Page {
 				<?php if ( ! empty( $filters['search'] ) ) : ?>
 					<input type="hidden" name="s" value="<?php echo esc_attr( $filters['search'] ); ?>" />
 				<?php endif; ?>
+				<?php if ( ! empty( $filters['group_label'] ) ) : ?>
+					<input type="hidden" name="ufsc_group_label" value="<?php echo esc_attr( $filters['group_label'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['club_affiliation'] ) ) : ?>
+					<input type="hidden" name="ufsc_club_affiliation" value="<?php echo esc_attr( $filters['club_affiliation'] ); ?>" />
+				<?php endif; ?>
 				<?php if ( ! empty( $_REQUEST['paged'] ) ) : ?>
 					<input type="hidden" name="paged" value="<?php echo esc_attr( absint( $_REQUEST['paged'] ) ); ?>" />
 				<?php endif; ?>
@@ -163,12 +169,20 @@ class Entries_Page {
 				<?php if ( ! empty( $filters['discipline'] ) ) : ?>
 					<input type="hidden" name="ufsc_discipline" value="<?php echo esc_attr( $filters['discipline'] ); ?>" />
 				<?php endif; ?>
+				<?php if ( ! empty( $filters['group_label'] ) ) : ?>
+					<input type="hidden" name="ufsc_group_label" value="<?php echo esc_attr( $filters['group_label'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['club_affiliation'] ) ) : ?>
+					<input type="hidden" name="ufsc_club_affiliation" value="<?php echo esc_attr( $filters['club_affiliation'] ); ?>" />
+				<?php endif; ?>
 				<?php if ( ! empty( $_REQUEST['paged'] ) ) : ?>
 					<input type="hidden" name="paged" value="<?php echo esc_attr( absint( $_REQUEST['paged'] ) ); ?>" />
 				<?php endif; ?>
 				<?php if ( $needs_bulk_nonce ) : ?>
 					<?php wp_nonce_field( 'bulk-' . $list_table->_args['plural'] ); ?>
 				<?php endif; ?>
+				<p class="description"><?php esc_html_e( 'Pour “Affecter un groupe”, renseignez un libellé ci-dessous (ex: lot-organisateur-01).', 'ufsc-licence-competition' ); ?></p>
+				<input type="text" name="ufsc_group_name" value="" placeholder="<?php echo esc_attr__( 'Libellé de groupe (bulk)', 'ufsc-licence-competition' ); ?>" />
 				<div class="ufsc-competitions-table-wrap ufsc-competitions-entries-table-wrap">
 					<?php
 					if ( '' !== trim( $table_output ) ) {
@@ -1016,6 +1030,24 @@ class Entries_Page {
 					}
 					$this->repository->delete( $id );
 					break;
+				case 'set_draft':
+				case 'set_submitted':
+				case 'set_approved':
+				case 'set_rejected':
+					$status_map = array(
+						'set_draft'     => 'draft',
+						'set_submitted' => 'submitted',
+						'set_approved'  => 'approved',
+						'set_rejected'  => 'rejected',
+					);
+					$this->bulk_set_entry_status( $id, $status_map[ $action ] ?? 'draft' );
+					break;
+				case 'set_group':
+					$this->bulk_assign_group_label( $id, true );
+					break;
+				case 'clear_group':
+					$this->bulk_assign_group_label( $id, false );
+					break;
 			}
 		}
 
@@ -1023,9 +1055,58 @@ class Entries_Page {
 			'trash'   => 'trashed',
 			'restore' => 'restored',
 			'delete'  => 'deleted',
+			'set_draft' => 'updated',
+			'set_submitted' => 'updated',
+			'set_approved' => 'updated',
+			'set_rejected' => 'updated',
+			'set_group' => 'updated',
+			'clear_group' => 'updated',
 		);
 
 		$this->redirect_with_notice( $page_slug, $notice_map[ $action ] ?? 'updated' );
+	}
+
+	private function bulk_assign_group_label( int $entry_id, bool $set ): void {
+		global $wpdb;
+		$table   = Db::entries_table();
+		$columns = Db::get_table_columns( $table );
+		if ( ! is_array( $columns ) || ! in_array( 'group_label', $columns, true ) ) {
+			return;
+		}
+
+		$label = $set ? ( isset( $_POST['ufsc_group_name'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_group_name'] ) ) : '' ) : '';
+		if ( $set && '' === $label ) {
+			$label = 'groupe-' . gmdate( 'Ymd-His' );
+		}
+		$wpdb->update(
+			$table,
+			array( 'group_label' => $label ),
+			array( 'id' => $entry_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+	}
+
+	private function bulk_set_entry_status( int $entry_id, string $status ): void {
+		global $wpdb;
+		$table   = Db::entries_table();
+		$columns = Db::get_table_columns( $table );
+		if ( ! is_array( $columns ) || ! in_array( 'status', $columns, true ) ) {
+			return;
+		}
+
+		$status = EntriesWorkflow::normalize_status( $status );
+		if ( '' === $status ) {
+			$status = 'draft';
+		}
+
+		$wpdb->update(
+			$table,
+			array( 'status' => $status ),
+			array( 'id' => $entry_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
 	}
 
 	private function sanitize_weight( $value ): ?float {

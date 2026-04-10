@@ -501,6 +501,21 @@
 	background: #f5f9ff;
 }
 
+.ufsc-competitions-admin .wp-list-table .column-last_name,
+.ufsc-competitions-admin .wp-list-table .column-first_name {
+	font-weight: 600;
+	color: #101828;
+}
+
+.ufsc-competitions-admin .wp-list-table .column-club .ufsc-badge {
+	margin-left: 6px;
+}
+
+.ufsc-competitions-admin input[name="ufsc_group_name"] {
+	margin: 6px 0 10px;
+	min-width: 280px;
+}
+
 .ufsc-competitions-admin .wp-list-table .column-status .ufsc-badge {
 	font-weight: 600;
 }

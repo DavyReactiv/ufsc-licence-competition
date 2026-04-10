@@ -254,6 +254,13 @@ class Db {
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				competition_id bigint(20) unsigned NOT NULL,
 				club_id bigint(20) unsigned NULL,
+				club_nom varchar(190) NULL,
+				club_source varchar(50) NULL,
+				group_label varchar(100) NULL,
+				import_batch_id varchar(64) NULL,
+				imported_at datetime NULL,
+				import_source varchar(50) NULL,
+				created_by_import tinyint(1) NOT NULL DEFAULT 0,
 				licensee_id bigint(20) unsigned NOT NULL,
 				category_id bigint(20) unsigned NULL,
 				category varchar(100) NULL,
@@ -395,6 +402,13 @@ class Db {
 			'weight_kg'       => "ALTER TABLE {$table} ADD COLUMN weight_kg decimal(6,2) NULL",
 			'weight_class'    => "ALTER TABLE {$table} ADD COLUMN weight_class varchar(20) NULL",
 			'level'           => "ALTER TABLE {$table} ADD COLUMN level varchar(50) NULL",
+			'club_nom'        => "ALTER TABLE {$table} ADD COLUMN club_nom varchar(190) NULL",
+			'club_source'     => "ALTER TABLE {$table} ADD COLUMN club_source varchar(50) NULL",
+			'group_label'     => "ALTER TABLE {$table} ADD COLUMN group_label varchar(100) NULL",
+			'import_batch_id' => "ALTER TABLE {$table} ADD COLUMN import_batch_id varchar(64) NULL",
+			'imported_at'     => "ALTER TABLE {$table} ADD COLUMN imported_at datetime NULL",
+			'import_source'   => "ALTER TABLE {$table} ADD COLUMN import_source varchar(50) NULL",
+			'created_by_import' => "ALTER TABLE {$table} ADD COLUMN created_by_import tinyint(1) NOT NULL DEFAULT 0",
 		);
 
 		foreach ( $desired as $column => $sql ) {
@@ -435,6 +449,7 @@ class Db {
 			'idx_competition'        => array( 'competition_id' ),
 			'idx_club'               => array( 'club_id' ),
 			'idx_updated_at'         => array( 'updated_at' ),
+			'idx_import_batch'       => array( 'import_batch_id' ),
 		);
 
 		$licensee_column = '';
