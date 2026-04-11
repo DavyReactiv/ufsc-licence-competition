@@ -24,6 +24,7 @@ class Entries_Import_Page {
 	private const NONCE_ACTION    = 'ufsc_competitions_entries_import_csv';
 	private const MAX_FILE_SIZE   = 5242880;
 	private const NO_CLUB_LABEL   = 'noclub';
+	private const UNKNOWN_SEX     = 'UNKNOWN';
 
 	/** @var CompetitionRepository */
 	private $competition_repository;
@@ -574,10 +575,11 @@ class Entries_Import_Page {
 				$category = sanitize_text_field( (string) ufsc_lc_compute_category_from_birthdate( $birthdate, (string) $season_end_year ) );
 			}
 
-			$status = $this->normalize_status( $normalized['statut_dossier'] );
+			$completeness = $this->build_import_completeness_flags( $normalized, $weight_kg, $weight_class, $category );
+			$status       = $this->resolve_import_status( $normalized['statut_dossier'], $completeness );
 
 			if ( ! $licensee_id && ! $require_valid_license ) {
-				$licensee_id = $this->build_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
+				$licensee_id = $this->build_available_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
 			}
 
 			$payload = array(
@@ -646,10 +648,15 @@ class Entries_Import_Page {
 			}
 
 			$report['imported']++;
+			$line_message = $this->build_import_message( $club_resolution );
+			if ( $completeness['needs_review'] ) {
+				$line_message .= ' ' . __( 'Entrée incomplète orientée vers la validation.', 'ufsc-licence-competition' );
+			}
+
 			$report['rows'][] = array(
 				'line'    => $line,
 				'status'  => 'imported',
-				'message' => $this->build_import_message( $club_resolution ),
+				'message' => $line_message,
 			);
 		}
 
@@ -661,6 +668,23 @@ class Entries_Import_Page {
 		$hash = abs( (int) sprintf( '%u', crc32( $key ) ) );
 
 		return 1000000000 + ( $hash % 1000000000 );
+	}
+
+	private function build_available_fallback_licensee_id( int $competition_id, string $nom, string $prenom, string $birthdate ): int {
+		$base = $this->build_fallback_licensee_id( $competition_id, $nom, $prenom, $birthdate );
+		$max_attempts = 50;
+		$candidate = $base;
+
+		for ( $attempt = 0; $attempt < $max_attempts; $attempt++ ) {
+			$existing = $this->entry_repository->get_by_competition_licensee( $competition_id, $candidate );
+			if ( ! $existing ) {
+				return $candidate;
+			}
+
+			$candidate = 1000000000 + ( ( $base - 1000000000 + $attempt + 1 ) % 1000000000 );
+		}
+
+		return 1000000000 + random_int( 0, 999999999 );
 	}
 
 	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution, string $import_batch_id ): void {
@@ -922,19 +946,13 @@ class Entries_Import_Page {
 		$required = array(
 			'nom'            => __( 'Nom absent', 'ufsc-licence-competition' ),
 			'prenom'         => __( 'Prénom absent', 'ufsc-licence-competition' ),
-			'sexe'           => __( 'Sexe absent', 'ufsc-licence-competition' ),
 			'date_naissance' => __( 'Date de naissance absente', 'ufsc-licence-competition' ),
-			'discipline'     => __( 'Discipline absente', 'ufsc-licence-competition' ),
 		);
 
 		foreach ( $required as $key => $error_message ) {
 			if ( '' === $this->normalize_text( $normalized[ $key ] ?? '' ) ) {
 				return $error_message;
 			}
-		}
-
-		if ( ! $this->has_exploitable_category_data( $normalized ) ) {
-			return __( 'Catégorie/poids absent : au moins une donnée de catégorie est requise.', 'ufsc-licence-competition' );
 		}
 
 		return '';
@@ -968,6 +986,12 @@ class Entries_Import_Page {
 
 		$normalized['discipline'] = $this->normalize_discipline( $normalized['discipline'], $competition_discipline );
 		$normalized['sexe']       = $this->normalize_sex( $normalized['sexe'] );
+		if ( '' === $normalized['sexe'] ) {
+			$normalized['sexe'] = self::UNKNOWN_SEX;
+		}
+		if ( '' === $normalized['club_nom'] && 0 === absint( $normalized['club_id'] ) ) {
+			$normalized['club_nom'] = self::NO_CLUB_LABEL;
+		}
 
 		return $normalized;
 	}
@@ -1000,6 +1024,48 @@ class Entries_Import_Page {
 		return $status;
 	}
 
+	private function resolve_import_status( string $raw_status, array $completeness ): string {
+		$status = $this->normalize_status( $raw_status );
+		if ( '' === sanitize_key( $raw_status ) ) {
+			$status = 'submitted';
+		}
+
+		if ( ! empty( $completeness['needs_review'] ) && in_array( $status, array( 'approved', 'cancelled' ), true ) ) {
+			return 'pending';
+		}
+
+		if ( ! empty( $completeness['needs_review'] ) && 'draft' === $status ) {
+			return 'pending';
+		}
+
+		return $status;
+	}
+
+	private function build_import_completeness_flags( array $normalized, ?float $weight_kg, string $weight_class, string $category ): array {
+		$missing = array();
+
+		if ( self::UNKNOWN_SEX === $normalized['sexe'] ) {
+			$missing[] = 'sex';
+		}
+		if ( '' === $this->normalize_text( $normalized['club_nom'] ) && 0 === absint( $normalized['club_id'] ) ) {
+			$missing[] = 'club';
+		}
+		if ( '' === $this->normalize_text( $normalized['niveau'] ) ) {
+			$missing[] = 'level';
+		}
+		if ( null === $weight_kg && '' === $weight_class ) {
+			$missing[] = 'weight';
+		}
+		if ( '' === $category ) {
+			$missing[] = 'category';
+		}
+
+		return array(
+			'missing'      => $missing,
+			'needs_review' => ! empty( $missing ),
+		);
+	}
+
 	private function normalize_boolean_value( $value ) {
 		$value = $this->normalize_text( (string) $value );
 		if ( '' === $value ) {
@@ -1028,6 +1094,9 @@ class Entries_Import_Page {
 		}
 		if ( in_array( $lower, array( 'f', 'female', 'femme', 'feminin' ), true ) ) {
 			return 'F';
+		}
+		if ( '' === trim( $value ) ) {
+			return '';
 		}
 
 		return strtoupper( $value );
