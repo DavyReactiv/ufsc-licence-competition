@@ -7,6 +7,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class EntryDataNormalizer {
+	private static $debug_samples = 0;
+
 	public static function get_text_value( $item, array $keys ): string {
 		foreach ( $keys as $key ) {
 			$value = self::read_item_value( $item, $key );
@@ -82,6 +84,32 @@ class EntryDataNormalizer {
 
 	public static function resolve_license_number( $item ): string {
 		return self::get_text_value( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) );
+	}
+
+	public static function normalize_for_admin( $item ): array {
+		$data = array(
+			'display_name'   => self::resolve_display_name( $item ),
+			'first_name'     => self::resolve_first_name( $item ),
+			'last_name'      => self::resolve_last_name( $item ),
+			'birth_date'     => self::resolve_birth_date( $item ),
+			'birth_year'     => self::resolve_birth_year( $item ),
+			'club_name'      => self::resolve_club_name( $item ),
+			'license_number' => self::resolve_license_number( $item ),
+			'fighter_number' => self::get_text_value( $item, array( 'fighter_number', 'competition_number', 'dossard' ) ),
+			'category'       => self::get_text_value( $item, array( 'category', 'category_name' ) ),
+			'weight'         => self::get_text_value( $item, array( 'weight', 'weight_kg', 'poids' ) ),
+			'weight_class'   => self::get_text_value( $item, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ),
+			'level'          => self::get_text_value( $item, array( 'level', 'class', 'classe', 'niveau' ) ),
+			'participant_type' => self::get_text_value( $item, array( 'participant_type' ) ),
+			'discipline'     => self::get_text_value( $item, array( 'discipline' ) ),
+		);
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && self::$debug_samples < 5 ) {
+			self::$debug_samples++;
+			error_log( 'UFSC EntryDataNormalizer entry_normalizer_output_sample ' . wp_json_encode( $data ) );
+		}
+
+		return $data;
 	}
 
 	private static function split_participant_name( string $participant_name ): array {

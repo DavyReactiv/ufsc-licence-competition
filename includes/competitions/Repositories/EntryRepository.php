@@ -217,8 +217,10 @@ class EntryRepository {
 		}
 
 		$rows = $wpdb->get_results( $sql );
+		$rows = is_array( $rows ) ? $rows : array();
+		$this->debug_repository_select_sample( $rows );
 
-		return is_array( $rows ) ? $rows : array();
+		return $rows;
 	}
 
 	public function count_with_details( array $filters ): int {
@@ -511,6 +513,22 @@ class EntryRepository {
 		$joins = array();
 		$where = array( '1=1' );
 		$entry_search_exprs = array();
+		$entry_columns      = Db::get_table_columns( $table );
+		$entry_birth_date_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'birth_date', 'birthdate', 'date_naissance', 'date_of_birth', 'dob' )
+		);
+		$entry_birth_year_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'birth_year', 'annee_naissance', 'year_of_birth', 'year' )
+		);
+		$entry_club_name_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value' )
+		);
 
 		$view            = $filters['view'] ?? 'all';
 		$include_deleted = ! empty( $filters['include_deleted'] );
@@ -560,7 +578,6 @@ class EntryRepository {
 
 		if ( ! empty( $filters['search'] ) ) {
 			$like           = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$entry_columns  = Db::get_table_columns( $table );
 			$searchable_map = array(
 				'first_name',
 				'prenom',
@@ -621,6 +638,19 @@ class EntryRepository {
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );
 		$license_club_column = false;
 		$club_join_expr = "{$entries_alias}.club_id";
+		$entry_first_name_expr = $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'first_name', 'firstname', 'prenom', 'given_name' ) );
+		$entry_last_name_expr  = $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
+		$entry_fighter_expr    = $this->build_entry_int_expression( $entries_alias . '.', $entry_columns, array( 'fighter_number', 'competition_number', 'dossard' ) );
+		$entry_license_number_expr = $this->build_entry_license_number_expression( $entries_alias . '.', $entry_columns );
+
+		if ( ! $count && ( ! $licences_table || ! $licence_columns ) ) {
+			$select .= ", {$entry_first_name_expr} AS first_name";
+			$select .= ", {$entry_last_name_expr} AS last_name";
+			$select .= ", {$entry_birth_date_expr} AS birth_date";
+			$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), '')) AS birth_year";
+			$select .= ", {$entry_license_number_expr} AS license_number";
+			$select .= ", {$entry_fighter_expr} AS fighter_number";
+		}
 
 		if ( $licences_table && $licence_columns ) {
 			$joins[] = "LEFT JOIN {$licences_table} l ON l.id = {$licensee_expr}";
@@ -639,7 +669,6 @@ class EntryRepository {
 				}
 				$last_name_expr = $this->build_coalesce_expression( 'l.', $last_name_columns, '' );
 				$license_number_expr = $this->build_license_number_expression( $licence_columns );
-				$entry_license_number_expr = $this->build_entry_license_number_expression( $entries_alias . '.', Db::get_table_columns( $table ) );
 				$first_name_select = in_array( 'prenom', $licence_columns, true ) ? 'l.prenom' : "''";
 				$birthdate_select = in_array( 'date_naissance', $licence_columns, true ) ? 'l.date_naissance' : "''";
 				$sex_select = "''";
@@ -654,6 +683,11 @@ class EntryRepository {
 				$select .= ", {$sex_select} AS licensee_sex";
 				$select .= ", COALESCE(NULLIF({$entry_license_number_expr}, ''), {$license_number_expr}) AS license_number";
 				$select .= $license_club_column ? ', l.club_id AS licensee_club_id' : ", NULL AS licensee_club_id";
+				$select .= ", COALESCE(NULLIF({$entry_first_name_expr}, ''), NULLIF({$first_name_select}, '')) AS first_name";
+				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), NULLIF({$last_name_expr}, '')) AS last_name";
+				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), NULLIF({$birthdate_select}, '')) AS birth_date";
+				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
+				$select .= ", {$entry_fighter_expr} AS fighter_number";
 			}
 
 			if ( $count || ! empty( $filters['search'] ) ) {
@@ -702,7 +736,7 @@ class EntryRepository {
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
 			if ( ! $count ) {
-				$select .= ', c.nom AS club_name';
+				$select .= ", COALESCE(NULLIF(c.nom, ''), NULLIF({$entry_club_name_expr}, '')) AS club_name";
 				$club_columns = Db::get_table_columns( $clubs_table );
 				if ( is_array( $club_columns ) ) {
 					if ( in_array( 'ville', $club_columns, true ) ) {
@@ -714,6 +748,8 @@ class EntryRepository {
 					}
 				}
 			}
+		} elseif ( ! $count ) {
+			$select .= ", {$entry_club_name_expr} AS club_name";
 		}
 
 		if ( '' !== $scope_region ) {
@@ -855,6 +891,71 @@ class EntryRepository {
 		$parts[] = "''";
 
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_entry_text_expression( string $prefix, $columns, array $candidates ): string {
+		if ( ! is_array( $columns ) ) {
+			return "''";
+		}
+
+		$available = array();
+		foreach ( $candidates as $column ) {
+			if ( in_array( $column, $columns, true ) ) {
+				$available[] = $column;
+			}
+		}
+		if ( ! $available ) {
+			return "''";
+		}
+
+		$parts = array();
+		foreach ( $available as $column ) {
+			$parts[] = "NULLIF({$prefix}{$column}, '')";
+		}
+		$parts[] = "''";
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_entry_int_expression( string $prefix, $columns, array $candidates ): string {
+		if ( ! is_array( $columns ) ) {
+			return '0';
+		}
+
+		$parts = array();
+		foreach ( $candidates as $column ) {
+			if ( in_array( $column, $columns, true ) ) {
+				$parts[] = "NULLIF({$prefix}{$column}, 0)";
+			}
+		}
+		if ( ! $parts ) {
+			return '0';
+		}
+		$parts[] = '0';
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function debug_repository_select_sample( array $rows ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || empty( $rows ) ) {
+			return;
+		}
+
+		$first = $rows[0];
+		if ( ! is_object( $first ) ) {
+			return;
+		}
+
+		$keys = array_keys( get_object_vars( $first ) );
+		error_log(
+			'UFSC EntryRepository repository_select_sample_keys ' .
+			wp_json_encode(
+				array(
+					'count' => count( $rows ),
+					'keys'  => $keys,
+				)
+			)
+		);
 	}
 
 	private function get_licences_table(): string {

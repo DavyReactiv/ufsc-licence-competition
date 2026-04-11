@@ -236,9 +236,10 @@ class WeighIns_Page {
 		}
 		$reclass_category_id = isset( $meta['reclass_category_id'] ) ? (int) $meta['reclass_category_id'] : 0;
 		$suggested = $this->suggest_reclassification_categories( $entry, $categories, $current_weight );
-		$last_name = $this->resolve_entry_last_name( $entry );
-		$first_name = $this->resolve_entry_first_name( $entry );
-		$club_name = $this->resolve_entry_club( $entry );
+		$normalized_entry = EntryDataNormalizer::normalize_for_admin( $entry );
+		$last_name = (string) ( $normalized_entry['last_name'] ?? '' );
+		$first_name = (string) ( $normalized_entry['first_name'] ?? '' );
+		$club_name = (string) ( $normalized_entry['club_name'] ?? '' );
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'

@@ -500,6 +500,20 @@ class Entries_Import_Page {
 			$data = is_array( $row['data'] ?? null ) ? $row['data'] : array();
 
 			$normalized       = $this->normalize_import_data( $data, $competition_discipline );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC entries CSV import csv_normalized_row ' . wp_json_encode(
+						array(
+							'line'           => $line,
+							'nom'            => (string) ( $normalized['nom'] ?? '' ),
+							'prenom'         => (string) ( $normalized['prenom'] ?? '' ),
+							'date_naissance' => (string) ( $normalized['date_naissance'] ?? '' ),
+							'numero_licence' => (string) ( $normalized['numero_licence'] ?? '' ),
+							'club_nom'       => (string) ( $normalized['club_nom'] ?? '' ),
+						)
+					)
+				);
+			}
 			$validation_error = $this->validate_minimal_row( $normalized );
 			if ( '' !== $validation_error ) {
 				$report['skipped']++;

@@ -259,12 +259,24 @@ class EntryFrontRepository {
 	public function insert( array $payload ): int {
 		global $wpdb;
 
+		$this->debug_payload_log(
+			'insert_prepared_payload_before_mapping',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'first_name'   => (string) ( $payload['first_name'] ?? $payload['prenom'] ?? '' ),
+				'last_name'    => (string) ( $payload['last_name'] ?? $payload['nom'] ?? '' ),
+				'birth_date'   => (string) ( $payload['birth_date'] ?? $payload['date_naissance'] ?? '' ),
+				'license_number' => (string) ( $payload['license_number'] ?? $payload['numero_licence'] ?? '' ),
+				'fighter_number' => (string) ( $payload['fighter_number'] ?? $payload['competition_number'] ?? $payload['dossard'] ?? '' ),
+			)
+		);
+
 		$data = $this->prepare_payload( $payload, true );
 		if ( empty( $data ) ) {
 			return 0;
 		}
 		$this->debug_payload_log(
-			'insert_prepared_payload',
+			'insert_prepared_payload_after_mapping',
 			array(
 				'payload_keys' => array_keys( $payload ),
 				'prepared_keys' => array_keys( $data ),
@@ -277,6 +289,13 @@ class EntryFrontRepository {
 				'category' => (string) ( $data['category'] ?? $data['category_name'] ?? '' ),
 				'weight' => (string) ( $data['weight'] ?? $data['weight_kg'] ?? '' ),
 				'weight_class' => (string) ( $data['weight_class'] ?? $data['weight_cat'] ?? '' ),
+			)
+		);
+		$this->debug_payload_log(
+			'insert_prepared_payload',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'prepared_keys' => array_keys( $data ),
 			)
 		);
 
