@@ -43,17 +43,14 @@ class Categories_Table extends \WP_List_Table {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_categories_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
 
+		$competition_context = $this->resolve_competition_context();
 		$filters = array(
 			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
-			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			'competition_id' => (int) $competition_context['competition_id'],
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
-		$competition_source = 'ufsc_competition_id';
-		if ( 0 === $filters['competition_id'] && isset( $_REQUEST['competition_id'] ) ) {
-			$filters['competition_id'] = absint( $_REQUEST['competition_id'] );
-			$competition_source = 'competition_id';
-		}
+		$competition_source = (string) $competition_context['source'];
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
@@ -117,6 +114,22 @@ class Categories_Table extends \WP_List_Table {
 			'format'      => __( 'Format', 'ufsc-licence-competition' ),
 			'updated'     => __( 'Mise à jour', 'ufsc-licence-competition' ),
 		);
+	}
+
+	private function resolve_competition_context(): array {
+		$sources = array(
+			'competition_id_request' => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+			'competition_id_get'     => isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0,
+			'competition_id_post'    => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'ufsc_competition_id'    => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $value ) {
+			if ( $value > 0 ) {
+				return array( 'competition_id' => $value, 'source' => $source );
+			}
+		}
+
+		return array( 'competition_id' => 0, 'source' => 'none' );
 	}
 
 	public function get_views() {

@@ -33,7 +33,18 @@ class WeighIns_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$competition_context = $this->resolve_competition_context();
+		$competition_id = (int) $competition_context['competition_id'];
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC WeighIns_Page competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => $competition_id,
+						'source'         => (string) $competition_context['source'],
+					)
+				)
+			);
+		}
 		if ( $competition_id && method_exists( $this->competitions, 'assert_competition_in_scope' ) ) {
 			$this->competitions->assert_competition_in_scope( $competition_id );
 		}
@@ -535,5 +546,21 @@ class WeighIns_Page {
 
 	private function resolve_entry_club( $entry ): string {
 		return EntryDataNormalizer::resolve_club_name( $entry );
+	}
+
+	private function resolve_competition_context(): array {
+		$sources = array(
+			'competition_id_request' => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+			'competition_id_get'     => isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0,
+			'competition_id_post'    => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'ufsc_competition_id'    => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $value ) {
+			if ( $value > 0 ) {
+				return array( 'competition_id' => $value, 'source' => $source );
+			}
+		}
+
+		return array( 'competition_id' => 0, 'source' => 'none' );
 	}
 }

@@ -45,12 +45,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function prepare_items() {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_entries_validation_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
-		$competition_id = isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0;
-		$competition_source = 'ufsc_competition_id';
-		if ( ! $competition_id && isset( $_REQUEST['competition_id'] ) ) {
-			$competition_id = absint( $_REQUEST['competition_id'] );
-			$competition_source = 'competition_id';
-		}
+		$competition_context = $this->resolve_competition_context();
+		$competition_id = (int) $competition_context['competition_id'];
+		$competition_source = (string) $competition_context['source'];
 		$status = isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '';
 		if ( '' === $status && isset( $_REQUEST['status'] ) ) {
 			$status = sanitize_key( wp_unslash( $_REQUEST['status'] ) );
@@ -605,6 +602,22 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		error_log( 'UFSC Entries_Validation_Table ' . implode( ' ', $log_parts ) );
 		$this->has_logged_state = true;
+	}
+
+	private function resolve_competition_context(): array {
+		$sources = array(
+			'competition_id_request' => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+			'competition_id_get'     => isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0,
+			'competition_id_post'    => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'ufsc_competition_id'    => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $value ) {
+			if ( $value > 0 ) {
+				return array( 'competition_id' => $value, 'source' => $source );
+			}
+		}
+
+		return array( 'competition_id' => 0, 'source' => 'none' );
 	}
 
 	private function get_item_keys( $item ): array {

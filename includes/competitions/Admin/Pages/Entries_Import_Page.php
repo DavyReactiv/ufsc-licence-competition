@@ -443,9 +443,33 @@ class Entries_Import_Page {
 		}
 
 		$raw_headers = $headers;
+		$headers = array_map(
+			function( $header ) {
+				$header = is_scalar( $header ) ? (string) $header : '';
+				return preg_replace( '/^\xEF\xBB\xBF/u', '', $header );
+			},
+			$headers
+		);
 		$headers = array_map( array( $this, 'normalize_header' ), $headers );
-		if ( isset( $headers[0] ) ) {
-			$headers[0] = preg_replace( '/^\xEF\xBB\xBF/u', '', (string) $headers[0] );
+		$headers = array_map( array( $this, 'sanitize_critical_header_key' ), $headers );
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC entries CSV import csv_headers_detected ' . wp_json_encode(
+					array(
+						'raw_headers'        => array_map( 'strval', $raw_headers ),
+						'normalized_headers' => array_map( 'strval', $headers ),
+					)
+				)
+			);
+			error_log(
+				'UFSC entries CSV import csv_headers_canonical_check ' . wp_json_encode(
+					array(
+						'has_nom'            => in_array( 'nom', $headers, true ),
+						'has_prenom'         => in_array( 'prenom', $headers, true ),
+						'has_date_naissance' => in_array( 'date_naissance', $headers, true ),
+					)
+				)
+			);
 		}
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			error_log(
@@ -1199,6 +1223,7 @@ class Entries_Import_Page {
 
 	private function normalize_header( $header ): string {
 		$header = is_scalar( $header ) ? (string) $header : '';
+		$header = preg_replace( '/^\xEF\xBB\xBF/u', '', $header );
 		$header = wp_check_invalid_utf8( $header );
 		$header = trim( $header );
 		if ( function_exists( 'remove_accents' ) ) {
@@ -1209,6 +1234,24 @@ class Entries_Import_Page {
 		$header = preg_replace( '/_+/', '_', (string) $header );
 
 		return sanitize_key( $header );
+	}
+
+	private function sanitize_critical_header_key( string $header ): string {
+		$header = trim( $header );
+		$critical = array(
+			'_nom'            => 'nom',
+			'_prenom'         => 'prenom',
+			'_date_naissance' => 'date_naissance',
+			'_sexe'           => 'sexe',
+			'_club_nom'       => 'club_nom',
+			'_club_id'        => 'club_id',
+			'_numero_licence' => 'numero_licence',
+		);
+		if ( isset( $critical[ $header ] ) ) {
+			return $critical[ $header ];
+		}
+
+		return ltrim( $header, '_' );
 	}
 
 	private function is_empty_csv_row( array $row ): bool {
