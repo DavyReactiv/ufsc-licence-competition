@@ -63,9 +63,24 @@ class Entries_Table extends \WP_List_Table {
 			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
+		$competition_source = 'ufsc_competition_id';
+		if ( 0 === $filters['competition_id'] && isset( $_REQUEST['competition_id'] ) ) {
+			$filters['competition_id'] = absint( $_REQUEST['competition_id'] );
+			$competition_source = 'competition_id';
+		}
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() ) {
+			error_log(
+				'UFSC Entries_Table competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => (int) ( $filters['competition_id'] ?? 0 ),
+						'source'         => $competition_source,
+					)
+				)
+			);
 		}
 
 		$this->filters = $filters;

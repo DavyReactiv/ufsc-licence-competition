@@ -442,9 +442,20 @@ class Entries_Import_Page {
 			return new \WP_Error( 'csv_headers_missing', __( 'En-tête CSV invalide ou manquant.', 'ufsc-licence-competition' ) );
 		}
 
+		$raw_headers = $headers;
 		$headers = array_map( array( $this, 'normalize_header' ), $headers );
 		if ( isset( $headers[0] ) ) {
 			$headers[0] = preg_replace( '/^\xEF\xBB\xBF/u', '', (string) $headers[0] );
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC entries CSV import csv_headers_detected ' . wp_json_encode(
+					array(
+						'raw_headers'        => array_map( 'strval', $raw_headers ),
+						'normalized_headers' => array_map( 'strval', $headers ),
+					)
+				)
+			);
 		}
 
 		$rows        = array();
@@ -1013,6 +1024,18 @@ class Entries_Import_Page {
 				}
 			}
 		}
+		if ( '' === $normalized['nom'] ) {
+			$full_name = $this->resolve_full_name_from_data( $data );
+			if ( '' !== $full_name ) {
+				$derived = $this->derive_names_from_full_name( $full_name, $normalized['prenom'] );
+				if ( '' === $normalized['prenom'] && '' !== $derived['prenom'] ) {
+					$normalized['prenom'] = $derived['prenom'];
+				}
+				if ( '' === $normalized['nom'] && '' !== $derived['nom'] ) {
+					$normalized['nom'] = $derived['nom'];
+				}
+			}
+		}
 
 		$normalized['discipline'] = $this->normalize_discipline( $normalized['discipline'], $competition_discipline );
 		$normalized['sexe']       = $this->normalize_sex( $normalized['sexe'] );
@@ -1239,7 +1262,7 @@ class Entries_Import_Page {
 
 	private function get_header_aliases(): array {
 		return array(
-			'nom'                  => array( 'last_name', 'lastname', 'family_name', 'name', 'nom_de_famille' ),
+			'nom'                  => array( 'last_name', 'lastname', 'family_name', 'surname', 'patronyme', 'nom_de_famille', 'nom_famille', 'nom_parent', 'nom_du_participant' ),
 			'prenom'               => array( 'first_name', 'firstname', 'given_name', 'prenom_nom', 'prnom' ),
 			'sexe'                 => array( 'sex', 'gender' ),
 			'date_naissance'       => array( 'birth_date', 'birthdate', 'dob', 'date_of_birth', 'date_de_naissance' ),
@@ -1256,6 +1279,58 @@ class Entries_Import_Page {
 			'statut_dossier'       => array( 'status', 'entry_status' ),
 			'commentaire'          => array( 'comment', 'notes', 'note' ),
 		);
+	}
+
+	private function resolve_full_name_from_data( array $data ): string {
+		$candidates = array( 'participant_name', 'full_name', 'athlete_name', 'nom_prenom', 'nom_complet', 'name', 'participant' );
+		foreach ( $candidates as $key ) {
+			$value = $this->normalize_text( $data[ $key ] ?? '' );
+			if ( '' !== $value ) {
+				return $value;
+			}
+		}
+
+		return '';
+	}
+
+	private function derive_names_from_full_name( string $full_name, string $known_first_name ): array {
+		$full_name = $this->normalize_text( $full_name );
+		$known_first_name = $this->normalize_text( $known_first_name );
+		if ( '' === $full_name ) {
+			return array( 'nom' => '', 'prenom' => '' );
+		}
+
+		$parts = preg_split( '/\s+/', $full_name );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return array( 'nom' => '', 'prenom' => '' );
+		}
+
+		if ( '' !== $known_first_name ) {
+			$normalized_known = function_exists( 'remove_accents' ) ? remove_accents( $known_first_name ) : $known_first_name;
+			$normalized_known = function_exists( 'mb_strtolower' ) ? mb_strtolower( $normalized_known ) : strtolower( $normalized_known );
+			$remaining = array();
+			foreach ( $parts as $part ) {
+				$normalized_part = function_exists( 'remove_accents' ) ? remove_accents( (string) $part ) : (string) $part;
+				$normalized_part = function_exists( 'mb_strtolower' ) ? mb_strtolower( $normalized_part ) : strtolower( $normalized_part );
+				if ( $normalized_part === $normalized_known ) {
+					continue;
+				}
+				$remaining[] = (string) $part;
+			}
+			$nom = trim( implode( ' ', $remaining ) );
+			if ( '' !== $nom ) {
+				return array( 'nom' => $nom, 'prenom' => $known_first_name );
+			}
+		}
+
+		if ( 1 === count( $parts ) ) {
+			return array( 'nom' => sanitize_text_field( (string) $parts[0] ), 'prenom' => $known_first_name );
+		}
+
+		$prenom = '' !== $known_first_name ? $known_first_name : sanitize_text_field( (string) array_pop( $parts ) );
+		$nom = sanitize_text_field( trim( implode( ' ', $parts ) ) );
+
+		return array( 'nom' => $nom, 'prenom' => $prenom );
 	}
 
 	private function redirect_with_report( array $report, int $competition_id ): void {

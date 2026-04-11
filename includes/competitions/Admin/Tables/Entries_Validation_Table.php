@@ -46,8 +46,10 @@ class Entries_Validation_Table extends \WP_List_Table {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_entries_validation_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
 		$competition_id = isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0;
+		$competition_source = 'ufsc_competition_id';
 		if ( ! $competition_id && isset( $_REQUEST['competition_id'] ) ) {
 			$competition_id = absint( $_REQUEST['competition_id'] );
+			$competition_source = 'competition_id';
 		}
 		$status = isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '';
 		if ( '' === $status && isset( $_REQUEST['status'] ) ) {
@@ -68,6 +70,16 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() ) {
+			error_log(
+				'UFSC Entries_Validation_Table competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => (int) ( $filters['competition_id'] ?? 0 ),
+						'source'         => $competition_source,
+					)
+				)
+			);
 		}
 
 		if ( '' === $filters['status'] ) {
