@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Db;
+use UFSC\Competitions\Entries\EntryDataNormalizer;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -32,7 +33,18 @@ class WeighIns_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$competition_context = $this->resolve_competition_context();
+		$competition_id = (int) $competition_context['competition_id'];
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC WeighIns_Page competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => $competition_id,
+						'source'         => (string) $competition_context['source'],
+					)
+				)
+			);
+		}
 		if ( $competition_id && method_exists( $this->competitions, 'assert_competition_in_scope' ) ) {
 			$this->competitions->assert_competition_in_scope( $competition_id );
 		}
@@ -235,9 +247,10 @@ class WeighIns_Page {
 		}
 		$reclass_category_id = isset( $meta['reclass_category_id'] ) ? (int) $meta['reclass_category_id'] : 0;
 		$suggested = $this->suggest_reclassification_categories( $entry, $categories, $current_weight );
-		$last_name = $this->resolve_entry_last_name( $entry );
-		$first_name = $this->resolve_entry_first_name( $entry );
-		$club_name = $this->resolve_entry_club( $entry );
+		$normalized_entry = EntryDataNormalizer::normalize_for_admin( $entry );
+		$last_name = (string) ( $normalized_entry['last_name'] ?? '' );
+		$first_name = (string) ( $normalized_entry['first_name'] ?? '' );
+		$club_name = (string) ( $normalized_entry['club_name'] ?? '' );
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'
@@ -524,30 +537,30 @@ class WeighIns_Page {
 	}
 
 	private function resolve_entry_last_name( $entry ): string {
-		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
-		if ( '' !== $last ) {
-			return $last;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$split = $this->split_participant_name( $participant_name );
-
-		return $split['last'];
+		return EntryDataNormalizer::resolve_last_name( $entry );
 	}
 
 	private function resolve_entry_first_name( $entry ): string {
-		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
-		if ( '' !== $first ) {
-			return $first;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$split = $this->split_participant_name( $participant_name );
-
-		return $split['first'];
+		return EntryDataNormalizer::resolve_first_name( $entry );
 	}
 
 	private function resolve_entry_club( $entry ): string {
-		return $this->get_item_value_from_keys( $entry, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value' ) );
+		return EntryDataNormalizer::resolve_club_name( $entry );
+	}
+
+	private function resolve_competition_context(): array {
+		$sources = array(
+			'competition_id_request' => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+			'competition_id_get'     => isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0,
+			'competition_id_post'    => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'ufsc_competition_id'    => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $value ) {
+			if ( $value > 0 ) {
+				return array( 'competition_id' => $value, 'source' => $source );
+			}
+		}
+
+		return array( 'competition_id' => 0, 'source' => 'none' );
 	}
 }

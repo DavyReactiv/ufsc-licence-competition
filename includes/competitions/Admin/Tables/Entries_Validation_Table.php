@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Admin\Entries_Validation_Menu;
+use UFSC\Competitions\Entries\EntryDataNormalizer;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
@@ -44,10 +45,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function prepare_items() {
 		$per_page = $this->get_items_per_page( 'ufsc_competition_entries_validation_per_page', 20 );
 		$current_page = max( 1, (int) $this->get_pagenum() );
-		$competition_id = isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0;
-		if ( ! $competition_id && isset( $_REQUEST['competition_id'] ) ) {
-			$competition_id = absint( $_REQUEST['competition_id'] );
-		}
+		$competition_context = $this->resolve_competition_context();
+		$competition_id = (int) $competition_context['competition_id'];
+		$competition_source = (string) $competition_context['source'];
 		$status = isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '';
 		if ( '' === $status && isset( $_REQUEST['status'] ) ) {
 			$status = sanitize_key( wp_unslash( $_REQUEST['status'] ) );
@@ -67,6 +67,16 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() ) {
+			error_log(
+				'UFSC Entries_Validation_Table competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => (int) ( $filters['competition_id'] ?? 0 ),
+						'source'         => $competition_source,
+					)
+				)
+			);
 		}
 
 		if ( '' === $filters['status'] ) {
@@ -219,17 +229,17 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_license_number( $item ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_birth_date( $item ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'annee_naissance', 'birth_year' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( EntryDataNormalizer::resolve_birth_year( $item ) ) ) );
 			case 'category':
 				return $this->format_with_empty_badge( $this->resolve_category_label( $item ), __( 'Non renseignée', 'ufsc-licence-competition' ) );
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value', 'club_id' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_club_name( $item ) ) );
 			case 'weight':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
@@ -295,21 +305,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $entry ): string {
-		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
-		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
-		if ( '' === $last || '' === $first ) {
-			$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-			if ( '' !== $participant_name ) {
-				$parts = $this->split_participant_name( $participant_name );
-				if ( '' === $last ) {
-					$last = $parts['last'];
-				}
-				if ( '' === $first ) {
-					$first = $parts['first'];
-				}
-			}
-		}
-		$name = trim( $last . ' ' . $first );
+		$name = EntryDataNormalizer::resolve_display_name( $entry );
 
 		if ( '' !== $name ) {
 			return $name;
@@ -373,6 +369,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	private function format_birth_year( $birthdate ): string {
 		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
 		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $birthdate ) ) {
 			return substr( $birthdate, 0, 4 );
 		}
@@ -603,6 +602,22 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		error_log( 'UFSC Entries_Validation_Table ' . implode( ' ', $log_parts ) );
 		$this->has_logged_state = true;
+	}
+
+	private function resolve_competition_context(): array {
+		$sources = array(
+			'competition_id_request' => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+			'competition_id_get'     => isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0,
+			'competition_id_post'    => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
+			'ufsc_competition_id'    => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $value ) {
+			if ( $value > 0 ) {
+				return array( 'competition_id' => $value, 'source' => $source );
+			}
+		}
+
+		return array( 'competition_id' => 0, 'source' => 'none' );
 	}
 
 	private function get_item_keys( $item ): array {
