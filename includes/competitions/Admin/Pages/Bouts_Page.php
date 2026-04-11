@@ -424,6 +424,7 @@ class Bouts_Page {
 				'scheduled_at'    => (string) ( $fight->scheduled_at ?? '' ),
 			)
 		);
+		$propagation = $this->propagate_winner_to_next_round( $fight, $old_winner, $winner_entry_id );
 
 		$this->logger->log(
 			'result_correction',
@@ -436,6 +437,7 @@ class Bouts_Page {
 				'new_winner_entry_id' => $winner_entry_id,
 				'impacted_played_fights' => wp_list_pluck( $impacts['played'], 'id' ),
 				'impacted_pending_fights' => wp_list_pluck( $impacts['pending'], 'id' ),
+				'next_round_propagation' => $propagation,
 				'supervised' => $supervised ? 1 : 0,
 			)
 		);
@@ -471,6 +473,133 @@ class Bouts_Page {
 			'pending' => $pending,
 			'played' => $played,
 		);
+	}
+
+	private function propagate_winner_to_next_round( $fight, int $old_winner_entry_id, int $new_winner_entry_id ): array {
+		$result = array(
+			'updated' => false,
+			'next_fight_id' => 0,
+			'slot' => '',
+			'reason' => 'no_next_fight',
+		);
+		if ( $new_winner_entry_id <= 0 ) {
+			$result['reason'] = 'invalid_new_winner';
+			return $result;
+		}
+
+		$category_fights = $this->repository->list(
+			array(
+				'view' => 'all',
+				'competition_id' => (int) ( $fight->competition_id ?? 0 ),
+				'category_id' => (int) ( $fight->category_id ?? 0 ),
+			),
+			500,
+			0
+		);
+		if ( ! is_array( $category_fights ) || empty( $category_fights ) ) {
+			$result['reason'] = 'empty_category';
+			return $result;
+		}
+
+		$current_round = max( 1, (int) ( $fight->round_no ?? 1 ) );
+		$current_round_fights = array_values(
+			array_filter(
+				$category_fights,
+				static function ( $candidate ) use ( $current_round ) {
+					return (int) ( $candidate->round_no ?? 1 ) === $current_round;
+				}
+			)
+		);
+		$next_round_fights = array_values(
+			array_filter(
+				$category_fights,
+				static function ( $candidate ) use ( $current_round ) {
+					return (int) ( $candidate->round_no ?? 1 ) === ( $current_round + 1 );
+				}
+			)
+		);
+
+		if ( empty( $current_round_fights ) || empty( $next_round_fights ) ) {
+			return $result;
+		}
+
+		usort(
+			$current_round_fights,
+			static function ( $a, $b ) {
+				return (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+			}
+		);
+		usort(
+			$next_round_fights,
+			static function ( $a, $b ) {
+				return (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+			}
+		);
+
+		$current_index = null;
+		foreach ( $current_round_fights as $index => $current_fight ) {
+			if ( (int) ( $current_fight->id ?? 0 ) === (int) ( $fight->id ?? 0 ) ) {
+				$current_index = $index;
+				break;
+			}
+		}
+		if ( null === $current_index ) {
+			$result['reason'] = 'current_index_not_found';
+			return $result;
+		}
+
+		$next_index = (int) floor( $current_index / 2 );
+		$next_fight = $next_round_fights[ $next_index ] ?? null;
+		if ( ! $next_fight ) {
+			return $result;
+		}
+
+		$slot = 0 === ( $current_index % 2 ) ? 'red_entry_id' : 'blue_entry_id';
+		$existing_slot_value = (int) ( $next_fight->{$slot} ?? 0 );
+		$next_status = (string) ( $next_fight->status ?? '' );
+		$result['next_fight_id'] = (int) ( $next_fight->id ?? 0 );
+		$result['slot'] = $slot;
+
+		if ( in_array( $next_status, array( 'running', 'completed' ), true ) ) {
+			$result['reason'] = 'next_fight_already_played';
+			return $result;
+		}
+
+		if ( $existing_slot_value > 0 && $existing_slot_value !== $old_winner_entry_id && $existing_slot_value !== $new_winner_entry_id ) {
+			$result['reason'] = 'slot_locked_with_other_entry';
+			return $result;
+		}
+
+		$payload = array(
+			'competition_id' => (int) ( $next_fight->competition_id ?? 0 ),
+			'category_id' => (int) ( $next_fight->category_id ?? 0 ),
+			'fight_no' => (int) ( $next_fight->fight_no ?? 0 ),
+			'ring' => (string) ( $next_fight->ring ?? '' ),
+			'round_no' => (int) ( $next_fight->round_no ?? 0 ),
+			'red_entry_id' => (int) ( $next_fight->red_entry_id ?? 0 ),
+			'blue_entry_id' => (int) ( $next_fight->blue_entry_id ?? 0 ),
+			'winner_entry_id' => (int) ( $next_fight->winner_entry_id ?? 0 ),
+			'status' => (string) ( $next_fight->status ?? 'scheduled' ),
+			'result_method' => (string) ( $next_fight->result_method ?? '' ),
+			'score_red' => (string) ( $next_fight->score_red ?? '' ),
+			'score_blue' => (string) ( $next_fight->score_blue ?? '' ),
+			'scheduled_at' => (string) ( $next_fight->scheduled_at ?? '' ),
+		);
+		$payload[ $slot ] = $new_winner_entry_id;
+
+		if ( (int) $payload['winner_entry_id'] === $old_winner_entry_id && $old_winner_entry_id !== $new_winner_entry_id ) {
+			$payload['winner_entry_id'] = 0;
+			$payload['status'] = 'scheduled';
+			$payload['result_method'] = '';
+			$payload['score_red'] = '';
+			$payload['score_blue'] = '';
+		}
+
+		$this->repository->update( (int) $next_fight->id, $payload );
+
+		$result['updated'] = true;
+		$result['reason'] = 'propagated';
+		return $result;
 	}
 
 	private function format_datetime_local( $value ) {

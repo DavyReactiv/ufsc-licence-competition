@@ -9,6 +9,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\FighterNumberService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -27,6 +28,7 @@ class Entries_Table extends \WP_List_Table {
 	private $categories = array();
 	private $columns_state = array();
 	private $has_logged_state = false;
+	private $fighter_numbers_by_entry = array();
 
 	public function __construct() {
 		parent::__construct(
@@ -79,6 +81,7 @@ class Entries_Table extends \WP_List_Table {
 
 		$total_items = $this->repository->count_with_details( $filters );
 		$this->items = $this->repository->list_with_details( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$this->fighter_numbers_by_entry = $this->build_fighter_number_map_for_items( $this->items );
 
 		$this->set_pagination_args(
 			array(
@@ -113,6 +116,7 @@ class Entries_Table extends \WP_List_Table {
 			'last_name'  => __( 'Nom', 'ufsc-licence-competition' ),
 			'first_name' => __( 'Prénom', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
+			'fighter_number' => __( 'N° combattant', 'ufsc-licence-competition' ),
 			'birthdate'  => __( 'Date de naissance', 'ufsc-licence-competition' ),
 			'birth_year' => __( 'Année de naissance', 'ufsc-licence-competition' ),
 			'club'       => __( 'Club', 'ufsc-licence-competition' ),
@@ -246,6 +250,13 @@ class Entries_Table extends \WP_List_Table {
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) ) ) );
+			case 'fighter_number':
+				$entry_id = (int) $this->get_item_value( $item, 'id' );
+				$fighter_number = (int) $this->get_item_value_from_keys( $item, array( 'fighter_number', 'competition_number' ) );
+				if ( $fighter_number <= 0 && $entry_id > 0 ) {
+					$fighter_number = (int) ( $this->fighter_numbers_by_entry[ $entry_id ] ?? 0 );
+				}
+				return $fighter_number > 0 ? '#' . esc_html( (string) $fighter_number ) : '—';
 			case 'last_name':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) ) ) );
 			case 'first_name':
@@ -371,6 +382,24 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		return $page;
+	}
+
+	private function build_fighter_number_map_for_items( array $items ): array {
+		$entry_ids_by_competition = array();
+		foreach ( $items as $item ) {
+			$entry_id = (int) ( $item->id ?? 0 );
+			$competition_id = (int) ( $item->competition_id ?? 0 );
+			if ( $entry_id > 0 && $competition_id > 0 ) {
+				$entry_ids_by_competition[ $competition_id ][ $entry_id ] = $entry_id;
+			}
+		}
+
+		$map = array();
+		foreach ( $entry_ids_by_competition as $competition_id => $entry_ids ) {
+			$map += FighterNumberService::build_map( (int) $competition_id, array_values( $entry_ids ) );
+		}
+
+		return $map;
 	}
 
 	private function get_competition_name( $competition_id ) {

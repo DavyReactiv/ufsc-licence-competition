@@ -1,285 +1,139 @@
-# UFSC – Licences, ASPTT, Documents, Compétitions & Inscriptions
+# UFSC Licence Competition
 
-Add‑on WordPress institutionnel pour l’UFSC : centralisation des **licences**, import **ASPTT**, gestion des **documents PDF**, **espace clubs**, et module **Compétitions** (admin + front).
+Plugin WordPress métier pour la gestion opérationnelle des compétitions UFSC (inscriptions, pesées, génération de combats, résultats, impressions, supervision admin).
 
----
+## 1) Présentation
 
-## 1) Titre + pitch
+Le plugin couvre le cycle admin de production d’une compétition :
+- préparation et configuration de la compétition,
+- gestion des inscriptions (front/admin),
+- contrôle terrain (pesées + numéro combattant),
+- génération et pilotage des combats,
+- saisie / correction supervisée des résultats,
+- sorties imprimables (inscrits, catégories, combats par surface),
+- journalisation des actions sensibles.
 
-Le plugin **UFSC Licence Competition** fournit un socle fiable pour :
-- la **gestion des licences UFSC** côté admin,
-- la **synchronisation ASPTT** (prévisualisation, import incrémental, rollback),
-- l’**association sécurisée des PDF nominatives**,
-- un **espace clubs** (consultation licences + PDF),
-- un **module Compétitions** complet (back‑office + front + exports).
+Le module est conçu pour rester compatible avec des schémas UFSC historiques (fallbacks colonnes/labels) et limiter les ruptures en production.
 
----
-
-## 2) Prérequis
-
-- **WordPress** ≥ 6.0.
-- **PHP** ≥ 7.4 (PHP 8.0+ recommandé).
-- **Tables UFSC existantes** : `wp_ufsc_licences`, `wp_ufsc_clubs` (dépendances indispensables).
-- **Optionnel** (exports PDF Compétitions) : **Dompdf** côté serveur.
-
-> Aucune dépendance WooCommerce / Elementor n’est requise. Les shortcodes peuvent simplement être placés dans une page WordPress.
-
----
-
-## 3) Installation
-
-1. Téléverser le plugin dans `wp-content/plugins/ufsc-licence-competition/`.
-2. Activer le plugin.
-3. À l’activation, le plugin :
-   - crée ses tables (documents, import, compétitions),
-   - ajoute les colonnes manquantes sur `ufsc_licences`,
-   - reconstruit les index nécessaires.
-4. Vérifier l’état via **UFSC LC — Status** (menu admin) : tables, compteurs, dernier import.
-
----
-
-## 4) Fonctionnalités principales (exhaustif)
-
-### A) Gestion licences (admin)
-
-**Menu :** **UFSC Licences → Licences**
-
-- **Liste** avec filtres : club, statut, catégorie, saison, compétition, PDF.
-- **Tri** (N° licence, Nom, Date de naissance) + **pagination** (25/50/100).
-- **Export CSV** des licences (filtres actifs).
-- **Colonnes affichées** (adaptées aux schémas historiques) :
-  - N° licence, N° ASPTT, Nom (nom_affiche), Prénom, Club, Statut,
-  - Saison (année de fin), Catégorie, Date de naissance.
-- **Normalisation nom / nom_licence** → `nom_affiche` (COALESCE + compat legacy).
-- **Catégorie** : `categorie_affiche` (COALESCE `categorie` / `category` / `legacy_category`) + **fallback** calculé depuis la date de naissance + saison.
-- **Actions massives** :
-  - marquer “À vérifier”,
-  - supprimer association PDF,
-  - recalculer catégories,
-  - changer saison (si colonne saison disponible).
-- **Gestion manuelle N° ASPTT** : écran dédié + action rapide “Modifier N° ASPTT”.
-
-**Paramètres & maintenance (admin)**
-
-**Menus :**
-- **UFSC Licences → Paramètres** :
-  - onglets Général, Saisons & Catégories, Import ASPTT, Licences, Clubs, Sécurité & droits, PDF & documents, Journal & maintenance.
-- **UFSC LC — Status** : état des tables, compteurs, dernier import + actions “Rebuild indexes” / “Recreate tables”.
-
-### B) Import ASPTT (admin)
-
-**Menu :** **UFSC Licences → Import ASPTT**
-
-- Téléversement CSV avec contrôle taille/type.
-- **Prévisualisation** + mapping des colonnes (limite configurable).
-- **Simulation (dry‑run)** avec rapport d’erreurs.
-- **Import réel** avec options :
-  - **incrémental** (hash des lignes, anti‑double import),
-  - **auto‑validation** selon seuil configuré,
-  - **forçage club** + **alias automatique** depuis la colonne NOTE,
-  - **override saison**.
-- **Rollback** du dernier import (option activable).
-- **Exports** : CSV d’erreurs + CSV “delta”.
-- **Matching strict** : association par numéro de licence / club, sinon statut “needs_review” ou rejet.
-- **Règles de non‑écrasement** : N° ASPTT existant préservé si colonne dédiée déjà renseignée.
-
-**Onglet Review** :
-- Validation/rejet des associations,
-- Corbeille/restauration,
-- Assignation manuelle d’un club,
-- Enregistrement d’alias depuis NOTE.
-
-### C) Documents licences (PDF)
-
-**Menu :** **UFSC Licences → UFSC Licences**
-
-- Écran **“Associer un PDF de licence”**.
-- Recherche **simple** (texte libre) + **mode avancé** (nom/prénom/date).
-- **Autocomplete clubs** via AJAX.
-- Association PDF nominatif à la bonne licence.
-- Statut PDF : **Associé / Manquant**.
-
-### D) Front – espace clubs (licences)
-
-**Shortcodes licences**
-- `[ufsc_lc_licences]` (recommandé)
-- `[ufsc_lc_club_licences_asptt]`
-- Legacy : `[ufsc_licences]`, `[ufsc_club_licences_asptt]`
-
-**Paramètres (query string)**
-- `q`, `statut`, `categorie`, `competition`, `pdf`,
-- `orderby` (`nom_licence`, `date_naissance`, `date_asptt`),
-- `order` (`asc`/`desc`), `per_page` (10/25/50/100).
-
-**Fonctionnalités**
-- Liste licences du club avec filtres + pagination.
-- Statistiques : total, avec/sans PDF, avec/sans N° ASPTT.
-- PDF : **voir / télécharger** (si autorisé) avec endpoint sécurisé.
-
-**Accès club**
-- Utilisateur connecté obligatoire.
-- Capability optionnelle (Paramètres → Accès clubs).
-- Résolution club :
-  - `ufsc_clubs.responsable_id` ou `user_meta` `club_id` (module Licences),
-  - `user_meta` `ufsc_club_id` ou filtre `ufsc_competitions_get_club_id_for_user` (module Compétitions).
-
-### E) Module Compétitions (admin)
-
-**Menu principal :** **Compétitions** (`ufsc-competitions`)
-
-Sous‑menus : Compétitions, Catégories, Inscriptions, Combats, Timing Profiles, Qualité, Impression, Paramètres, Logs, Guide.
-
-**Compétitions (CRUD)**
-- Champs : nom, discipline, type, saison, statut, dates, contact, lieu.
-- Statuts : `open`, `draft`, `closed`, `archived`.
-- Forclusion : `registration_deadline`.
-- Paramètres d’évènement : `age_reference`, `weight_tolerance`, `allowed_formats`.
-
-**Catégories**
-- Âge min/max, poids min/max, sexe, niveau, format, discipline.
-
-**Inscriptions (admin)**
-- Création/édition : `club_id` + `licence_id` (recherche AJAX nom/prénom/DDN).
-- Statuts : `draft`, `submitted`, `validated`, `rejected`, `cancelled`, `withdrawn`.
-- Anti‑doublon : unicité `competition_id + licence_id`.
-- **Inscriptions (Validation)** : écran dédié via capability spécifique.
-
-**Combats / Bouts**
-- Génération automatique + édition manuelle.
-- Statuts : `scheduled`, `running`, `completed`.
-- Champs : ring/tatami, round, scores, vainqueur, méthode.
-
-### F) Module Compétitions (front)
-
-**Shortcodes**
-- `[ufsc_competitions]` : liste des compétitions (filtres + pagination).
-  - Attributs : `view` (open|all), `season`, `discipline`, `type`, `per_page`, `show_filters`, `require_login`, `require_club`.
-  - Filtres GET (si `show_filters=1`) : `ufsc_season`, `ufsc_discipline`, `ufsc_type`, `s`, `ufsc_page`.
-- `[ufsc_competition]` : fiche détail + bloc “Inscriptions”.
-  - Attributs : `id`, `require_login`, `require_club`.
-  - URL : `?competition_id=123` (ou legacy `?ufsc_competition_id=123`).
-  - Rewrite optionnel via filtres `ufsc_competitions_front_details_page_id` + `ufsc_competitions_front_enable_rewrite`.
-
-**Inscriptions clubs (front)**
-- Accessible aux utilisateurs connectés et rattachés à un club.
-- Recherche licenciés via **pont UFSC Licences** (nom/prénom/n° licence).
-- Création / mise à jour / soumission / retrait / annulation.
-- **Calcul automatique catégorie** via AJAX (poids + DDN + paramètres compétition).
-- **Export CSV club** (inscriptions validées uniquement, nonce + anti‑IDOR).
-
-### G) Exports
-
-- **Licences (admin)** : export CSV (filtres actifs) avec colonnes :
-  `club`, `nom`, `prenom`, `dob`, `statut`, `categorie`, `saison`, `age_ref`, `competition`, `n_asptt`, `date_asptt`, `has_pdf`.
-- **Compétitions (admin)** :
-  - export CSV plateau,
-  - export PDF plateau / contrôle / fiche / fiche complète (Dompdf requis).
-- **Compétitions (front club)** : export CSV des **inscriptions validées** du club.
-
----
-
-## 5) Structure technique (pour dev)
-
-```
-/ufsc-licence-competition
-├── ufsc-licence-competition.php
-├── includes/
-│   ├── admin/                (menus admin, list tables, settings, status)
-│   ├── import/               (service import ASPTT)
-│   ├── export/               (export CSV licences)
-│   ├── competitions/         (module compétitions complet)
-│   ├── class-ufsc-*.php       (capabilities, helpers, migrations)
-├── assets/                    (assets admin)
-└── languages/                 (traductions)
-```
-
-**Points d’extension (hooks / filtres)**
-- Licences : `ufsc_lc_calculate_category`, `ufsc_lc_register_settings`, `ufsc_lc_enable_legacy_compatibility`, `ufsc_lc_dependencies_met`.
-- Compétitions front : `ufsc_competitions_front_after_details`, `ufsc_competitions_front_registration_box`, `ufsc_competitions_front_competition_url`.
-- Exports admin : `ufsc_competitions_plateau_csv_columns`, `ufsc_competitions_plateau_entries_filters`, `ufsc_competitions_plateau_csv_row`, `ufsc_competitions_plateau_pdf_*`.
-- Exports club : `ufsc_competitions_club_export_before`, `ufsc_competitions_club_csv_columns`, `ufsc_competitions_club_csv_row`, `ufsc_competitions_club_export_filename`.
-
-**Helpers partagés**
-- `ufsc_lc_format_birthdate`, `ufsc_lc_get_nom_affiche`, `ufsc_lc_compute_category_from_birthdate`.
-
----
-
-## 6) Base de données
-
-### Licences / documents
-- `wp_ufsc_licences` (dépendance)
-- `wp_ufsc_clubs` (dépendance)
-- `wp_ufsc_licence_documents`
-- `wp_ufsc_licence_documents_meta`
-- `wp_ufsc_asptt_aliases`
-- `wp_ufsc_asptt_import_logs`
-- `wp_ufsc_asptt_import_hashes`
-
-**Champs clés / compat legacy**
-- `nom` / `nom_licence` → **nom_affiche**
-- `categorie` / `category` / `legacy_category` → **categorie_affiche**
-- `season_end_year` (avec fallback `season` / `saison`)
-- `numero_licence_asptt` / `asptt_number`
+## 2) Fonctionnalités actuellement présentes
 
 ### Compétitions
-- `wp_ufsc_competitions`
-- `wp_ufsc_competition_categories`
-- `wp_ufsc_competition_entries`
-- `wp_ufsc_fights`
-- `wp_ufsc_competition_logs`
-- `wp_ufsc_timing_profiles`
+- CRUD compétitions (discipline, saison, dates, statuts, tolérance pesée, formats autorisés).
+- Vues admin par scope/région avec fallback sécurisé.
 
----
+### Inscriptions
+- Inscriptions front et admin (licencié UFSC + participant externe non licencié).
+- Validation de statuts, bulk actions, group labels.
+- Import CSV ASPTT + dry-run + rollback du dernier lot.
 
-## 7) Dépannage / erreurs fréquentes
+### Pesées & numéro combattant
+- Saisie pesée par inscrit approuvé.
+- Saisie/édition du numéro combattant lors de la pesée.
+- Contrôle d’unicité applicatif du numéro combattant à l’échelle compétition.
+- Statuts pesée (pending, weighed, validated, out_of_limit, awaiting_reclassification, reclassified, refused).
+- Reclassement catégorie piloté depuis la pesée.
 
-- **MySQL “Unknown column deleted_at” (fights)**
-  - Cause : table `wp_ufsc_fights` non migrée.
-  - Action : relancer l’upgrade DB (visite admin + activation) ou utiliser **UFSC LC — Status**.
+### Combats & bracket
+- Génération auto de brouillons (formats 2 / 3 / 4 / 5-8 / 9-16 selon paramétrage et services de génération).
+- BYE visibles et placeholders métier lisibles (ex: « Vainqueur combat X », « Vainqueur demi-finale 1 »).
+- Affichage des phases à partir de la structure des rounds (Qualification → Finale).
+- Saisie de résultat (vainqueur, statut, méthode, scores, horaire).
+- Correction de résultat supervisée (motif obligatoire, confirmation superviseur si impacts joués).
+- Propagation prudente du vainqueur corrigé vers le combat suivant quand le slot est encore modifiable.
 
-- **Filtres “Catégorie” = 0 résultat**
-  - Cause : valeurs stockées avec espaces/accents/casse.
-  - Action : normaliser (TRIM/LOWER) et recalculer via action de masse.
+### Impressions / sorties terrain
+- Liste des inscrits.
+- Référentiel catégories.
+- Répartition des combats par surface (A4/A3/A2).
+- Vue organisation « surface overview ».
+- Intégration du numéro combattant sur les sorties combats (avec fallback explicite).
 
-- **Fatal front licences (in_array haystack null)**
-  - Cause fréquente : table `ufsc_licences` absente ou colonnes non détectées.
-  - Action : vérifier dépendances `ufsc_licences` / `ufsc_clubs`, réactiver le plugin.
+### Journalisation / audit
+- Logs de création/modification/suppression pour les entités clés.
+- Trace dédiée des corrections de résultats (ancien/nouveau vainqueur, raison, impacts, supervision, propagation).
 
-- **PDF inaccessible côté club**
-  - Vérifier : Paramètres → “PDF & documents” (auth obligatoire, club match, téléchargement autorisé).
+## 3) Workflow métier recommandé (production)
 
----
+1. **Créer/configurer** la compétition (discipline, saison, dates, tolérance, formats).
+2. **Importer/contrôler** les inscriptions (CSV + vérification anomalies).
+3. **Valider les inscriptions** à engager.
+4. **Passer les pesées** et attribuer le numéro combattant.
+5. **Traiter les hors-limite / reclassements**.
+6. **Générer les combats** puis vérifier les affectations surfaces/horaires.
+7. **Imprimer** les documents terrain (surface / catégories / listes).
+8. **Saisir les résultats** au fil de l’événement.
+9. **Corriger sous supervision** uniquement si nécessaire.
+10. **Contrôler logs + cohérence bracket** avant clôture.
 
-## 8) Sécurité & bonnes pratiques
+## 4) Architecture fonctionnelle (résumé)
 
-- **Capabilities** : toutes les pages admin vérifient les droits (`ufsc_lc_manage`, `ufsc_lc_import`, `ufsc_lc_export`, `ufsc_competitions_validate_entries`).
-- **Nonces** sur actions admin, imports, exports, PDF, validations.
-- **Sanitization** systématique (`sanitize_text_field`, `absint`, `sanitize_key`).
-- **SQL sécurisé** via `$wpdb->prepare`.
-- **Exports club** : blocage des overrides `club_id` (anti‑IDOR).
+### Pages admin principales
+- `Compétitions`, `Catégories`, `Inscriptions`, `Pesées`, `Combats`, `Timing Profiles`, `Impression`, `Opérations sensibles`, `Logs`, `Guide`.
 
----
+### Services principaux
+- `FightAutoGenerationService` (sélection/éligibilité/génération).
+- `FightDisplayService` (phases + placeholders lisibles + labels coins).
+- `FighterNumberService` (résolution cohérente du numéro combattant).
+- `LogService` / `AuditLogger` (journalisation).
 
-## 9) Roadmap (optionnel)
+### Repositories principaux
+- `CompetitionRepository`, `EntryRepository`, `FightRepository`, `CategoryRepository`, `WeighInRepository`, `LogRepository`.
 
-- Améliorer la recherche PDF (fuzzy match).
-- Normaliser les catégories (accents, espaces) côté import.
-- Tests automatisés + jeux de données.
+### Points d’entrée utiles
+- `includes/competitions/bootstrap.php` (chargement module).
+- Pages admin `includes/competitions/Admin/Pages/*`.
+- Tables admin `includes/competitions/Admin/Tables/*`.
 
----
+## 5) Contraintes et limites connues (honnêtes)
 
-## 10) Changelog (résumé)
+- Le **numéro combattant** est stocké aujourd’hui dans `weighins.notes` (JSON) pour compatibilité historique ; il n’existe pas encore de colonne dédiée normalisée.
+- La **progression bracket** est pilotée de manière prudente : la propagation se fait quand le combat suivant reste modifiable ; les cas déjà joués restent sous supervision humaine.
+- Certaines associations de combats futurs reposent sur l’ordre `round_no + fight_no` (heuristique métier contrôlée), pas sur une table dédiée de dépendances explicites.
+- Le fallback final d’affichage peut utiliser `#entry_id` dans certaines impressions pour éviter les trous terrain quand aucun numéro combattant n’est disponible.
 
-- Module Compétitions front : shortcodes `[ufsc_competitions]` + `[ufsc_competition]`.
-- Module Inscriptions front + export CSV club validé.
-- Exports admin : CSV plateau + PDF plateau/fiche/contrôle/fiche complète.
-- Normalisation **nom_affiche / categorie_affiche** + fallback catégorie auto.
-- Colonnes saison + gestion manuelle N° ASPTT.
-- Import ASPTT : dry‑run, incrémental, delta CSV, verrou anti double‑import.
+## 6) Sécurité / garde-fous
 
----
+- Vérification systématique de capabilities (manage, validate, delete, etc.).
+- Nonces sur actions admin sensibles.
+- Sanitization/escaping des entrées/sorties.
+- Requêtes SQL préparées (`$wpdb->prepare`) sur filtres dynamiques.
+- Soft delete sur entités concernées.
+- Supervision explicite pour correction de résultat avec impacts aval déjà joués.
 
-## 11) Licence / Support
+## 7) Notes de mise en production
 
-Plugin propriétaire – usage réservé à l’UFSC.
-Support : via l’admin UFSC.
+### Prérequis
+- WordPress >= 6.x.
+- PHP >= 7.4 (8.x recommandé).
+- Tables UFSC licences/clubs disponibles si pont licences activé.
+
+### Vérifications pré-prod recommandées
+- Unicité numéro combattant en pesée.
+- Présence numéro combattant sur vues combats/impressions.
+- Lisibilité placeholders avant résultat.
+- Remplacement cohérent après saisie/correction résultat.
+- Contrôle des logs d’audit sur actions sensibles.
+- Vérification de non-régression des impressions existantes.
+
+### Vigilances
+- Éviter les modifications de structure lourdes juste avant événement.
+- Prioriser les correctifs additifs/reversibles.
+- Conserver les conventions de nommage/status existantes pour éviter les ruptures de workflow terrain.
+
+## 8) FAQ technique rapide
+
+**Où gérer la pesée ?**
+- Admin `Compétitions > Pesées`.
+
+**Comment se propage le numéro combattant ?**
+- Résolution prioritaire sur l’objet courant (`fighter_number` / `competition_number`), fallback via pesée (`weighins.notes`), puis fallback d’affichage explicite selon la vue.
+
+**Comment fonctionnent les placeholders de combats futurs ?**
+- `FightDisplayService` calcule la phase et les références de combats précédents pour afficher « Vainqueur combat X » et variantes.
+
+**Comment corriger un résultat ?**
+- Action `Corriger le résultat` dans la liste des combats, motif obligatoire, supervision si impacts joués, journalisation automatique.
+
+**Qu’est-ce qui est strict vs heuristique ?**
+- Strict : permissions, nonces, contrôle saisie, unicité numéro combattant.
+- Heuristique contrôlée : certaines dépendances bracket déduites par `round_no/fight_no`.
