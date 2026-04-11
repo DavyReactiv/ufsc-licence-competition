@@ -219,11 +219,11 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value( $item, 'license_number' ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birthdate' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'annee_naissance', 'birth_year' ) ) ) ) );
 			case 'category':
 				return $this->format_with_empty_badge( $this->resolve_category_label( $item ), __( 'Non renseignée', 'ufsc-licence-competition' ) );
 			case 'competition':
@@ -295,8 +295,22 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $entry ): string {
-		$last = isset( $entry->licensee_last_name ) ? (string) $entry->licensee_last_name : '';
-		$first = isset( $entry->licensee_first_name ) ? (string) $entry->licensee_first_name : '';
+		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
+		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
+		if ( '' === $last || '' === $first ) {
+			$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+			if ( '' !== $participant_name ) {
+				$parts = preg_split( '/\s+/', trim( $participant_name ) );
+				if ( is_array( $parts ) && ! empty( $parts ) ) {
+					if ( '' === $last ) {
+						$last = (string) array_shift( $parts );
+					}
+					if ( '' === $first ) {
+						$first = trim( implode( ' ', $parts ) );
+					}
+				}
+			}
+		}
 		$name = trim( $last . ' ' . $first );
 
 		if ( '' !== $name ) {
@@ -305,8 +319,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 		$keys = array( 'athlete_name', 'full_name', 'name', 'licensee_name' );
 		foreach ( $keys as $key ) {
-			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
-				return (string) $entry->{$key};
+			$value = $this->get_item_value( $entry, $key );
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return (string) $value;
 			}
 		}
 
