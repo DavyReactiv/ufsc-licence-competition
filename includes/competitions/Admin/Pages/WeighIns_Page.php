@@ -6,6 +6,7 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Entries\EntryDataNormalizer;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -89,12 +90,23 @@ class WeighIns_Page {
 			$entry_filters = array(
 				'view' => 'all',
 				'competition_id' => $competition_id,
-				'status' => 'approved',
+				'status' => array_merge( EntriesWorkflow::get_review_queue_statuses(), array( 'approved' ) ),
 			);
 			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 			}
 			$entries = $this->entries->list_with_details( $entry_filters, 1000, 0 );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC WeighIns_Page entries_loaded ' . wp_json_encode(
+						array(
+							'competition_id' => $competition_id,
+							'count'          => count( $entries ),
+							'statuses'       => $entry_filters['status'],
+						)
+					)
+				);
+			}
 			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
 			$weighins  = $this->weighins->get_for_entries( $competition_id, $entry_ids );
 
