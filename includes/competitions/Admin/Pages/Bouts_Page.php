@@ -8,6 +8,7 @@ use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Fights_Table;
+use UFSC\Competitions\Services\LogService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -17,11 +18,13 @@ class Bouts_Page {
 	private $repository;
 	private $competitions;
 	private $categories;
+	private $logger;
 
 	public function __construct() {
 		$this->repository = new FightRepository();
 		$this->competitions = new CompetitionRepository();
 		$this->categories = new CategoryRepository();
+		$this->logger = new LogService();
 	}
 
 	public function register_actions() {
@@ -29,6 +32,7 @@ class Bouts_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_fight', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_fight', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_fight', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_correct_result', array( $this, 'handle_correct_result' ) );
 	}
 
 	public function render() {
@@ -48,10 +52,14 @@ class Bouts_Page {
 			\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration::render_notice( $fight_notice, $fight_message );
 		}
 
-		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
+		if ( in_array( $action, array( 'add', 'edit', 'correct_result' ), true ) ) {
 			$item = null;
-			if ( 'edit' === $action && $id ) {
+			if ( in_array( $action, array( 'edit', 'correct_result' ), true ) && $id ) {
 				$item = $this->repository->get( $id, true );
+			}
+			if ( 'correct_result' === $action ) {
+				$this->render_correction_form( $item );
+				return;
 			}
 			$this->render_form( $item );
 			return;
@@ -313,6 +321,158 @@ class Bouts_Page {
 		<?php
 	}
 
+	private function render_correction_form( $fight ) {
+		if ( ! $fight ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+
+		$impacts = $this->get_impacted_fights( $fight );
+		$has_played_impacts = ! empty( $impacts['played'] );
+		?>
+		<div class="wrap ufsc-competitions-admin">
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Action sensible', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Corriger le résultat', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Cette action est auditée. Un motif est obligatoire et une supervision renforcée est exigée si des combats suivants sont déjà joués.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
+
+			<div class="notice notice-warning"><p><?php esc_html_e( 'Ne corrigez un résultat que si nécessaire. Toute correction peut impacter la suite du tableau.', 'ufsc-licence-competition' ); ?></p></div>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<?php wp_nonce_field( 'ufsc_competitions_correct_result_' . (int) $fight->id ); ?>
+				<input type="hidden" name="action" value="ufsc_competitions_correct_result" />
+				<input type="hidden" name="fight_id" value="<?php echo esc_attr( (int) $fight->id ); ?>" />
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
+						<td><?php echo esc_html( '#' . (int) ( $fight->fight_no ?? 0 ) ); ?></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_new_winner"><?php esc_html_e( 'Nouveau vainqueur (Entry ID)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input type="number" required min="1" name="winner_entry_id" id="ufsc_new_winner" value="<?php echo esc_attr( (int) ( $fight->winner_entry_id ?? 0 ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_new_method"><?php esc_html_e( 'Méthode', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input type="text" class="regular-text" name="result_method" id="ufsc_new_method" value="<?php echo esc_attr( (string) ( $fight->result_method ?? '' ) ); ?>" /></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_correction_reason"><?php esc_html_e( 'Motif (obligatoire)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><textarea name="correction_reason" id="ufsc_correction_reason" class="large-text" rows="4" required></textarea></td>
+					</tr>
+				</table>
+
+				<h2><?php esc_html_e( 'Impacts détectés', 'ufsc-licence-competition' ); ?></h2>
+				<ul>
+					<li><?php echo esc_html( sprintf( __( 'Combats suivants non joués : %d', 'ufsc-licence-competition' ), count( $impacts['pending'] ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Combats suivants déjà joués : %d', 'ufsc-licence-competition' ), count( $impacts['played'] ) ) ); ?></li>
+				</ul>
+				<?php if ( $has_played_impacts ) : ?>
+					<p><label><input type="checkbox" name="supervisor_confirm" value="1" required> <?php esc_html_e( 'Je valide en tant que superviseur cette correction avec impacts déjà joués.', 'ufsc-licence-competition' ); ?></label></p>
+				<?php endif; ?>
+
+				<?php submit_button( __( 'Confirmer la correction', 'ufsc-licence-competition' ), 'primary' ); ?>
+			</form>
+		</div>
+		<?php
+	}
+
+	public function handle_correct_result() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_correct_result_' . $fight_id );
+
+		$fight = $this->repository->get( $fight_id, true );
+		if ( ! $fight ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+
+		$winner_entry_id = isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0;
+		$result_method   = isset( $_POST['result_method'] ) ? sanitize_text_field( wp_unslash( $_POST['result_method'] ) ) : '';
+		$reason          = isset( $_POST['correction_reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['correction_reason'] ) ) : '';
+		$supervised      = ! empty( $_POST['supervisor_confirm'] );
+
+		if ( ! $winner_entry_id || '' === $reason ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid' );
+		}
+
+		$impacts = $this->get_impacted_fights( $fight );
+		if ( ! empty( $impacts['played'] ) && ! $supervised ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_supervisor_required' );
+		}
+
+		$old_winner = (int) ( $fight->winner_entry_id ?? 0 );
+		$this->repository->update(
+			$fight_id,
+			array(
+				'competition_id'  => (int) $fight->competition_id,
+				'category_id'     => (int) $fight->category_id,
+				'fight_no'        => (int) $fight->fight_no,
+				'ring'            => (string) ( $fight->ring ?? '' ),
+				'round_no'        => (int) ( $fight->round_no ?? 0 ),
+				'red_entry_id'    => (int) ( $fight->red_entry_id ?? 0 ),
+				'blue_entry_id'   => (int) ( $fight->blue_entry_id ?? 0 ),
+				'winner_entry_id' => $winner_entry_id,
+				'status'          => 'completed',
+				'result_method'   => $result_method,
+				'score_red'       => (string) ( $fight->score_red ?? '' ),
+				'score_blue'      => (string) ( $fight->score_blue ?? '' ),
+				'scheduled_at'    => (string) ( $fight->scheduled_at ?? '' ),
+			)
+		);
+
+		$this->logger->log(
+			'result_correction',
+			'fight',
+			$fight_id,
+			'Correction de résultat supervisée',
+			array(
+				'reason' => $reason,
+				'old_winner_entry_id' => $old_winner,
+				'new_winner_entry_id' => $winner_entry_id,
+				'impacted_played_fights' => wp_list_pluck( $impacts['played'], 'id' ),
+				'impacted_pending_fights' => wp_list_pluck( $impacts['pending'], 'id' ),
+				'supervised' => $supervised ? 1 : 0,
+			)
+		);
+
+		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_done' );
+	}
+
+	private function get_impacted_fights( $fight ): array {
+		$filters = array(
+			'view' => 'all',
+			'competition_id' => (int) $fight->competition_id,
+			'category_id' => (int) $fight->category_id,
+		);
+		$category_fights = $this->repository->list( $filters, 500, 0 );
+		$pending = array();
+		$played  = array();
+
+		foreach ( $category_fights as $candidate ) {
+			if ( (int) $candidate->id === (int) $fight->id ) {
+				continue;
+			}
+			if ( (int) ( $candidate->fight_no ?? 0 ) <= (int) ( $fight->fight_no ?? 0 ) ) {
+				continue;
+			}
+			if ( in_array( (string) ( $candidate->status ?? '' ), array( 'completed', 'running' ), true ) ) {
+				$played[] = $candidate;
+			} else {
+				$pending[] = $candidate;
+			}
+		}
+
+		return array(
+			'pending' => $pending,
+			'played' => $played,
+		);
+	}
+
 	private function format_datetime_local( $value ) {
 		if ( empty( $value ) ) {
 			return '';
@@ -352,13 +512,16 @@ class Bouts_Page {
 			'deleted'       => __( 'Combat supprimé définitivement.', 'ufsc-licence-competition' ),
 			'error_required'=> __( 'Veuillez renseigner la compétition et le numéro de combat.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Combat introuvable.', 'ufsc-licence-competition' ),
+			'correction_done' => __( 'Correction de résultat enregistrée et auditée.', 'ufsc-licence-competition' ),
+			'correction_invalid' => __( 'Correction invalide : vainqueur et motif obligatoires.', 'ufsc-licence-competition' ),
+			'correction_supervisor_required' => __( 'Validation superviseur obligatoire : des combats suivants sont déjà joués.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required' ), true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
 
