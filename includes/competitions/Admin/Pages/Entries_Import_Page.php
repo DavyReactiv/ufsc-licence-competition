@@ -471,6 +471,16 @@ class Entries_Import_Page {
 				)
 			);
 		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC entries CSV import csv_headers_detected ' . wp_json_encode(
+					array(
+						'raw_headers'        => array_map( 'strval', $raw_headers ),
+						'normalized_headers' => array_map( 'strval', $headers ),
+					)
+				)
+			);
+		}
 
 		$rows        = array();
 		$line_number = 1;
