@@ -541,6 +541,13 @@ class EntryRepository {
 		if ( ! empty( $filters['entry_id'] ) ) {
 			$where[] = $wpdb->prepare( "{$entries_alias}.id = %d", absint( $filters['entry_id'] ) );
 		}
+		if ( ! empty( $filters['entry_ids'] ) && is_array( $filters['entry_ids'] ) ) {
+			$entry_ids = array_values( array_filter( array_map( 'absint', $filters['entry_ids'] ) ) );
+			if ( $entry_ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $entry_ids ), '%d' ) );
+				$where[] = $wpdb->prepare( "{$entries_alias}.id IN ({$placeholders})", $entry_ids );
+			}
+		}
 
 		$status_field = $this->get_status_storage_field();
 		if ( ! empty( $filters['status'] ) && 'status' === $status_field ) {
