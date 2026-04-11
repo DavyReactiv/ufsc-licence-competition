@@ -520,6 +520,20 @@
 	font-weight: 600;
 }
 
+.ufsc-competitions-admin .wp-list-table td .ufsc-badge {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+	white-space: normal;
+	word-break: break-word;
+	line-height: 1.3;
+}
+
+.ufsc-competitions-admin .wp-list-table td small {
+	display: inline-block;
+	margin-top: 4px;
+}
+
 .ufsc-competitions-admin .wp-list-table .row-actions {
 	color: #667085;
 }
