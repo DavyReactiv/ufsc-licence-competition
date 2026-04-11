@@ -54,7 +54,7 @@ class Print_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php esc_html_e( 'Impression', 'ufsc-licence-competition' ); ?></h1>
-			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Sorties professionnelles des inscriptions, catégories et répartitions des combats par surface.', 'ufsc-licence-competition' ); ?></p></div>
+			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Sorties professionnelles des inscriptions, catégories et répartitions des combats par surface. Les placeholders comme “Vainqueur combat X” sont remplacés automatiquement quand les résultats sont saisis.', 'ufsc-licence-competition' ); ?></p></div>
 			<form method="get" class="ufsc-competitions-print-filter">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_PRINT ); ?>" />
 				<label for="ufsc_print_competition" class="screen-reader-text"><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></label>
