@@ -283,6 +283,9 @@ class WeighIns_Page {
 		$entry_weight = $this->get_item_value_from_keys( $entry, array( 'weight_kg', 'weight', 'poids' ) );
 		$entry_weight_float = '' !== $entry_weight ? (float) str_replace( ',', '.', $entry_weight ) : null;
 		$delta = ( null !== $entry_weight_float && '' !== $current_weight ) ? ( (float) str_replace( ',', '.', $current_weight ) - $entry_weight_float ) : null;
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC WeighIns_Page entry_weight_source ' . wp_json_encode( array( 'entry_id' => $entry_id, 'competition_id' => $competition_id, 'entry_weight' => $entry_weight, 'measured_weight' => $current_weight ) ) );
+		}
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'
@@ -587,10 +590,10 @@ class WeighIns_Page {
 		$payload = array(
 			'competition_id' => $competition_id,
 			'entry_id'       => $entry_id,
-			'weight_measured'=> $existing_row->weight_measured ?? null,
-			'status'         => sanitize_key( (string) ( $existing_row->status ?? 'pending' ) ),
-			'weighed_at'     => $existing_row->weighed_at ?? null,
-			'weighed_by'     => $existing_row->weighed_by ?? null,
+			'weight_measured'=> is_object( $existing_row ) ? ( $existing_row->weight_measured ?? null ) : null,
+			'status'         => sanitize_key( (string) ( is_object( $existing_row ) ? ( $existing_row->status ?? 'pending' ) : 'pending' ) ),
+			'weighed_at'     => is_object( $existing_row ) ? ( $existing_row->weighed_at ?? null ) : null,
+			'weighed_by'     => is_object( $existing_row ) ? ( $existing_row->weighed_by ?? null ) : null,
 			'notes'          => wp_json_encode( $meta ),
 			'updated_at'     => current_time( 'mysql' ),
 		);
