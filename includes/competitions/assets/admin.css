@@ -674,3 +674,30 @@
 		content: counter(page);
 	}
 }
+
+.ufsc-weighins-table td {
+	vertical-align: top;
+}
+
+.ufsc-weighins-table .description {
+	margin: 6px 0 0;
+	max-width: 210px;
+}
+
+.ufsc-doc-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	gap: 16px;
+	margin-top: 16px;
+}
+
+.ufsc-doc-card {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	border-radius: 8px;
+	padding: 16px;
+}
+
+.ufsc-doc-card h2 {
+	margin-top: 0;
+}
