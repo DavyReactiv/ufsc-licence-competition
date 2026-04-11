@@ -83,7 +83,7 @@ class Bouts_Page {
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'En cours', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $running_fights ) ); ?></strong></article>
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Terminés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $completed_fights ) ); ?></strong></article>
 			</section>
-			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
+			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats. Modifier un résultat peut impacter les combats suivants.', 'ufsc-licence-competition' ); ?></p></div>
 			<div class="ufsc-admin-surface ufsc-admin-generation-surface">
 				<?php
 				if ( class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
@@ -223,7 +223,7 @@ class Bouts_Page {
 					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Renseignez les paramètres clés du combat sans altérer les flux de planification et de résultats.', 'ufsc-licence-competition' ); ?></p>
 				</div>
 			</header>
-			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats.', 'ufsc-licence-competition' ); ?></p></div>
+			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats. Modifier un résultat peut impacter les combats suivants.', 'ufsc-licence-competition' ); ?></p></div>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_fight' ); ?>
 				<input type="hidden" name="action" value="ufsc_competitions_save_fight">

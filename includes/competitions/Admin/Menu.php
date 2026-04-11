@@ -21,6 +21,7 @@ class Menu {
 	public const PAGE_CATEGORIES   = 'ufsc-competitions-categories';
 	public const PAGE_ENTRIES      = 'ufsc-competitions-entries';
 	public const PAGE_ENTRIES_IMPORT = 'ufsc-competitions-entries-import';
+	public const PAGE_WEIGHINS = 'ufsc-competitions-weighins';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
 	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
@@ -85,6 +86,14 @@ class Menu {
 
 		$this->add_submenu_safe(
 			$cap,
+			self::PAGE_WEIGHINS,
+			__( 'Pesées', 'ufsc-licence-competition' ),
+			__( 'Pesées', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\WeighIns_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
 			self::PAGE_BOUTS,
 			__( 'Combats', 'ufsc-licence-competition' ),
 			__( 'Combats', 'ufsc-licence-competition' ),
@@ -142,8 +151,8 @@ class Menu {
 		$this->add_submenu_safe(
 			$cap,
 			self::PAGE_GUIDE,
-			__( 'Guide', 'ufsc-licence-competition' ),
-			__( 'Guide', 'ufsc-licence-competition' ),
+			__( 'Aide & Documentation', 'ufsc-licence-competition' ),
+			__( 'Aide', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Guide_Page'
 		);
 
