@@ -519,7 +519,7 @@ class WeighIns_Page {
 		}
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( 'UFSC WeighIns_Page reclass_resolved ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'competition_id' => $competition_id, 'weight_measured' => $weight, 'resolved_label' => $label, 'status' => (string) ( $resolved['status'] ?? '' ) ) ) );
+			error_log( 'UFSC WeighIns_Page resolver_reclassification ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'competition_id' => $competition_id, 'weight_measured' => $weight, 'resolved_label' => $label, 'status' => (string) ( $resolved['status'] ?? '' ) ) ) );
 		}
 
 		return $candidates;
@@ -544,6 +544,9 @@ class WeighIns_Page {
 				$number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
 			}
 			if ( $number > 0 ) {
+				if ( isset( $used[ $number ] ) && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $number ) ) );
+				}
 				$numbers_by_entry[ $entry_id ] = $number;
 				$used[ $number ] = true;
 			}
