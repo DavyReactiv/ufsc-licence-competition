@@ -21,10 +21,13 @@ class Menu {
 	public const PAGE_CATEGORIES   = 'ufsc-competitions-categories';
 	public const PAGE_ENTRIES      = 'ufsc-competitions-entries';
 	public const PAGE_ENTRIES_IMPORT = 'ufsc-competitions-entries-import';
+	public const PAGE_WEIGHINS = 'ufsc-competitions-weighins';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
 	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
 	public const PAGE_PRINT        = 'ufsc-competitions-print';
+	public const PAGE_OFFICIALS    = 'ufsc-competitions-officials';
+	public const PAGE_SENSITIVE_OPS = 'ufsc-competitions-sensitive-ops';
 	public const PAGE_SETTINGS     = 'ufsc-competitions-settings';
 	public const PAGE_LOGS         = 'ufsc-competitions-logs';
 	public const PAGE_GUIDE        = 'ufsc-competitions-guide';
@@ -85,6 +88,14 @@ class Menu {
 
 		$this->add_submenu_safe(
 			$cap,
+			self::PAGE_WEIGHINS,
+			__( 'Pesées', 'ufsc-licence-competition' ),
+			__( 'Pesées', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\WeighIns_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
 			self::PAGE_BOUTS,
 			__( 'Combats', 'ufsc-licence-competition' ),
 			__( 'Combats', 'ufsc-licence-competition' ),
@@ -117,6 +128,22 @@ class Menu {
 
 		$this->add_submenu_safe(
 			$cap,
+			self::PAGE_OFFICIALS,
+			__( 'Officiels', 'ufsc-licence-competition' ),
+			__( 'Officiels', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Officials_Page'
+		);
+
+		$this->add_submenu_safe(
+			$settings_cap,
+			self::PAGE_SENSITIVE_OPS,
+			__( 'Actions sensibles', 'ufsc-licence-competition' ),
+			__( 'Actions sensibles', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Sensitive_Operations_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
 			self::PAGE_ESTIMATION,
 			__( 'Estimation', 'ufsc-licence-competition' ),
 			__( 'Estimation', 'ufsc-licence-competition' ),
@@ -142,8 +169,8 @@ class Menu {
 		$this->add_submenu_safe(
 			$cap,
 			self::PAGE_GUIDE,
-			__( 'Guide', 'ufsc-licence-competition' ),
-			__( 'Guide', 'ufsc-licence-competition' ),
+			__( 'Aide & Documentation', 'ufsc-licence-competition' ),
+			__( 'Aide', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Guide_Page'
 		);
 
@@ -202,6 +229,7 @@ class Menu {
 			'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Import_Page',
+			'UFSC\\Competitions\\Admin\\Pages\\Bouts_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',

@@ -163,6 +163,23 @@ class Fights_Table extends \WP_List_Table {
 		$actions = array();
 		if ( empty( $item->deleted_at ) ) {
 			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			if ( in_array( (string) ( $item->status ?? '' ), array( 'completed', 'running' ), true ) ) {
+				$actions['correct_result'] = sprintf(
+					'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
+					esc_url(
+						add_query_arg(
+							array(
+								'page' => Menu::PAGE_BOUTS,
+								'ufsc_action' => 'correct_result',
+								'id' => (int) $item->id,
+							),
+							admin_url( 'admin.php' )
+						)
+					),
+					esc_attr__( 'Corriger ce résultat ? Cette action est auditée.', 'ufsc-licence-competition' ),
+					esc_html__( 'Corriger le résultat', 'ufsc-licence-competition' )
+				);
+			}
 			$actions['trash'] = sprintf(
 				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
 				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_fight', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_fight_' . $item->id ) ),

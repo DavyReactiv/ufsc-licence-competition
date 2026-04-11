@@ -280,6 +280,7 @@ class FightAutoGenerationService {
 					'club_missing'          => __( 'Club manquant.', 'ufsc-licence-competition' ),
 					'entry_deleted'         => __( 'Inscription supprimée.', 'ufsc-licence-competition' ),
 					'weighin_missing'       => __( 'Pesée valide requise.', 'ufsc-licence-competition' ),
+					'reclass_pending'       => __( 'Reclassement pesée en attente.', 'ufsc-licence-competition' ),
 				);
 
 				$reasons = array();
@@ -641,18 +642,25 @@ class FightAutoGenerationService {
 				continue;
 			}
 
-			if ( $enforce_weighin ) {
+				if ( $enforce_weighin ) {
 				$entry_weight = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null;
 				$row          = $weighins_by_entry[ $entry_id ] ?? null;
 				$has_weighin  = method_exists( $weighin_repo, 'is_valid_weighin_row' )
 					? $weighin_repo->is_valid_weighin_row( $row, $competition_tolerance, $entry_weight )
 					: $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
-				if ( ! $has_weighin ) {
-					$ineligible_reasons['weighin_missing'] = true;
-					$excluded_unweighed++;
-					continue;
+					if ( ! $has_weighin ) {
+						$ineligible_reasons['weighin_missing'] = true;
+						$excluded_unweighed++;
+						continue;
+					}
+
+					$meta = self::extract_weighin_notes_meta( $row );
+					if ( ! empty( $meta['reclass_pending'] ) ) {
+						$ineligible_reasons['reclass_pending'] = true;
+						$excluded_unweighed++;
+						continue;
+					}
 				}
-			}
 
 			$valid_entries[] = $entry;
 		}
@@ -678,6 +686,14 @@ class FightAutoGenerationService {
 			'auto_lock'       => 0,
 			'allow_unweighed' => 0,
 		);
+	}
+
+	private static function extract_weighin_notes_meta( $row ): array {
+		if ( ! $row || ! isset( $row->notes ) ) {
+			return array();
+		}
+		$decoded = json_decode( (string) $row->notes, true );
+		return is_array( $decoded ) ? $decoded : array();
 	}
 
 	private static function normalize_categories( array $categories ): array {
