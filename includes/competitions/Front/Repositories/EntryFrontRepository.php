@@ -864,13 +864,29 @@ class EntryFrontRepository {
 			$data['category_id'] = absint( $payload['category_id'] );
 		}
 
-		$licensee_column = $this->resolve_licensee_column();
-		if ( $licensee_column && isset( $payload['licensee_id'] ) ) {
-			$data[ $licensee_column ] = absint( $payload['licensee_id'] );
-		} elseif ( $licensee_column && isset( $payload['licence_id'] ) ) {
-			$data[ $licensee_column ] = absint( $payload['licence_id'] );
-		} elseif ( $licensee_column && $is_insert ) {
-			$data[ $licensee_column ] = 0;
+		$resolved_licensee_id = null;
+		if ( isset( $payload['licensee_id'] ) ) {
+			$resolved_licensee_id = absint( $payload['licensee_id'] );
+		} elseif ( isset( $payload['licence_id'] ) ) {
+			$resolved_licensee_id = absint( $payload['licence_id'] );
+		}
+
+		$has_licensee_column = $this->has_column( 'licensee_id' );
+		$has_licence_column  = $this->has_column( 'licence_id' );
+		if ( null !== $resolved_licensee_id ) {
+			if ( $has_licensee_column ) {
+				$data['licensee_id'] = $resolved_licensee_id;
+			}
+			if ( $has_licence_column ) {
+				$data['licence_id'] = $resolved_licensee_id;
+			}
+		} elseif ( $is_insert ) {
+			if ( $has_licensee_column ) {
+				$data['licensee_id'] = 0;
+			}
+			if ( $has_licence_column ) {
+				$data['licence_id'] = 0;
+			}
 		}
 
 		if ( $this->has_column( 'status' ) ) {

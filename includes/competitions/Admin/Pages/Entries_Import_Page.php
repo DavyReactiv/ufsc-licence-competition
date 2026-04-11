@@ -579,7 +579,7 @@ class Entries_Import_Page {
 			$status       = $this->resolve_import_status( $normalized['statut_dossier'], $completeness );
 
 			if ( ! $licensee_id && ! $require_valid_license ) {
-				$licensee_id = $this->build_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
+				$licensee_id = $this->build_available_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
 			}
 
 			$payload = array(
@@ -668,6 +668,23 @@ class Entries_Import_Page {
 		$hash = abs( (int) sprintf( '%u', crc32( $key ) ) );
 
 		return 1000000000 + ( $hash % 1000000000 );
+	}
+
+	private function build_available_fallback_licensee_id( int $competition_id, string $nom, string $prenom, string $birthdate ): int {
+		$base = $this->build_fallback_licensee_id( $competition_id, $nom, $prenom, $birthdate );
+		$max_attempts = 50;
+		$candidate = $base;
+
+		for ( $attempt = 0; $attempt < $max_attempts; $attempt++ ) {
+			$existing = $this->entry_repository->get_by_competition_licensee( $competition_id, $candidate );
+			if ( ! $existing ) {
+				return $candidate;
+			}
+
+			$candidate = 1000000000 + ( ( $base - 1000000000 + $attempt + 1 ) % 1000000000 );
+		}
+
+		return 1000000000 + random_int( 0, 999999999 );
 	}
 
 	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution, string $import_batch_id ): void {
