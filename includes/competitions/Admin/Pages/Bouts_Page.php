@@ -45,7 +45,7 @@ class Bouts_Page {
 		$fight_notice = isset( $_GET['ufsc_fight_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_fight_notice'] ) ) : '';
 		$fight_message = isset( $_GET['ufsc_fight_message'] ) ? sanitize_text_field( rawurldecode( wp_unslash( $_GET['ufsc_fight_message'] ) ) ) : '';
 		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
-		$competition_id = isset( $_GET['ufsc_competition_id'] ) ? absint( $_GET['ufsc_competition_id'] ) : 0;
+		$competition_id = $this->resolve_competition_context_id();
 
 		$this->render_notice( $notice );
 		if ( $fight_notice && class_exists( '\UFSC\Competitions\Admin\Pages\Bouts_AutoGeneration' ) ) {
@@ -319,6 +319,30 @@ class Bouts_Page {
 			</form>
 		</div>
 		<?php
+	}
+
+	private function resolve_competition_context_id(): int {
+		$sources = array(
+			'ufsc_competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			'competition_id'      => isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+		);
+		foreach ( $sources as $source => $competition_id ) {
+			if ( $competition_id > 0 ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log(
+						'UFSC Bouts_Page competition_context ' . wp_json_encode(
+							array(
+								'competition_id' => $competition_id,
+								'source'         => $source,
+							)
+						)
+					);
+				}
+				return $competition_id;
+			}
+		}
+
+		return 0;
 	}
 
 	private function render_correction_form( $fight ) {
