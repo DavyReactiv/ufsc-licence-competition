@@ -342,7 +342,7 @@ class Entries_Import_Page {
 			$this->redirect_with_report( array( 'total' => 0, 'imported' => 0, 'skipped' => 0, 'rows' => array() ), $competition_id );
 		}
 
-		if ( $this->batch_has_fights_linked( $competition_id, $batch_id ) ) {
+		if ( $this->batch_has_linked_dependencies( $competition_id, $batch_id ) ) {
 			$this->redirect_with_report(
 				array(
 					'total'    => 0,
@@ -352,7 +352,7 @@ class Entries_Import_Page {
 						array(
 							'line'    => 0,
 							'status'  => 'error',
-							'message' => __( 'Annulation bloquée : des combats sont déjà liés à ce lot importé.', 'ufsc-licence-competition' ),
+							'message' => __( 'Annulation bloquée : des dépendances (combats / pesées / participants externes) sont déjà liées à ce lot importé.', 'ufsc-licence-competition' ),
 						),
 					),
 				),
@@ -1188,43 +1188,79 @@ class Entries_Import_Page {
 		return is_array( $row ) ? $row : null;
 	}
 
-	private function batch_has_fights_linked( int $competition_id, string $import_batch_id ): bool {
+	private function batch_has_linked_dependencies( int $competition_id, string $import_batch_id ): bool {
 		global $wpdb;
 		$fights_table  = Db::fights_table();
 		$entries_table = Db::entries_table();
-		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $fights_table ) ) !== $fights_table ) {
-			return false;
-		}
+		$entry_ids_subquery = "SELECT id FROM {$entries_table} WHERE competition_id = %d AND import_batch_id = %s";
 
-		$fight_columns = Db::get_table_columns( $fights_table );
-		if ( ! is_array( $fight_columns ) ) {
-			return false;
-		}
-
-		$entry_links = array();
-		foreach ( array( 'entry_id', 'red_entry_id', 'blue_entry_id', 'winner_entry_id' ) as $candidate ) {
-			if ( in_array( $candidate, $fight_columns, true ) ) {
-				$entry_links[] = $candidate;
+		// 1) Fights.
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $fights_table ) ) === $fights_table ) {
+			$fight_columns = Db::get_table_columns( $fights_table );
+			if ( is_array( $fight_columns ) ) {
+				$entry_links = array();
+				foreach ( array( 'entry_id', 'red_entry_id', 'blue_entry_id', 'winner_entry_id' ) as $candidate ) {
+					if ( in_array( $candidate, $fight_columns, true ) ) {
+						$entry_links[] = $candidate;
+					}
+				}
+				if ( ! empty( $entry_links ) ) {
+					$or_links = array();
+					foreach ( $entry_links as $column ) {
+						$or_links[] = "{$column} IN ({$entry_ids_subquery})";
+					}
+					$sql    = "SELECT id FROM {$fights_table} WHERE competition_id = %d AND (" . implode( ' OR ', $or_links ) . ') LIMIT 1';
+					$params = array( $competition_id );
+					foreach ( $entry_links as $_ ) {
+						$params[] = $competition_id;
+						$params[] = $import_batch_id;
+					}
+					$found = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+					if ( ! empty( $found ) ) {
+						return true;
+					}
+				}
 			}
 		}
-		if ( empty( $entry_links ) ) {
-			return false;
+
+		// 2) Weigh-ins.
+		$weighins_table = Db::weighins_table();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $weighins_table ) ) === $weighins_table ) {
+			$weighins_columns = Db::get_table_columns( $weighins_table );
+			if ( is_array( $weighins_columns ) && in_array( 'entry_id', $weighins_columns, true ) ) {
+				$found = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$weighins_table} WHERE competition_id = %d AND entry_id IN ({$entry_ids_subquery}) LIMIT 1",
+						$competition_id,
+						$competition_id,
+						$import_batch_id
+					)
+				);
+				if ( ! empty( $found ) ) {
+					return true;
+				}
+			}
 		}
 
-		$or_links = array();
-		foreach ( $entry_links as $column ) {
-			$or_links[] = "{$column} IN (SELECT id FROM {$entries_table} WHERE competition_id = %d AND import_batch_id = %s)";
+		// 3) External participants.
+		$external_table = Db::external_participants_table();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table ) {
+			$external_columns = Db::get_table_columns( $external_table );
+			if ( is_array( $external_columns ) && in_array( 'entry_id', $external_columns, true ) ) {
+				$found = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$external_table} WHERE entry_id IN ({$entry_ids_subquery}) LIMIT 1",
+						$competition_id,
+						$import_batch_id
+					)
+				);
+				if ( ! empty( $found ) ) {
+					return true;
+				}
+			}
 		}
-		$sql = "SELECT id FROM {$fights_table} WHERE competition_id = %d AND (" . implode( ' OR ', $or_links ) . ') LIMIT 1';
 
-		$params = array( $competition_id );
-		foreach ( $entry_links as $_ ) {
-			$params[] = $competition_id;
-			$params[] = $import_batch_id;
-		}
-
-		$found = $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
-		return ! empty( $found );
+		return false;
 	}
 
 	private function render_report( array $report ): void {
