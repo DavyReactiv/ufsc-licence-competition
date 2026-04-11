@@ -229,7 +229,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club', 'club_label', 'club_id' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value', 'club_id' ) ) ) );
 			case 'weight':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
@@ -300,14 +300,12 @@ class Entries_Validation_Table extends \WP_List_Table {
 		if ( '' === $last || '' === $first ) {
 			$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
 			if ( '' !== $participant_name ) {
-				$parts = preg_split( '/\s+/', trim( $participant_name ) );
-				if ( is_array( $parts ) && ! empty( $parts ) ) {
-					if ( '' === $last ) {
-						$last = (string) array_shift( $parts );
-					}
-					if ( '' === $first ) {
-						$first = trim( implode( ' ', $parts ) );
-					}
+				$parts = $this->split_participant_name( $participant_name );
+				if ( '' === $last ) {
+					$last = $parts['last'];
+				}
+				if ( '' === $first ) {
+					$first = $parts['first'];
 				}
 			}
 		}
@@ -375,14 +373,46 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	private function format_birth_year( $birthdate ): string {
 		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $birthdate ) ) {
+			return substr( $birthdate, 0, 4 );
+		}
 		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
 			return $matches[1];
 		}
 		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
 			return $matches[3];
 		}
+		if ( preg_match( '/^(\\d{2})-(\\d{2})-(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
+		}
 
 		return '';
+	}
+
+	private function split_participant_name( string $participant_name ): array {
+		$participant_name = trim( $participant_name );
+		if ( '' === $participant_name ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+
+		$parts = preg_split( '/\s+/', $participant_name );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+		if ( 1 === count( $parts ) ) {
+			return array(
+				'first' => '',
+				'last'  => sanitize_text_field( (string) $parts[0] ),
+			);
+		}
+
+		$last  = (string) array_pop( $parts );
+		$first = trim( implode( ' ', $parts ) );
+
+		return array(
+			'first' => sanitize_text_field( $first ),
+			'last'  => sanitize_text_field( $last ),
+		);
 	}
 
 	private function get_competition_name( $competition_id ): string {

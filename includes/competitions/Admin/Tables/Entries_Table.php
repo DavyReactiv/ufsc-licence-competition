@@ -525,15 +525,9 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		if ( '' === $participant_name ) {
-			return '';
-		}
-		$parts = preg_split( '/\s+/', trim( $participant_name ) );
-		if ( ! is_array( $parts ) || empty( $parts ) ) {
-			return '';
-		}
+		$parts = $this->split_participant_name( $participant_name );
 
-		return sanitize_text_field( (string) array_shift( $parts ) );
+		return $parts['last'];
 	}
 
 	private function get_first_name_value( $item ): string {
@@ -543,16 +537,35 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		if ( '' === $participant_name ) {
-			return '';
-		}
-		$parts = preg_split( '/\s+/', trim( $participant_name ) );
-		if ( ! is_array( $parts ) || count( $parts ) < 2 ) {
-			return '';
-		}
-		array_shift( $parts );
+		$parts = $this->split_participant_name( $participant_name );
 
-		return sanitize_text_field( trim( implode( ' ', $parts ) ) );
+		return $parts['first'];
+	}
+
+	private function split_participant_name( string $participant_name ): array {
+		$participant_name = trim( $participant_name );
+		if ( '' === $participant_name ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+
+		$parts = preg_split( '/\s+/', $participant_name );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+		if ( 1 === count( $parts ) ) {
+			return array(
+				'first' => '',
+				'last'  => sanitize_text_field( (string) $parts[0] ),
+			);
+		}
+
+		$last  = (string) array_pop( $parts );
+		$first = trim( implode( ' ', $parts ) );
+
+		return array(
+			'first' => sanitize_text_field( $first ),
+			'last'  => sanitize_text_field( $last ),
+		);
 	}
 
 	private function format_fallback( $value ): string {
@@ -575,7 +588,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_club_display( $item ): string {
-		$club_name = $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label', 'structure_name' ) ) );
+		$club_name = $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label', 'structure_name', 'club_import', 'club_raw', 'club_value' ) ) );
 		$club_id   = absint( $this->get_item_value( $item, 'club_id' ) );
 		$source    = sanitize_key( (string) $this->get_item_value_from_keys( $item, array( 'club_source', 'club_status' ) ) );
 		$lowered   = function_exists( 'mb_strtolower' ) ? mb_strtolower( $club_name ) : strtolower( $club_name );
@@ -640,10 +653,16 @@ class Entries_Table extends \WP_List_Table {
 
 	private function format_birth_year( $birthdate ): string {
 		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $birthdate, $matches ) ) {
+			return substr( $matches[0], 0, 4 );
+		}
 		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}$/', $birthdate, $matches ) ) {
 			return $matches[1];
 		}
 		if ( preg_match( '/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[3];
+		}
+		if ( preg_match( '/^(\\d{2})-(\\d{2})-(\\d{4})$/', $birthdate, $matches ) ) {
 			return $matches[3];
 		}
 
