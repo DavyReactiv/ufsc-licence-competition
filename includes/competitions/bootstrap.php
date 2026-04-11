@@ -59,6 +59,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/BracketGenerator.php',
 		$base . '/Services/StandingsCalculator.php',
 		$base . '/Services/FightAutoGenerationService.php',
+		$base . '/Services/FightDisplayService.php',
 		$base . '/Services/PrintRenderer.php',
 		$base . '/Services/Plateau_Pdf_Renderer.php',
 		$base . '/Services/Entries_Pdf_Renderer.php',

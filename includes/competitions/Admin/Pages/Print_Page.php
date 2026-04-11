@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\FightDisplayService;
 use UFSC\Competitions\Services\PrintRenderer;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 
@@ -258,6 +259,7 @@ class Print_Page {
 		}
 
 		$groups = array();
+		$fights_by_category = array();
 		foreach ( $fights as $fight ) {
 			$surface = trim( (string) ( $fight->ring ?? '' ) );
 			$surface = '' !== $surface ? $surface : __( 'Surface non assignée', 'ufsc-licence-competition' );
@@ -265,6 +267,11 @@ class Print_Page {
 				$groups[ $surface ] = array();
 			}
 			$groups[ $surface ][] = $fight;
+			$category_key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
+			if ( ! isset( $fights_by_category[ $category_key ] ) ) {
+				$fights_by_category[ $category_key ] = array();
+			}
+			$fights_by_category[ $category_key ][] = $fight;
 		}
 		ksort( $groups, SORT_NATURAL | SORT_FLAG_CASE );
 
@@ -282,6 +289,7 @@ class Print_Page {
 				. '<th>' . esc_html__( 'Ordre', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Horaire', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Catégorie', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'Phase', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Coin Rouge', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Coin Bleu', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Statut', 'ufsc-licence-competition' ) . '</th>'
@@ -297,15 +305,19 @@ class Print_Page {
 			foreach ( $surface_fights as $fight ) {
 				$red = $entry_map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null;
 				$blue = $entry_map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null;
-				$red_label = $red ? $this->format_fighter_label( $red ) : __( 'BYE', 'ufsc-licence-competition' );
-				$blue_label = $blue ? $this->format_fighter_label( $blue ) : __( 'BYE', 'ufsc-licence-competition' );
+				$category_key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
+				$category_fights = $fights_by_category[ $category_key ] ?? array();
+				$red_label = FightDisplayService::format_corner_label( $fight, $red, 'red', $category_fights );
+				$blue_label = FightDisplayService::format_corner_label( $fight, $blue, 'blue', $category_fights );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
+				$phase_label = FightDisplayService::format_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
 
 				echo '<tr>'
 					. '<td>#' . esc_html( (string) ( $fight->fight_no ?? '' ) ) . '</td>'
 					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
 					. '<td>' . esc_html( $category_name ) . '</td>'
+					. '<td>' . esc_html( $phase_label ) . '</td>'
 					. '<td>' . esc_html( $red_label ) . '</td>'
 					. '<td>' . esc_html( $blue_label ) . '</td>'
 					. '<td>' . esc_html( $this->format_fight_status( (string) ( $fight->status ?? '' ) ) ) . '</td>'
@@ -523,6 +535,10 @@ class Print_Page {
 		$parts = array_filter( array( $name, $club, $license ) );
 
 		return implode( ' · ', $parts );
+	}
+
+	private function get_category_key( int $competition_id, int $category_id ): string {
+		return $competition_id . ':' . $category_id;
 	}
 
 	private function format_fight_status( string $status ): string {

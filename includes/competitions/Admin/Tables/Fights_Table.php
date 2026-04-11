@@ -7,7 +7,9 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\FightDisplayService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -21,10 +23,13 @@ class Fights_Table extends \WP_List_Table {
 	private $repository;
 	private $competition_repository;
 	private $category_repository;
+	private $entry_repository;
 	private $filters = array();
 	private $competitions = array();
 	private $categories = array();
 	private $competition_view_fallback = false;
+	private $entry_map = array();
+	private $fights_by_category = array();
 
 	public function __construct() {
 		parent::__construct(
@@ -42,6 +47,7 @@ class Fights_Table extends \WP_List_Table {
 		$this->repository = new FightRepository();
 		$this->competition_repository = new CompetitionRepository();
 		$this->category_repository = new CategoryRepository();
+		$this->entry_repository = new EntryRepository();
 	}
 
 	public function get_filters() {
@@ -89,6 +95,7 @@ class Fights_Table extends \WP_List_Table {
 		$this->filters = $filters;
 		$total_items = $this->repository->count( $filters );
 		$this->items = $this->repository->list( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$this->prepare_display_maps( $this->items );
 
 		$this->set_pagination_args(
 			array(
@@ -105,6 +112,9 @@ class Fights_Table extends \WP_List_Table {
 			'competition'=> __( 'Compétition', 'ufsc-licence-competition' ),
 			'discipline' => __( 'Discipline', 'ufsc-licence-competition' ),
 			'category'   => __( 'Catégorie', 'ufsc-licence-competition' ),
+			'phase'      => __( 'Phase', 'ufsc-licence-competition' ),
+			'red'        => __( 'Coin Rouge', 'ufsc-licence-competition' ),
+			'blue'       => __( 'Coin Bleu', 'ufsc-licence-competition' ),
 			'ring'       => __( 'Ring/Tatami', 'ufsc-licence-competition' ),
 			'round_no'   => __( 'Round', 'ufsc-licence-competition' ),
 			'status'     => __( 'Statut', 'ufsc-licence-competition' ),
@@ -190,6 +200,12 @@ class Fights_Table extends \WP_List_Table {
 				return esc_html( $this->get_competition_discipline( $item->competition_id ) );
 			case 'category':
 				return esc_html( $this->get_category_name( $item->category_id ) );
+			case 'phase':
+				return esc_html( FightDisplayService::format_phase_label( $item, $this->get_category_fights( $item ) ) );
+			case 'red':
+				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->red_entry_id ?? 0 ) ), 'red', $this->get_category_fights( $item ) ) );
+			case 'blue':
+				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->blue_entry_id ?? 0 ) ), 'blue', $this->get_category_fights( $item ) ) );
 			case 'ring':
 				return esc_html( $item->ring );
 			case 'round_no':
@@ -330,5 +346,74 @@ class Fights_Table extends \WP_List_Table {
 		}
 
 		return $ids ? $ids : array( 0 );
+	}
+
+	private function prepare_display_maps( array $items ): void {
+		$entry_ids = array();
+		$competition_ids = array();
+
+		foreach ( $items as $item ) {
+			$competition_id = (int) ( $item->competition_id ?? 0 );
+			if ( $competition_id > 0 ) {
+				$competition_ids[ $competition_id ] = $competition_id;
+			}
+
+			foreach ( array( 'red_entry_id', 'blue_entry_id' ) as $corner ) {
+				$entry_id = (int) ( $item->{$corner} ?? 0 );
+				if ( $entry_id > 0 ) {
+					$entry_ids[ $entry_id ] = $entry_id;
+				}
+			}
+		}
+
+		$this->entry_map = array();
+		if ( $entry_ids ) {
+			$entries = $this->entry_repository->list_with_details(
+				array(
+					'view' => 'all',
+					'entry_ids' => array_values( $entry_ids ),
+				),
+				count( $entry_ids ),
+				0
+			);
+			foreach ( $entries as $entry ) {
+				$this->entry_map[ (int) ( $entry->id ?? 0 ) ] = $entry;
+			}
+		}
+
+		$this->fights_by_category = array();
+		if ( $competition_ids ) {
+			$all_fights = $this->repository->list(
+				array(
+					'view' => 'all',
+					'competition_ids' => array_values( $competition_ids ),
+				),
+				5000,
+				0
+			);
+			foreach ( $all_fights as $fight ) {
+				$key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
+				if ( ! isset( $this->fights_by_category[ $key ] ) ) {
+					$this->fights_by_category[ $key ] = array();
+				}
+				$this->fights_by_category[ $key ][] = $fight;
+			}
+		}
+	}
+
+	private function get_entry( int $entry_id ) {
+		if ( $entry_id <= 0 ) {
+			return null;
+		}
+		return $this->entry_map[ $entry_id ] ?? null;
+	}
+
+	private function get_category_fights( $fight ): array {
+		$key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
+		return $this->fights_by_category[ $key ] ?? array();
+	}
+
+	private function get_category_key( int $competition_id, int $category_id ): string {
+		return $competition_id . ':' . $category_id;
 	}
 }
