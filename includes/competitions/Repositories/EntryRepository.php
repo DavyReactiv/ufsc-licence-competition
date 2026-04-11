@@ -639,6 +639,7 @@ class EntryRepository {
 				}
 				$last_name_expr = $this->build_coalesce_expression( 'l.', $last_name_columns, '' );
 				$license_number_expr = $this->build_license_number_expression( $licence_columns );
+				$entry_license_number_expr = $this->build_entry_license_number_expression( $entries_alias . '.', Db::get_table_columns( $table ) );
 				$first_name_select = in_array( 'prenom', $licence_columns, true ) ? 'l.prenom' : "''";
 				$birthdate_select = in_array( 'date_naissance', $licence_columns, true ) ? 'l.date_naissance' : "''";
 				$sex_select = "''";
@@ -651,7 +652,7 @@ class EntryRepository {
 				$select .= ", {$last_name_expr} AS licensee_last_name, {$first_name_select} AS licensee_first_name";
 				$select .= ", {$birthdate_select} AS licensee_birthdate";
 				$select .= ", {$sex_select} AS licensee_sex";
-				$select .= ", {$license_number_expr} AS license_number";
+				$select .= ", COALESCE(NULLIF({$entry_license_number_expr}, ''), {$license_number_expr}) AS license_number";
 				$select .= $license_club_column ? ', l.club_id AS licensee_club_id' : ", NULL AS licensee_club_id";
 			}
 
@@ -817,6 +818,41 @@ class EntryRepository {
 		foreach ( $available as $column ) {
 			$parts[] = "NULLIF(l.{$column}, '')";
 		}
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_entry_license_number_expression( string $prefix, $columns ): string {
+		if ( ! is_array( $columns ) ) {
+			return "''";
+		}
+
+		$candidates = array(
+			'license_number',
+			'licence_number',
+			'licensee_number',
+			'license',
+			'licence',
+			'numero_licence',
+			'numero_licence_asptt',
+		);
+
+		$available = array();
+		foreach ( $candidates as $column ) {
+			if ( in_array( $column, $columns, true ) ) {
+				$available[] = $column;
+			}
+		}
+
+		if ( ! $available ) {
+			return "''";
+		}
+
+		$parts = array();
+		foreach ( $available as $column ) {
+			$parts[] = "NULLIF({$prefix}{$column}, '')";
+		}
+		$parts[] = "''";
 
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
