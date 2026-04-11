@@ -500,6 +500,20 @@ class Entries_Import_Page {
 			$data = is_array( $row['data'] ?? null ) ? $row['data'] : array();
 
 			$normalized       = $this->normalize_import_data( $data, $competition_discipline );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC entries CSV import csv_normalized_row ' . wp_json_encode(
+						array(
+							'line'           => $line,
+							'nom'            => (string) ( $normalized['nom'] ?? '' ),
+							'prenom'         => (string) ( $normalized['prenom'] ?? '' ),
+							'date_naissance' => (string) ( $normalized['date_naissance'] ?? '' ),
+							'numero_licence' => (string) ( $normalized['numero_licence'] ?? '' ),
+							'club_nom'       => (string) ( $normalized['club_nom'] ?? '' ),
+						)
+					)
+				);
+			}
 			$validation_error = $this->validate_minimal_row( $normalized );
 			if ( '' !== $validation_error ) {
 				$report['skipped']++;
@@ -987,6 +1001,18 @@ class Entries_Import_Page {
 		foreach ( $this->get_supported_headers() as $header ) {
 			$normalized[ $header ] = $this->normalize_text( $data[ $header ] ?? '' );
 		}
+		foreach ( $this->get_header_aliases() as $canonical => $aliases ) {
+			if ( '' !== $normalized[ $canonical ] ) {
+				continue;
+			}
+			foreach ( $aliases as $alias ) {
+				$alias_value = $this->normalize_text( $data[ $alias ] ?? '' );
+				if ( '' !== $alias_value ) {
+					$normalized[ $canonical ] = $alias_value;
+					break;
+				}
+			}
+		}
 
 		$normalized['discipline'] = $this->normalize_discipline( $normalized['discipline'], $competition_discipline );
 		$normalized['sexe']       = $this->normalize_sex( $normalized['sexe'] );
@@ -1113,7 +1139,7 @@ class Entries_Import_Page {
 		}
 
 		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
-		$formats  = array( 'Y-m-d', 'd/m/Y', 'd-m-Y' );
+		$formats  = array( 'Y-m-d', 'Y-m-d H:i:s', 'd/m/Y', 'd-m-Y' );
 		foreach ( $formats as $format ) {
 			$parsed = \DateTimeImmutable::createFromFormat( '!' . $format, $raw, $timezone );
 			if ( $parsed && $parsed->format( $format ) === $raw ) {
@@ -1203,6 +1229,27 @@ class Entries_Import_Page {
 			'autorisation_parentale',
 			'statut_dossier',
 			'commentaire',
+		);
+	}
+
+	private function get_header_aliases(): array {
+		return array(
+			'nom'                  => array( 'last_name', 'lastname', 'family_name', 'name', 'nom_de_famille' ),
+			'prenom'               => array( 'first_name', 'firstname', 'given_name', 'prenom_nom', 'prnom' ),
+			'sexe'                 => array( 'sex', 'gender' ),
+			'date_naissance'       => array( 'birth_date', 'birthdate', 'dob', 'date_of_birth', 'date_de_naissance' ),
+			'club_nom'             => array( 'club_name', 'structure_name', 'club', 'club_label' ),
+			'club_id'              => array( 'clubid' ),
+			'niveau'               => array( 'level', 'classe', 'class' ),
+			'categorie'            => array( 'category', 'category_name' ),
+			'poids'                => array( 'weight', 'weight_kg' ),
+			'categorie_poids'      => array( 'weight_class', 'weight_category', 'weight_cat' ),
+			'fighter_number'       => array( 'competition_number', 'dossard', 'numero_combattant' ),
+			'numero_licence'       => array( 'license_number', 'licence_number', 'licensee_number', 'numero_licence_delegataire', 'num_licence', 'n_licence' ),
+			'numero_licence_asptt' => array( 'numero_asptt', 'asptt_number', 'license_asptt' ),
+			'telephone'            => array( 'phone', 'mobile', 'tel' ),
+			'statut_dossier'       => array( 'status', 'entry_status' ),
+			'commentaire'          => array( 'comment', 'notes', 'note' ),
 		);
 	}
 

@@ -3,6 +3,7 @@
 namespace UFSC\Competitions\Admin\Tables;
 
 use UFSC\Competitions\Admin\Entries_Validation_Menu;
+use UFSC\Competitions\Entries\EntryDataNormalizer;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
@@ -219,17 +220,17 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_license_number( $item ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_birth_date( $item ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'annee_naissance', 'birth_year' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( EntryDataNormalizer::resolve_birth_year( $item ) ) ) );
 			case 'category':
 				return $this->format_with_empty_badge( $this->resolve_category_label( $item ), __( 'Non renseignée', 'ufsc-licence-competition' ) );
 			case 'competition':
 				return esc_html( $this->format_fallback( $this->get_competition_name( $this->get_item_value( $item, 'competition_id' ) ) ) );
 			case 'club':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value', 'club_id' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_club_name( $item ) ) );
 			case 'weight':
 				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'weight', 'weight_kg' ) ) ) );
 			case 'weight_class':
@@ -295,21 +296,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $entry ): string {
-		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
-		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
-		if ( '' === $last || '' === $first ) {
-			$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-			if ( '' !== $participant_name ) {
-				$parts = $this->split_participant_name( $participant_name );
-				if ( '' === $last ) {
-					$last = $parts['last'];
-				}
-				if ( '' === $first ) {
-					$first = $parts['first'];
-				}
-			}
-		}
-		$name = trim( $last . ' ' . $first );
+		$name = EntryDataNormalizer::resolve_display_name( $entry );
 
 		if ( '' !== $name ) {
 			return $name;
@@ -373,6 +360,9 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	private function format_birth_year( $birthdate ): string {
 		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
 		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $birthdate ) ) {
 			return substr( $birthdate, 0, 4 );
 		}
