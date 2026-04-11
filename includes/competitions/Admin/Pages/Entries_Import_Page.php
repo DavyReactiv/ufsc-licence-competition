@@ -1178,7 +1178,12 @@ class Entries_Import_Page {
 		$header = is_scalar( $header ) ? (string) $header : '';
 		$header = wp_check_invalid_utf8( $header );
 		$header = trim( $header );
-		$header = str_replace( array( ' ', '-' ), '_', $header );
+		if ( function_exists( 'remove_accents' ) ) {
+			$header = remove_accents( $header );
+		}
+		$header = str_replace( array( ' ', '-', '\'', '’', '°', '.', ':' ), '_', $header );
+		$header = preg_replace( '/[^a-zA-Z0-9_]+/', '_', $header );
+		$header = preg_replace( '/_+/', '_', (string) $header );
 
 		return sanitize_key( $header );
 	}

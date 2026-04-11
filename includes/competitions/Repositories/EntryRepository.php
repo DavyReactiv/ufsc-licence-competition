@@ -514,7 +514,7 @@ class EntryRepository {
 		$where = array( '1=1' );
 		$entry_search_exprs = array();
 		$entry_columns      = Db::get_table_columns( $table );
-		$entry_birth_date_expr = $this->build_entry_text_expression(
+		$entry_birth_date_expr = $this->build_entry_date_expression(
 			$entries_alias . '.',
 			$entry_columns,
 			array( 'birth_date', 'birthdate', 'date_naissance', 'date_of_birth', 'dob' )
@@ -670,7 +670,7 @@ class EntryRepository {
 				$last_name_expr = $this->build_coalesce_expression( 'l.', $last_name_columns, '' );
 				$license_number_expr = $this->build_license_number_expression( $licence_columns );
 				$first_name_select = in_array( 'prenom', $licence_columns, true ) ? 'l.prenom' : "''";
-				$birthdate_select = in_array( 'date_naissance', $licence_columns, true ) ? 'l.date_naissance' : "''";
+				$birthdate_select = in_array( 'date_naissance', $licence_columns, true ) ? 'CAST(l.date_naissance AS CHAR)' : 'NULL';
 				$sex_select = "''";
 				foreach ( array( 'sex', 'sexe', 'gender' ) as $sex_column ) {
 					if ( in_array( $sex_column, $licence_columns, true ) ) {
@@ -685,7 +685,7 @@ class EntryRepository {
 				$select .= $license_club_column ? ', l.club_id AS licensee_club_id' : ", NULL AS licensee_club_id";
 				$select .= ", COALESCE(NULLIF({$entry_first_name_expr}, ''), NULLIF({$first_name_select}, '')) AS first_name";
 				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), NULLIF({$last_name_expr}, '')) AS last_name";
-				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), NULLIF({$birthdate_select}, '')) AS birth_date";
+				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$birthdate_select}) AS birth_date";
 				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
 				$select .= ", {$entry_fighter_expr} AS fighter_number";
 			}
@@ -911,6 +911,25 @@ class EntryRepository {
 		$parts = array();
 		foreach ( $available as $column ) {
 			$parts[] = "NULLIF({$prefix}{$column}, '')";
+		}
+		$parts[] = "''";
+
+		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_entry_date_expression( string $prefix, $columns, array $candidates ): string {
+		if ( ! is_array( $columns ) ) {
+			return "''";
+		}
+
+		$parts = array();
+		foreach ( $candidates as $column ) {
+			if ( in_array( $column, $columns, true ) ) {
+				$parts[] = "NULLIF(CAST({$prefix}{$column} AS CHAR), '')";
+			}
+		}
+		if ( ! $parts ) {
+			return "''";
 		}
 		$parts[] = "''";
 
