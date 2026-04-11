@@ -62,7 +62,10 @@ class Entries_Page {
 				if ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 					$this->repository->assert_entry_in_scope( $id );
 				}
-				$item = $this->repository->get( $id, true );
+				$item = $this->repository->get_with_details( $id, true );
+				if ( ! $item ) {
+					$item = $this->repository->get( $id, true );
+				}
 			}
 			$this->render_form( $item );
 			return;
@@ -743,8 +746,8 @@ class Entries_Page {
 			'competition_id' => $item->competition_id ?? 0,
 			'category_id'    => $item->category_id ?? 0,
 			'club_id'        => $item->club_id ?? 0,
-			'licensee_id'    => $item->licensee_id ?? 0,
-			'status'         => $item->status ?? 'draft',
+			'licensee_id'    => (int) ( $item->licensee_id ?? $item->licence_id ?? 0 ),
+			'status'         => $this->repository->get_entry_status( $item ),
 			'weight_kg'      => $item->weight_kg ?? '',
 			'weight_class'   => $item->weight_class ?? '',
 		);

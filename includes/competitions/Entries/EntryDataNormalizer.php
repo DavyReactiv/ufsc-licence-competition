@@ -86,6 +86,19 @@ class EntryDataNormalizer {
 		return self::get_text_value( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) );
 	}
 
+	public static function resolve_submitted_at( $item ): string {
+		return self::get_text_value(
+			$item,
+			array(
+				'submitted_at',
+				'submitted',
+				'date_submitted',
+				'created_at',
+				'imported_at',
+			)
+		);
+	}
+
 	public static function normalize_for_admin( $item ): array {
 		$data = array(
 			'display_name'   => self::resolve_display_name( $item ),
@@ -96,6 +109,7 @@ class EntryDataNormalizer {
 			'club_name'      => self::resolve_club_name( $item ),
 			'license_number' => self::resolve_license_number( $item ),
 			'fighter_number' => self::get_text_value( $item, array( 'fighter_number', 'competition_number', 'dossard' ) ),
+			'submitted_at'   => self::resolve_submitted_at( $item ),
 			'category'       => self::get_text_value( $item, array( 'category', 'category_name' ) ),
 			'weight'         => self::get_text_value( $item, array( 'weight', 'weight_kg', 'poids' ) ),
 			'weight_class'   => self::get_text_value( $item, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ),

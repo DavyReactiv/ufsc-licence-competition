@@ -133,10 +133,35 @@ class FightAutoGenerationService {
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
 		if ( empty( $settings['surface_details'] ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC FightAutoGenerationService settings_validation_failed: empty surface_details' );
+			}
 			return false;
 		}
+		$option_key = self::SETTINGS_PREFIX . $competition_id;
+		$existing   = get_option( $option_key, null );
+		$updated    = update_option( $option_key, $settings, false );
+		if ( ! $updated && $existing === $settings ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC FightAutoGenerationService settings_unchanged_but_valid ' . wp_json_encode( array( 'competition_id' => $competition_id ) ) );
+			}
+			return true;
+		}
 
-		return (bool) update_option( self::SETTINGS_PREFIX . $competition_id, $settings, false );
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC FightAutoGenerationService settings_saved ' . wp_json_encode(
+					array(
+						'competition_id' => $competition_id,
+						'updated'        => (bool) $updated,
+						'surface_count'  => (int) $settings['surface_count'],
+						'surface_types'  => self::get_surface_types_from_settings( $settings ),
+					)
+				)
+			);
+		}
+
+		return (bool) $updated;
 	}
 
 	public static function get_draft( int $competition_id ): array {
@@ -184,7 +209,7 @@ class FightAutoGenerationService {
 		}
 
 		$entry_repo = new EntryRepository();
-		$entries    = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 
 		$selection = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 
@@ -262,7 +287,7 @@ class FightAutoGenerationService {
 			}
 
 			$entry_repo = new EntryRepository();
-			$entries    = $entry_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+			$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 
 			$total_entries = count( $entries );
 
@@ -636,6 +661,17 @@ class FightAutoGenerationService {
 			}
 
 			if ( empty( $eligibility['eligible'] ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log(
+						'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode(
+							array(
+								'entry_id' => $entry_id,
+								'reasons'  => array_values( (array) ( $eligibility['reasons'] ?? array() ) ),
+								'context'  => 'eligibility',
+							)
+						)
+					);
+				}
 				foreach ( (array) ( $eligibility['reasons'] ?? array() ) as $reason ) {
 					$ineligible_reasons[ $reason ] = true;
 				}
@@ -651,6 +687,9 @@ class FightAutoGenerationService {
 					if ( ! $has_weighin ) {
 						$ineligible_reasons['weighin_missing'] = true;
 						$excluded_unweighed++;
+						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'weighin_missing' ), 'context' => 'weighin' ) ) );
+						}
 						continue;
 					}
 
@@ -658,6 +697,9 @@ class FightAutoGenerationService {
 					if ( ! empty( $meta['reclass_pending'] ) ) {
 						$ineligible_reasons['reclass_pending'] = true;
 						$excluded_unweighed++;
+						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'reclass_pending' ), 'context' => 'weighin' ) ) );
+						}
 						continue;
 					}
 				}
