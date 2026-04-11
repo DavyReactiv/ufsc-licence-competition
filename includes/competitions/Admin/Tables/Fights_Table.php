@@ -9,6 +9,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\FighterNumberService;
 use UFSC\Competitions\Services\FightDisplayService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -30,6 +31,7 @@ class Fights_Table extends \WP_List_Table {
 	private $competition_view_fallback = false;
 	private $entry_map = array();
 	private $fights_by_category = array();
+	private $fighter_numbers_by_entry = array();
 
 	public function __construct() {
 		parent::__construct(
@@ -220,9 +222,9 @@ class Fights_Table extends \WP_List_Table {
 			case 'phase':
 				return esc_html( FightDisplayService::format_phase_label( $item, $this->get_category_fights( $item ) ) );
 			case 'red':
-				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->red_entry_id ?? 0 ) ), 'red', $this->get_category_fights( $item ) ) );
+				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->red_entry_id ?? 0 ) ), 'red', $this->get_category_fights( $item ), array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) ) );
 			case 'blue':
-				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->blue_entry_id ?? 0 ) ), 'blue', $this->get_category_fights( $item ) ) );
+				return esc_html( FightDisplayService::format_corner_label( $item, $this->get_entry( (int) ( $item->blue_entry_id ?? 0 ) ), 'blue', $this->get_category_fights( $item ), array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) ) );
 			case 'ring':
 				return esc_html( $item->ring );
 			case 'round_no':
@@ -384,6 +386,7 @@ class Fights_Table extends \WP_List_Table {
 		}
 
 		$this->entry_map = array();
+		$this->fighter_numbers_by_entry = array();
 		if ( $entry_ids ) {
 			$entries = $this->entry_repository->list_with_details(
 				array(
@@ -395,6 +398,24 @@ class Fights_Table extends \WP_List_Table {
 			);
 			foreach ( $entries as $entry ) {
 				$this->entry_map[ (int) ( $entry->id ?? 0 ) ] = $entry;
+			}
+
+			$entry_ids_by_competition = array();
+			foreach ( $items as $item ) {
+				$competition_id = (int) ( $item->competition_id ?? 0 );
+				if ( $competition_id <= 0 ) {
+					continue;
+				}
+				foreach ( array( 'red_entry_id', 'blue_entry_id' ) as $corner ) {
+					$entry_id = (int) ( $item->{$corner} ?? 0 );
+					if ( $entry_id > 0 ) {
+						$entry_ids_by_competition[ $competition_id ][ $entry_id ] = $entry_id;
+					}
+				}
+			}
+
+			foreach ( $entry_ids_by_competition as $competition_id => $competition_entry_ids ) {
+				$this->fighter_numbers_by_entry += FighterNumberService::build_map( (int) $competition_id, array_values( $competition_entry_ids ) );
 			}
 		}
 

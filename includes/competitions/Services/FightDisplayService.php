@@ -13,9 +13,9 @@ class FightDisplayService {
 	 * @param string $corner
 	 * @param array<int,object> $category_fights
 	 */
-	public static function format_corner_label( $fight, $entry, string $corner, array $category_fights ): string {
+	public static function format_corner_label( $fight, $entry, string $corner, array $category_fights, array $context = array() ): string {
 		if ( $entry ) {
-			return self::format_entry_label( $entry );
+			return self::format_entry_label( $entry, $context );
 		}
 
 		$corner = 'blue' === $corner ? 'blue' : 'red';
@@ -201,15 +201,27 @@ class FightDisplayService {
 		return 0;
 	}
 
-	private static function format_entry_label( $entry ): string {
+	private static function format_entry_label( $entry, array $context = array() ): string {
 		$first_name = trim( (string) ( $entry->licensee_first_name ?? '' ) );
 		$last_name = trim( (string) ( $entry->licensee_last_name ?? '' ) );
+		$numbers_by_entry = isset( $context['fighter_numbers_by_entry'] ) && is_array( $context['fighter_numbers_by_entry'] )
+			? $context['fighter_numbers_by_entry']
+			: array();
+		$entry_id = (int) ( $entry->id ?? 0 );
+		$fighter_number = (int) ( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+		if ( $fighter_number <= 0 && $entry_id > 0 ) {
+			$fighter_number = (int) ( $numbers_by_entry[ $entry_id ] ?? 0 );
+		}
 
 		$label = trim( $first_name . ' ' . $last_name );
+		if ( $fighter_number > 0 ) {
+			$prefix = '#' . $fighter_number;
+			$label  = '' !== $label ? $prefix . ' · ' . $label : $prefix;
+		}
 		if ( '' !== $label ) {
 			return $label;
 		}
 
-		return sprintf( __( 'Participant #%d', 'ufsc-licence-competition' ), (int) ( $entry->id ?? 0 ) );
+		return sprintf( __( 'Participant #%d', 'ufsc-licence-competition' ), $entry_id );
 	}
 }

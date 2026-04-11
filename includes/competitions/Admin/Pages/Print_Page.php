@@ -8,9 +8,9 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
-use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\FighterNumberService;
 use UFSC\Competitions\Services\FightDisplayService;
 use UFSC\Competitions\Services\PrintRenderer;
 use UFSC\Competitions\Entries\EntriesWorkflow;
@@ -25,7 +25,6 @@ class Print_Page {
 	private $entries;
 	private $fights;
 	private $renderer;
-	private $weighins;
 	private $fighter_numbers_by_entry = array();
 
 	public function __construct() {
@@ -34,7 +33,6 @@ class Print_Page {
 		$this->entries = new EntryRepository();
 		$this->fights = new FightRepository();
 		$this->renderer = new PrintRenderer();
-		$this->weighins = new WeighInRepository();
 	}
 
 	public function render() {
@@ -174,7 +172,7 @@ class Print_Page {
 			$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 		}
 		$entries = $this->entries->list_with_details( $entry_filters, 3000, 0 );
-		$this->fighter_numbers_by_entry = $this->build_fighter_numbers_map( $competition_id, $entries );
+		$this->fighter_numbers_by_entry = FighterNumberService::build_map_from_entries( $competition_id, $entries );
 		$categories = $this->categories->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
 		$category_map = array();
 		foreach ( $categories as $category ) {
@@ -252,7 +250,7 @@ class Print_Page {
 			$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 		}
 		$entries = $this->entries->list_with_details( $entry_filters, 3000, 0 );
-		$this->fighter_numbers_by_entry = $this->build_fighter_numbers_map( $competition_id, $entries );
+		$this->fighter_numbers_by_entry = FighterNumberService::build_map_from_entries( $competition_id, $entries );
 		$entry_map = array();
 		foreach ( $entries as $entry ) {
 			$entry_map[ (int) $entry->id ] = $entry;
@@ -317,8 +315,8 @@ class Print_Page {
 				$blue = $entry_map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null;
 				$category_key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
 				$category_fights = $fights_by_category[ $category_key ] ?? array();
-				$red_label = FightDisplayService::format_corner_label( $fight, $red, 'red', $category_fights );
-				$blue_label = FightDisplayService::format_corner_label( $fight, $blue, 'blue', $category_fights );
+				$red_label = FightDisplayService::format_corner_label( $fight, $red, 'red', $category_fights, array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) );
+				$blue_label = FightDisplayService::format_corner_label( $fight, $blue, 'blue', $category_fights, array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
 				$phase_label = FightDisplayService::format_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
@@ -561,11 +559,7 @@ class Print_Page {
 			return '—';
 		}
 
-		$number = (int) ( $entry->fighter_number ?? $entry->competition_number ?? 0 );
-		if ( $number <= 0 ) {
-			$entry_id = (int) ( $entry->id ?? 0 );
-			$number = $entry_id > 0 ? (int) ( $this->fighter_numbers_by_entry[ $entry_id ] ?? 0 ) : 0;
-		}
+		$number = FighterNumberService::resolve_for_entry( $entry, $this->fighter_numbers_by_entry );
 		if ( $number > 0 ) {
 			return '#' . $number;
 		}
@@ -616,25 +610,4 @@ class Print_Page {
 		return $labels[ $status ] ?? $status;
 	}
 
-	private function build_fighter_numbers_map( int $competition_id, array $entries ): array {
-		$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
-		if ( ! $competition_id || empty( $entry_ids ) || ! $this->weighins->has_table() ) {
-			return array();
-		}
-
-		$rows = $this->weighins->get_for_entries( $competition_id, $entry_ids );
-		$map = array();
-		foreach ( $rows as $entry_id => $row ) {
-			$meta = json_decode( (string) ( $row->notes ?? '' ), true );
-			if ( ! is_array( $meta ) ) {
-				continue;
-			}
-			$fighter_number = absint( $meta['fighter_number'] ?? 0 );
-			if ( $fighter_number > 0 ) {
-				$map[ (int) $entry_id ] = $fighter_number;
-			}
-		}
-
-		return $map;
-	}
 }
