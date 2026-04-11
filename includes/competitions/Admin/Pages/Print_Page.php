@@ -287,11 +287,15 @@ class Print_Page {
 			echo '<table class="widefat striped ufsc-print-table ufsc-print-table--fights">';
 			echo '<thead><tr>'
 				. '<th>' . esc_html__( 'Ordre', 'ufsc-licence-competition' ) . '</th>'
-				. '<th>' . esc_html__( 'Horaire', 'ufsc-licence-competition' ) . '</th>'
-				. '<th>' . esc_html__( 'Catégorie', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Phase', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'N° Rouge', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Coin Rouge', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'Club Rouge', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'N° Bleu', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Coin Bleu', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'Club Bleu', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'Catégorie / poids', 'ufsc-licence-competition' ) . '</th>'
+				. '<th>' . esc_html__( 'Horaire', 'ufsc-licence-competition' ) . '</th>'
 				. '<th>' . esc_html__( 'Statut', 'ufsc-licence-competition' ) . '</th>'
 				. '</tr></thead><tbody>';
 
@@ -312,14 +316,23 @@ class Print_Page {
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
 				$phase_label = FightDisplayService::format_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
+				$category_weight = $this->format_fight_category_weight( $fight, $category_name );
+				$red_no = $this->format_competitor_number( $red );
+				$blue_no = $this->format_competitor_number( $blue );
+				$red_club = $this->format_competitor_club( $red );
+				$blue_club = $this->format_competitor_club( $blue );
 
 				echo '<tr>'
 					. '<td>#' . esc_html( (string) ( $fight->fight_no ?? '' ) ) . '</td>'
-					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
-					. '<td>' . esc_html( $category_name ) . '</td>'
 					. '<td>' . esc_html( $phase_label ) . '</td>'
+					. '<td>' . esc_html( $red_no ) . '</td>'
 					. '<td>' . esc_html( $red_label ) . '</td>'
+					. '<td>' . esc_html( $red_club ) . '</td>'
+					. '<td>' . esc_html( $blue_no ) . '</td>'
 					. '<td>' . esc_html( $blue_label ) . '</td>'
+					. '<td>' . esc_html( $blue_club ) . '</td>'
+					. '<td>' . esc_html( $category_weight ) . '</td>'
+					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
 					. '<td>' . esc_html( $this->format_fight_status( (string) ( $fight->status ?? '' ) ) ) . '</td>'
 					. '</tr>';
 			}
@@ -535,6 +548,48 @@ class Print_Page {
 		$parts = array_filter( array( $name, $club, $license ) );
 
 		return implode( ' · ', $parts );
+	}
+
+	private function format_competitor_number( $entry ): string {
+		if ( ! $entry ) {
+			return '—';
+		}
+
+		$number = (int) ( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+		if ( $number > 0 ) {
+			return '#' . $number;
+		}
+
+		return '#' . (int) ( $entry->id ?? 0 );
+	}
+
+	private function format_competitor_club( $entry ): string {
+		if ( ! $entry ) {
+			return '—';
+		}
+
+		$club = trim( (string) ( $entry->club_name ?? $entry->club_nom ?? '' ) );
+		return '' !== $club ? $club : '—';
+	}
+
+	private function format_fight_category_weight( $fight, string $category_name ): string {
+		$parts = array();
+		$category_name = trim( $category_name );
+		if ( '' !== $category_name ) {
+			$parts[] = $category_name;
+		}
+
+		$weight = $this->format_weight( $fight->weight_kg ?? '' );
+		if ( '—' !== $weight ) {
+			$parts[] = $weight;
+		}
+
+		$weight_class = trim( (string) ( $fight->weight_class ?? '' ) );
+		if ( '' !== $weight_class ) {
+			$parts[] = $weight_class;
+		}
+
+		return $parts ? implode( ' · ', $parts ) : '—';
 	}
 
 	private function get_category_key( int $competition_id, int $category_id ): string {
