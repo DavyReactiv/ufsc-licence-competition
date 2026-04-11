@@ -297,6 +297,8 @@ class Print_Page {
 			foreach ( $surface_fights as $fight ) {
 				$red = $entry_map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null;
 				$blue = $entry_map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null;
+				$red_label = $red ? $this->format_fighter_label( $red ) : __( 'BYE', 'ufsc-licence-competition' );
+				$blue_label = $blue ? $this->format_fighter_label( $blue ) : __( 'BYE', 'ufsc-licence-competition' );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
 
@@ -304,8 +306,8 @@ class Print_Page {
 					. '<td>#' . esc_html( (string) ( $fight->fight_no ?? '' ) ) . '</td>'
 					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
 					. '<td>' . esc_html( $category_name ) . '</td>'
-					. '<td>' . esc_html( $this->format_fighter_label( $red ) ) . '</td>'
-					. '<td>' . esc_html( $this->format_fighter_label( $blue ) ) . '</td>'
+					. '<td>' . esc_html( $red_label ) . '</td>'
+					. '<td>' . esc_html( $blue_label ) . '</td>'
 					. '<td>' . esc_html( $this->format_fight_status( (string) ( $fight->status ?? '' ) ) ) . '</td>'
 					. '</tr>';
 			}

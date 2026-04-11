@@ -349,14 +349,19 @@ class FightAutoGenerationService {
 				);
 			}
 
+			$groups = self::sort_groups_for_generation( $groups, $normalized_categories );
+
 			$fight_repo    = new FightRepository();
 			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 
-			$fights = array();
+			$fights         = array();
+			$total_bye_slots = 0;
 			foreach ( $groups as $category_id => $group_entries ) {
+				$group_entries = self::sort_entries_for_generation( $group_entries );
 				$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no );
 				$fights    = array_merge( $fights, $generated['fights'] );
 				$next_fight_no = $generated['next_no'];
+				$total_bye_slots += (int) ( $generated['bye_slots'] ?? 0 );
 			}
 
 			$fights = self::assign_surfaces_and_schedule( $fights, $settings, (int) $competition_id );
@@ -368,6 +373,7 @@ class FightAutoGenerationService {
 				'total_entries'     => $total_entries,
 				'eligible_entries'  => count( $valid_entries ),
 				'excluded_unweighed' => $excluded_unweighed,
+				'bye_slots'         => $total_bye_slots,
 			);
 
 			$draft = array(
@@ -737,9 +743,10 @@ class FightAutoGenerationService {
 	}
 
 	private static function build_fights_for_group( int $competition_id, int $category_id, array $entries, int $start_no ): array {
-		$fights   = array();
-		$count    = count( $entries );
-		$next_no  = $start_no;
+		$fights     = array();
+		$count      = count( $entries );
+		$next_no    = $start_no;
+		$bye_slots  = 0;
 
 		if ( class_exists( FightGenerationPremiumPlanner::class ) ) {
 				$premium_plan = FightGenerationPremiumPlanner::plan(
@@ -808,48 +815,128 @@ class FightAutoGenerationService {
 		if ( 2 === $count ) {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[1], 1 );
 			$next_no++;
-		} elseif ( $count >= 3 && $count <= 5 ) {
+		} elseif ( 3 === $count ) {
 			foreach ( self::round_robin_pairs( $entries ) as $pair ) {
 				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $pair['red'], $pair['blue'], 1 );
 				$next_no++;
 			}
-		} elseif ( $count >= 6 && $count <= 10 ) {
-			$pool_generator = new PoolGenerator();
-			$pools          = $pool_generator->generate( $entries, 4 );
-			$winners        = array();
-
-			foreach ( $pools as $pool_entries ) {
-				foreach ( self::round_robin_pairs( $pool_entries ) as $pair ) {
-					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $pair['red'], $pair['blue'], 1 );
-					$next_no++;
-				}
-
-				if ( ! empty( $pool_entries[0] ) ) {
-					$winners[] = $pool_entries[0];
-				}
-			}
-
-			if ( count( $winners ) >= 2 ) {
-				$bracket  = new BracketGenerator();
-				$matches  = $bracket->generate( $winners );
-				foreach ( $matches as $match ) {
-					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'], $match['blue'], 2 );
-					$next_no++;
-				}
-			}
-		} elseif ( $count > 10 ) {
+		} elseif ( 4 === $count ) {
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[3], 1 );
+			$next_no++;
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[1], $entries[2], 1 );
+			$next_no++;
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2 );
+			$next_no++;
+		} elseif ( $count >= 5 && $count <= 8 ) {
 			$bracket = new BracketGenerator();
-			$matches = $bracket->generate( $entries );
-			foreach ( $matches as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'], $match['blue'], 1 );
+			$plan    = $bracket->generate( $entries, 8 );
+			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
+				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
 				$next_no++;
 			}
+			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
+		} elseif ( $count >= 9 && $count <= 16 ) {
+			$bracket = new BracketGenerator();
+			$plan    = $bracket->generate( $entries, 16 );
+			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
+				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				$next_no++;
+			}
+			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
+		} elseif ( $count > 10 ) {
+			$bracket = new BracketGenerator();
+			$plan    = $bracket->generate( $entries );
+			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
+				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				$next_no++;
+			}
+			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
 		}
 
 		return array(
 			'fights'   => $fights,
 			'next_no'  => $next_no,
+			'bye_slots' => $bye_slots,
 		);
+	}
+
+	private static function sort_groups_for_generation( array $groups, array $normalized_categories ): array {
+		$category_map = array();
+		foreach ( $normalized_categories as $category ) {
+			$category_map[ (int) ( $category['id'] ?? 0 ) ] = $category;
+		}
+
+		$keys = array_keys( $groups );
+		usort(
+			$keys,
+			static function ( $a, $b ) use ( $category_map ) {
+				$category_a = $category_map[ (int) $a ] ?? array();
+				$category_b = $category_map[ (int) $b ] ?? array();
+
+				$age_a = isset( $category_a['age_min'] ) ? (int) $category_a['age_min'] : PHP_INT_MAX;
+				$age_b = isset( $category_b['age_min'] ) ? (int) $category_b['age_min'] : PHP_INT_MAX;
+				if ( $age_a !== $age_b ) {
+					return $age_a <=> $age_b;
+				}
+
+				$weight_a = isset( $category_a['weight_min'] ) ? (float) $category_a['weight_min'] : INF;
+				$weight_b = isset( $category_b['weight_min'] ) ? (float) $category_b['weight_min'] : INF;
+				if ( $weight_a !== $weight_b ) {
+					return $weight_a <=> $weight_b;
+				}
+
+				foreach ( array( 'sex', 'discipline', 'level', 'name' ) as $field ) {
+					$value_a = sanitize_text_field( (string) ( $category_a[ $field ] ?? '' ) );
+					$value_b = sanitize_text_field( (string) ( $category_b[ $field ] ?? '' ) );
+					$cmp = strcasecmp( $value_a, $value_b );
+					if ( 0 !== $cmp ) {
+						return $cmp;
+					}
+				}
+
+				return (int) $a <=> (int) $b;
+			}
+		);
+
+		$sorted = array();
+		foreach ( $keys as $category_id ) {
+			$sorted[ $category_id ] = $groups[ $category_id ];
+		}
+
+		return $sorted;
+	}
+
+	private static function sort_entries_for_generation( array $entries ): array {
+		usort(
+			$entries,
+			static function ( $entry_a, $entry_b ) {
+				$weight_a = isset( $entry_a->weight_kg ) && '' !== (string) $entry_a->weight_kg ? (float) $entry_a->weight_kg : INF;
+				$weight_b = isset( $entry_b->weight_kg ) && '' !== (string) $entry_b->weight_kg ? (float) $entry_b->weight_kg : INF;
+				if ( $weight_a !== $weight_b ) {
+					return $weight_a <=> $weight_b;
+				}
+
+				$sex_a = sanitize_text_field( (string) ( $entry_a->sex ?? $entry_a->gender ?? '' ) );
+				$sex_b = sanitize_text_field( (string) ( $entry_b->sex ?? $entry_b->gender ?? '' ) );
+				$sex_cmp = strcasecmp( $sex_a, $sex_b );
+				if ( 0 !== $sex_cmp ) {
+					return $sex_cmp;
+				}
+
+				$level_a = sanitize_text_field( (string) ( $entry_a->level ?? $entry_a->class ?? '' ) );
+				$level_b = sanitize_text_field( (string) ( $entry_b->level ?? $entry_b->class ?? '' ) );
+				$level_cmp = strcasecmp( $level_a, $level_b );
+				if ( 0 !== $level_cmp ) {
+					return $level_cmp;
+				}
+
+				$id_a = (int) ( $entry_a->id ?? 0 );
+				$id_b = (int) ( $entry_b->id ?? 0 );
+				return $id_a <=> $id_b;
+			}
+		);
+
+		return $entries;
 	}
 
 	private static function round_robin_pairs( array $entries ): array {
