@@ -230,8 +230,14 @@ class WeighIns_Page {
 		$row = $weighin['row'];
 		$current_weight = isset( $row->weight_measured ) ? (string) $row->weight_measured : '';
 		$fighter_number = isset( $meta['fighter_number'] ) ? (string) $meta['fighter_number'] : '';
+		if ( '' === $fighter_number ) {
+			$fighter_number = $this->get_item_value_from_keys( $entry, array( 'fighter_number', 'competition_number', 'dossard' ) );
+		}
 		$reclass_category_id = isset( $meta['reclass_category_id'] ) ? (int) $meta['reclass_category_id'] : 0;
 		$suggested = $this->suggest_reclassification_categories( $entry, $categories, $current_weight );
+		$last_name = $this->resolve_entry_last_name( $entry );
+		$first_name = $this->resolve_entry_first_name( $entry );
+		$club_name = $this->resolve_entry_club( $entry );
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'
@@ -244,9 +250,9 @@ class WeighIns_Page {
 				<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
 				<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
 				<td><input type="number" class="small-text" min="1" max="9999" name="fighter_number" value="<?php echo esc_attr( $fighter_number ); ?>" /></td>
-				<td><?php echo esc_html( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '—' ) ); ?></td>
-				<td><?php echo esc_html( (string) ( $entry->licensee_first_name ?? $entry->first_name ?? '—' ) ); ?></td>
-				<td><?php echo esc_html( (string) ( $entry->club_name ?? $entry->club_nom ?? '—' ) ); ?></td>
+				<td><?php echo esc_html( '' !== $last_name ? $last_name : '—' ); ?></td>
+				<td><?php echo esc_html( '' !== $first_name ? $first_name : '—' ); ?></td>
+				<td><?php echo esc_html( '' !== $club_name ? $club_name : '—' ); ?></td>
 				<td><?php echo esc_html( (string) $weighin['category_label'] ); ?></td>
 				<td><input type="number" step="0.1" min="0" max="300" name="weight_measured" value="<?php echo esc_attr( $current_weight ); ?>" class="small-text" /></td>
 				<td>
@@ -470,5 +476,78 @@ class WeighIns_Page {
 		);
 
 		return $candidates;
+	}
+
+	private function get_item_value( $item, string $key ) {
+		if ( is_array( $item ) && array_key_exists( $key, $item ) ) {
+			return $item[ $key ];
+		}
+		if ( is_object( $item ) && property_exists( $item, $key ) ) {
+			return $item->{$key};
+		}
+
+		return '';
+	}
+
+	private function get_item_value_from_keys( $item, array $keys ): string {
+		foreach ( $keys as $key ) {
+			$value = $this->get_item_value( $item, $key );
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return sanitize_text_field( (string) $value );
+			}
+		}
+
+		return '';
+	}
+
+	private function split_participant_name( string $participant_name ): array {
+		$participant_name = trim( $participant_name );
+		if ( '' === $participant_name ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+
+		$parts = preg_split( '/\s+/', $participant_name );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+		if ( 1 === count( $parts ) ) {
+			return array( 'first' => '', 'last' => sanitize_text_field( (string) $parts[0] ) );
+		}
+
+		$last  = (string) array_pop( $parts );
+		$first = trim( implode( ' ', $parts ) );
+
+		return array(
+			'first' => sanitize_text_field( $first ),
+			'last'  => sanitize_text_field( $last ),
+		);
+	}
+
+	private function resolve_entry_last_name( $entry ): string {
+		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
+		if ( '' !== $last ) {
+			return $last;
+		}
+
+		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+		$split = $this->split_participant_name( $participant_name );
+
+		return $split['last'];
+	}
+
+	private function resolve_entry_first_name( $entry ): string {
+		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
+		if ( '' !== $first ) {
+			return $first;
+		}
+
+		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+		$split = $this->split_participant_name( $participant_name );
+
+		return $split['first'];
+	}
+
+	private function resolve_entry_club( $entry ): string {
+		return $this->get_item_value_from_keys( $entry, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value' ) );
 	}
 }
