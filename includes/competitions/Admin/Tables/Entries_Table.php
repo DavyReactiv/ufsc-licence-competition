@@ -8,6 +8,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Entries\EntryDataNormalizer;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\FighterNumberService;
 
@@ -62,9 +63,24 @@ class Entries_Table extends \WP_List_Table {
 			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 		);
+		$competition_source = 'ufsc_competition_id';
+		if ( 0 === $filters['competition_id'] && isset( $_REQUEST['competition_id'] ) ) {
+			$filters['competition_id'] = absint( $_REQUEST['competition_id'] );
+			$competition_source = 'competition_id';
+		}
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
+		}
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_admin() ) {
+			error_log(
+				'UFSC Entries_Table competition_context ' . wp_json_encode(
+					array(
+						'competition_id' => (int) ( $filters['competition_id'] ?? 0 ),
+						'source'         => $competition_source,
+					)
+				)
+			);
 		}
 
 		$this->filters = $filters;
@@ -249,7 +265,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'licensee':
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_license_number( $item ) ) );
 			case 'fighter_number':
 				$entry_id = (int) $this->get_item_value( $item, 'id' );
 				$fighter_number = (int) $this->get_item_value_from_keys( $item, array( 'fighter_number', 'competition_number' ) );
@@ -262,9 +278,9 @@ class Entries_Table extends \WP_List_Table {
 			case 'first_name':
 				return esc_html( $this->format_fallback( $this->get_first_name_value( $item ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) ) ) );
+				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_birth_date( $item ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'annee_naissance', 'birth_year' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( EntryDataNormalizer::resolve_birth_year( $item ) ) ) );
 			case 'club':
 				return $this->format_club_display( $item );
 			case 'competition':
@@ -488,10 +504,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $item ): string {
-		$last = $this->get_last_name_value( $item );
-		$first = $this->get_first_name_value( $item );
-		$name = trim( $last . ' ' . $first );
-
+		$name = EntryDataNormalizer::resolve_display_name( $item );
 		if ( '' !== $name ) {
 			return $name;
 		}
@@ -519,27 +532,11 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function get_last_name_value( $item ): string {
-		$last = $this->get_item_value_from_keys( $item, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) );
-		if ( '' !== $last ) {
-			return $last;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$parts = $this->split_participant_name( $participant_name );
-
-		return $parts['last'];
+		return EntryDataNormalizer::resolve_last_name( $item );
 	}
 
 	private function get_first_name_value( $item ): string {
-		$first = $this->get_item_value_from_keys( $item, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom' ) );
-		if ( '' !== $first ) {
-			return $first;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$parts = $this->split_participant_name( $participant_name );
-
-		return $parts['first'];
+		return EntryDataNormalizer::resolve_first_name( $item );
 	}
 
 	private function split_participant_name( string $participant_name ): array {
@@ -653,6 +650,9 @@ class Entries_Table extends \WP_List_Table {
 
 	private function format_birth_year( $birthdate ): string {
 		$birthdate = is_scalar( $birthdate ) ? (string) $birthdate : '';
+		if ( preg_match( '/^(\d{4})$/', $birthdate, $matches ) ) {
+			return $matches[1];
+		}
 		if ( preg_match( '/^(\\d{4})-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2}$/', $birthdate, $matches ) ) {
 			return substr( $matches[0], 0, 4 );
 		}

@@ -259,12 +259,24 @@ class EntryFrontRepository {
 	public function insert( array $payload ): int {
 		global $wpdb;
 
+		$this->debug_payload_log(
+			'insert_prepared_payload_before_mapping',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'first_name'   => (string) ( $payload['first_name'] ?? $payload['prenom'] ?? '' ),
+				'last_name'    => (string) ( $payload['last_name'] ?? $payload['nom'] ?? '' ),
+				'birth_date'   => (string) ( $payload['birth_date'] ?? $payload['date_naissance'] ?? '' ),
+				'license_number' => (string) ( $payload['license_number'] ?? $payload['numero_licence'] ?? '' ),
+				'fighter_number' => (string) ( $payload['fighter_number'] ?? $payload['competition_number'] ?? $payload['dossard'] ?? '' ),
+			)
+		);
+
 		$data = $this->prepare_payload( $payload, true );
 		if ( empty( $data ) ) {
 			return 0;
 		}
 		$this->debug_payload_log(
-			'insert_prepared_payload',
+			'insert_prepared_payload_after_mapping',
 			array(
 				'payload_keys' => array_keys( $payload ),
 				'prepared_keys' => array_keys( $data ),
@@ -277,6 +289,13 @@ class EntryFrontRepository {
 				'category' => (string) ( $data['category'] ?? $data['category_name'] ?? '' ),
 				'weight' => (string) ( $data['weight'] ?? $data['weight_kg'] ?? '' ),
 				'weight_class' => (string) ( $data['weight_class'] ?? $data['weight_cat'] ?? '' ),
+			)
+		);
+		$this->debug_payload_log(
+			'insert_prepared_payload',
+			array(
+				'payload_keys' => array_keys( $payload ),
+				'prepared_keys' => array_keys( $data ),
 			)
 		);
 
@@ -907,8 +926,18 @@ class EntryFrontRepository {
 			$data['assigned_at'] = sanitize_text_field( $payload['assigned_at'] );
 		}
 
-		$first_name = $this->sanitize_text_value( $payload['first_name'] ?? '' );
-		$last_name = $this->sanitize_text_value( $payload['last_name'] ?? '' );
+		$first_name = $this->sanitize_text_value( $payload['first_name'] ?? $payload['firstname'] ?? $payload['prenom'] ?? $payload['given_name'] ?? '' );
+		$last_name = $this->sanitize_text_value( $payload['last_name'] ?? $payload['lastname'] ?? $payload['nom'] ?? $payload['family_name'] ?? '' );
+		$participant_name = $this->sanitize_text_value( $payload['participant_name'] ?? $payload['athlete_name'] ?? $payload['full_name'] ?? $payload['name'] ?? $payload['licensee_name'] ?? '' );
+		if ( '' === $first_name || '' === $last_name ) {
+			$split = $this->split_participant_name( $participant_name );
+			if ( '' === $first_name ) {
+				$first_name = $split['first'];
+			}
+			if ( '' === $last_name ) {
+				$last_name = $split['last'];
+			}
+		}
 		$full_name = trim( $first_name . ' ' . $last_name );
 
 		$this->map_string_value( $data, $first_name, array( 'first_name', 'firstname', 'prenom', 'given_name' ) );
@@ -916,16 +945,18 @@ class EntryFrontRepository {
 
 		if ( $full_name ) {
 			$this->map_string_value( $data, $full_name, array( 'athlete_name', 'full_name', 'name', 'licensee_name', 'participant_name' ) );
+		} elseif ( '' !== $participant_name ) {
+			$this->map_string_value( $data, $participant_name, array( 'athlete_name', 'full_name', 'name', 'licensee_name', 'participant_name' ) );
 		}
 
-		$birth_date = $this->sanitize_date_value( $payload['birth_date'] ?? '' );
+		$birth_date = $this->sanitize_date_value( $payload['birth_date'] ?? $payload['birthdate'] ?? $payload['date_of_birth'] ?? $payload['dob'] ?? $payload['date_naissance'] ?? '' );
 		$this->map_string_value( $data, $birth_date, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) );
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
 			$birth_year = substr( $birth_date, 0, 4 );
 			$this->map_string_value( $data, $birth_year, array( 'birth_year', 'year_of_birth', 'annee_naissance', 'year' ) );
 		}
 
-		$sex = $this->sanitize_text_value( $payload['sex'] ?? '' );
+		$sex = $this->sanitize_text_value( $payload['sex'] ?? $payload['gender'] ?? $payload['sexe'] ?? '' );
 		$this->map_string_value( $data, $sex, array( 'sex', 'gender', 'sexe' ) );
 
 		$weight = $this->sanitize_float_value( $payload['weight'] ?? '' );
@@ -940,13 +971,16 @@ class EntryFrontRepository {
 		$level = $this->sanitize_text_value( $payload['level'] ?? $payload['class'] ?? $payload['classe'] ?? '' );
 		$this->map_string_value( $data, $level, array( 'level', 'class', 'classe' ) );
 
-		$license_number = $this->sanitize_text_value( $payload['license_number'] ?? $payload['licence_number'] ?? '' );
+		$license_number = $this->sanitize_text_value( $payload['license_number'] ?? $payload['licence_number'] ?? $payload['numero_licence'] ?? $payload['numero_licence_asptt'] ?? '' );
 		$this->map_string_value( $data, $license_number, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) );
 
-		$fighter_number = isset( $payload['fighter_number'] ) ? absint( $payload['fighter_number'] ) : 0;
+		$fighter_number = isset( $payload['fighter_number'] ) ? absint( $payload['fighter_number'] ) : ( isset( $payload['competition_number'] ) ? absint( $payload['competition_number'] ) : absint( $payload['dossard'] ?? 0 ) );
 		if ( $fighter_number > 0 ) {
 			$this->map_int_value( $data, $fighter_number, array( 'fighter_number', 'competition_number', 'dossard' ) );
 		}
+
+		$club_name = $this->sanitize_text_value( $payload['club_name'] ?? $payload['club_nom'] ?? $payload['structure_name'] ?? '' );
+		$this->map_string_value( $data, $club_name, array( 'club_name', 'club_nom', 'structure_name' ) );
 
 		if ( isset( $payload['notes'] ) && $this->has_column( 'notes' ) ) {
 			$data['notes'] = $this->sanitize_text_value( $payload['notes'] );
@@ -1035,17 +1069,50 @@ class EntryFrontRepository {
 		return $value;
 	}
 
+	private function split_participant_name( string $participant_name ): array {
+		$participant_name = trim( $participant_name );
+		if ( '' === $participant_name ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+
+		$parts = preg_split( '/\s+/', $participant_name );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return array( 'first' => '', 'last' => '' );
+		}
+		if ( 1 === count( $parts ) ) {
+			return array( 'first' => '', 'last' => sanitize_text_field( (string) $parts[0] ) );
+		}
+
+		$last  = (string) array_pop( $parts );
+		$first = trim( implode( ' ', $parts ) );
+
+		return array(
+			'first' => sanitize_text_field( $first ),
+			'last'  => sanitize_text_field( $last ),
+		);
+	}
+
 	private function sanitize_date_value( $value ): string {
 		$value = $this->sanitize_text_value( $value );
 		if ( '' === $value ) {
 			return '';
 		}
 
-		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
-			return '';
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value ) ) {
+			return $value;
+		}
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}$/', $value ) ) {
+			return substr( $value, 0, 10 );
 		}
 
-		return $value;
+		if ( preg_match( '/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+		if ( preg_match( '/^(\d{2})-(\d{2})-(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+
+		return '';
 	}
 
 	private function sanitize_float_value( $value ) {
