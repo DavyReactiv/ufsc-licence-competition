@@ -410,7 +410,7 @@ class EntryRepository {
 		}
 
 		if ( ! empty( $filters['status'] ) && $this->has_entry_column( 'status' ) ) {
-			$variants = $this->get_status_variants( (string) $filters['status'] );
+			$variants = $this->resolve_status_filter_variants( $filters['status'] );
 			if ( $variants ) {
 				$placeholders = implode( ',', array_fill( 0, count( $variants ), '%s' ) );
 				$where[] = $wpdb->prepare( "status IN ({$placeholders})", $variants );
@@ -529,6 +529,11 @@ class EntryRepository {
 			$entry_columns,
 			array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value' )
 		);
+		$entry_submitted_at_expr = $this->build_entry_date_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'submitted_at', 'submitted', 'date_submitted', 'created_at', 'imported_at' )
+		);
 
 		$view            = $filters['view'] ?? 'all';
 		$include_deleted = ! empty( $filters['include_deleted'] );
@@ -569,7 +574,7 @@ class EntryRepository {
 
 		$status_field = $this->get_status_storage_field();
 		if ( ! empty( $filters['status'] ) && 'status' === $status_field ) {
-			$variants = $this->get_status_variants( (string) $filters['status'] );
+			$variants = $this->resolve_status_filter_variants( $filters['status'] );
 			if ( $variants ) {
 				$placeholders = implode( ',', array_fill( 0, count( $variants ), '%s' ) );
 				$where[] = $wpdb->prepare( "{$entries_alias}.status IN ({$placeholders})", $variants );
@@ -650,6 +655,7 @@ class EntryRepository {
 			$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), '')) AS birth_year";
 			$select .= ", {$entry_license_number_expr} AS license_number";
 			$select .= ", {$entry_fighter_expr} AS fighter_number";
+			$select .= ", {$entry_submitted_at_expr} AS submitted_at";
 		}
 
 		if ( $licences_table && $licence_columns ) {
@@ -688,6 +694,7 @@ class EntryRepository {
 				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$birthdate_select}) AS birth_date";
 				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
 				$select .= ", {$entry_fighter_expr} AS fighter_number";
+				$select .= ", {$entry_submitted_at_expr} AS submitted_at";
 			}
 
 			if ( $count || ! empty( $filters['search'] ) ) {
@@ -1015,6 +1022,20 @@ class EntryRepository {
 		}
 
 		return array( $this->normalize_status( $status ) );
+	}
+
+	private function resolve_status_filter_variants( $status_filter ): array {
+		$requested = is_array( $status_filter ) ? $status_filter : array( $status_filter );
+		$variants  = array();
+		foreach ( $requested as $status ) {
+			$status = sanitize_key( (string) $status );
+			if ( '' === $status ) {
+				continue;
+			}
+			$variants = array_merge( $variants, $this->get_status_variants( $status ) );
+		}
+
+		return array_values( array_unique( array_filter( $variants ) ) );
 	}
 
 	private function normalize_status_for_count( string $status ): string {
