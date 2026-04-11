@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Db;
+use UFSC\Competitions\Entries\EntryDataNormalizer;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -235,9 +236,10 @@ class WeighIns_Page {
 		}
 		$reclass_category_id = isset( $meta['reclass_category_id'] ) ? (int) $meta['reclass_category_id'] : 0;
 		$suggested = $this->suggest_reclassification_categories( $entry, $categories, $current_weight );
-		$last_name = $this->resolve_entry_last_name( $entry );
-		$first_name = $this->resolve_entry_first_name( $entry );
-		$club_name = $this->resolve_entry_club( $entry );
+		$normalized_entry = EntryDataNormalizer::normalize_for_admin( $entry );
+		$last_name = (string) ( $normalized_entry['last_name'] ?? '' );
+		$first_name = (string) ( $normalized_entry['first_name'] ?? '' );
+		$club_name = (string) ( $normalized_entry['club_name'] ?? '' );
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'
@@ -524,30 +526,14 @@ class WeighIns_Page {
 	}
 
 	private function resolve_entry_last_name( $entry ): string {
-		$last = $this->get_item_value_from_keys( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) );
-		if ( '' !== $last ) {
-			return $last;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$split = $this->split_participant_name( $participant_name );
-
-		return $split['last'];
+		return EntryDataNormalizer::resolve_last_name( $entry );
 	}
 
 	private function resolve_entry_first_name( $entry ): string {
-		$first = $this->get_item_value_from_keys( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) );
-		if ( '' !== $first ) {
-			return $first;
-		}
-
-		$participant_name = $this->get_item_value_from_keys( $entry, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
-		$split = $this->split_participant_name( $participant_name );
-
-		return $split['first'];
+		return EntryDataNormalizer::resolve_first_name( $entry );
 	}
 
 	private function resolve_entry_club( $entry ): string {
-		return $this->get_item_value_from_keys( $entry, array( 'club_name', 'club_nom', 'structure_name', 'club', 'club_label', 'club_import', 'club_raw', 'club_value' ) );
+		return EntryDataNormalizer::resolve_club_name( $entry );
 	}
 }
