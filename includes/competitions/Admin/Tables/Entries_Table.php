@@ -249,7 +249,7 @@ class Entries_Table extends \WP_List_Table {
 			case 'licensee':
 				return esc_html( $this->format_fallback( $this->format_entry_name( $item ) ) );
 			case 'license_number':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) ) ) );
 			case 'fighter_number':
 				$entry_id = (int) $this->get_item_value( $item, 'id' );
 				$fighter_number = (int) $this->get_item_value_from_keys( $item, array( 'fighter_number', 'competition_number' ) );
@@ -258,13 +258,13 @@ class Entries_Table extends \WP_List_Table {
 				}
 				return $fighter_number > 0 ? '#' . esc_html( (string) $fighter_number ) : '—';
 			case 'last_name':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_last_name_value( $item ) ) );
 			case 'first_name':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_first_name_value( $item ) ) );
 			case 'birthdate':
-				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) );
+				return esc_html( $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) ) ) );
 			case 'birth_year':
-				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) ) ) ) );
+				return esc_html( $this->format_fallback( $this->format_birth_year( $this->get_item_value_from_keys( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'annee_naissance', 'birth_year' ) ) ) ) );
 			case 'club':
 				return $this->format_club_display( $item );
 			case 'competition':
@@ -488,8 +488,8 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_entry_name( $item ): string {
-		$last = (string) $this->get_item_value( $item, 'licensee_last_name' );
-		$first = (string) $this->get_item_value( $item, 'licensee_first_name' );
+		$last = $this->get_last_name_value( $item );
+		$first = $this->get_first_name_value( $item );
 		$name = trim( $last . ' ' . $first );
 
 		if ( '' !== $name ) {
@@ -518,6 +518,43 @@ class Entries_Table extends \WP_List_Table {
 		return '';
 	}
 
+	private function get_last_name_value( $item ): string {
+		$last = $this->get_item_value_from_keys( $item, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) );
+		if ( '' !== $last ) {
+			return $last;
+		}
+
+		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+		if ( '' === $participant_name ) {
+			return '';
+		}
+		$parts = preg_split( '/\s+/', trim( $participant_name ) );
+		if ( ! is_array( $parts ) || empty( $parts ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( (string) array_shift( $parts ) );
+	}
+
+	private function get_first_name_value( $item ): string {
+		$first = $this->get_item_value_from_keys( $item, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom' ) );
+		if ( '' !== $first ) {
+			return $first;
+		}
+
+		$participant_name = $this->get_item_value_from_keys( $item, array( 'participant_name', 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+		if ( '' === $participant_name ) {
+			return '';
+		}
+		$parts = preg_split( '/\s+/', trim( $participant_name ) );
+		if ( ! is_array( $parts ) || count( $parts ) < 2 ) {
+			return '';
+		}
+		array_shift( $parts );
+
+		return sanitize_text_field( trim( implode( ' ', $parts ) ) );
+	}
+
 	private function format_fallback( $value ): string {
 		$value = is_scalar( $value ) ? (string) $value : '';
 		$value = trim( $value );
@@ -538,7 +575,7 @@ class Entries_Table extends \WP_List_Table {
 	}
 
 	private function format_club_display( $item ): string {
-		$club_name = $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label' ) ) );
+		$club_name = $this->format_fallback( $this->get_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'club', 'club_label', 'structure_name' ) ) );
 		$club_id   = absint( $this->get_item_value( $item, 'club_id' ) );
 		$source    = sanitize_key( (string) $this->get_item_value_from_keys( $item, array( 'club_source', 'club_status' ) ) );
 		$lowered   = function_exists( 'mb_strtolower' ) ? mb_strtolower( $club_name ) : strtolower( $club_name );

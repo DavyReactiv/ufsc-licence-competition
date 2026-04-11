@@ -915,18 +915,18 @@ class EntryFrontRepository {
 		$this->map_string_value( $data, $last_name, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
 
 		if ( $full_name ) {
-			$this->map_string_value( $data, $full_name, array( 'athlete_name', 'full_name', 'name', 'licensee_name' ) );
+			$this->map_string_value( $data, $full_name, array( 'athlete_name', 'full_name', 'name', 'licensee_name', 'participant_name' ) );
 		}
 
 		$birth_date = $this->sanitize_date_value( $payload['birth_date'] ?? '' );
-		$this->map_string_value( $data, $birth_date, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob' ) );
+		$this->map_string_value( $data, $birth_date, array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) );
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $birth_date ) ) {
 			$birth_year = substr( $birth_date, 0, 4 );
 			$this->map_string_value( $data, $birth_year, array( 'birth_year', 'year_of_birth', 'annee_naissance', 'year' ) );
 		}
 
 		$sex = $this->sanitize_text_value( $payload['sex'] ?? '' );
-		$this->map_string_value( $data, $sex, array( 'sex', 'gender' ) );
+		$this->map_string_value( $data, $sex, array( 'sex', 'gender', 'sexe' ) );
 
 		$weight = $this->sanitize_float_value( $payload['weight'] ?? '' );
 		$this->map_float_value( $data, $weight, array( 'weight', 'weight_kg', 'poids' ) );
@@ -941,7 +941,12 @@ class EntryFrontRepository {
 		$this->map_string_value( $data, $level, array( 'level', 'class', 'classe' ) );
 
 		$license_number = $this->sanitize_text_value( $payload['license_number'] ?? $payload['licence_number'] ?? '' );
-		$this->map_string_value( $data, $license_number, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence' ) );
+		$this->map_string_value( $data, $license_number, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) );
+
+		$fighter_number = isset( $payload['fighter_number'] ) ? absint( $payload['fighter_number'] ) : 0;
+		if ( $fighter_number > 0 ) {
+			$this->map_int_value( $data, $fighter_number, array( 'fighter_number', 'competition_number', 'dossard' ) );
+		}
 
 		if ( isset( $payload['notes'] ) && $this->has_column( 'notes' ) ) {
 			$data['notes'] = $this->sanitize_text_value( $payload['notes'] );
@@ -1000,6 +1005,19 @@ class EntryFrontRepository {
 
 	private function map_float_value( array &$data, $value, array $candidates ): void {
 		if ( null === $value || '' === $value ) {
+			return;
+		}
+
+		foreach ( $candidates as $column ) {
+			if ( $this->has_column( $column ) ) {
+				$data[ $column ] = $value;
+				return;
+			}
+		}
+	}
+
+	private function map_int_value( array &$data, int $value, array $candidates ): void {
+		if ( $value <= 0 ) {
 			return;
 		}
 

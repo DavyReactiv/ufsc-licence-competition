@@ -162,6 +162,7 @@ class Entries_Import_Page {
 				'categorie'              => '',
 				'poids'                  => '57.2',
 				'categorie_poids'        => '',
+				'fighter_number'         => '',
 				'numero_licence'         => 'UFSC-001122',
 				'numero_licence_asptt'   => '',
 				'email'                  => 'alice@example.test',
@@ -183,6 +184,7 @@ class Entries_Import_Page {
 				'categorie'              => '',
 				'poids'                  => '63',
 				'categorie_poids'        => '',
+				'fighter_number'         => '',
 				'numero_licence'         => '',
 				'numero_licence_asptt'   => '',
 				'email'                  => '',
@@ -596,6 +598,7 @@ class Entries_Import_Page {
 				'category'       => $category,
 				'level'          => $this->normalize_text( $normalized['niveau'] ),
 				'license_number' => $license_number,
+				'fighter_number' => absint( $normalized['fighter_number'] ?? 0 ),
 			);
 
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
@@ -707,6 +710,7 @@ class Entries_Import_Page {
 		$this->maybe_map_column( $updates, $columns, $normalized, 'telephone', array( 'telephone', 'phone' ) );
 		$this->maybe_map_column( $updates, $columns, $normalized, 'commentaire', array( 'commentaire', 'comment', 'notes' ) );
 		$this->maybe_map_column( $updates, $columns, $normalized, 'discipline', array( 'discipline' ) );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'fighter_number', array( 'fighter_number', 'competition_number', 'dossard' ) );
 		$club_label_from_import = $this->normalize_text( $club_resolution['club_nom'] ?? '' );
 		if ( '' !== $club_label_from_import ) {
 			if ( in_array( 'club_nom', $columns, true ) ) {
@@ -1190,6 +1194,7 @@ class Entries_Import_Page {
 			'categorie',
 			'poids',
 			'categorie_poids',
+			'fighter_number',
 			'numero_licence',
 			'numero_licence_asptt',
 			'email',
