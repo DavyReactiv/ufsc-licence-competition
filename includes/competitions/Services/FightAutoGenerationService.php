@@ -63,6 +63,26 @@ class FightAutoGenerationService {
 					$settings['timing_mode'] = 'category';
 				}
 			}
+		} elseif ( ! array_key_exists( 'timing_mode', $stored ) ) {
+			// Backward-compatible auto-enable for legacy settings saved before timing_mode existed.
+			$competition_repo = new CompetitionRepository();
+			$competition      = $competition_repo->get( $competition_id, true );
+			if ( $competition ) {
+				$profile_repo = new TimingProfileRepository();
+				$profiles     = $profile_repo->list(
+					array(
+						'discipline' => sanitize_text_field( (string) ( $competition->discipline ?? '' ) ),
+					),
+					1,
+					0
+				);
+				if ( empty( $profiles ) ) {
+					$profiles = $profile_repo->list( array(), 1, 0 );
+				}
+				if ( ! empty( $profiles ) ) {
+					$settings['timing_mode'] = 'category';
+				}
+			}
 		}
 
 		$settings['surface_details'] = self::normalize_surface_details( $settings );
@@ -982,10 +1002,9 @@ class FightAutoGenerationService {
 			$detail = $details[ $i ] ?? array();
 			$name   = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
 			$type   = sanitize_key( (string) ( $detail['type'] ?? 'tatami' ) );
-			$type   = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : '';
-
-			if ( '' === $name || '' === $type ) {
-				return array();
+			$type   = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+			if ( '' === $name ) {
+				$name = (string) ( $i + 1 );
 			}
 
 			$clean[] = array(
@@ -1003,13 +1022,13 @@ class FightAutoGenerationService {
 		for ( $i = 0; $i < $surface_count; $i++ ) {
 			if ( ! isset( $details[ $i ] ) || ! is_array( $details[ $i ] ) ) {
 				$details[ $i ] = array(
-					'name' => sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ),
+					'name' => (string) ( $i + 1 ),
 					'type' => 'tatami',
 				);
 				continue;
 			}
 			if ( '' === (string) ( $details[ $i ]['name'] ?? '' ) ) {
-				$details[ $i ]['name'] = sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 );
+				$details[ $i ]['name'] = (string) ( $i + 1 );
 			}
 			$type = sanitize_key( (string) ( $details[ $i ]['type'] ?? 'tatami' ) );
 			$details[ $i ]['type'] = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
@@ -1082,8 +1101,9 @@ class FightAutoGenerationService {
 			}
 		}
 
-		$competition_type = $competition ? CompetitionFilters::normalize_type_key( (string) ( $competition->type ?? '' ) ) : '';
-		$profile          = self::match_timing_profile( $profiles, $category, $competition_type, $surface_types );
+		$competition_type       = $competition ? CompetitionFilters::normalize_type_key( (string) ( $competition->type ?? '' ) ) : '';
+		$competition_discipline = $competition ? sanitize_text_field( (string) ( $competition->discipline ?? '' ) ) : '';
+		$profile                = self::match_timing_profile( $profiles, $category, $competition_type, $surface_types, $competition_discipline );
 
 		if ( ! $profile ) {
 			$timing['fight_duration'] = $duration;
@@ -1106,7 +1126,7 @@ class FightAutoGenerationService {
 		return $timing;
 	}
 
-	private static function match_timing_profile( array $profiles, $category, string $competition_type = '', array $surface_types = array() ) {
+	private static function match_timing_profile( array $profiles, $category, string $competition_type = '', array $surface_types = array(), string $competition_discipline = '' ) {
 		if ( empty( $profiles ) ) {
 			return null;
 		}
@@ -1115,6 +1135,9 @@ class FightAutoGenerationService {
 		$best_score = -1;
 
 		$category_discipline = $category ? sanitize_text_field( $category->discipline ?? '' ) : '';
+		if ( '' === $category_discipline ) {
+			$category_discipline = sanitize_text_field( $competition_discipline );
+		}
 		$category_level      = $category ? sanitize_text_field( $category->level ?? '' ) : '';
 		$category_format     = $category ? sanitize_text_field( $category->format ?? '' ) : '';
 		$category_age_min    = $category && isset( $category->age_min ) ? (int) $category->age_min : null;
