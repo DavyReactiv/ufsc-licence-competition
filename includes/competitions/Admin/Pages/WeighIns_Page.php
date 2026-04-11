@@ -87,10 +87,12 @@ class WeighIns_Page {
 				$categories[ (int) $row->id ] = $row;
 			}
 
+			$entry_statuses = array_merge( EntriesWorkflow::get_review_queue_statuses(), array( 'approved' ) );
+			$entry_statuses = array_values( array_unique( array_filter( array_map( 'sanitize_key', $entry_statuses ) ) ) );
 			$entry_filters = array(
 				'view' => 'all',
 				'competition_id' => $competition_id,
-				'status' => array_merge( EntriesWorkflow::get_review_queue_statuses(), array( 'approved' ) ),
+				'status' => $entry_statuses,
 			);
 			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
@@ -113,8 +115,14 @@ class WeighIns_Page {
 			$entries = array_values(
 				array_filter(
 					$entries,
-					function( $entry ) use ( $category_filter, $status_filter, $categories, $weighins, $competition, &$stats ) {
-						$entry_id = (int) $entry->id;
+						function( $entry ) use ( $category_filter, $status_filter, $categories, $weighins, $competition, &$stats ) {
+							if ( (int) ( $entry->competition_id ?? 0 ) !== (int) ( $competition->id ?? 0 ) ) {
+								if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+									error_log( 'UFSC WeighIns_Page entry_excluded competition_mismatch ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'entry_competition_id' => (int) ( $entry->competition_id ?? 0 ), 'competition_id' => (int) ( $competition->id ?? 0 ) ) ) );
+								}
+								return false;
+							}
+							$entry_id = (int) $entry->id;
 						$category_label = (string) ( $entry->category_name ?? $entry->category ?? '' );
 						if ( '' === $category_label && ! empty( $entry->category_id ) && isset( $categories[ (int) $entry->category_id ] ) ) {
 							$category_label = (string) $categories[ (int) $entry->category_id ]->name;

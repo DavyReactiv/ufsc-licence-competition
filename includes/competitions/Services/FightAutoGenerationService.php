@@ -707,6 +707,20 @@ class FightAutoGenerationService {
 			$valid_entries[] = $entry;
 		}
 
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC FightAutoGenerationService eligibility_summary ' . wp_json_encode(
+					array(
+						'competition_id'      => $competition_id,
+						'total_entries'       => count( $entries ),
+						'eligible_entries'    => count( $valid_entries ),
+						'excluded_unweighed'  => $excluded_unweighed,
+						'exclusion_reasons'   => array_keys( $ineligible_reasons ),
+					)
+				)
+			);
+		}
+
 		return array(
 			'valid_entries'      => $valid_entries,
 			'ineligible_reasons' => $ineligible_reasons,
