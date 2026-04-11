@@ -421,6 +421,25 @@ class EntryRepository {
 			$where[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
 		}
 
+		if ( ! empty( $filters['group_label'] ) && $this->has_entry_column( 'group_label' ) ) {
+			$where[] = $wpdb->prepare( 'group_label = %s', sanitize_text_field( (string) $filters['group_label'] ) );
+		}
+
+		if ( ! empty( $filters['club_affiliation'] ) ) {
+			$affiliation = sanitize_key( (string) $filters['club_affiliation'] );
+			if ( 'non_affiliated' === $affiliation ) {
+				if ( $this->has_entry_column( 'club_source' ) ) {
+					$where[] = "(club_id IS NULL OR club_id = 0) AND club_source IN ('csv','external','invited')";
+				} else {
+					$where[] = '(club_id IS NULL OR club_id = 0)';
+				}
+			} elseif ( 'noclub' === $affiliation ) {
+				if ( $this->has_entry_column( 'club_nom' ) ) {
+					$where[] = "(club_id IS NULL OR club_id = 0) AND LOWER(TRIM(club_nom)) = 'noclub'";
+				}
+			}
+		}
+
 		if ( ! empty( $filters['scope_region'] ) ) {
 			$scope_region = sanitize_key( (string) $filters['scope_region'] );
 			$clubs_table = $this->get_clubs_table();
@@ -539,7 +558,7 @@ class EntryRepository {
 				$select .= ", COALESCE(NULLIF(ep.participant_type, ''), 'licensed_ufsc') AS participant_type";
 			}
 
-			if ( ! empty( $filters['participant_type'] ) ) {
+		if ( ! empty( $filters['participant_type'] ) ) {
 				$participant_type = sanitize_key( (string) $filters['participant_type'] );
 				if ( in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
 					$where[] = $wpdb->prepare(
@@ -547,6 +566,23 @@ class EntryRepository {
 						$participant_type
 					);
 				}
+			}
+		}
+
+		if ( ! empty( $filters['group_label'] ) && $this->has_entry_column( 'group_label' ) ) {
+			$where[] = $wpdb->prepare( "{$entries_alias}.group_label = %s", sanitize_text_field( (string) $filters['group_label'] ) );
+		}
+
+		if ( ! empty( $filters['club_affiliation'] ) ) {
+			$affiliation = sanitize_key( (string) $filters['club_affiliation'] );
+			if ( 'non_affiliated' === $affiliation ) {
+				if ( $this->has_entry_column( 'club_source' ) ) {
+					$where[] = "({$entries_alias}.club_id IS NULL OR {$entries_alias}.club_id = 0) AND {$entries_alias}.club_source IN ('csv','external','invited')";
+				} else {
+					$where[] = "({$entries_alias}.club_id IS NULL OR {$entries_alias}.club_id = 0)";
+				}
+			} elseif ( 'noclub' === $affiliation && $this->has_entry_column( 'club_nom' ) ) {
+				$where[] = "({$entries_alias}.club_id IS NULL OR {$entries_alias}.club_id = 0) AND LOWER(TRIM({$entries_alias}.club_nom)) = 'noclub'";
 			}
 		}
 
