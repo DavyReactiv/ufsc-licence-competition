@@ -1157,7 +1157,7 @@ class Competitions_Page {
 			'invalid'   => array( 'error', __( 'Données invalides.', 'ufsc-licence-competition' ) ),
 			'not_found' => array( 'error', __( 'Élément introuvable.', 'ufsc-licence-competition' ) ),
 			'pdf_no_entries' => array( 'warning', __( 'Aucune inscription approuvée à exporter pour cette compétition.', 'ufsc-licence-competition' ) ),
-			'pdf_generation_failed' => array( 'error', __( 'Impossible de générer le PDF pour le moment. Veuillez contacter l’administration.', 'ufsc-licence-competition' ) ),
+			'pdf_generation_failed' => array( 'error', __( 'Impossible de générer le PDF pour le moment. Utilisez la page “Impression” comme fallback immédiat.', 'ufsc-licence-competition' ) ),
 		);
 
 		if ( ! isset( $map[ $notice ] ) ) {

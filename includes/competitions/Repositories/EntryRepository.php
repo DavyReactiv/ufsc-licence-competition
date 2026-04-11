@@ -510,6 +510,7 @@ class EntryRepository {
 		$select = $count ? 'COUNT(*)' : "{$entries_alias}.*";
 		$joins = array();
 		$where = array( '1=1' );
+		$entry_search_exprs = array();
 
 		$view            = $filters['view'] ?? 'all';
 		$include_deleted = ! empty( $filters['include_deleted'] );
@@ -547,6 +548,28 @@ class EntryRepository {
 			if ( $variants ) {
 				$placeholders = implode( ',', array_fill( 0, count( $variants ), '%s' ) );
 				$where[] = $wpdb->prepare( "{$entries_alias}.status IN ({$placeholders})", $variants );
+			}
+		}
+
+		if ( ! empty( $filters['search'] ) ) {
+			$like           = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+			$entry_columns  = Db::get_table_columns( $table );
+			$searchable_map = array(
+				'first_name',
+				'prenom',
+				'firstname',
+				'last_name',
+				'nom',
+				'lastname',
+				'license_number',
+				'licence_number',
+				'numero_licence',
+				'numero_licence_asptt',
+			);
+			foreach ( $searchable_map as $column ) {
+				if ( in_array( $column, $entry_columns, true ) ) {
+					$entry_search_exprs[] = $wpdb->prepare( "{$entries_alias}.{$column} LIKE %s", $like );
+				}
 			}
 		}
 
@@ -636,6 +659,9 @@ class EntryRepository {
 				$search_exprs = array();
 				if ( ! empty( $filters['search'] ) ) {
 					$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+					if ( ! empty( $entry_search_exprs ) ) {
+						$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
+					}
 					if ( "''" !== $name_expr ) {
 						$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
 					}
@@ -655,7 +681,9 @@ class EntryRepository {
 			}
 		} elseif ( ! empty( $filters['search'] ) ) {
 			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$where[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			$search_exprs = $entry_search_exprs;
+			$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 		}
 
 		$clubs_table = $this->get_clubs_table();

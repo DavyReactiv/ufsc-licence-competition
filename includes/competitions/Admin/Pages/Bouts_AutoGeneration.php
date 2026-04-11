@@ -38,7 +38,7 @@ class Bouts_AutoGeneration {
 			'swap_ok' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
 			'reorder_ok' => __( 'Combats réordonnés.', 'ufsc-licence-competition' ),
 			'action_error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
-			'invalid_settings' => __( 'Paramètres invalides : chaque surface doit avoir un nom et un type.', 'ufsc-licence-competition' ),
+			'invalid_settings' => __( 'Paramètres invalides : vérifiez le type des surfaces et les valeurs numériques.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -111,7 +111,7 @@ class Bouts_AutoGeneration {
 									<div class="ufsc-competitions-surface-row">
 										<label>
 											<?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?>
-											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" required>
+											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" placeholder="<?php echo esc_attr( (string) ( $i + 1 ) ); ?>">
 										</label>
 										<label>
 											<?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?>
@@ -145,10 +145,11 @@ class Bouts_AutoGeneration {
 							<p class="description">
 								<?php
 								printf(
-									'%s <a href="%s">%s</a>.',
+									'%s <a href="%s">%s</a>. %s',
 									esc_html__( 'Les profils se gèrent dans', 'ufsc-licence-competition' ),
 									esc_url( admin_url( 'admin.php?page=ufsc-competitions-timing-profiles' ) ),
-									esc_html__( 'Timing Profiles', 'ufsc-licence-competition' )
+									esc_html__( 'Timing Profiles', 'ufsc-licence-competition' ),
+									esc_html__( 'Si des profils existent déjà pour la discipline, ils sont appliqués automatiquement.', 'ufsc-licence-competition' )
 								);
 								?>
 							</p>
@@ -310,7 +311,7 @@ class Bouts_AutoGeneration {
 					input.type = 'text';
 					input.name = `surface_details[${index}][name]`;
 					input.className = 'regular-text';
-					input.required = true;
+					input.placeholder = `${index + 1}`;
 					label.appendChild(input);
 
 					const typeLabel = document.createElement('label');
