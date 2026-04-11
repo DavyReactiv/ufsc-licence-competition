@@ -99,12 +99,12 @@ class WeighIns_Page {
 						$meta = $this->extract_meta( $row ? (string) ( $row->notes ?? '' ) : '' );
 						$status = $this->normalize_weighin_status( (string) ( $row->status ?? '' ), $meta );
 						$status_label = $this->get_status_label( $status );
-						$has_valid_status = in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true );
-						$within_limit = $this->is_within_weight_limit( $entry, $row, (float) ( $competition->weight_tolerance ?? 1 ) );
-						$is_eligible = $has_valid_status && $within_limit;
+						$within_limit = $this->weighins->is_valid_weighin_row( $row, (float) ( $competition->weight_tolerance ?? 1 ), isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null );
+						$reclass_pending = ! empty( $meta['reclass_pending'] );
+						$is_eligible = $within_limit && ! $reclass_pending;
 
 						$stats['total']++;
-						if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
+						if ( $within_limit && ! $reclass_pending ) {
 							$stats['weighed']++;
 						} else {
 							$stats['not_weighed']++;
@@ -317,6 +317,20 @@ class WeighIns_Page {
 
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
+		if ( $fighter_number > 0 ) {
+			$duplicate_entry_id = $this->weighins->find_entry_id_by_fighter_number( $competition_id, $fighter_number, $entry_id );
+			if ( $duplicate_entry_id > 0 ) {
+				return array(
+					'type' => 'error',
+					'message' => sprintf(
+						/* translators: 1: fighter number, 2: entry id already using it. */
+						__( 'Numéro combattant #%1$d déjà utilisé dans cette compétition (inscription #%2$d).', 'ufsc-licence-competition' ),
+						$fighter_number,
+						$duplicate_entry_id
+					),
+				);
+			}
+		}
 
 		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
 		$meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
@@ -418,20 +432,6 @@ class WeighIns_Page {
 		}
 
 		return $status;
-	}
-
-	private function is_within_weight_limit( $entry, $weighin_row, float $tolerance ): bool {
-		if ( ! $weighin_row || ! isset( $weighin_row->weight_measured ) || '' === (string) $weighin_row->weight_measured ) {
-			return false;
-		}
-
-		$registered = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : 0.0;
-		if ( $registered <= 0 ) {
-			return true;
-		}
-
-		$measured = (float) $weighin_row->weight_measured;
-		return abs( $measured - $registered ) <= max( 0.0, $tolerance );
 	}
 
 	private function suggest_reclassification_categories( $entry, array $categories, string $weight_measured ): array {

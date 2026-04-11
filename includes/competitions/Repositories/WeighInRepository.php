@@ -110,6 +110,49 @@ class WeighInRepository {
 	}
 
 	/**
+	 * Find another entry using the same fighter number in a competition.
+	 * Number is stored in weigh-ins notes JSON for backward compatibility.
+	 *
+	 * @return int Entry id using the number, or 0 if none found.
+	 */
+	public function find_entry_id_by_fighter_number( int $competition_id, int $fighter_number, int $exclude_entry_id = 0 ): int {
+		global $wpdb;
+
+		$competition_id  = absint( $competition_id );
+		$fighter_number  = absint( $fighter_number );
+		$exclude_entry_id = absint( $exclude_entry_id );
+		if ( ! $competition_id || ! $fighter_number || ! $this->has_table() ) {
+			return 0;
+		}
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT entry_id, notes FROM ' . Db::weighins_table() . ' WHERE competition_id = %d AND notes IS NOT NULL',
+				$competition_id
+			)
+		);
+		if ( ! is_array( $rows ) ) {
+			return 0;
+		}
+
+		foreach ( $rows as $row ) {
+			$entry_id = absint( $row->entry_id ?? 0 );
+			if ( ! $entry_id || $entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$meta = json_decode( (string) ( $row->notes ?? '' ), true );
+			if ( ! is_array( $meta ) ) {
+				continue;
+			}
+			if ( absint( $meta['fighter_number'] ?? 0 ) === $fighter_number ) {
+				return $entry_id;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Validate a weigh-in row according to legacy status + tolerance rules.
 	 *
 	 * @param object|null $row Weigh-in row.
