@@ -66,12 +66,31 @@ class Entries_Page {
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			$item = null;
 			if ( 'edit' === $action && $id ) {
+				$loaded_source = 'none';
 				if ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 					$this->repository->assert_entry_in_scope( $id );
 				}
 				$item = $this->repository->get_with_details( $id, true );
+				if ( $item ) {
+					$loaded_source = 'get_with_details';
+				}
 				if ( ! $item ) {
 					$item = $this->repository->get( $id, true );
+					if ( $item ) {
+						$loaded_source = 'get_fallback';
+					}
+				}
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log(
+						'UFSC Entries_Page edit_entry_loaded_source ' . wp_json_encode(
+							array(
+								'entry_id' => $id,
+								'competition_id' => (int) ( $item->competition_id ?? 0 ),
+								'participant_type' => sanitize_key( (string) ( $item->participant_type ?? '' ) ),
+								'source' => $loaded_source,
+							)
+						)
+					);
 				}
 			}
 			$this->render_form( $item );
@@ -804,17 +823,23 @@ class Entries_Page {
 			$external_data = $this->external_participant_service->get_external_participant( (int) $values['id'] );
 		}
 		if ( is_array( $external_data ) ) {
-			$values['participant_type']    = ParticipantTypes::normalize( (string) ( $external_data['participant_type'] ?? $values['participant_type'] ) );
-			$values['external_first_name'] = (string) ( $external_data['first_name'] ?? '' );
-			$values['external_last_name']  = (string) ( $external_data['last_name'] ?? '' );
-			$values['external_birth_date'] = (string) ( $external_data['birth_date'] ?? '' );
-			$values['external_sex']        = (string) ( $external_data['sex'] ?? '' );
-			$values['external_club_name']  = (string) ( $external_data['club_name'] ?? '' );
-			$values['external_discipline'] = (string) ( $external_data['discipline'] ?? '' );
-			$values['external_level']      = (string) ( $external_data['level'] ?? '' );
-			$values['external_email']      = (string) ( $external_data['legal_guardian_email'] ?? '' );
-			$values['external_phone']      = (string) ( $external_data['legal_guardian_phone'] ?? '' );
-			$values['external_notes']      = (string) ( $external_data['medical_notes'] ?? '' );
+			$values['participant_type']    = ParticipantTypes::normalize( (string) $this->resolve_first_non_empty_value( array( $external_data['participant_type'] ?? '', $values['participant_type'] ) ) );
+			$values['external_first_name'] = (string) $this->resolve_first_non_empty_value( array( $external_data['first_name'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'first_name', 'prenom' ) ) ) );
+			$values['external_last_name']  = (string) $this->resolve_first_non_empty_value( array( $external_data['last_name'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'last_name', 'nom' ) ) ) );
+			$values['external_birth_date'] = (string) $this->resolve_first_non_empty_value( array( $external_data['birth_date'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'birth_date', 'date_naissance', 'birthdate' ) ) ) );
+			$values['external_sex']        = (string) $this->resolve_first_non_empty_value( array( $external_data['sex'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'sex', 'sexe', 'gender' ) ) ) );
+			$values['external_club_name']  = (string) $this->resolve_first_non_empty_value( array( $external_data['club_name'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name' ) ) ) );
+			$values['external_discipline'] = (string) $this->resolve_first_non_empty_value( array( $external_data['discipline'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'discipline' ) ) ) );
+			$values['external_level']      = (string) $this->resolve_first_non_empty_value( array( $external_data['level'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'level', 'classe', 'class', 'niveau' ) ) ) );
+			$values['external_email']      = (string) $this->resolve_first_non_empty_value( array( $external_data['legal_guardian_email'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'email', 'mail', 'contact_email' ) ) ) );
+			$values['external_phone']      = (string) $this->resolve_first_non_empty_value( array( $external_data['legal_guardian_phone'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'phone', 'telephone', 'tel', 'contact_phone' ) ) ) );
+			$values['external_notes']      = (string) $this->resolve_first_non_empty_value( array( $external_data['medical_notes'] ?? '', $this->resolve_item_value_from_keys( $item, array( 'comment', 'comments', 'notes', 'medical_notes' ) ) ) );
+			if ( '' === (string) $values['weight_kg'] && isset( $external_data['weight_kg'] ) && null !== $external_data['weight_kg'] ) {
+				$values['weight_kg'] = (string) $external_data['weight_kg'];
+			}
+			if ( '' === (string) $values['weight_class'] ) {
+				$values['weight_class'] = (string) ( $external_data['weight_class'] ?? '' );
+			}
 		} elseif ( $values['id'] > 0 ) {
 			$values['external_first_name'] = (string) $this->resolve_item_value_from_keys( $item, array( 'first_name', 'prenom' ) );
 			$values['external_last_name']  = (string) $this->resolve_item_value_from_keys( $item, array( 'last_name', 'nom' ) );
@@ -838,12 +863,23 @@ class Entries_Page {
 					array(
 						'entry_id'      => (int) ( $values['id'] ?? 0 ),
 						'competition_id'=> (int) ( $values['competition_id'] ?? 0 ),
+						'first_name'    => (string) ( $values['external_first_name'] ?? '' ),
+						'last_name'     => (string) ( $values['external_last_name'] ?? '' ),
+						'birth_date'    => (string) ( $values['external_birth_date'] ?? '' ),
+						'club_name'     => (string) ( $values['external_club_name'] ?? '' ),
 						'weight_kg'     => (string) ( $values['weight_kg'] ?? '' ),
 						'weight_class'  => (string) ( $values['weight_class'] ?? '' ),
 						'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ),
 					)
 				)
 			);
+			if ( ParticipantTypes::is_external( (string) ( $values['participant_type'] ?? '' ) ) ) {
+				foreach ( array( 'first_name' => 'external_first_name', 'last_name' => 'external_last_name', 'birth_date' => 'external_birth_date', 'club_name' => 'external_club_name' ) as $field => $value_key ) {
+					if ( '' === trim( (string) ( $values[ $value_key ] ?? '' ) ) ) {
+						error_log( 'UFSC Entries_Page missing_external_field ' . wp_json_encode( array( 'entry_id' => (int) ( $values['id'] ?? 0 ), 'field' => $field, 'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ) ) ) );
+					}
+				}
+			}
 		}
 
 		$competition_filters = array( 'view' => 'all' );
@@ -1496,6 +1532,16 @@ class Entries_Page {
 				if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
 					return sanitize_text_field( (string) $value );
 				}
+			}
+		}
+
+		return '';
+	}
+
+	private function resolve_first_non_empty_value( array $values ): string {
+		foreach ( $values as $value ) {
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				return sanitize_text_field( (string) $value );
 			}
 		}
 
