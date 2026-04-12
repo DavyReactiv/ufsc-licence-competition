@@ -66,16 +66,35 @@ class Entries_Page {
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			$item = null;
 			if ( 'edit' === $action && $id ) {
+				$this->debug_entry_storage_snapshot( $id );
 				$loaded_source = 'none';
 				if ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 					$this->repository->assert_entry_in_scope( $id );
 				}
 				$item = $this->repository->get_with_details( $id, true );
+				if ( is_object( $item ) ) {
+					$this->debug_targeted_log(
+						'edit_entry_get_with_details_payload',
+						array(
+							'entry_id' => $id,
+							'payload'  => get_object_vars( $item ),
+						)
+					);
+				}
 				if ( $item ) {
 					$loaded_source = 'get_with_details';
 				}
 				if ( ! $item ) {
 					$item = $this->repository->get( $id, true );
+					if ( is_object( $item ) ) {
+						$this->debug_targeted_log(
+							'edit_entry_get_fallback_payload',
+							array(
+								'entry_id' => $id,
+								'payload'  => get_object_vars( $item ),
+							)
+						);
+					}
 					if ( $item ) {
 						$loaded_source = 'get_fallback';
 					}
@@ -379,6 +398,23 @@ class Entries_Page {
 		$numero_licence = isset( $_POST['numero_licence'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['numero_licence'] ) ) ) : '';
 		$date_naissance = isset( $_POST['date_naissance'] ) ? trim( sanitize_text_field( wp_unslash( $_POST['date_naissance'] ) ) ) : '';
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$this->debug_targeted_log(
+			'license_search_handler_entered',
+			array(
+				'competition_id' => $competition_id,
+				'current_user'   => (int) get_current_user_id(),
+			)
+		);
+		$this->debug_targeted_log(
+			'license_search_request_payload',
+			array(
+				'nom'            => $nom,
+				'prenom'         => $prenom,
+				'numero_licence' => $numero_licence,
+				'date_naissance' => $date_naissance,
+				'competition_id' => $competition_id,
+			)
+		);
 
 		if ( '' === $nom && '' === $prenom && '' === $numero_licence && '' === $date_naissance ) {
 			$this->debug_search_log(
@@ -533,6 +569,13 @@ class Entries_Page {
 
 		$params[] = 20;
 		$query    = $wpdb->prepare( $sql, $params );
+		$this->debug_targeted_log(
+			'license_search_query_args',
+			array(
+				'query'  => $query,
+				'params' => $params,
+			)
+		);
 		$rows     = $wpdb->get_results( $query, ARRAY_A );
 		if ( $wpdb->last_error ) {
 			$this->debug_search_log(
@@ -554,6 +597,12 @@ class Entries_Page {
 
 		$this->debug_search_log(
 			'query_results_count',
+			array(
+				'count' => count( $rows ),
+			)
+		);
+		$this->debug_targeted_log(
+			'license_search_results_count',
 			array(
 				'count' => count( $rows ),
 			)
@@ -582,6 +631,13 @@ class Entries_Page {
 			);
 		}
 
+		$this->debug_targeted_log(
+			'license_search_response_payload',
+			array(
+				'results_count' => count( $results ),
+				'results'       => $results,
+			)
+		);
 		wp_send_json_success(
 			array(
 				'results' => $results,
@@ -858,6 +914,28 @@ class Entries_Page {
 			}
 		}
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_object( $item ) ) {
+			$this->debug_targeted_log(
+				'edit_form_final_hydrated_payload',
+				array(
+					'entry_id' => (int) ( $values['id'] ?? 0 ),
+					'fields'   => array(
+						'first_name'       => (string) ( $values['external_first_name'] ?? '' ),
+						'last_name'        => (string) ( $values['external_last_name'] ?? '' ),
+						'birth_date'       => (string) ( $values['external_birth_date'] ?? '' ),
+						'birth_year'       => (string) substr( (string) ( $values['external_birth_date'] ?? '' ), 0, 4 ),
+						'sex'              => (string) ( $values['external_sex'] ?? '' ),
+						'club_name'        => (string) ( $values['external_club_name'] ?? '' ),
+						'discipline'       => (string) ( $values['external_discipline'] ?? '' ),
+						'level'            => (string) ( $values['external_level'] ?? '' ),
+						'email'            => (string) ( $values['external_email'] ?? '' ),
+						'phone'            => (string) ( $values['external_phone'] ?? '' ),
+						'comment'          => (string) ( $values['external_notes'] ?? '' ),
+						'weight'           => (string) ( $values['weight_kg'] ?? '' ),
+						'weight_class'     => (string) ( $values['weight_class'] ?? '' ),
+						'participant_type' => (string) ( $values['participant_type'] ?? '' ),
+					),
+				)
+			);
 			error_log(
 				'UFSC Entries_Page edit_form_hydration_source ' . wp_json_encode(
 					array(
@@ -1570,5 +1648,92 @@ class Entries_Page {
 
 		$payload = $context ? wp_json_encode( $context ) : '';
 		error_log( sprintf( 'UFSC entries license search: %s %s', $message, $payload ) );
+	}
+
+	private function debug_targeted_log( string $event, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+
+		error_log( sprintf( 'UFSC Entries_Page %s %s', $event, wp_json_encode( $context ) ) );
+	}
+
+	private function debug_entry_storage_snapshot( int $entry_id ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || $entry_id <= 0 ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$entries_table   = Db::entries_table();
+		$external_table  = Db::external_participants_table();
+		$licenses_table  = $wpdb->prefix . 'ufsc_licences';
+		$entry_row       = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$entries_table} WHERE id = %d LIMIT 1", $entry_id ), ARRAY_A );
+		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		$external_row    = $external_exists ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$external_table} WHERE entry_id = %d LIMIT 1", $entry_id ), ARRAY_A ) : null;
+		$licensee_id     = (int) ( $entry_row['licensee_id'] ?? $entry_row['licence_id'] ?? 0 );
+		$license_row     = null;
+		if ( $licensee_id > 0 && $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $licenses_table ) ) === $licenses_table ) {
+			$license_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$licenses_table} WHERE id = %d LIMIT 1", $licensee_id ), ARRAY_A );
+		}
+
+		$tracked_fields = array(
+			'participant_name',
+			'first_name',
+			'last_name',
+			'birth_date',
+			'birth_year',
+			'sex',
+			'club_name',
+			'club_nom',
+			'discipline',
+			'level',
+			'email',
+			'phone',
+			'comment',
+			'participant_type',
+			'licensee_id',
+			'club_id',
+		);
+
+		$this->debug_targeted_log(
+			'entry_raw_db_snapshot',
+			array(
+				'entry_id'        => $entry_id,
+				'licensee_id'     => $licensee_id,
+				'table'           => $entries_table,
+				'raw'             => $entry_row,
+				'tracked_fields'  => $this->extract_tracked_fields( $entry_row, $tracked_fields ),
+			)
+		);
+		$this->debug_targeted_log(
+			'external_participant_raw_db_snapshot',
+			array(
+				'entry_id'       => $entry_id,
+				'table'          => $external_table,
+				'table_exists'   => $external_exists,
+				'raw'            => $external_row,
+				'tracked_fields' => $this->extract_tracked_fields( $external_row, $tracked_fields ),
+			)
+		);
+		$this->debug_targeted_log(
+			'license_raw_db_snapshot',
+			array(
+				'entry_id'       => $entry_id,
+				'licensee_id'    => $licensee_id,
+				'table'          => $licenses_table,
+				'raw'            => $license_row,
+				'tracked_fields' => $this->extract_tracked_fields( $license_row, $tracked_fields ),
+			)
+		);
+	}
+
+	private function extract_tracked_fields( ?array $row, array $fields ): array {
+		$output = array();
+		foreach ( $fields as $field ) {
+			$output[ $field ] = is_array( $row ) && array_key_exists( $field, $row ) ? $row[ $field ] : null;
+		}
+
+		return $output;
 	}
 }

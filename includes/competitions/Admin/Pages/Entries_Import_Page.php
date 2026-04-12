@@ -682,8 +682,23 @@ class Entries_Import_Page {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'UFSC entries CSV import insert success: entry_id=' . (int) $entry_id . ' line=' . (int) $line );
 			}
+			$this->debug_import_storage_snapshots(
+				(int) $entry_id,
+				array(
+					'line'               => $line,
+					'import_payload'     => $payload,
+					'normalized_payload' => $normalized,
+				)
+			);
 
 			$this->persist_optional_csv_fields( $entry_id, $normalized, $club_resolution, $import_batch_id );
+			$this->debug_import_storage_snapshots(
+				(int) $entry_id,
+				array(
+					'line'        => $line,
+					'after_stage' => 'persist_optional_csv_fields',
+				)
+			);
 
 			if ( ! empty( $club_resolution['is_non_affiliated'] ) ) {
 				$report['non_affiliated_clubs']++;
@@ -809,6 +824,42 @@ class Entries_Import_Page {
 				return;
 			}
 		}
+	}
+
+	private function debug_import_storage_snapshots( int $entry_id, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || $entry_id <= 0 ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$entries_table   = Db::entries_table();
+		$external_table  = Db::external_participants_table();
+		$entry_row       = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$entries_table} WHERE id = %d LIMIT 1", $entry_id ), ARRAY_A );
+		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		$external_row    = $external_exists ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$external_table} WHERE entry_id = %d LIMIT 1", $entry_id ), ARRAY_A ) : null;
+
+		error_log(
+			'UFSC Entries_Import_Page entry_raw_db_snapshot ' .
+			wp_json_encode(
+				array(
+					'entry_id' => $entry_id,
+					'context'  => $context,
+					'raw'      => $entry_row,
+				)
+			)
+		);
+		error_log(
+			'UFSC Entries_Import_Page external_participant_raw_db_snapshot ' .
+			wp_json_encode(
+				array(
+					'entry_id'     => $entry_id,
+					'context'      => $context,
+					'table_exists' => $external_exists,
+					'raw'          => $external_row,
+				)
+			)
+		);
 	}
 
 	private function has_duplicate_identity_entry( int $competition_id, string $nom, string $prenom, string $birthdate ): bool {

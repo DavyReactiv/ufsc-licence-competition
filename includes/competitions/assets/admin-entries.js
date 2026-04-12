@@ -355,6 +355,9 @@
 
   async function performSearch() {
     const payload = getSearchPayload();
+    if (window.console && typeof window.console.debug === "function") {
+      window.console.debug("license_search_request_payload", payload);
+    }
     if (
       !payload.nom &&
       !payload.prenom &&
@@ -377,6 +380,12 @@
       const { ok, json } = await postAjax(payload, {
         signal: searchController.signal,
       });
+      if (window.console && typeof window.console.debug === "function") {
+        window.console.debug("license_search_response_payload", {
+          ok,
+          json,
+        });
+      }
       if (!ok || !json) {
         setMessage(config.searchErrorMessage, "error");
         clearResults();
