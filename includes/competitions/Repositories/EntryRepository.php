@@ -48,7 +48,12 @@ class EntryRepository {
 			return null;
 		}
 
-		return $rows[0] ?? null;
+		$row = $rows[0] ?? null;
+		if ( is_object( $row ) ) {
+			$this->debug_repository_external_fallback_used( $row );
+		}
+
+		return $row;
 	}
 
 	public function assert_entry_in_scope( int $entry_id ): void {
@@ -756,6 +761,9 @@ class EntryRepository {
 				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), {$external_last_name_expr}, NULLIF({$last_name_expr}, '')) AS last_name";
 				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$external_birth_date_expr}, {$birthdate_select}) AS birth_date";
 				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), {$external_birth_year_expr}, NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
+				$select .= ", CASE WHEN NULLIF({$entry_first_name_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_first_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$first_name_select}, '') IS NOT NULL THEN 'license' ELSE '' END AS _source_first_name";
+				$select .= ", CASE WHEN NULLIF({$entry_last_name_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_last_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$last_name_expr}, '') IS NOT NULL THEN 'license' ELSE '' END AS _source_last_name";
+				$select .= ", CASE WHEN NULLIF({$entry_birth_date_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_birth_date_expr} <> '' THEN 'external_participants' WHEN {$birthdate_select} IS NOT NULL AND {$birthdate_select} <> '' THEN 'license' ELSE '' END AS _source_birth_date";
 				$select .= ", {$entry_fighter_expr} AS fighter_number";
 				$select .= ", {$entry_submitted_at_expr} AS submitted_at";
 			}
@@ -806,7 +814,8 @@ class EntryRepository {
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
 			if ( ! $count ) {
-				$select .= ", COALESCE(NULLIF(c.nom, ''), NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
+				$select .= ", COALESCE({$external_club_name_expr}, NULLIF({$entry_club_name_expr}, ''), NULLIF(c.nom, '')) AS club_name";
+				$select .= ", CASE WHEN {$external_club_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$entry_club_name_expr}, '') IS NOT NULL THEN 'entry' WHEN NULLIF(c.nom, '') IS NOT NULL THEN 'club_join' ELSE '' END AS _source_club_name";
 				$club_columns = Db::get_table_columns( $clubs_table );
 				if ( is_array( $club_columns ) ) {
 					if ( in_array( 'ville', $club_columns, true ) ) {
@@ -819,7 +828,8 @@ class EntryRepository {
 				}
 			}
 		} elseif ( ! $count ) {
-			$select .= ", COALESCE(NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
+			$select .= ", COALESCE({$external_club_name_expr}, NULLIF({$entry_club_name_expr}, '')) AS club_name";
+			$select .= ", CASE WHEN {$external_club_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$entry_club_name_expr}, '') IS NOT NULL THEN 'entry' ELSE '' END AS _source_club_name";
 		}
 
 		if ( '' !== $scope_region ) {
@@ -1045,6 +1055,61 @@ class EntryRepository {
 				)
 			)
 		);
+	}
+
+	private function debug_repository_external_fallback_used( $row ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || ! is_object( $row ) ) {
+			return;
+		}
+
+		$participant_type = sanitize_key( (string) ( $row->participant_type ?? '' ) );
+		if ( 'external_non_licensed' !== $participant_type ) {
+			return;
+		}
+
+		$entry_id = (int) ( $row->id ?? 0 );
+		$fields = array(
+			'first_name' => '_source_first_name',
+			'last_name'  => '_source_last_name',
+			'birth_date' => '_source_birth_date',
+			'club_name'  => '_source_club_name',
+		);
+
+		foreach ( $fields as $field_name => $source_field ) {
+			$selected_value = $this->get_object_non_empty_value( $row, array( $field_name ) );
+			$chosen_source  = $this->get_object_non_empty_value( $row, array( $source_field ) );
+			if ( '' === $selected_value || '' === $chosen_source || 'entry' === $chosen_source ) {
+				continue;
+			}
+
+			error_log(
+				'UFSC EntryRepository repository_external_fallback_used ' .
+				wp_json_encode(
+					array(
+						'entry_id'       => $entry_id,
+						'field_name'     => $field_name,
+						'chosen_source'  => $chosen_source,
+					)
+				)
+			);
+		}
+	}
+
+	private function get_object_non_empty_value( $item, array $keys ): string {
+		if ( ! is_object( $item ) ) {
+			return '';
+		}
+
+		foreach ( $keys as $key ) {
+			if ( property_exists( $item, $key ) ) {
+				$value = $item->{$key};
+				if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+					return sanitize_text_field( (string) $value );
+				}
+			}
+		}
+
+		return '';
 	}
 
 	private function get_licences_table(): string {

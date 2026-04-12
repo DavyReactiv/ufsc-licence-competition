@@ -87,7 +87,7 @@ class Entries_Page {
 								'entry_id' => $id,
 								'competition_id' => (int) ( $item->competition_id ?? 0 ),
 								'participant_type' => sanitize_key( (string) ( $item->participant_type ?? '' ) ),
-								'source' => $loaded_source,
+								'source_used' => $loaded_source,
 							)
 						)
 					);
@@ -863,12 +863,12 @@ class Entries_Page {
 					array(
 						'entry_id'      => (int) ( $values['id'] ?? 0 ),
 						'competition_id'=> (int) ( $values['competition_id'] ?? 0 ),
-						'first_name'    => (string) ( $values['external_first_name'] ?? '' ),
-						'last_name'     => (string) ( $values['external_last_name'] ?? '' ),
-						'birth_date'    => (string) ( $values['external_birth_date'] ?? '' ),
-						'club_name'     => (string) ( $values['external_club_name'] ?? '' ),
-						'weight_kg'     => (string) ( $values['weight_kg'] ?? '' ),
-						'weight_class'  => (string) ( $values['weight_class'] ?? '' ),
+						'hydrated_first_name' => (string) ( $values['external_first_name'] ?? '' ),
+						'hydrated_last_name'  => (string) ( $values['external_last_name'] ?? '' ),
+						'hydrated_birth_date' => (string) ( $values['external_birth_date'] ?? '' ),
+						'hydrated_club_name'  => (string) ( $values['external_club_name'] ?? '' ),
+						'hydrated_weight'     => (string) ( $values['weight_kg'] ?? '' ),
+						'hydrated_weight_class'  => (string) ( $values['weight_class'] ?? '' ),
 						'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ),
 					)
 				)
@@ -876,7 +876,7 @@ class Entries_Page {
 			if ( ParticipantTypes::is_external( (string) ( $values['participant_type'] ?? '' ) ) ) {
 				foreach ( array( 'first_name' => 'external_first_name', 'last_name' => 'external_last_name', 'birth_date' => 'external_birth_date', 'club_name' => 'external_club_name' ) as $field => $value_key ) {
 					if ( '' === trim( (string) ( $values[ $value_key ] ?? '' ) ) ) {
-						error_log( 'UFSC Entries_Page missing_external_field ' . wp_json_encode( array( 'entry_id' => (int) ( $values['id'] ?? 0 ), 'field' => $field, 'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ) ) ) );
+						error_log( 'UFSC Entries_Page missing_external_field ' . wp_json_encode( array( 'entry_id' => (int) ( $values['id'] ?? 0 ), 'field_name' => $field, 'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ) ) ) );
 					}
 				}
 			}
