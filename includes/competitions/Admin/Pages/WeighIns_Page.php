@@ -6,10 +6,12 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Db;
 use UFSC\Competitions\Entries\EntryDataNormalizer;
+use UFSC\Competitions\Entries\EntriesWorkflow;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
+use UFSC\Competitions\Services\WeightCategoryResolver;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -86,23 +88,42 @@ class WeighIns_Page {
 				$categories[ (int) $row->id ] = $row;
 			}
 
+			$entry_statuses = array_merge( EntriesWorkflow::get_review_queue_statuses(), array( 'approved' ) );
+			$entry_statuses = array_values( array_unique( array_filter( array_map( 'sanitize_key', $entry_statuses ) ) ) );
 			$entry_filters = array(
 				'view' => 'all',
 				'competition_id' => $competition_id,
-				'status' => 'approved',
+				'status' => $entry_statuses,
 			);
 			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 			}
 			$entries = $this->entries->list_with_details( $entry_filters, 1000, 0 );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC WeighIns_Page entries_loaded ' . wp_json_encode(
+						array(
+							'competition_id' => $competition_id,
+							'count'          => count( $entries ),
+							'statuses'       => $entry_filters['status'],
+						)
+					)
+				);
+			}
 			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
 			$weighins  = $this->weighins->get_for_entries( $competition_id, $entry_ids );
 
 			$entries = array_values(
 				array_filter(
 					$entries,
-					function( $entry ) use ( $category_filter, $status_filter, $categories, $weighins, $competition, &$stats ) {
-						$entry_id = (int) $entry->id;
+						function( $entry ) use ( $category_filter, $status_filter, $categories, $weighins, $competition, &$stats ) {
+							if ( (int) ( $entry->competition_id ?? 0 ) !== (int) ( $competition->id ?? 0 ) ) {
+								if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+									error_log( 'UFSC WeighIns_Page entry_excluded competition_mismatch ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'entry_competition_id' => (int) ( $entry->competition_id ?? 0 ), 'competition_id' => (int) ( $competition->id ?? 0 ) ) ) );
+								}
+								return false;
+							}
+							$entry_id = (int) $entry->id;
 						$category_label = (string) ( $entry->category_name ?? $entry->category ?? '' );
 						if ( '' === $category_label && ! empty( $entry->category_id ) && isset( $categories[ (int) $entry->category_id ] ) ) {
 							$category_label = (string) $categories[ (int) $entry->category_id ]->name;
@@ -214,7 +235,9 @@ class WeighIns_Page {
 							<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Catégorie prévue', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Poids inscription', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Poids pesé', 'ufsc-licence-competition' ); ?></th>
+							<th><?php esc_html_e( 'Écart', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Statut pesée', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Reclassement proposé', 'ufsc-licence-competition' ); ?></th>
 							<th><?php esc_html_e( 'Action', 'ufsc-licence-competition' ); ?></th>
@@ -222,7 +245,7 @@ class WeighIns_Page {
 						</thead>
 						<tbody>
 						<?php if ( empty( $entries ) ) : ?>
-							<tr><td colspan="9"><?php esc_html_e( 'Aucun inscrit correspondant aux filtres.', 'ufsc-licence-competition' ); ?></td></tr>
+							<tr><td colspan="11"><?php esc_html_e( 'Aucun inscrit correspondant aux filtres.', 'ufsc-licence-competition' ); ?></td></tr>
 						<?php endif; ?>
 						<?php foreach ( $entries as $entry ) : ?>
 							<?php $this->render_entry_row( $entry, $competition_id, $categories ); ?>
@@ -245,12 +268,20 @@ class WeighIns_Page {
 		if ( '' === $fighter_number ) {
 			$fighter_number = $this->get_item_value_from_keys( $entry, array( 'fighter_number', 'competition_number', 'dossard' ) );
 		}
+		$fighter_number_int = absint( $fighter_number );
+		$fighter_number_display = $fighter_number_int > 0 ? str_pad( (string) $fighter_number_int, 2, '0', STR_PAD_LEFT ) : '';
 		$reclass_category_id = isset( $meta['reclass_category_id'] ) ? (int) $meta['reclass_category_id'] : 0;
 		$suggested = $this->suggest_reclassification_categories( $entry, $categories, $current_weight );
 		$normalized_entry = EntryDataNormalizer::normalize_for_admin( $entry );
 		$last_name = (string) ( $normalized_entry['last_name'] ?? '' );
 		$first_name = (string) ( $normalized_entry['first_name'] ?? '' );
 		$club_name = (string) ( $normalized_entry['club_name'] ?? '' );
+		$entry_weight = $this->get_item_value_from_keys( $entry, array( 'weight_kg', 'weight', 'poids' ) );
+		$entry_weight_float = '' !== $entry_weight ? (float) str_replace( ',', '.', $entry_weight ) : null;
+		$delta = ( null !== $entry_weight_float && '' !== $current_weight ) ? ( (float) str_replace( ',', '.', $current_weight ) - $entry_weight_float ) : null;
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC WeighIns_Page entry_weight_source ' . wp_json_encode( array( 'entry_id' => $entry_id, 'competition_id' => $competition_id, 'entry_weight' => $entry_weight, 'measured_weight' => $current_weight ) ) );
+		}
 
 		$status_badge = in_array( $weighin['status'], array( 'weighed', 'validated', 'reclassified' ), true )
 			? 'ufsc-badge--success'
@@ -262,12 +293,14 @@ class WeighIns_Page {
 				<input type="hidden" name="ufsc_weighin_action" value="save" />
 				<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
 				<input type="hidden" name="entry_id" value="<?php echo esc_attr( $entry_id ); ?>" />
-				<td><input type="number" class="small-text" min="1" max="9999" name="fighter_number" value="<?php echo esc_attr( $fighter_number ); ?>" /></td>
+				<td><input type="number" class="small-text" min="1" max="9999" name="fighter_number" value="<?php echo esc_attr( $fighter_number_int > 0 ? (string) $fighter_number_int : '' ); ?>" placeholder="<?php echo esc_attr( $fighter_number_display ); ?>" /></td>
 				<td><?php echo esc_html( '' !== $last_name ? $last_name : '—' ); ?></td>
 				<td><?php echo esc_html( '' !== $first_name ? $first_name : '—' ); ?></td>
 				<td><?php echo esc_html( '' !== $club_name ? $club_name : '—' ); ?></td>
 				<td><?php echo esc_html( (string) $weighin['category_label'] ); ?></td>
+				<td><?php echo esc_html( '' !== $entry_weight ? $entry_weight . ' kg' : '—' ); ?></td>
 				<td><input type="number" step="0.1" min="0" max="300" name="weight_measured" value="<?php echo esc_attr( $current_weight ); ?>" class="small-text" /></td>
+				<td><?php echo esc_html( null !== $delta ? sprintf( '%+.1f kg', $delta ) : '—' ); ?></td>
 				<td>
 					<select name="weighin_status">
 						<?php foreach ( $this->get_mutation_status_choices() as $status_value => $status_label ) : ?>
@@ -334,7 +367,23 @@ class WeighIns_Page {
 			$status = 'pending';
 		}
 
+		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
+		$existing_meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
+		$existing_fighter_number = absint( $existing_meta['fighter_number'] ?? 0 );
+		if ( $existing_fighter_number <= 0 ) {
+			$existing_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+		}
+
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
+		if ( $fighter_number <= 0 && $existing_fighter_number > 0 ) {
+			$fighter_number = $existing_fighter_number;
+		} elseif ( $fighter_number <= 0 && $this->status_allows_auto_fighter_number( $status ) ) {
+			$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
+			if ( $fighter_number > 0 && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'source' => 'auto_on_validation' ) ) );
+			}
+		}
+
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
 		if ( $fighter_number > 0 ) {
 			$duplicate_entry_id = $this->weighins->find_entry_id_by_fighter_number( $competition_id, $fighter_number, $entry_id );
@@ -351,8 +400,7 @@ class WeighIns_Page {
 			}
 		}
 
-		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
-		$meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
+		$meta = $existing_meta;
 		$meta['fighter_number'] = $fighter_number > 0 ? $fighter_number : '';
 		$meta['reclass_category_id'] = $reclass_category_id > 0 ? $reclass_category_id : '';
 		$meta['reclass_pending'] = in_array( $status, array( 'awaiting_reclassification', 'out_of_limit' ), true ) ? 1 : 0;
@@ -459,36 +507,81 @@ class WeighIns_Page {
 			return array();
 		}
 
-		$current_category_id = (int) ( $entry->category_id ?? 0 );
-		$current_max = null;
-		if ( $current_category_id && isset( $categories[ $current_category_id ] ) ) {
-			$current_max = isset( $categories[ $current_category_id ]->weight_max ) ? (float) $categories[ $current_category_id ]->weight_max : null;
+		$birth_date = EntryDataNormalizer::resolve_birth_date( $entry );
+		$sex = sanitize_text_field( (string) ( $entry->licensee_sex ?? $entry->sex ?? $entry->gender ?? '' ) );
+		$competition_id = (int) ( $entry->competition_id ?? 0 );
+		$competition = $competition_id > 0 ? $this->competitions->get( $competition_id, true ) : null;
+		$context = array(
+			'discipline'      => sanitize_key( (string) ( $competition->discipline ?? '' ) ),
+			'age_reference'   => sanitize_text_field( (string) ( $competition->age_reference ?? '12-31' ) ),
+			'season_end_year' => isset( $competition->season ) ? (int) $competition->season : 0,
+		);
+		$resolved = WeightCategoryResolver::resolve_with_details( $birth_date, $sex, $weight, $context );
+		$label = sanitize_text_field( (string) ( $resolved['label'] ?? '' ) );
+		if ( '' === $label || WeightCategoryResolver::OUT_OF_RANGE_LABEL === $label ) {
+			return array();
 		}
 
 		$candidates = array();
 		foreach ( $categories as $category ) {
-			$min = isset( $category->weight_min ) && '' !== (string) $category->weight_min ? (float) $category->weight_min : null;
-			$max = isset( $category->weight_max ) && '' !== (string) $category->weight_max ? (float) $category->weight_max : null;
-			if ( null !== $min && $weight < $min ) {
-				continue;
+			if ( sanitize_text_field( (string) ( $category->name ?? '' ) ) === $label ) {
+				$candidates[] = $category;
 			}
-			if ( null !== $max && $weight > $max ) {
-				continue;
-			}
-			if ( null !== $current_max && null !== $max && $max < $current_max ) {
-				continue;
-			}
-			$candidates[] = $category;
 		}
 
-		usort(
-			$candidates,
-			static function( $a, $b ) {
-				return (float) ( $a->weight_max ?? 0 ) <=> (float) ( $b->weight_max ?? 0 );
-			}
-		);
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC WeighIns_Page reclass_resolved ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'competition_id' => $competition_id, 'weight_measured' => $weight, 'resolved_label' => $label, 'status' => (string) ( $resolved['status'] ?? '' ) ) ) );
+		}
 
 		return $candidates;
+	}
+
+	private function status_allows_auto_fighter_number( string $status ): bool {
+		return in_array( sanitize_key( $status ), array( 'weighed', 'validated' ), true );
+	}
+
+	private function next_available_fighter_number( int $competition_id, int $entry_id = 0 ): int {
+		$competition_id = absint( $competition_id );
+		if ( $competition_id <= 0 ) {
+			return 0;
+		}
+
+		$used = array();
+		$entries = $this->entries->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+		$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+		$weighins = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+
+		foreach ( $entries as $entry ) {
+			$current_entry_id = (int) ( $entry->id ?? 0 );
+			if ( $entry_id > 0 && $current_entry_id === $entry_id ) {
+				continue;
+			}
+			$number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			if ( $number <= 0 && isset( $weighins[ $current_entry_id ] ) ) {
+				$meta = $this->extract_meta( (string) ( $weighins[ $current_entry_id ]->notes ?? '' ) );
+				$number = absint( $meta['fighter_number'] ?? 0 );
+			}
+			if ( $number > 0 ) {
+				if ( isset( $used[ $number ] ) && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $current_entry_id, 'fighter_number' => $number ) ) );
+				}
+				$used[ $number ] = true;
+			}
+		}
+
+		$next = 1;
+		while ( isset( $used[ $next ] ) ) {
+			$next++;
+		}
+
+		return $next;
 	}
 
 	private function get_item_value( $item, string $key ) {
