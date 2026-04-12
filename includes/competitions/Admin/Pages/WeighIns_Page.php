@@ -519,7 +519,7 @@ class WeighIns_Page {
 		}
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( 'UFSC WeighIns_Page resolver_reclassification ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'competition_id' => $competition_id, 'weight_measured' => $weight, 'resolved_label' => $label, 'status' => (string) ( $resolved['status'] ?? '' ) ) ) );
+			error_log( 'UFSC WeighIns_Page reclass_resolved ' . wp_json_encode( array( 'entry_id' => (int) ( $entry->id ?? 0 ), 'competition_id' => $competition_id, 'weight_measured' => $weight, 'resolved_label' => $label, 'status' => (string) ( $resolved['status'] ?? '' ) ) ) );
 		}
 
 		return $candidates;
