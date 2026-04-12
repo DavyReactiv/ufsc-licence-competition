@@ -682,8 +682,29 @@ class Entries_Import_Page {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'UFSC entries CSV import insert success: entry_id=' . (int) $entry_id . ' line=' . (int) $line );
 			}
+			$this->debug_import_storage_snapshots(
+				(int) $entry_id,
+				array(
+					'line'               => $line,
+					'import_payload'     => $payload,
+					'normalized_payload' => $normalized,
+				)
+			);
 
-			$this->persist_optional_csv_fields( $entry_id, $normalized, $club_resolution, $import_batch_id );
+			$this->persist_optional_csv_fields(
+				$entry_id,
+				$normalized,
+				$club_resolution,
+				$import_batch_id,
+				0 === (int) ( $license_lookup['licensee_id'] ?? 0 )
+			);
+			$this->debug_import_storage_snapshots(
+				(int) $entry_id,
+				array(
+					'line'        => $line,
+					'after_stage' => 'persist_optional_csv_fields',
+				)
+			);
 
 			if ( ! empty( $club_resolution['is_non_affiliated'] ) ) {
 				$report['non_affiliated_clubs']++;
@@ -732,7 +753,7 @@ class Entries_Import_Page {
 		return 1000000000 + random_int( 0, 999999999 );
 	}
 
-	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution, string $import_batch_id ): void {
+	private function persist_optional_csv_fields( int $entry_id, array $normalized, array $club_resolution, string $import_batch_id, bool $is_external_non_licensed ): void {
 		global $wpdb;
 
 		$entry_id = absint( $entry_id );
@@ -747,28 +768,51 @@ class Entries_Import_Page {
 		}
 
 		$updates = array();
+		$skipped_columns = array();
+
+		$this->maybe_map_column( $updates, $columns, $normalized, 'prenom', array( 'first_name', 'firstname', 'prenom' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'nom', array( 'last_name', 'lastname', 'nom' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'date_naissance', array( 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ), $skipped_columns );
+		if ( ! empty( $normalized['date_naissance'] ) && preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $normalized['date_naissance'] ) ) {
+			$this->maybe_map_column( $updates, $columns, array( 'birth_year' => substr( (string) $normalized['date_naissance'], 0, 4 ) ), 'birth_year', array( 'birth_year', 'annee_naissance', 'year_of_birth', 'year' ), $skipped_columns );
+		}
+		$this->maybe_map_column( $updates, $columns, $normalized, 'sexe', array( 'sex', 'sexe', 'gender' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'discipline', array( 'discipline' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'niveau', array( 'level', 'classe', 'class', 'niveau' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'email', array( 'email', 'mail', 'contact_email' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'telephone', array( 'phone', 'telephone', 'tel', 'contact_phone' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'commentaire', array( 'comment', 'commentaire', 'comments', 'notes', 'admin_note', 'medical_notes' ), $skipped_columns );
 		$this->maybe_map_column( $updates, $columns, $normalized, 'numero_licence_asptt', array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'email', array( 'email', 'mail' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'telephone', array( 'telephone', 'phone' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'commentaire', array( 'commentaire', 'comment', 'notes' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'discipline', array( 'discipline' ) );
-		$this->maybe_map_column( $updates, $columns, $normalized, 'fighter_number', array( 'fighter_number', 'competition_number', 'dossard' ) );
+		$this->maybe_map_column( $updates, $columns, $normalized, 'fighter_number', array( 'fighter_number', 'competition_number', 'dossard' ), $skipped_columns );
+		if ( $is_external_non_licensed ) {
+			$this->maybe_map_column(
+				$updates,
+				$columns,
+				array( 'participant_type' => 'external_non_licensed' ),
+				'participant_type',
+				array( 'participant_type' ),
+				$skipped_columns
+			);
+		}
 		$club_label_from_import = $this->normalize_text( $club_resolution['club_nom'] ?? '' );
 		if ( '' !== $club_label_from_import ) {
-			if ( in_array( 'club_nom', $columns, true ) ) {
+			if ( in_array( 'club_name', $columns, true ) ) {
+				$updates['club_name'] = $club_label_from_import;
+			} elseif ( in_array( 'club_nom', $columns, true ) ) {
 				$updates['club_nom'] = $club_label_from_import;
+			} else {
+				$skipped_columns[] = 'club_name|club_nom';
 			}
-			$this->maybe_map_column( $updates, $columns, array( 'club_nom' => $club_label_from_import ), 'club_nom', array( 'club_name' ) );
 		}
 
 		$club_source = sanitize_key( (string) ( $club_resolution['club_source'] ?? '' ) );
 		if ( '' !== $club_source ) {
-			$this->maybe_map_column( $updates, $columns, array( 'club_source' => $club_source ), 'club_source', array( 'club_source', 'club_status' ) );
+			$this->maybe_map_column( $updates, $columns, array( 'club_source' => $club_source ), 'club_source', array( 'club_source', 'club_status' ), $skipped_columns );
 		}
-		$this->maybe_map_column( $updates, $columns, array( 'group_label' => $import_batch_id ), 'group_label', array( 'group_label' ) );
-		$this->maybe_map_column( $updates, $columns, array( 'import_batch_id' => $import_batch_id ), 'import_batch_id', array( 'import_batch_id' ) );
-		$this->maybe_map_column( $updates, $columns, array( 'import_source' => 'csv_admin' ), 'import_source', array( 'import_source' ) );
-		$this->maybe_map_column( $updates, $columns, array( 'created_by_import' => '1' ), 'created_by_import', array( 'created_by_import' ) );
+		$this->maybe_map_column( $updates, $columns, array( 'group_label' => $import_batch_id ), 'group_label', array( 'group_label' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, array( 'import_batch_id' => $import_batch_id ), 'import_batch_id', array( 'import_batch_id' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, array( 'import_source' => 'csv_admin' ), 'import_source', array( 'import_source' ), $skipped_columns );
+		$this->maybe_map_column( $updates, $columns, array( 'created_by_import' => '1' ), 'created_by_import', array( 'created_by_import' ), $skipped_columns );
 		if ( in_array( 'imported_at', $columns, true ) ) {
 			$updates['imported_at'] = current_time( 'mysql' );
 		}
@@ -777,15 +821,44 @@ class Entries_Import_Page {
 		$this->maybe_map_bool_column( $updates, $columns, $normalized, 'autorisation_parentale', array( 'autorisation_parentale' ) );
 
 		if ( empty( $updates ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log(
+					'UFSC Entries_Import_Page persist_optional_csv_fields_applied ' .
+					wp_json_encode(
+						array(
+							'entry_id'         => $entry_id,
+							'updated_columns'  => array(),
+							'skipped_columns'  => array_values( array_unique( $skipped_columns ) ),
+							'participant_type' => $is_external_non_licensed ? 'external_non_licensed' : '',
+							'club_id'          => (int) ( $club_resolution['club_id'] ?? 0 ),
+						)
+					)
+				);
+			}
 			return;
 		}
 
 		$wpdb->update( $table, $updates, array( 'id' => $entry_id ) );
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC Entries_Import_Page persist_optional_csv_fields_applied ' .
+				wp_json_encode(
+					array(
+						'entry_id'         => $entry_id,
+						'updated_columns'  => array_keys( $updates ),
+						'skipped_columns'  => array_values( array_unique( $skipped_columns ) ),
+						'participant_type' => $is_external_non_licensed ? 'external_non_licensed' : '',
+						'club_id'          => (int) ( $club_resolution['club_id'] ?? 0 ),
+					)
+				)
+			);
+		}
 	}
 
-	private function maybe_map_column( array &$updates, array $columns, array $normalized, string $source_key, array $target_columns ): void {
+	private function maybe_map_column( array &$updates, array $columns, array $normalized, string $source_key, array $target_columns, array &$skipped_columns = array() ): void {
 		$value = $this->normalize_text( $normalized[ $source_key ] ?? '' );
 		if ( '' === $value ) {
+			$skipped_columns[] = $source_key . ':empty';
 			return;
 		}
 
@@ -795,6 +868,7 @@ class Entries_Import_Page {
 				return;
 			}
 		}
+		$skipped_columns[] = $source_key . ':missing_columns';
 	}
 
 	private function maybe_map_bool_column( array &$updates, array $columns, array $normalized, string $source_key, array $target_columns ): void {
@@ -809,6 +883,42 @@ class Entries_Import_Page {
 				return;
 			}
 		}
+	}
+
+	private function debug_import_storage_snapshots( int $entry_id, array $context = array() ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || $entry_id <= 0 ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$entries_table   = Db::entries_table();
+		$external_table  = Db::external_participants_table();
+		$entry_row       = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$entries_table} WHERE id = %d LIMIT 1", $entry_id ), ARRAY_A );
+		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		$external_row    = $external_exists ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$external_table} WHERE entry_id = %d LIMIT 1", $entry_id ), ARRAY_A ) : null;
+
+		error_log(
+			'UFSC Entries_Import_Page entry_raw_db_snapshot ' .
+			wp_json_encode(
+				array(
+					'entry_id' => $entry_id,
+					'context'  => $context,
+					'raw'      => $entry_row,
+				)
+			)
+		);
+		error_log(
+			'UFSC Entries_Import_Page external_participant_raw_db_snapshot ' .
+			wp_json_encode(
+				array(
+					'entry_id'     => $entry_id,
+					'context'      => $context,
+					'table_exists' => $external_exists,
+					'raw'          => $external_row,
+				)
+			)
+		);
 	}
 
 	private function has_duplicate_identity_entry( int $competition_id, string $nom, string $prenom, string $birthdate ): bool {
