@@ -662,16 +662,37 @@ class EntryRepository {
 		$external_birth_date_expr       = "''";
 		$external_birth_year_expr       = "''";
 		$external_club_name_expr        = "''";
+		$external_discipline_expr       = "''";
+		$external_level_expr            = "''";
+		$external_email_expr            = "''";
+		$external_phone_expr            = "''";
+		$external_comment_expr          = "''";
 		$external_table = Db::external_participants_table();
 		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
 		if ( $external_exists ) {
+			$external_columns = Db::get_table_columns( $external_table );
 			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
 			$external_participant_type_expr = "COALESCE(NULLIF(ep.participant_type, ''), CASE WHEN (NULLIF({$entry_license_number_expr}, '') IS NULL AND {$licensee_expr} >= 1000000000) THEN 'external_non_licensed' ELSE 'licensed_ufsc' END)";
 			$external_first_name_expr       = "NULLIF(ep.first_name, '')";
 			$external_last_name_expr        = "NULLIF(ep.last_name, '')";
-			$external_birth_date_expr       = "NULLIF(ep.birth_date, '')";
-			$external_birth_year_expr       = "NULLIF(SUBSTRING(ep.birth_date, 1, 4), '')";
+			$external_birth_date_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE CAST(ep.birth_date AS CHAR) END";
+			$external_birth_year_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE SUBSTRING(CAST(ep.birth_date AS CHAR), 1, 4) END";
 			$external_club_name_expr        = "NULLIF(ep.club_name, '')";
+			if ( in_array( 'discipline', $external_columns, true ) ) {
+				$external_discipline_expr = "NULLIF(ep.discipline, '')";
+			}
+			if ( in_array( 'level', $external_columns, true ) ) {
+				$external_level_expr = "NULLIF(ep.level, '')";
+			}
+			if ( in_array( 'legal_guardian_email', $external_columns, true ) ) {
+				$external_email_expr = "NULLIF(ep.legal_guardian_email, '')";
+			}
+			if ( in_array( 'legal_guardian_phone', $external_columns, true ) ) {
+				$external_phone_expr = "NULLIF(ep.legal_guardian_phone, '')";
+			}
+			if ( in_array( 'medical_notes', $external_columns, true ) ) {
+				$external_comment_expr = "NULLIF(ep.medical_notes, '')";
+			}
 		}
 
 		if ( ! empty( $filters['participant_type'] ) ) {
@@ -683,6 +704,11 @@ class EntryRepository {
 
 		if ( ! $count ) {
 			$select .= ", {$external_participant_type_expr} AS participant_type";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'discipline' ) ) . ", ''), {$external_discipline_expr}) AS discipline";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'level', 'classe', 'class', 'niveau' ) ) . ", ''), {$external_level_expr}) AS level";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'email', 'mail', 'contact_email' ) ) . ", ''), {$external_email_expr}) AS email";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'phone', 'telephone', 'tel', 'contact_phone' ) ) . ", ''), {$external_phone_expr}) AS phone";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'comment', 'comments', 'notes', 'medical_notes' ) ) . ", ''), {$external_comment_expr}) AS comment";
 		}
 
 		if ( ! $count && ( ! $licences_table || ! $licence_columns ) ) {
