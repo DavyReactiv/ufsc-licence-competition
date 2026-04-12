@@ -602,25 +602,6 @@ class EntryRepository {
 			}
 		}
 
-		$external_table = Db::external_participants_table();
-		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
-		if ( $external_exists ) {
-			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
-			if ( ! $count ) {
-				$select .= ", COALESCE(NULLIF(ep.participant_type, ''), 'licensed_ufsc') AS participant_type";
-			}
-
-		if ( ! empty( $filters['participant_type'] ) ) {
-				$participant_type = sanitize_key( (string) $filters['participant_type'] );
-				if ( in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
-					$where[] = $wpdb->prepare(
-						"COALESCE(NULLIF(ep.participant_type, ''), 'licensed_ufsc') = %s",
-						$participant_type
-					);
-				}
-			}
-		}
-
 		if ( ! empty( $filters['group_label'] ) && $this->has_entry_column( 'group_label' ) ) {
 			$where[] = $wpdb->prepare( "{$entries_alias}.group_label = %s", sanitize_text_field( (string) $filters['group_label'] ) );
 		}
@@ -647,6 +628,24 @@ class EntryRepository {
 		$entry_last_name_expr  = $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'last_name', 'lastname', 'nom', 'family_name' ) );
 		$entry_fighter_expr    = $this->build_entry_int_expression( $entries_alias . '.', $entry_columns, array( 'fighter_number', 'competition_number', 'dossard' ) );
 		$entry_license_number_expr = $this->build_entry_license_number_expression( $entries_alias . '.', $entry_columns );
+		$external_participant_type_expr = "'licensed_ufsc'";
+		$external_table = Db::external_participants_table();
+		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		if ( $external_exists ) {
+			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
+			$external_participant_type_expr = "COALESCE(NULLIF(ep.participant_type, ''), CASE WHEN (NULLIF({$entry_license_number_expr}, '') IS NULL AND {$licensee_expr} >= 1000000000) THEN 'external_non_licensed' ELSE 'licensed_ufsc' END)";
+		}
+
+		if ( ! empty( $filters['participant_type'] ) ) {
+			$participant_type = sanitize_key( (string) $filters['participant_type'] );
+			if ( in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
+				$where[] = $wpdb->prepare( "{$external_participant_type_expr} = %s", $participant_type );
+			}
+		}
+
+		if ( ! $count ) {
+			$select .= ", {$external_participant_type_expr} AS participant_type";
+		}
 
 		if ( ! $count && ( ! $licences_table || ! $licence_columns ) ) {
 			$select .= ", {$entry_first_name_expr} AS first_name";
