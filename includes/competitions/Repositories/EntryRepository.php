@@ -383,6 +383,34 @@ class EntryRepository {
 			$payload['category_name'] = '' !== $category_label ? $category_label : null;
 		}
 
+		$optional_text_columns = array(
+			'first_name'   => array( 'first_name', 'prenom' ),
+			'last_name'    => array( 'last_name', 'nom' ),
+			'birth_date'   => array( 'birth_date', 'date_naissance', 'birthdate' ),
+			'birth_year'   => array( 'birth_year', 'annee_naissance' ),
+			'sex'          => array( 'sex', 'sexe' ),
+			'club_name'    => array( 'club_name', 'club_nom', 'structure_name' ),
+			'club_nom'     => array( 'club_nom', 'club_name', 'structure_name' ),
+			'discipline'   => array( 'discipline' ),
+			'level'        => array( 'level', 'classe', 'class' ),
+			'participant_type' => array( 'participant_type' ),
+		);
+		foreach ( $optional_text_columns as $column_name => $keys ) {
+			if ( ! Db::has_table_column( $table, $column_name ) ) {
+				continue;
+			}
+			$value = '';
+			foreach ( $keys as $key ) {
+				if ( isset( $data[ $key ] ) ) {
+					$value = sanitize_text_field( (string) $data[ $key ] );
+					if ( '' !== $value ) {
+						break;
+					}
+				}
+			}
+			$payload[ $column_name ] = '' !== $value ? $value : null;
+		}
+
 		return $payload;
 	}
 
@@ -629,11 +657,21 @@ class EntryRepository {
 		$entry_fighter_expr    = $this->build_entry_int_expression( $entries_alias . '.', $entry_columns, array( 'fighter_number', 'competition_number', 'dossard' ) );
 		$entry_license_number_expr = $this->build_entry_license_number_expression( $entries_alias . '.', $entry_columns );
 		$external_participant_type_expr = "'licensed_ufsc'";
+		$external_first_name_expr       = "''";
+		$external_last_name_expr        = "''";
+		$external_birth_date_expr       = "''";
+		$external_birth_year_expr       = "''";
+		$external_club_name_expr        = "''";
 		$external_table = Db::external_participants_table();
 		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
 		if ( $external_exists ) {
 			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
 			$external_participant_type_expr = "COALESCE(NULLIF(ep.participant_type, ''), CASE WHEN (NULLIF({$entry_license_number_expr}, '') IS NULL AND {$licensee_expr} >= 1000000000) THEN 'external_non_licensed' ELSE 'licensed_ufsc' END)";
+			$external_first_name_expr       = "NULLIF(ep.first_name, '')";
+			$external_last_name_expr        = "NULLIF(ep.last_name, '')";
+			$external_birth_date_expr       = "NULLIF(ep.birth_date, '')";
+			$external_birth_year_expr       = "NULLIF(SUBSTRING(ep.birth_date, 1, 4), '')";
+			$external_club_name_expr        = "NULLIF(ep.club_name, '')";
 		}
 
 		if ( ! empty( $filters['participant_type'] ) ) {
@@ -688,10 +726,10 @@ class EntryRepository {
 				$select .= ", {$sex_select} AS licensee_sex";
 				$select .= ", COALESCE(NULLIF({$entry_license_number_expr}, ''), {$license_number_expr}) AS license_number";
 				$select .= $license_club_column ? ', l.club_id AS licensee_club_id' : ", NULL AS licensee_club_id";
-				$select .= ", COALESCE(NULLIF({$entry_first_name_expr}, ''), NULLIF({$first_name_select}, '')) AS first_name";
-				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), NULLIF({$last_name_expr}, '')) AS last_name";
-				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$birthdate_select}) AS birth_date";
-				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
+				$select .= ", COALESCE(NULLIF({$entry_first_name_expr}, ''), {$external_first_name_expr}, NULLIF({$first_name_select}, '')) AS first_name";
+				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), {$external_last_name_expr}, NULLIF({$last_name_expr}, '')) AS last_name";
+				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$external_birth_date_expr}, {$birthdate_select}) AS birth_date";
+				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), {$external_birth_year_expr}, NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
 				$select .= ", {$entry_fighter_expr} AS fighter_number";
 				$select .= ", {$entry_submitted_at_expr} AS submitted_at";
 			}
@@ -742,7 +780,7 @@ class EntryRepository {
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
 			if ( ! $count ) {
-				$select .= ", COALESCE(NULLIF(c.nom, ''), NULLIF({$entry_club_name_expr}, '')) AS club_name";
+				$select .= ", COALESCE(NULLIF(c.nom, ''), NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
 				$club_columns = Db::get_table_columns( $clubs_table );
 				if ( is_array( $club_columns ) ) {
 					if ( in_array( 'ville', $club_columns, true ) ) {
@@ -755,7 +793,7 @@ class EntryRepository {
 				}
 			}
 		} elseif ( ! $count ) {
-			$select .= ", {$entry_club_name_expr} AS club_name";
+			$select .= ", COALESCE(NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
 		}
 
 		if ( '' !== $scope_region ) {

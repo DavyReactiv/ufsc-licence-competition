@@ -10,7 +10,10 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Admin\Tables\Entries_Table;
 use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Entries\ParticipantTypes;
 use UFSC\Competitions\Front\Entries\EntriesModule;
+use UFSC\Competitions\Repositories\ExternalParticipantRepository;
+use UFSC\Competitions\Services\ExternalParticipantService;
 use UFSC\Competitions\Services\EntryDeduplication;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 
@@ -22,11 +25,15 @@ class Entries_Page {
 	private $repository;
 	private $competition_repository;
 	private $category_repository;
+	private $external_participant_service;
+	private $external_participant_repository;
 
 	public function __construct() {
 		$this->repository             = new EntryRepository();
 		$this->competition_repository = new CompetitionRepository();
 		$this->category_repository    = new CategoryRepository();
+		$this->external_participant_service = class_exists( ExternalParticipantService::class ) ? new ExternalParticipantService() : null;
+		$this->external_participant_repository = class_exists( ExternalParticipantRepository::class ) ? new ExternalParticipantRepository() : null;
 	}
 
 	public function register_actions() {
@@ -226,6 +233,7 @@ class Entries_Page {
 			'licensee_id'    => isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0,
 			'status'         => isset( $_POST['status'] ) ? EntriesWorkflow::normalize_status( (string) wp_unslash( $_POST['status'] ) ) : 'draft',
 		);
+		$participant_type = isset( $_POST['participant_type'] ) ? ParticipantTypes::normalize( (string) wp_unslash( $_POST['participant_type'] ) ) : ParticipantTypes::get_default();
 		$weight_kg_raw    = isset( $_POST['weight_kg'] ) ? wp_unslash( $_POST['weight_kg'] ) : '';
 		$weight_class_raw = isset( $_POST['weight_class'] ) ? wp_unslash( $_POST['weight_class'] ) : '';
 		$weight_kg        = $this->sanitize_weight( $weight_kg_raw );
@@ -236,7 +244,13 @@ class Entries_Page {
 			$data['licensee_id'] = $selected_licensee_id;
 		}
 
-		if ( ! $data['competition_id'] || ! $data['licensee_id'] ) {
+		$is_external = ParticipantTypes::is_external( $participant_type );
+		$data['participant_type'] = $participant_type;
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log( 'UFSC Entries_Page participant_type_resolved ' . wp_json_encode( array( 'entry_id' => $id, 'participant_type' => $participant_type ) ) );
+		}
+
+		if ( ! $data['competition_id'] || ( ! $is_external && ! $data['licensee_id'] ) ) {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'error_required', $id );
 		}
 
@@ -246,11 +260,32 @@ class Entries_Page {
 			$this->competition_repository->assert_competition_in_scope( (int) $data['competition_id'] );
 		}
 
-		if ( ! $id && $this->repository->get_by_competition_licensee( $data['competition_id'], $data['licensee_id'] ) ) {
+		if ( ! $is_external && ! $id && $this->repository->get_by_competition_licensee( $data['competition_id'], $data['licensee_id'] ) ) {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id );
 		}
 
-		$licensee_data  = $this->get_licensee_data( $data['licensee_id'] );
+		$external_payload = $this->build_external_payload_from_request();
+		if ( $is_external ) {
+			$data['licensee_id'] = 0;
+			$data['club_id']     = 0;
+			if ( '' === $external_payload['last_name'] || '' === $external_payload['first_name'] || '' === $external_payload['birth_date'] ) {
+				$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'external_required', $id );
+			}
+			$data['first_name'] = $external_payload['first_name'];
+			$data['last_name']  = $external_payload['last_name'];
+			$data['birth_date'] = $external_payload['birth_date'];
+			$data['birth_year'] = '' !== $external_payload['birth_date'] ? substr( $external_payload['birth_date'], 0, 4 ) : '';
+			$data['sex']        = $external_payload['sex'];
+			$data['discipline'] = $external_payload['discipline'];
+			$data['level']      = $external_payload['level'];
+			$data['club_name']  = $external_payload['club_name'];
+			$data['club_nom']   = $external_payload['club_name'];
+		}
+
+		$licensee_data  = $is_external ? array(
+			'birthdate' => $external_payload['birth_date'],
+			'sex'       => $external_payload['sex'],
+		) : $this->get_licensee_data( $data['licensee_id'] );
 		$weight_context = $this->get_weight_context( $data['competition_id'] );
 		if ( '' === $weight_class && null !== $weight_kg ) {
 			$resolved     = WeightCategoryResolver::resolve_with_details(
@@ -282,6 +317,7 @@ class Entries_Page {
 				}
 				$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'db_error', $id );
 			}
+			$this->persist_external_participant( $id, $participant_type, $external_payload, $data, true );
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'updated', $id );
 		}
 
@@ -296,6 +332,7 @@ class Entries_Page {
 			}
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'db_error', $id );
 		}
+		$this->persist_external_participant( (int) $new_id, $participant_type, $external_payload, $data, false );
 		$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'created', $new_id );
 	}
 
@@ -750,7 +787,43 @@ class Entries_Page {
 			'status'         => $this->repository->get_entry_status( $item ),
 			'weight_kg'      => $this->resolve_item_value_from_keys( $item, array( 'weight_kg', 'weight', 'poids' ) ),
 			'weight_class'   => $this->resolve_item_value_from_keys( $item, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ),
+			'participant_type' => ParticipantTypes::normalize( (string) ( $item->participant_type ?? '' ) ),
+			'external_first_name' => '',
+			'external_last_name'  => '',
+			'external_birth_date' => '',
+			'external_sex'        => '',
+			'external_club_name'  => '',
+			'external_discipline' => '',
+			'external_level'      => '',
+			'external_email'      => '',
+			'external_phone'      => '',
+			'external_notes'      => '',
 		);
+		$external_data = null;
+		if ( $values['id'] > 0 && $this->external_participant_service ) {
+			$external_data = $this->external_participant_service->get_external_participant( (int) $values['id'] );
+		}
+		if ( is_array( $external_data ) ) {
+			$values['participant_type']    = ParticipantTypes::normalize( (string) ( $external_data['participant_type'] ?? $values['participant_type'] ) );
+			$values['external_first_name'] = (string) ( $external_data['first_name'] ?? '' );
+			$values['external_last_name']  = (string) ( $external_data['last_name'] ?? '' );
+			$values['external_birth_date'] = (string) ( $external_data['birth_date'] ?? '' );
+			$values['external_sex']        = (string) ( $external_data['sex'] ?? '' );
+			$values['external_club_name']  = (string) ( $external_data['club_name'] ?? '' );
+			$values['external_discipline'] = (string) ( $external_data['discipline'] ?? '' );
+			$values['external_level']      = (string) ( $external_data['level'] ?? '' );
+			$values['external_email']      = (string) ( $external_data['legal_guardian_email'] ?? '' );
+			$values['external_phone']      = (string) ( $external_data['legal_guardian_phone'] ?? '' );
+			$values['external_notes']      = (string) ( $external_data['medical_notes'] ?? '' );
+		} elseif ( $values['id'] > 0 ) {
+			$values['external_first_name'] = (string) $this->resolve_item_value_from_keys( $item, array( 'first_name', 'prenom' ) );
+			$values['external_last_name']  = (string) $this->resolve_item_value_from_keys( $item, array( 'last_name', 'nom' ) );
+			$values['external_birth_date'] = (string) $this->resolve_item_value_from_keys( $item, array( 'birth_date', 'date_naissance', 'birthdate' ) );
+			$values['external_sex']        = (string) $this->resolve_item_value_from_keys( $item, array( 'sex', 'sexe', 'gender' ) );
+			$values['external_club_name']  = (string) $this->resolve_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name' ) );
+			$values['external_discipline'] = (string) $this->resolve_item_value_from_keys( $item, array( 'discipline' ) );
+			$values['external_level']      = (string) $this->resolve_item_value_from_keys( $item, array( 'level', 'classe', 'class', 'niveau' ) );
+		}
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_object( $item ) ) {
 			error_log(
 				'UFSC Entries_Page edit_form_hydration_source ' . wp_json_encode(
@@ -772,7 +845,12 @@ class Entries_Page {
 		$competitions  = $this->competition_repository->list( $competition_filters, 200, 0 );
 		$categories    = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
 		$action_label  = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer l\'inscription', 'ufsc-licence-competition' );
-		$licensee_data = $this->get_licensee_data( (int) $values['licensee_id'] );
+		$licensee_data = ParticipantTypes::is_external( $values['participant_type'] )
+			? array(
+				'birthdate' => (string) $values['external_birth_date'],
+				'sex'       => (string) $values['external_sex'],
+			)
+			: $this->get_licensee_data( (int) $values['licensee_id'] );
 		$weight_context = $this->get_weight_context( (int) $values['competition_id'] );
 		$weight_classes = $licensee_data
 			? WeightCategoryResolver::get_weight_classes( $licensee_data['birthdate'] ?? '', $licensee_data['sex'] ?? '', $weight_context )
@@ -840,6 +918,15 @@ class Entries_Page {
 						</td>
 					</tr>
 					<tr>
+						<th scope="row"><label for="ufsc_entry_participant_type"><?php esc_html_e( 'Type d’inscription', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="participant_type" id="ufsc_entry_participant_type" class="regular-text">
+								<option value="licensed_ufsc" <?php selected( $values['participant_type'], 'licensed_ufsc' ); ?>><?php esc_html_e( 'Licencié UFSC', 'ufsc-licence-competition' ); ?></option>
+								<option value="external_non_licensed" <?php selected( $values['participant_type'], 'external_non_licensed' ); ?>><?php esc_html_e( 'Participant externe / non référencé', 'ufsc-licence-competition' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr class="ufsc-entry-licensee-row" data-participant-row="licensed_ufsc">
 						<th scope="row"><label for="ufsc_entry_licensee_search_nom"><?php esc_html_e( 'Rechercher un licencié', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
 							<fieldset class="ufsc-entry-licensee-search">
@@ -873,13 +960,59 @@ class Entries_Page {
 							</fieldset>
 						</td>
 					</tr>
-					<tr>
+					<tr class="ufsc-entry-licensee-row" data-participant-row="licensed_ufsc">
 						<th scope="row"><label for="ufsc_entry_licensee"><?php esc_html_e( 'ID licencié', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="licensee_id" type="number" id="ufsc_entry_licensee" value="<?php echo esc_attr( $values['licensee_id'] ); ?>" required></td>
 					</tr>
-					<tr>
+					<tr class="ufsc-entry-licensee-row" data-participant-row="licensed_ufsc">
 						<th scope="row"><label for="ufsc_entry_club"><?php esc_html_e( 'ID club', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="club_id" type="number" id="ufsc_entry_club" value="<?php echo esc_attr( $values['club_id'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_last_name"><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_last_name" type="text" id="ufsc_entry_external_last_name" class="regular-text" value="<?php echo esc_attr( $values['external_last_name'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_first_name"><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_first_name" type="text" id="ufsc_entry_external_first_name" class="regular-text" value="<?php echo esc_attr( $values['external_first_name'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_sex"><?php esc_html_e( 'Sexe', 'ufsc-licence-competition' ); ?></label></th>
+						<td>
+							<select name="external_sex" id="ufsc_entry_external_sex" class="regular-text">
+								<option value=""><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
+								<option value="m" <?php selected( sanitize_key( (string) $values['external_sex'] ), 'm' ); ?>><?php esc_html_e( 'Homme', 'ufsc-licence-competition' ); ?></option>
+								<option value="f" <?php selected( sanitize_key( (string) $values['external_sex'] ), 'f' ); ?>><?php esc_html_e( 'Femme', 'ufsc-licence-competition' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_birth_date"><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_birth_date" type="date" id="ufsc_entry_external_birth_date" value="<?php echo esc_attr( $values['external_birth_date'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_club_name"><?php esc_html_e( 'Club libre', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_club_name" type="text" id="ufsc_entry_external_club_name" class="regular-text" value="<?php echo esc_attr( $values['external_club_name'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_discipline"><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_discipline" type="text" id="ufsc_entry_external_discipline" class="regular-text" value="<?php echo esc_attr( $values['external_discipline'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_level"><?php esc_html_e( 'Niveau / classe', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_level" type="text" id="ufsc_entry_external_level" class="regular-text" value="<?php echo esc_attr( $values['external_level'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_email"><?php esc_html_e( 'Email', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_email" type="email" id="ufsc_entry_external_email" class="regular-text" value="<?php echo esc_attr( $values['external_email'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_phone"><?php esc_html_e( 'Téléphone', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="external_phone" type="text" id="ufsc_entry_external_phone" class="regular-text" value="<?php echo esc_attr( $values['external_phone'] ); ?>"></td>
+					</tr>
+					<tr class="ufsc-entry-external-row" data-participant-row="external_non_licensed">
+						<th scope="row"><label for="ufsc_entry_external_notes"><?php esc_html_e( 'Commentaire admin', 'ufsc-licence-competition' ); ?></label></th>
+						<td><textarea name="external_notes" id="ufsc_entry_external_notes" class="large-text" rows="3"><?php echo esc_textarea( $values['external_notes'] ); ?></textarea></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_entry_status"><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></label></th>
@@ -896,6 +1029,54 @@ class Entries_Page {
 			</form>
 		</div>
 		<?php
+	}
+
+	private function build_external_payload_from_request(): array {
+		$birth_date = isset( $_POST['external_birth_date'] ) ? $this->normalize_birthdate( wp_unslash( $_POST['external_birth_date'] ) ) : '';
+
+		return array(
+			'participant_type' => ParticipantTypes::EXTERNAL_NON_LICENSED,
+			'first_name'       => isset( $_POST['external_first_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_first_name'] ) ) : '',
+			'last_name'        => isset( $_POST['external_last_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_last_name'] ) ) : '',
+			'birth_date'       => $birth_date,
+			'sex'              => isset( $_POST['external_sex'] ) ? sanitize_key( wp_unslash( $_POST['external_sex'] ) ) : '',
+			'club_name'        => isset( $_POST['external_club_name'] ) ? sanitize_text_field( wp_unslash( $_POST['external_club_name'] ) ) : '',
+			'discipline'       => isset( $_POST['external_discipline'] ) ? sanitize_text_field( wp_unslash( $_POST['external_discipline'] ) ) : '',
+			'level'            => isset( $_POST['external_level'] ) ? sanitize_text_field( wp_unslash( $_POST['external_level'] ) ) : '',
+			'legal_guardian_email' => isset( $_POST['external_email'] ) ? sanitize_email( wp_unslash( $_POST['external_email'] ) ) : '',
+			'legal_guardian_phone' => isset( $_POST['external_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['external_phone'] ) ) : '',
+			'medical_notes'        => isset( $_POST['external_notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['external_notes'] ) ) : '',
+		);
+	}
+
+	private function persist_external_participant( int $entry_id, string $participant_type, array $external_payload, array $entry_payload, bool $is_update ): void {
+		if ( ! $entry_id || ! $this->external_participant_service ) {
+			return;
+		}
+
+		if ( ParticipantTypes::is_external( $participant_type ) ) {
+			$external_payload['weight_kg']         = $entry_payload['weight_kg'] ?? null;
+			$external_payload['weight_class']      = $entry_payload['weight_class'] ?? '';
+			$external_payload['category_label']    = (string) ( $entry_payload['category'] ?? '' );
+			$external_payload['validation_status'] = (string) ( $entry_payload['status'] ?? 'draft' );
+			$this->external_participant_service->save_external_participant( $entry_id, $external_payload );
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC Entries_Page ' . ( $is_update ? 'manual_external_entry_updated' : 'manual_external_entry_created' ) . ' ' . wp_json_encode( array( 'entry_id' => $entry_id, 'participant_type' => $participant_type ) ) );
+				error_log( 'UFSC Entries_Page external_club_manual_used ' . wp_json_encode( array( 'entry_id' => $entry_id, 'club_name' => (string) ( $external_payload['club_name'] ?? '' ) ) ) );
+			}
+			return;
+		}
+		if ( $this->external_participant_repository ) {
+			$existing_external = $this->external_participant_repository->get_by_entry_id( $entry_id );
+			if ( $existing_external ) {
+				$this->external_participant_repository->upsert_for_entry(
+					$entry_id,
+					array(
+						'participant_type' => ParticipantTypes::LICENSED_UFSC,
+					)
+				);
+			}
+		}
 	}
 
 	private function resolve_category_payload( array $data, array $licensee_data ): array {
@@ -972,6 +1153,7 @@ class Entries_Page {
 			'deleted'         => __( 'Inscription supprimée définitivement.', 'ufsc-licence-competition' ),
 			'db_error'        => __( 'Erreur lors de l’enregistrement de l’inscription.', 'ufsc-licence-competition' ),
 			'error_required'  => __( 'Veuillez renseigner la compétition et le licencié.', 'ufsc-licence-competition' ),
+			'external_required' => __( 'Pour un participant externe, renseignez au minimum nom, prénom et date de naissance.', 'ufsc-licence-competition' ),
 			'duplicate'       => __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ),
 			'not_found'       => __( 'Inscription introuvable.', 'ufsc-licence-competition' ),
 			'weight_required' => __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ),
