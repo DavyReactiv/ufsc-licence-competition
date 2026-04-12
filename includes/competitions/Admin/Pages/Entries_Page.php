@@ -823,6 +823,14 @@ class Entries_Page {
 			$values['external_club_name']  = (string) $this->resolve_item_value_from_keys( $item, array( 'club_name', 'club_nom', 'structure_name' ) );
 			$values['external_discipline'] = (string) $this->resolve_item_value_from_keys( $item, array( 'discipline' ) );
 			$values['external_level']      = (string) $this->resolve_item_value_from_keys( $item, array( 'level', 'classe', 'class', 'niveau' ) );
+			if ( 0 === (int) $values['licensee_id'] ) {
+				$has_external_identity = '' !== trim( (string) $values['external_first_name'] )
+					|| '' !== trim( (string) $values['external_last_name'] )
+					|| '' !== trim( (string) $values['external_birth_date'] );
+				if ( $has_external_identity ) {
+					$values['participant_type'] = ParticipantTypes::EXTERNAL_NON_LICENSED;
+				}
+			}
 		}
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_object( $item ) ) {
 			error_log(
@@ -832,7 +840,7 @@ class Entries_Page {
 						'competition_id'=> (int) ( $values['competition_id'] ?? 0 ),
 						'weight_kg'     => (string) ( $values['weight_kg'] ?? '' ),
 						'weight_class'  => (string) ( $values['weight_class'] ?? '' ),
-						'participant_type' => sanitize_key( (string) ( $item->participant_type ?? '' ) ),
+						'participant_type' => sanitize_key( (string) ( $values['participant_type'] ?? '' ) ),
 					)
 				)
 			);
