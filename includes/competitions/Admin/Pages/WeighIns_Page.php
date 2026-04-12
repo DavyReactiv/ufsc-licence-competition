@@ -112,6 +112,10 @@ class WeighIns_Page {
 			}
 			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
 			$weighins  = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+			$assigned_numbers = $this->assign_missing_fighter_numbers( $competition_id, $entries, $weighins );
+			if ( $assigned_numbers > 0 ) {
+				$weighins = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+			}
 
 			$entries = array_values(
 				array_filter(
