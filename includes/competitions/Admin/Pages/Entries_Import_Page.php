@@ -698,6 +698,17 @@ class Entries_Import_Page {
 				$import_batch_id,
 				0 === (int) ( $license_lookup['licensee_id'] ?? 0 )
 			);
+			$this->persist_external_participant_import_payload(
+				(int) $entry_id,
+				(int) $competition_id,
+				$normalized,
+				$club_resolution,
+				$status,
+				$weight_kg,
+				$weight_class,
+				$category,
+				0 === (int) ( $license_lookup['licensee_id'] ?? 0 )
+			);
 			$this->debug_import_storage_snapshots(
 				(int) $entry_id,
 				array(
@@ -883,6 +894,177 @@ class Entries_Import_Page {
 				return;
 			}
 		}
+	}
+
+	private function persist_external_participant_import_payload(
+		int $entry_id,
+		int $competition_id,
+		array $normalized,
+		array $club_resolution,
+		string $status,
+		?float $weight_kg,
+		string $weight_class,
+		string $category,
+		bool $is_external_non_licensed
+	): void {
+		if ( ! $is_external_non_licensed || $entry_id <= 0 ) {
+			return;
+		}
+
+		global $wpdb;
+
+		$table        = Db::external_participants_table();
+		$table_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) === $table );
+		$columns      = $table_exists ? Db::get_table_columns( $table ) : array();
+		$columns      = is_array( $columns ) ? $columns : array();
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC Entries_Import_Page external_participant_persist_target_detected ' .
+				wp_json_encode(
+					array(
+						'entry_id'        => $entry_id,
+						'competition_id'  => $competition_id,
+						'target_table'    => $table,
+						'table_exists'    => $table_exists,
+						'columns_count'   => count( $columns ),
+					)
+				)
+			);
+		}
+
+		if ( ! $table_exists || ! in_array( 'entry_id', $columns, true ) ) {
+			return;
+		}
+
+		$club_name = $this->normalize_text( $club_resolution['club_nom'] ?? '' );
+		$payload_candidates = array(
+			'participant_type'     => 'external_non_licensed',
+			'first_name'           => $this->normalize_text( $normalized['prenom'] ?? '' ),
+			'last_name'            => $this->normalize_text( $normalized['nom'] ?? '' ),
+			'birth_date'           => $this->normalize_text( $normalized['date_naissance'] ?? '' ),
+			'sex'                  => sanitize_key( (string) ( $normalized['sexe'] ?? '' ) ),
+			'club_name'            => $club_name,
+			'structure_name'       => $club_name,
+			'discipline'           => $this->normalize_text( $normalized['discipline'] ?? '' ),
+			'level'                => $this->normalize_text( $normalized['niveau'] ?? '' ),
+			'legal_guardian_email' => sanitize_email( (string) ( $normalized['email'] ?? '' ) ),
+			'legal_guardian_phone' => $this->normalize_text( $normalized['telephone'] ?? '' ),
+			'medical_notes'        => $this->normalize_text( $normalized['commentaire'] ?? '' ),
+			'validation_status'    => sanitize_key( $status ),
+			'category_label'       => $this->normalize_text( $category ),
+			'weight_kg'            => null !== $weight_kg ? (float) $weight_kg : null,
+			'weight_class'         => $this->normalize_text( $weight_class ),
+		);
+
+		$payload = array( 'entry_id' => $entry_id );
+		$written_columns = array( 'entry_id' );
+		$ignored_fields  = array();
+
+		foreach ( $payload_candidates as $column => $value ) {
+			if ( ! in_array( $column, $columns, true ) ) {
+				$ignored_fields[] = $column . ':missing_column';
+				continue;
+			}
+			if ( null !== $value && '' !== $value ) {
+				$payload[ $column ] = $value;
+				$written_columns[]  = $column;
+			} else {
+				$ignored_fields[] = $column . ':empty';
+			}
+		}
+
+		$now = current_time( 'mysql' );
+		if ( in_array( 'updated_at', $columns, true ) ) {
+			$payload['updated_at'] = $now;
+			$written_columns[]     = 'updated_at';
+		}
+
+		$existing = $wpdb->get_var( $wpdb->prepare( "SELECT entry_id FROM {$table} WHERE entry_id = %d LIMIT 1", $entry_id ) );
+		if ( ! $existing && in_array( 'created_at', $columns, true ) ) {
+			$payload['created_at'] = $now;
+			$written_columns[]     = 'created_at';
+		}
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC Entries_Import_Page external_participant_upsert_payload ' .
+				wp_json_encode(
+					array(
+						'entry_id'        => $entry_id,
+						'competition_id'  => $competition_id,
+						'target_table'    => $table,
+						'written_columns' => array_values( array_unique( $written_columns ) ),
+						'ignored_fields'  => array_values( array_unique( $ignored_fields ) ),
+						'payload'         => $payload,
+					)
+				)
+			);
+		}
+
+		$result = false;
+		if ( $existing ) {
+			$update_payload = $payload;
+			unset( $update_payload['entry_id'] );
+			if ( ! empty( $update_payload ) ) {
+				$result = false !== $wpdb->update(
+					$table,
+					$update_payload,
+					array( 'entry_id' => $entry_id ),
+					$this->build_dynamic_db_formats( $update_payload ),
+					array( '%d' )
+				);
+			}
+		} else {
+			$result = false !== $wpdb->insert(
+				$table,
+				$payload,
+				$this->build_dynamic_db_formats( $payload )
+			);
+		}
+
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			error_log(
+				'UFSC Entries_Import_Page external_participant_upsert_result ' .
+				wp_json_encode(
+					array(
+						'entry_id'       => $entry_id,
+						'competition_id' => $competition_id,
+						'target_table'   => $table,
+						'mode'           => $existing ? 'update' : 'insert',
+						'success'        => (bool) $result,
+						'db_error'       => (string) $wpdb->last_error,
+					)
+				)
+			);
+			$post_row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE entry_id = %d LIMIT 1", $entry_id ), ARRAY_A );
+			error_log(
+				'UFSC Entries_Import_Page external_participant_post_write_snapshot ' .
+				wp_json_encode(
+					array(
+						'entry_id'       => $entry_id,
+						'competition_id' => $competition_id,
+						'target_table'   => $table,
+						'raw'            => $post_row,
+					)
+				)
+			);
+		}
+	}
+
+	private function build_dynamic_db_formats( array $payload ): array {
+		$formats = array();
+		foreach ( $payload as $key => $value ) {
+			if ( in_array( $key, array( 'entry_id' ), true ) ) {
+				$formats[] = '%d';
+			} elseif ( in_array( $key, array( 'weight_kg' ), true ) && null !== $value ) {
+				$formats[] = '%f';
+			} else {
+				$formats[] = '%s';
+			}
+		}
+
+		return $formats;
 	}
 
 	private function debug_import_storage_snapshots( int $entry_id, array $context = array() ): void {
