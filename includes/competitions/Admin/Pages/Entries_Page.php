@@ -748,9 +748,22 @@ class Entries_Page {
 			'club_id'        => $item->club_id ?? 0,
 			'licensee_id'    => (int) ( $item->licensee_id ?? $item->licence_id ?? 0 ),
 			'status'         => $this->repository->get_entry_status( $item ),
-			'weight_kg'      => $item->weight_kg ?? '',
-			'weight_class'   => $item->weight_class ?? '',
+			'weight_kg'      => $this->resolve_item_value_from_keys( $item, array( 'weight_kg', 'weight', 'poids' ) ),
+			'weight_class'   => $this->resolve_item_value_from_keys( $item, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ),
 		);
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && is_object( $item ) ) {
+			error_log(
+				'UFSC Entries_Page edit_form_hydration_source ' . wp_json_encode(
+					array(
+						'entry_id'      => (int) ( $values['id'] ?? 0 ),
+						'competition_id'=> (int) ( $values['competition_id'] ?? 0 ),
+						'weight_kg'     => (string) ( $values['weight_kg'] ?? '' ),
+						'weight_class'  => (string) ( $values['weight_class'] ?? '' ),
+						'participant_type' => sanitize_key( (string) ( $item->participant_type ?? '' ) ),
+					)
+				)
+			);
+		}
 
 		$competition_filters = array( 'view' => 'all' );
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
@@ -1278,6 +1291,25 @@ class Entries_Page {
 		$value = preg_replace( '/[^a-zA-Z0-9]/', '', (string) $value );
 		$value = trim( (string) $value );
 		return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value ) : strtolower( $value );
+	}
+
+	private function resolve_item_value_from_keys( $item, array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( is_object( $item ) && property_exists( $item, $key ) ) {
+				$value = $item->{$key};
+				if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+					return sanitize_text_field( (string) $value );
+				}
+			}
+			if ( is_array( $item ) && array_key_exists( $key, $item ) ) {
+				$value = $item[ $key ];
+				if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+					return sanitize_text_field( (string) $value );
+				}
+			}
+		}
+
+		return '';
 	}
 
 	private function format_birthdate_for_storage( string $normalized_birthdate ): string {
