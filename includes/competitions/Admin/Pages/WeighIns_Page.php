@@ -371,7 +371,23 @@ class WeighIns_Page {
 			$status = 'pending';
 		}
 
+		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
+		$existing_meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
+		$existing_fighter_number = absint( $existing_meta['fighter_number'] ?? 0 );
+		if ( $existing_fighter_number <= 0 ) {
+			$existing_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+		}
+
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
+		if ( $fighter_number <= 0 && $existing_fighter_number > 0 ) {
+			$fighter_number = $existing_fighter_number;
+		} elseif ( $fighter_number <= 0 && $this->status_allows_auto_fighter_number( $status ) ) {
+			$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
+			if ( $fighter_number > 0 && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'source' => 'auto_on_validation' ) ) );
+			}
+		}
+
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
 		if ( $fighter_number > 0 ) {
 			$duplicate_entry_id = $this->weighins->find_entry_id_by_fighter_number( $competition_id, $fighter_number, $entry_id );
@@ -388,8 +404,7 @@ class WeighIns_Page {
 			}
 		}
 
-		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
-		$meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
+		$meta = $existing_meta;
 		$meta['fighter_number'] = $fighter_number > 0 ? $fighter_number : '';
 		$meta['reclass_category_id'] = $reclass_category_id > 0 ? $reclass_category_id : '';
 		$meta['reclass_pending'] = in_array( $status, array( 'awaiting_reclassification', 'out_of_limit' ), true ) ? 1 : 0;
@@ -525,86 +540,52 @@ class WeighIns_Page {
 		return $candidates;
 	}
 
-	private function assign_missing_fighter_numbers( int $competition_id, array $entries, array $weighins ): int {
+	private function status_allows_auto_fighter_number( string $status ): bool {
+		return in_array( sanitize_key( $status ), array( 'weighed', 'validated' ), true );
+	}
+
+	private function next_available_fighter_number( int $competition_id, int $entry_id = 0 ): int {
 		$competition_id = absint( $competition_id );
-		if ( $competition_id <= 0 || empty( $entries ) ) {
+		if ( $competition_id <= 0 ) {
 			return 0;
 		}
 
 		$used = array();
-		$numbers_by_entry = array();
+		$entries = $this->entries->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+		$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+		$weighins = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+
 		foreach ( $entries as $entry ) {
-			$entry_id = (int) ( $entry->id ?? 0 );
-			if ( $entry_id <= 0 ) {
+			$current_entry_id = (int) ( $entry->id ?? 0 );
+			if ( $entry_id > 0 && $current_entry_id === $entry_id ) {
 				continue;
 			}
-			$meta = isset( $weighins[ $entry_id ] ) ? $this->extract_meta( (string) ( $weighins[ $entry_id ]->notes ?? '' ) ) : array();
-			$number = absint( $meta['fighter_number'] ?? 0 );
-			if ( $number <= 0 ) {
-				$number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			$number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			if ( $number <= 0 && isset( $weighins[ $current_entry_id ] ) ) {
+				$meta = $this->extract_meta( (string) ( $weighins[ $current_entry_id ]->notes ?? '' ) );
+				$number = absint( $meta['fighter_number'] ?? 0 );
 			}
 			if ( $number > 0 ) {
 				if ( isset( $used[ $number ] ) && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $number ) ) );
+					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $current_entry_id, 'fighter_number' => $number ) ) );
 				}
-				$numbers_by_entry[ $entry_id ] = $number;
 				$used[ $number ] = true;
 			}
 		}
 
-		usort(
-			$entries,
-			static function ( $a, $b ) {
-				return (int) ( $a->id ?? 0 ) <=> (int) ( $b->id ?? 0 );
-			}
-		);
-
-		$assigned = 0;
 		$next = 1;
-		foreach ( $entries as $entry ) {
-			$entry_id = (int) ( $entry->id ?? 0 );
-			if ( $entry_id <= 0 || isset( $numbers_by_entry[ $entry_id ] ) ) {
-				continue;
-			}
-			while ( isset( $used[ $next ] ) ) {
-				$next++;
-			}
-			$assigned_number = $next;
-			$used[ $assigned_number ] = true;
-			$this->persist_fighter_number( $competition_id, $entry_id, $assigned_number, $weighins[ $entry_id ] ?? null );
-			$assigned++;
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $assigned_number ) ) );
-			}
+		while ( isset( $used[ $next ] ) ) {
 			$next++;
 		}
 
-		return $assigned;
-	}
-
-	private function persist_fighter_number( int $competition_id, int $entry_id, int $fighter_number, $existing_row ): void {
-		global $wpdb;
-		if ( ! $this->weighins->has_table() ) {
-			return;
-		}
-
-		$meta = $this->extract_meta( $existing_row ? (string) ( $existing_row->notes ?? '' ) : '' );
-		$meta['fighter_number'] = $fighter_number;
-		$payload = array(
-			'competition_id' => $competition_id,
-			'entry_id'       => $entry_id,
-			'weight_measured'=> is_object( $existing_row ) ? ( $existing_row->weight_measured ?? null ) : null,
-			'status'         => sanitize_key( (string) ( is_object( $existing_row ) ? ( $existing_row->status ?? 'pending' ) : 'pending' ) ),
-			'weighed_at'     => is_object( $existing_row ) ? ( $existing_row->weighed_at ?? null ) : null,
-			'weighed_by'     => is_object( $existing_row ) ? ( $existing_row->weighed_by ?? null ) : null,
-			'notes'          => wp_json_encode( $meta ),
-			'updated_at'     => current_time( 'mysql' ),
-		);
-		if ( ! $existing_row ) {
-			$payload['created_at'] = current_time( 'mysql' );
-		}
-
-		$wpdb->replace( Db::weighins_table(), $payload );
+		return $next;
 	}
 
 	private function get_item_value( $item, string $key ) {
