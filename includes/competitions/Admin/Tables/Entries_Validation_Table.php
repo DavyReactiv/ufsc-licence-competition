@@ -252,7 +252,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 			case 'status':
 				return $this->format_status( $item );
 			case 'submitted':
-				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'submitted_at', 'submitted' ) ) ) );
+				return esc_html( $this->format_datetime( EntryDataNormalizer::resolve_submitted_at( $item ) ) );
 			case 'updated':
 				return esc_html( $this->format_datetime( $this->get_item_value_from_keys( $item, array( 'updated_at', 'updated' ) ) ) );
 			case 'updated_at':
