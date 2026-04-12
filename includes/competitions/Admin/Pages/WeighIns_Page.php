@@ -112,10 +112,6 @@ class WeighIns_Page {
 			}
 			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
 			$weighins  = $this->weighins->get_for_entries( $competition_id, $entry_ids );
-			$assigned_numbers = $this->assign_missing_fighter_numbers( $competition_id, $entries, $weighins );
-			if ( $assigned_numbers > 0 ) {
-				$weighins = $this->weighins->get_for_entries( $competition_id, $entry_ids );
-			}
 
 			$entries = array_values(
 				array_filter(
@@ -379,19 +375,34 @@ class WeighIns_Page {
 		}
 
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
+		$status_allows_fighter_number = $this->status_allows_auto_fighter_number( $status );
+		if ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 && $fighter_number > 0 ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+				error_log( 'UFSC WeighIns_Page entry_excluded fighter_number_status_mismatch ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => $status, 'fighter_number' => $fighter_number ) ) );
+			}
+			return array(
+				'type' => 'error',
+				'message' => __( 'Le numéro combattant ne peut être attribué qu’avec une pesée valide.', 'ufsc-licence-competition' ),
+			);
+		}
 		if ( $fighter_number <= 0 && $existing_fighter_number > 0 ) {
 			$fighter_number = $existing_fighter_number;
-		} elseif ( $fighter_number <= 0 && $this->status_allows_auto_fighter_number( $status ) ) {
+		} elseif ( $fighter_number <= 0 && $status_allows_fighter_number ) {
 			$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
 			if ( $fighter_number > 0 && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'source' => 'auto_on_validation' ) ) );
 			}
+		} elseif ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 ) {
+			$fighter_number = 0;
 		}
 
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
 		if ( $fighter_number > 0 ) {
-			$duplicate_entry_id = $this->weighins->find_entry_id_by_fighter_number( $competition_id, $fighter_number, $entry_id );
+			$duplicate_entry_id = $this->find_duplicate_fighter_number_entry( $competition_id, $fighter_number, $entry_id );
 			if ( $duplicate_entry_id > 0 ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'duplicate_entry_id' => $duplicate_entry_id ) ) );
+				}
 				return array(
 					'type' => 'error',
 					'message' => sprintf(
@@ -586,6 +597,41 @@ class WeighIns_Page {
 		}
 
 		return $next;
+	}
+
+	private function find_duplicate_fighter_number_entry( int $competition_id, int $fighter_number, int $exclude_entry_id = 0 ): int {
+		$competition_id = absint( $competition_id );
+		$fighter_number = absint( $fighter_number );
+		$exclude_entry_id = absint( $exclude_entry_id );
+		if ( $competition_id <= 0 || $fighter_number <= 0 ) {
+			return 0;
+		}
+
+		$duplicate_entry_id = $this->weighins->find_entry_id_by_fighter_number( $competition_id, $fighter_number, $exclude_entry_id );
+		if ( $duplicate_entry_id > 0 ) {
+			return $duplicate_entry_id;
+		}
+
+		$entries = $this->entries->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+		foreach ( $entries as $entry ) {
+			$entry_id = absint( $entry->id ?? 0 );
+			if ( $entry_id <= 0 || $entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$current = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			if ( $current === $fighter_number ) {
+				return $entry_id;
+			}
+		}
+
+		return 0;
 	}
 
 	private function get_item_value( $item, string $key ) {

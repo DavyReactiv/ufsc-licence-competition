@@ -471,16 +471,6 @@ class Entries_Import_Page {
 				)
 			);
 		}
-		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log(
-				'UFSC entries CSV import csv_headers_detected ' . wp_json_encode(
-					array(
-						'raw_headers'        => array_map( 'strval', $raw_headers ),
-						'normalized_headers' => array_map( 'strval', $headers ),
-					)
-				)
-			);
-		}
 
 		$rows        = array();
 		$line_number = 1;
@@ -631,6 +621,9 @@ class Entries_Import_Page {
 
 			if ( ! $licensee_id && ! $require_valid_license ) {
 				$licensee_id = $this->build_available_fallback_licensee_id( $competition_id, $normalized['nom'], $normalized['prenom'], $birthdate );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC entries CSV import imported_external_participant_detected ' . wp_json_encode( array( 'competition_id' => $competition_id, 'line' => $line, 'generated_licensee_id' => $licensee_id ) ) );
+				}
 			}
 
 			$payload = array(
@@ -917,13 +910,15 @@ class Entries_Import_Page {
 			if ( '' === $club_name ) {
 				$club_name = self::NO_CLUB_LABEL;
 			}
-			return array(
+			$result = array(
 				'club_id'            => $club_id ?: 0,
 				'club_nom'           => $club_name,
 				'club_source'        => self::NO_CLUB_LABEL === $club_name ? 'noclub' : 'csv',
 				'is_non_affiliated'  => ( 0 === $club_id && self::NO_CLUB_LABEL !== $club_name ),
 				'is_noclub'          => ( self::NO_CLUB_LABEL === $club_name ),
 			);
+			$this->maybe_log_external_club_resolution( $result );
+			return $result;
 		}
 
 		// Priorité métier : utiliser club_id avant toute tentative via club_nom.
@@ -943,13 +938,15 @@ class Entries_Import_Page {
 		}
 
 		if ( '' === $club_name ) {
-			return array(
+			$result = array(
 				'club_id'            => 0,
 				'club_nom'           => self::NO_CLUB_LABEL,
 				'club_source'        => 'noclub',
 				'is_non_affiliated'  => false,
 				'is_noclub'          => true,
 			);
+			$this->maybe_log_external_club_resolution( $result );
+			return $result;
 		}
 
 		$exact = $wpdb->get_row( $wpdb->prepare( "SELECT id, nom FROM {$table} WHERE nom = %s LIMIT 1", $club_name ) );
@@ -975,13 +972,27 @@ class Entries_Import_Page {
 			);
 		}
 
-		return array(
+		$result = array(
 			'club_id'            => 0,
 			'club_nom'           => $club_name,
 			'club_source'        => 'csv',
 			'is_non_affiliated'  => true,
 			'is_noclub'          => false,
 		);
+		$this->maybe_log_external_club_resolution( $result );
+		return $result;
+	}
+
+	private function maybe_log_external_club_resolution( array $club_resolution ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+			return;
+		}
+		$club_source = sanitize_key( (string) ( $club_resolution['club_source'] ?? '' ) );
+		if ( ! in_array( $club_source, array( 'csv', 'noclub' ), true ) ) {
+			return;
+		}
+
+		error_log( 'UFSC entries CSV import external_club_resolved ' . wp_json_encode( $club_resolution ) );
 	}
 
 	private function competition_requires_license( int $competition_id ): bool {

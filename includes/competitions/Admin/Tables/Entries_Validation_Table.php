@@ -139,6 +139,8 @@ class Entries_Validation_Table extends \WP_List_Table {
 	public function get_columns() {
 		$columns = array(
 			'licensee' => __( 'Licencié', 'ufsc-licence-competition' ),
+			'participant_type' => __( 'Type participant', 'ufsc-licence-competition' ),
+			'fighter_number' => __( 'N° combattant', 'ufsc-licence-competition' ),
 			'license_number' => __( 'N° licence', 'ufsc-licence-competition' ),
 			'birthdate' => __( 'Date de naissance', 'ufsc-licence-competition' ),
 			'birth_year' => __( 'Année de naissance', 'ufsc-licence-competition' ),
@@ -228,6 +230,15 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
+			case 'participant_type':
+				$type = sanitize_key( (string) $this->get_item_value_from_keys( $item, array( 'participant_type' ) ) );
+				if ( 'external_non_licensed' === $type ) {
+					return esc_html__( 'Non licencié UFSC', 'ufsc-licence-competition' );
+				}
+				return esc_html__( 'Licencié UFSC', 'ufsc-licence-competition' );
+			case 'fighter_number':
+				$fighter_number = absint( $this->get_item_value_from_keys( $item, array( 'fighter_number', 'competition_number', 'dossard' ) ) );
+				return $fighter_number > 0 ? '#' . esc_html( (string) $fighter_number ) : '—';
 			case 'license_number':
 				return esc_html( $this->format_fallback( EntryDataNormalizer::resolve_license_number( $item ) ) );
 			case 'birthdate':
