@@ -30,6 +30,11 @@
   const weightClassSelect = document.getElementById("ufsc_entry_weight_class");
   const weightClassPreview = document.getElementById("ufsc_entry_weight_class_preview");
   const weightMessage = document.getElementById("ufsc_entry_weight_message");
+  const participantTypeSelect = document.getElementById("ufsc_entry_participant_type");
+  const externalFirstNameInput = document.getElementById("ufsc_entry_external_first_name");
+  const externalLastNameInput = document.getElementById("ufsc_entry_external_last_name");
+  const externalBirthDateInput = document.getElementById("ufsc_entry_external_birth_date");
+  const externalSexInput = document.getElementById("ufsc_entry_external_sex");
 
   if (
     !nameInput ||
@@ -46,7 +51,8 @@
     !clubInput ||
     !categorySelect ||
     !autoCategoryPreview ||
-    !competitionSelect
+    !competitionSelect ||
+    !participantTypeSelect
   ) {
     return;
   }
@@ -203,6 +209,19 @@
     categorySelect.value = "0";
   }
 
+  function isExternalParticipant() {
+    return (participantTypeSelect.value || "licensed_ufsc") === "external_non_licensed";
+  }
+
+  function toggleParticipantSections() {
+    const isExternal = isExternalParticipant();
+    document.querySelectorAll("[data-participant-row]").forEach((row) => {
+      const expected = row.getAttribute("data-participant-row") || "";
+      row.style.display = expected === (isExternal ? "external_non_licensed" : "licensed_ufsc") ? "" : "none";
+    });
+    licenseeInput.required = !isExternal;
+  }
+
   async function resolveWeightClass() {
     if (!weightInput || !weightClassSelect) {
       return;
@@ -212,9 +231,13 @@
       action: "ufsc_lc_resolve_weight_class",
       nonce: config.nonce,
       competition_id: competitionSelect.value || "0",
-      licensee_id: selectedHidden.value || "",
-      birth_date: lastSelected?.date_naissance || "",
-      sex: lastSelected?.sex || "",
+      licensee_id: isExternalParticipant() ? "" : selectedHidden.value || "",
+      birth_date: isExternalParticipant()
+        ? (externalBirthDateInput ? externalBirthDateInput.value || "" : "")
+        : lastSelected?.date_naissance || "",
+      sex: isExternalParticipant()
+        ? (externalSexInput ? externalSexInput.value || "" : "")
+        : lastSelected?.sex || "",
       weight_kg: weightInput.value || "",
     };
 
@@ -524,6 +547,27 @@
     resolveWeightClass();
   });
 
+  participantTypeSelect.addEventListener("change", () => {
+    toggleParticipantSections();
+    resolveWeightClass();
+  });
+
+  if (externalBirthDateInput) {
+    externalBirthDateInput.addEventListener("change", () => {
+      if (isExternalParticipant()) {
+        resolveWeightClass();
+      }
+    });
+  }
+
+  if (externalSexInput) {
+    externalSexInput.addEventListener("change", () => {
+      if (isExternalParticipant()) {
+        resolveWeightClass();
+      }
+    });
+  }
+
   if (weightInput) {
     weightInput.addEventListener("input", () => {
       weightClassTouched = false;
@@ -539,6 +583,25 @@
   }
 
   form.addEventListener("submit", (event) => {
+    if (
+      isExternalParticipant() &&
+      (
+        !externalFirstNameInput ||
+        !externalFirstNameInput.value.trim() ||
+        !externalLastNameInput ||
+        !externalLastNameInput.value.trim() ||
+        !externalBirthDateInput ||
+        !externalBirthDateInput.value.trim()
+      )
+    ) {
+      event.preventDefault();
+      setMessage(config.externalRequiredMessage || "", "error");
+      if (externalLastNameInput && !externalLastNameInput.value.trim()) {
+        externalLastNameInput.focus();
+      }
+      return;
+    }
+
     if (!weightInput) {
       return;
     }
@@ -552,6 +615,7 @@
   });
 
   const initialId = parseInt(licenseeInput.value || "0", 10);
+  toggleParticipantSections();
   syncCategoryOptions();
   if (initialId) {
     fetchLicenseeById(initialId);

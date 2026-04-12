@@ -85,6 +85,7 @@ class Assets {
 							'weightClassEmptyLabel'    => __( 'Auto / non assignée', 'ufsc-licence-competition' ),
 							'weightRequiredMessage'    => __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ),
 							'weightMissingMessage'     => __( 'Poids manquant.', 'ufsc-licence-competition' ),
+							'externalRequiredMessage'  => __( 'Pour un participant externe, renseignez au minimum nom, prénom et date de naissance.', 'ufsc-licence-competition' ),
 						)
 					);
 				}
