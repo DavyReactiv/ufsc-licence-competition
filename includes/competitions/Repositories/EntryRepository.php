@@ -669,8 +669,8 @@ class EntryRepository {
 			$external_participant_type_expr = "COALESCE(NULLIF(ep.participant_type, ''), CASE WHEN (NULLIF({$entry_license_number_expr}, '') IS NULL AND {$licensee_expr} >= 1000000000) THEN 'external_non_licensed' ELSE 'licensed_ufsc' END)";
 			$external_first_name_expr       = "NULLIF(ep.first_name, '')";
 			$external_last_name_expr        = "NULLIF(ep.last_name, '')";
-			$external_birth_date_expr       = "NULLIF(ep.birth_date, '')";
-			$external_birth_year_expr       = "NULLIF(SUBSTRING(ep.birth_date, 1, 4), '')";
+			$external_birth_date_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE CAST(ep.birth_date AS CHAR) END";
+			$external_birth_year_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE SUBSTRING(CAST(ep.birth_date AS CHAR), 1, 4) END";
 			$external_club_name_expr        = "NULLIF(ep.club_name, '')";
 		}
 
