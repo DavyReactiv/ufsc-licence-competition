@@ -48,7 +48,12 @@ class EntryRepository {
 			return null;
 		}
 
-		return $rows[0] ?? null;
+		$row = $rows[0] ?? null;
+		if ( is_object( $row ) ) {
+			$this->debug_repository_external_fallback_used( $row );
+		}
+
+		return $row;
 	}
 
 	public function assert_entry_in_scope( int $entry_id ): void {
@@ -662,16 +667,37 @@ class EntryRepository {
 		$external_birth_date_expr       = "''";
 		$external_birth_year_expr       = "''";
 		$external_club_name_expr        = "''";
+		$external_discipline_expr       = "''";
+		$external_level_expr            = "''";
+		$external_email_expr            = "''";
+		$external_phone_expr            = "''";
+		$external_comment_expr          = "''";
 		$external_table = Db::external_participants_table();
 		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
 		if ( $external_exists ) {
+			$external_columns = Db::get_table_columns( $external_table );
 			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
 			$external_participant_type_expr = "COALESCE(NULLIF(ep.participant_type, ''), CASE WHEN (NULLIF({$entry_license_number_expr}, '') IS NULL AND {$licensee_expr} >= 1000000000) THEN 'external_non_licensed' ELSE 'licensed_ufsc' END)";
 			$external_first_name_expr       = "NULLIF(ep.first_name, '')";
 			$external_last_name_expr        = "NULLIF(ep.last_name, '')";
-			$external_birth_date_expr       = "NULLIF(ep.birth_date, '')";
-			$external_birth_year_expr       = "NULLIF(SUBSTRING(ep.birth_date, 1, 4), '')";
+			$external_birth_date_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE CAST(ep.birth_date AS CHAR) END";
+			$external_birth_year_expr       = "CASE WHEN ep.birth_date IS NULL THEN '' ELSE SUBSTRING(CAST(ep.birth_date AS CHAR), 1, 4) END";
 			$external_club_name_expr        = "NULLIF(ep.club_name, '')";
+			if ( in_array( 'discipline', $external_columns, true ) ) {
+				$external_discipline_expr = "NULLIF(ep.discipline, '')";
+			}
+			if ( in_array( 'level', $external_columns, true ) ) {
+				$external_level_expr = "NULLIF(ep.level, '')";
+			}
+			if ( in_array( 'legal_guardian_email', $external_columns, true ) ) {
+				$external_email_expr = "NULLIF(ep.legal_guardian_email, '')";
+			}
+			if ( in_array( 'legal_guardian_phone', $external_columns, true ) ) {
+				$external_phone_expr = "NULLIF(ep.legal_guardian_phone, '')";
+			}
+			if ( in_array( 'medical_notes', $external_columns, true ) ) {
+				$external_comment_expr = "NULLIF(ep.medical_notes, '')";
+			}
 		}
 
 		if ( ! empty( $filters['participant_type'] ) ) {
@@ -683,6 +709,11 @@ class EntryRepository {
 
 		if ( ! $count ) {
 			$select .= ", {$external_participant_type_expr} AS participant_type";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'discipline' ) ) . ", ''), {$external_discipline_expr}) AS discipline";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'level', 'classe', 'class', 'niveau' ) ) . ", ''), {$external_level_expr}) AS level";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'email', 'mail', 'contact_email' ) ) . ", ''), {$external_email_expr}) AS email";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'phone', 'telephone', 'tel', 'contact_phone' ) ) . ", ''), {$external_phone_expr}) AS phone";
+			$select .= ", COALESCE(NULLIF(" . $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'comment', 'comments', 'notes', 'medical_notes' ) ) . ", ''), {$external_comment_expr}) AS comment";
 		}
 
 		if ( ! $count && ( ! $licences_table || ! $licence_columns ) ) {
@@ -730,6 +761,9 @@ class EntryRepository {
 				$select .= ", COALESCE(NULLIF({$entry_last_name_expr}, ''), {$external_last_name_expr}, NULLIF({$last_name_expr}, '')) AS last_name";
 				$select .= ", COALESCE(NULLIF({$entry_birth_date_expr}, ''), {$external_birth_date_expr}, {$birthdate_select}) AS birth_date";
 				$select .= ", COALESCE(NULLIF({$entry_birth_year_expr}, ''), NULLIF(SUBSTRING({$entry_birth_date_expr}, 1, 4), ''), {$external_birth_year_expr}, NULLIF(SUBSTRING({$birthdate_select}, 1, 4), '')) AS birth_year";
+				$select .= ", CASE WHEN NULLIF({$entry_first_name_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_first_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$first_name_select}, '') IS NOT NULL THEN 'license' ELSE '' END AS _source_first_name";
+				$select .= ", CASE WHEN NULLIF({$entry_last_name_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_last_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$last_name_expr}, '') IS NOT NULL THEN 'license' ELSE '' END AS _source_last_name";
+				$select .= ", CASE WHEN NULLIF({$entry_birth_date_expr}, '') IS NOT NULL THEN 'entry' WHEN {$external_birth_date_expr} <> '' THEN 'external_participants' WHEN {$birthdate_select} IS NOT NULL AND {$birthdate_select} <> '' THEN 'license' ELSE '' END AS _source_birth_date";
 				$select .= ", {$entry_fighter_expr} AS fighter_number";
 				$select .= ", {$entry_submitted_at_expr} AS submitted_at";
 			}
@@ -780,7 +814,8 @@ class EntryRepository {
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
 			if ( ! $count ) {
-				$select .= ", COALESCE(NULLIF(c.nom, ''), NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
+				$select .= ", COALESCE({$external_club_name_expr}, NULLIF({$entry_club_name_expr}, ''), NULLIF(c.nom, '')) AS club_name";
+				$select .= ", CASE WHEN {$external_club_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$entry_club_name_expr}, '') IS NOT NULL THEN 'entry' WHEN NULLIF(c.nom, '') IS NOT NULL THEN 'club_join' ELSE '' END AS _source_club_name";
 				$club_columns = Db::get_table_columns( $clubs_table );
 				if ( is_array( $club_columns ) ) {
 					if ( in_array( 'ville', $club_columns, true ) ) {
@@ -793,7 +828,8 @@ class EntryRepository {
 				}
 			}
 		} elseif ( ! $count ) {
-			$select .= ", COALESCE(NULLIF({$entry_club_name_expr}, ''), {$external_club_name_expr}) AS club_name";
+			$select .= ", COALESCE({$external_club_name_expr}, NULLIF({$entry_club_name_expr}, '')) AS club_name";
+			$select .= ", CASE WHEN {$external_club_name_expr} IS NOT NULL THEN 'external_participants' WHEN NULLIF({$entry_club_name_expr}, '') IS NOT NULL THEN 'entry' ELSE '' END AS _source_club_name";
 		}
 
 		if ( '' !== $scope_region ) {
@@ -1019,6 +1055,61 @@ class EntryRepository {
 				)
 			)
 		);
+	}
+
+	private function debug_repository_external_fallback_used( $row ): void {
+		if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG || ! is_object( $row ) ) {
+			return;
+		}
+
+		$participant_type = sanitize_key( (string) ( $row->participant_type ?? '' ) );
+		if ( 'external_non_licensed' !== $participant_type ) {
+			return;
+		}
+
+		$entry_id = (int) ( $row->id ?? 0 );
+		$fields = array(
+			'first_name' => '_source_first_name',
+			'last_name'  => '_source_last_name',
+			'birth_date' => '_source_birth_date',
+			'club_name'  => '_source_club_name',
+		);
+
+		foreach ( $fields as $field_name => $source_field ) {
+			$selected_value = $this->get_object_non_empty_value( $row, array( $field_name ) );
+			$chosen_source  = $this->get_object_non_empty_value( $row, array( $source_field ) );
+			if ( '' === $selected_value || '' === $chosen_source || 'entry' === $chosen_source ) {
+				continue;
+			}
+
+			error_log(
+				'UFSC EntryRepository repository_external_fallback_used ' .
+				wp_json_encode(
+					array(
+						'entry_id'       => $entry_id,
+						'field_name'     => $field_name,
+						'chosen_source'  => $chosen_source,
+					)
+				)
+			);
+		}
+	}
+
+	private function get_object_non_empty_value( $item, array $keys ): string {
+		if ( ! is_object( $item ) ) {
+			return '';
+		}
+
+		foreach ( $keys as $key ) {
+			if ( property_exists( $item, $key ) ) {
+				$value = $item->{$key};
+				if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+					return sanitize_text_field( (string) $value );
+				}
+			}
+		}
+
+		return '';
 	}
 
 	private function get_licences_table(): string {
