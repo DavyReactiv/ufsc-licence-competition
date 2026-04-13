@@ -114,6 +114,7 @@ class EntryRepository {
 		global $wpdb;
 
 		$prepared = $this->sanitize( $data );
+		$prepared = $this->enforce_unique_fighter_number_payload( $prepared, 0 );
 		$prepared['created_at'] = current_time( 'mysql' );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['created_by'] = get_current_user_id() ?: null;
@@ -135,7 +136,8 @@ class EntryRepository {
 	public function update( $id, array $data ) {
 		global $wpdb;
 
-		$prepared = $this->sanitize( $data );
+		$prepared = $this->sanitize( $data, true );
+		$prepared = $this->enforce_unique_fighter_number_payload( $prepared, absint( $id ) );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
@@ -337,7 +339,7 @@ class EntryRepository {
 		return $updated;
 	}
 
-	private function sanitize( array $data ) {
+	private function sanitize( array $data, bool $is_update = false ) {
 		$table = Db::entries_table();
 		$allowed_status = class_exists( EntriesWorkflow::class )
 			? EntriesWorkflow::get_storage_statuses()
@@ -347,24 +349,39 @@ class EntryRepository {
 			$status = 'draft';
 		}
 
-		$payload = array(
-			'competition_id' => absint( $data['competition_id'] ?? 0 ),
-			'category_id'    => isset( $data['category_id'] ) && '' !== $data['category_id'] ? absint( $data['category_id'] ) : null,
-			'club_id'        => isset( $data['club_id'] ) && '' !== $data['club_id'] ? absint( $data['club_id'] ) : null,
-			'status'         => $status,
-		);
+		$payload = array();
+		if ( ! $is_update || array_key_exists( 'competition_id', $data ) ) {
+			$candidate_competition_id = absint( $data['competition_id'] ?? 0 );
+			if ( ! $is_update || $candidate_competition_id > 0 ) {
+				$payload['competition_id'] = $candidate_competition_id;
+			}
+		}
+		if ( ! $is_update || array_key_exists( 'category_id', $data ) ) {
+			$payload['category_id'] = isset( $data['category_id'] ) && '' !== $data['category_id'] ? absint( $data['category_id'] ) : null;
+		}
+		if ( ! $is_update || array_key_exists( 'club_id', $data ) ) {
+			$payload['club_id'] = isset( $data['club_id'] ) && '' !== $data['club_id'] ? absint( $data['club_id'] ) : null;
+		}
+		if ( ! $is_update || array_key_exists( 'status', $data ) ) {
+			$payload['status'] = $status;
+		}
 
 		$licensee_value = absint( $data['licensee_id'] ?? $data['licence_id'] ?? 0 );
 		$licensee_column = $this->get_licensee_id_column_for_write();
-		if ( $licensee_column ) {
-			$payload[ $licensee_column ] = $licensee_value;
+		$has_explicit_licensee = array_key_exists( 'licensee_id', $data ) || array_key_exists( 'licence_id', $data );
+		if ( $licensee_column && ( ! $is_update || $has_explicit_licensee ) ) {
+			if ( ! $is_update ) {
+				$payload[ $licensee_column ] = $licensee_value > 0 ? $licensee_value : null;
+			} elseif ( $licensee_value > 0 ) {
+				$payload[ $licensee_column ] = $licensee_value;
+			}
 		}
 
 		if ( isset( $data['assigned_at'] ) && Db::has_table_column( $table, 'assigned_at' ) ) {
 			$payload['assigned_at'] = sanitize_text_field( $data['assigned_at'] );
 		}
 
-		if ( Db::has_table_column( $table, 'weight_kg' ) ) {
+		if ( Db::has_table_column( $table, 'weight_kg' ) && ( ! $is_update || array_key_exists( 'weight_kg', $data ) ) ) {
 			$weight = isset( $data['weight_kg'] ) ? (float) str_replace( ',', '.', (string) $data['weight_kg'] ) : null;
 			if ( null !== $weight && ( $weight <= 0 || $weight > 300 ) ) {
 				$weight = null;
@@ -372,7 +389,7 @@ class EntryRepository {
 			$payload['weight_kg'] = $weight;
 		}
 
-		if ( Db::has_table_column( $table, 'weight_class' ) ) {
+		if ( Db::has_table_column( $table, 'weight_class' ) && ( ! $is_update || array_key_exists( 'weight_class', $data ) ) ) {
 			$weight_class = isset( $data['weight_class'] ) ? sanitize_text_field( $data['weight_class'] ) : '';
 			$payload['weight_class'] = '' !== $weight_class ? $weight_class : null;
 		}
@@ -381,10 +398,11 @@ class EntryRepository {
 		if ( '' === $category_label && isset( $data['category_name'] ) ) {
 			$category_label = sanitize_text_field( (string) $data['category_name'] );
 		}
-		if ( Db::has_table_column( $table, 'category' ) ) {
+		$has_explicit_category_label = array_key_exists( 'category', $data ) || array_key_exists( 'category_name', $data );
+		if ( Db::has_table_column( $table, 'category' ) && ( ! $is_update || $has_explicit_category_label ) ) {
 			$payload['category'] = '' !== $category_label ? $category_label : null;
 		}
-		if ( Db::has_table_column( $table, 'category_name' ) ) {
+		if ( Db::has_table_column( $table, 'category_name' ) && ( ! $is_update || $has_explicit_category_label ) ) {
 			$payload['category_name'] = '' !== $category_label ? $category_label : null;
 		}
 
@@ -403,6 +421,18 @@ class EntryRepository {
 		foreach ( $optional_text_columns as $column_name => $keys ) {
 			if ( ! Db::has_table_column( $table, $column_name ) ) {
 				continue;
+			}
+			if ( $is_update ) {
+				$has_explicit_value = false;
+				foreach ( $keys as $key ) {
+					if ( array_key_exists( $key, $data ) ) {
+						$has_explicit_value = true;
+						break;
+					}
+				}
+				if ( ! $has_explicit_value ) {
+					continue;
+				}
 			}
 			$value = '';
 			foreach ( $keys as $key ) {
@@ -424,6 +454,18 @@ class EntryRepository {
 		foreach ( $optional_int_columns as $column_name => $keys ) {
 			if ( ! Db::has_table_column( $table, $column_name ) ) {
 				continue;
+			}
+			if ( $is_update ) {
+				$has_explicit_value = false;
+				foreach ( $keys as $key ) {
+					if ( array_key_exists( $key, $data ) ) {
+						$has_explicit_value = true;
+						break;
+					}
+				}
+				if ( ! $has_explicit_value ) {
+					continue;
+				}
 			}
 			$value = 0;
 			foreach ( $keys as $key ) {
@@ -472,9 +514,48 @@ class EntryRepository {
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+			$search_likes = $this->build_search_like_values( (string) $filters['search'] );
+			$search_exprs = array();
+			$columns      = Db::get_table_columns( Db::entries_table() );
 			$licensee_expr = $this->get_licensee_id_expression();
-			$where[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+
+			$searchable_map = array(
+				'first_name',
+				'prenom',
+				'firstname',
+				'last_name',
+				'nom',
+				'lastname',
+				'license_number',
+				'licence_number',
+				'numero_licence',
+				'numero_licence_asptt',
+				'club_name',
+				'club_nom',
+				'weight_kg',
+				'weight_class',
+				'category',
+				'category_name',
+				'discipline',
+				'level',
+				'participant_type',
+				'fighter_number',
+				'competition_number',
+				'dossard',
+			);
+
+			foreach ( $search_likes as $like ) {
+				foreach ( $searchable_map as $column ) {
+					if ( in_array( $column, $columns, true ) ) {
+						$search_exprs[] = $wpdb->prepare( "{$column} LIKE %s", $like );
+					}
+				}
+				$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			}
+
+			if ( ! empty( $search_exprs ) ) {
+				$where[] = '(' . implode( ' OR ', array_unique( $search_exprs ) ) . ')';
+			}
 		}
 
 		if ( ! empty( $filters['group_label'] ) && $this->has_entry_column( 'group_label' ) ) {
@@ -528,6 +609,121 @@ class EntryRepository {
 		return $formats;
 	}
 
+	private function enforce_unique_fighter_number_payload( array $payload, int $entry_id = 0 ): array {
+		$table = Db::entries_table();
+		$has_fighter_number = Db::has_table_column( $table, 'fighter_number' );
+		$has_competition_number = Db::has_table_column( $table, 'competition_number' );
+		$has_dossard = Db::has_table_column( $table, 'dossard' );
+		$fighter_keys = array();
+		if ( $has_fighter_number ) {
+			$fighter_keys[] = 'fighter_number';
+		}
+		if ( $has_competition_number ) {
+			$fighter_keys[] = 'competition_number';
+		}
+		if ( $has_dossard ) {
+			$fighter_keys[] = 'dossard';
+		}
+
+		if ( empty( $fighter_keys ) ) {
+			return $payload;
+		}
+
+		$requested_number = 0;
+		foreach ( $fighter_keys as $key ) {
+			if ( isset( $payload[ $key ] ) ) {
+				$requested_number = absint( $payload[ $key ] );
+				if ( $requested_number > 0 ) {
+					break;
+				}
+			}
+		}
+		if ( $requested_number <= 0 ) {
+			return $payload;
+		}
+
+		$competition_id = isset( $payload['competition_id'] ) ? absint( $payload['competition_id'] ) : 0;
+		if ( $competition_id <= 0 && $entry_id > 0 ) {
+			$current = $this->get_with_details( $entry_id, true );
+			$competition_id = absint( $current->competition_id ?? 0 );
+		}
+		if ( $competition_id <= 0 ) {
+			foreach ( $fighter_keys as $key ) {
+				unset( $payload[ $key ] );
+			}
+			return $payload;
+		}
+
+		$duplicate_entry_id = $this->find_entry_id_by_fighter_number( $competition_id, $requested_number, $entry_id );
+		$final_number       = $requested_number;
+		if ( $duplicate_entry_id > 0 ) {
+			$final_number = $this->next_available_fighter_number( $competition_id, $entry_id );
+		}
+
+		if ( $final_number <= 0 ) {
+			return $payload;
+		}
+
+		foreach ( $fighter_keys as $key ) {
+			$payload[ $key ] = $final_number;
+		}
+
+		return $payload;
+	}
+
+	private function find_entry_id_by_fighter_number( int $competition_id, int $fighter_number, int $exclude_entry_id = 0 ): int {
+		$entries = $this->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+
+		foreach ( $entries as $entry ) {
+			$current_entry_id = absint( $entry->id ?? 0 );
+			if ( $current_entry_id <= 0 || $current_entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$current_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
+			if ( $current_fighter_number === $fighter_number ) {
+				return $current_entry_id;
+			}
+		}
+
+		return 0;
+	}
+
+	private function next_available_fighter_number( int $competition_id, int $exclude_entry_id = 0 ): int {
+		$used    = array();
+		$entries = $this->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+		foreach ( $entries as $entry ) {
+			$current_entry_id = absint( $entry->id ?? 0 );
+			if ( $current_entry_id <= 0 || $current_entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$current_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
+			if ( $current_fighter_number > 0 ) {
+				$used[ $current_fighter_number ] = true;
+			}
+		}
+
+		$next = 1;
+		while ( isset( $used[ $next ] ) ) {
+			$next++;
+		}
+
+		return $next;
+	}
+
 	private function extract_status_from_note( string $note ): string {
 		if ( '' === $note ) {
 			return '';
@@ -567,6 +763,7 @@ class EntryRepository {
 		$joins = array();
 		$where = array( '1=1' );
 		$entry_search_exprs = array();
+		$search_likes       = array();
 		$entry_columns      = Db::get_table_columns( $table );
 		$entry_birth_date_expr = $this->build_entry_date_expression(
 			$entries_alias . '.',
@@ -587,6 +784,31 @@ class EntryRepository {
 			$entries_alias . '.',
 			$entry_columns,
 			array( 'submitted_at', 'submitted', 'date_submitted', 'created_at', 'imported_at' )
+		);
+		$entry_weight_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'weight_kg', 'weight', 'poids' )
+		);
+		$entry_weight_class_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' )
+		);
+		$entry_category_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'category_name', 'category', 'category_label' )
+		);
+		$entry_discipline_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'discipline' )
+		);
+		$entry_level_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'level', 'classe', 'class', 'niveau' )
 		);
 
 		$view            = $filters['view'] ?? 'all';
@@ -636,7 +858,7 @@ class EntryRepository {
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$like           = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+			$search_likes    = $this->build_search_like_values( (string) $filters['search'] );
 			$searchable_map = array(
 				'first_name',
 				'prenom',
@@ -650,13 +872,32 @@ class EntryRepository {
 				'numero_licence_asptt',
 				'club_name',
 				'club_nom',
+				'weight_kg',
+				'weight_class',
+				'category',
+				'category_name',
+				'discipline',
+				'level',
+				'birth_date',
+				'birth_year',
+				'participant_type',
 				'fighter_number',
 				'competition_number',
 				'dossard',
 			);
 			foreach ( $searchable_map as $column ) {
 				if ( in_array( $column, $entry_columns, true ) ) {
-					$entry_search_exprs[] = $wpdb->prepare( "{$entries_alias}.{$column} LIKE %s", $like );
+					foreach ( $search_likes as $like ) {
+						$entry_search_exprs[] = $wpdb->prepare( "{$entries_alias}.{$column} LIKE %s", $like );
+					}
+				}
+			}
+			foreach ( array( $entry_weight_expr, $entry_weight_class_expr, $entry_category_expr, $entry_discipline_expr, $entry_level_expr, $entry_birth_date_expr, $entry_birth_year_expr ) as $expression ) {
+				if ( "''" === $expression ) {
+					continue;
+				}
+				foreach ( $search_likes as $like ) {
+					$entry_search_exprs[] = $wpdb->prepare( "{$expression} LIKE %s", $like );
 				}
 			}
 		}
@@ -678,6 +919,7 @@ class EntryRepository {
 			}
 		}
 
+		$clubs_table = $this->get_clubs_table();
 		$licences_table = $this->get_licences_table();
 		$licence_columns = $licences_table ? Db::get_table_columns( $licences_table ) : array();
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );
@@ -699,7 +941,7 @@ class EntryRepository {
 		$external_phone_expr            = "''";
 		$external_comment_expr          = "''";
 		$external_table = Db::external_participants_table();
-		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		$external_exists = Db::table_exists( $external_table );
 		if ( $external_exists ) {
 			$external_columns = Db::get_table_columns( $external_table );
 			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
@@ -803,39 +1045,76 @@ class EntryRepository {
 				}
 				$name_expr = $this->build_coalesce_expression( 'l.', $name_columns, '' );
 				$search_exprs = array();
-				if ( ! empty( $filters['search'] ) ) {
-					$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-					if ( ! empty( $entry_search_exprs ) ) {
-						$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
+					if ( ! empty( $filters['search'] ) ) {
+						if ( ! empty( $entry_search_exprs ) ) {
+							$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
+						}
+						$external_search_exprs = array(
+							$external_first_name_expr,
+							$external_last_name_expr,
+							$external_club_name_expr,
+							$external_discipline_expr,
+							$external_level_expr,
+						);
+						foreach ( $search_likes as $like ) {
+							if ( "''" !== $name_expr ) {
+								$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
+							}
+						if ( in_array( 'prenom', $licence_columns, true ) ) {
+							$search_exprs[] = $wpdb->prepare( 'l.prenom LIKE %s', $like );
+						}
+						$license_number_expr = $this->build_license_number_expression( $licence_columns );
+						if ( "''" !== $license_number_expr ) {
+							$search_exprs[] = $wpdb->prepare( "{$license_number_expr} LIKE %s", $like );
+						}
+							$search_exprs[] = $wpdb->prepare( "{$entry_fighter_expr} LIKE %s", $like );
+							$search_exprs[] = $wpdb->prepare( "{$external_participant_type_expr} LIKE %s", $like );
+							foreach ( $external_search_exprs as $external_expr ) {
+								if ( "''" !== $external_expr ) {
+									$search_exprs[] = $wpdb->prepare( "{$external_expr} LIKE %s", $like );
+								}
+							}
+							if ( $clubs_table ) {
+								$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+							}
+						}
 					}
-					if ( "''" !== $name_expr ) {
-						$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
-					}
-					if ( in_array( 'prenom', $licence_columns, true ) ) {
-						$search_exprs[] = $wpdb->prepare( 'l.prenom LIKE %s', $like );
-					}
-					$license_number_expr = $this->build_license_number_expression( $licence_columns );
-					if ( "''" !== $license_number_expr ) {
-						$search_exprs[] = $wpdb->prepare( "{$license_number_expr} LIKE %s", $like );
-					}
-				}
 
 				if ( ! empty( $filters['search'] ) ) {
-					$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+					foreach ( $search_likes as $like ) {
+						$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+					}
 					$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 				}
 			}
-		} elseif ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
-			$search_exprs = $entry_search_exprs;
-			$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
-			$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
-		}
+			} elseif ( ! empty( $filters['search'] ) ) {
+				$search_exprs = $entry_search_exprs;
+				$external_search_exprs = array(
+					$external_first_name_expr,
+					$external_last_name_expr,
+					$external_club_name_expr,
+					$external_discipline_expr,
+					$external_level_expr,
+				);
+				if ( $clubs_table ) {
+					foreach ( $search_likes as $like ) {
+						$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+					}
+				}
+				foreach ( $search_likes as $like ) {
+					foreach ( $external_search_exprs as $external_expr ) {
+						if ( "''" !== $external_expr ) {
+							$search_exprs[] = $wpdb->prepare( "{$external_expr} LIKE %s", $like );
+						}
+					}
+					$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+				}
+				$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
+			}
 
-		$clubs_table = $this->get_clubs_table();
 		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$region_column = $this->get_club_region_column();
-		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region ) );
+		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region || ! empty( $filters['search'] ) ) );
 
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
@@ -865,7 +1144,6 @@ class EntryRepository {
 				$where[] = '1=0';
 			}
 		}
-
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 		$join_sql = $joins ? ' ' . implode( ' ', $joins ) : '';
 
@@ -931,6 +1209,28 @@ class EntryRepository {
 		$parts[] = "'" . $fallback . "'";
 
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_search_like_values( string $raw_search ): array {
+		global $wpdb;
+
+		$raw_search = trim( sanitize_text_field( $raw_search ) );
+		if ( '' === $raw_search ) {
+			return array();
+		}
+
+		$variants = array( $raw_search );
+		$without_hash = ltrim( $raw_search, "# \t\n\r\0\x0B" );
+		if ( '' !== $without_hash && $without_hash !== $raw_search ) {
+			$variants[] = $without_hash;
+		}
+
+		$likes = array();
+		foreach ( array_unique( $variants ) as $variant ) {
+			$likes[] = '%' . $wpdb->esc_like( $variant ) . '%';
+		}
+
+		return $likes;
 	}
 
 	private function build_license_number_expression( array $columns ): string {
@@ -1142,18 +1442,14 @@ class EntryRepository {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_licences';
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-
-		return ( $exists === $table ) ? $table : '';
+		return Db::table_exists( $table ) ? $table : '';
 	}
 
 	private function get_clubs_table(): string {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-
-		return ( $exists === $table ) ? $table : '';
+		return Db::table_exists( $table ) ? $table : '';
 	}
 
 	private function get_club_region_column(): string {
