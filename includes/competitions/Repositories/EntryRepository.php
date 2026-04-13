@@ -870,6 +870,7 @@ class EntryRepository {
 			}
 		}
 
+		$clubs_table = $this->get_clubs_table();
 		$licences_table = $this->get_licences_table();
 		$licence_columns = $licences_table ? Db::get_table_columns( $licences_table ) : array();
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );
@@ -1012,7 +1013,9 @@ class EntryRepository {
 						}
 						$search_exprs[] = $wpdb->prepare( "{$entry_fighter_expr} LIKE %s", $like );
 						$search_exprs[] = $wpdb->prepare( "{$external_participant_type_expr} LIKE %s", $like );
-						$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+						if ( $clubs_table ) {
+							$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+						}
 					}
 				}
 
@@ -1031,7 +1034,6 @@ class EntryRepository {
 			$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 		}
 
-		$clubs_table = $this->get_clubs_table();
 		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$region_column = $this->get_club_region_column();
 		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region || ! empty( $filters['search'] ) ) );
