@@ -378,11 +378,18 @@ class Entries_Validation_Table extends \WP_List_Table {
 		if ( '' !== $explanation ) {
 			$reason .= '<br /><small>' . esc_html( $explanation ) . '</small>';
 		}
+		$weighin_badge = '';
+		$weight = $this->get_item_value_from_keys( $entry, array( 'weight_kg', 'weight' ) );
+		$fighter_number = absint( $this->get_item_value_from_keys( $entry, array( 'fighter_number', 'competition_number', 'dossard' ) ) );
+		if ( 'approved' === $status && '' !== trim( (string) $weight ) && $fighter_number > 0 ) {
+			$weighin_badge = ' <span class="ufsc-badge ufsc-badge-success">' . esc_html__( 'Pesé', 'ufsc-licence-competition' ) . '</span>';
+		}
 
 		return sprintf(
-			'<span class="ufsc-badge %s">%s</span>%s',
+			'<span class="ufsc-badge %s">%s</span>%s%s',
 			esc_attr( $class ),
 			esc_html( $label ),
+			$weighin_badge,
 			$reason
 		);
 	}

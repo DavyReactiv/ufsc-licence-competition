@@ -376,15 +376,6 @@ class WeighIns_Page {
 
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
 		$status_allows_fighter_number = $this->status_allows_auto_fighter_number( $status );
-		if ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 && $fighter_number > 0 ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC WeighIns_Page entry_excluded fighter_number_status_mismatch ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => $status, 'fighter_number' => $fighter_number ) ) );
-			}
-			return array(
-				'type' => 'error',
-				'message' => __( 'Le numéro combattant ne peut être attribué qu’avec une pesée valide.', 'ufsc-licence-competition' ),
-			);
-		}
 		if ( $fighter_number <= 0 && $existing_fighter_number > 0 ) {
 			$fighter_number = $existing_fighter_number;
 		} elseif ( $fighter_number <= 0 && $status_allows_fighter_number ) {
@@ -393,7 +384,7 @@ class WeighIns_Page {
 				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'source' => 'auto_on_validation' ) ) );
 			}
 		} elseif ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 ) {
-			$fighter_number = 0;
+			$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
 		}
 
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
