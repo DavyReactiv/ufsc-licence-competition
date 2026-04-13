@@ -370,7 +370,11 @@ class EntryRepository {
 		$licensee_column = $this->get_licensee_id_column_for_write();
 		$has_explicit_licensee = array_key_exists( 'licensee_id', $data ) || array_key_exists( 'licence_id', $data );
 		if ( $licensee_column && ( ! $is_update || $has_explicit_licensee ) ) {
-			$payload[ $licensee_column ] = $licensee_value;
+			if ( ! $is_update ) {
+				$payload[ $licensee_column ] = $licensee_value > 0 ? $licensee_value : null;
+			} elseif ( $licensee_value > 0 ) {
+				$payload[ $licensee_column ] = $licensee_value;
+			}
 		}
 
 		if ( isset( $data['assigned_at'] ) && Db::has_table_column( $table, 'assigned_at' ) ) {
@@ -1034,6 +1038,11 @@ class EntryRepository {
 			}
 		} elseif ( ! empty( $filters['search'] ) ) {
 			$search_exprs = $entry_search_exprs;
+			if ( $clubs_table ) {
+				foreach ( $search_likes as $like ) {
+					$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+				}
+			}
 			foreach ( $search_likes as $like ) {
 				$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
 			}
