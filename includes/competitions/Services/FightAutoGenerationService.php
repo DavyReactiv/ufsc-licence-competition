@@ -424,6 +424,12 @@ class FightAutoGenerationService {
 			$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 
 			$total_entries = count( $entries );
+			if ( 0 === $total_entries ) {
+				return array(
+					'ok'      => false,
+					'message' => __( 'Aucune inscription approuvée trouvée pour cette compétition.', 'ufsc-licence-competition' ),
+				);
+			}
 
 			$selection         = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 			$valid_entries     = $selection['valid_entries'];
@@ -461,6 +467,22 @@ class FightAutoGenerationService {
 						'total_entries'      => $total_entries,
 						'eligible_entries'   => 0,
 						'excluded_unweighed' => $excluded_unweighed,
+					),
+				);
+			}
+			$duplicate_fighters = self::count_duplicate_fighter_numbers( $valid_entries );
+			if ( $duplicate_fighters > 0 ) {
+				return array(
+					'ok'      => false,
+					'message' => sprintf(
+						/* translators: %d: number of duplicate fighter-number conflicts */
+						__( 'Génération bloquée : %d conflit(s) de numéros combattants détecté(s). Corrigez les doublons avant de relancer.', 'ufsc-licence-competition' ),
+						$duplicate_fighters
+					),
+					'stats'   => array(
+						'duplicate_fighter_numbers' => $duplicate_fighters,
+						'total_entries'             => $total_entries,
+						'eligible_entries'          => count( $valid_entries ),
 					),
 				);
 			}

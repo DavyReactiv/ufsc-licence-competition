@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Services\FightAutoGenerationService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -55,6 +56,7 @@ class Bouts_AutoGeneration {
 		if ( ! FightAutoGenerationService::is_enabled() ) {
 			return;
 		}
+		$competition_id = self::resolve_competition_id( $competition_id );
 
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$draft = $competition_id ? FightAutoGenerationService::get_draft( $competition_id ) : array();
@@ -73,7 +75,7 @@ class Bouts_AutoGeneration {
 		$preview = $competition_id ? FightAutoGenerationService::get_generation_preview( $competition_id, $settings ) : array();
 		$estimated_fights = (int) ( $preview['estimated_fights'] ?? 0 );
 		$estimated_total_seconds = (int) ( $preview['estimated_total_seconds'] ?? 0 );
-		$competition_label = $competition_id ? sprintf( __( 'Compétition #%d', 'ufsc-licence-competition' ), $competition_id ) : __( 'Aucune compétition sélectionnée', 'ufsc-licence-competition' );
+		$competition_label = $competition_id ? sprintf( __( 'Compétition #%d', 'ufsc-licence-competition' ), $competition_id ) : __( 'Aucune compétition sélectionnée (ouvrez une compétition active).', 'ufsc-licence-competition' );
 		$timing_profile_label = 'category' === ( $settings['timing_mode'] ?? 'global' )
 			? __( 'Profils par catégories actifs', 'ufsc-licence-competition' )
 			: __( 'Timing global manuel', 'ufsc-licence-competition' );
@@ -503,7 +505,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_save_settings(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
 		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
 		if ( empty( $result['ok'] ) ) {
@@ -513,10 +515,10 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_generate_draft(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( self::nonce_action( 'ufsc_competitions_generate_fight_draft', $competition_id ), $competition_id );
 		if ( ! $competition_id ) {
-			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
+			self::redirect( 0, 'action_error', __( 'Compétition invalide : sélectionnez une compétition active avant la génération.', 'ufsc-licence-competition' ) );
 		}
 
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
@@ -525,7 +527,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_generate_draft_override(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( self::nonce_action( 'ufsc_competitions_generate_fight_draft_override', $competition_id ), $competition_id );
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
@@ -538,7 +540,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_regenerate_draft(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( self::nonce_action( 'ufsc_competitions_regenerate_fight_draft', $competition_id ), $competition_id );
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
@@ -551,7 +553,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_validate_draft(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_validate_fight_draft', $competition_id );
 		$apply_mode = isset( $_POST['apply_mode'] ) ? sanitize_key( wp_unslash( $_POST['apply_mode'] ) ) : 'append';
 		if ( 'replace' === $apply_mode ) {
@@ -563,14 +565,14 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_discard_draft(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_discard_fight_draft', $competition_id );
 		FightAutoGenerationService::clear_draft( $competition_id );
 		self::redirect( $competition_id, 'draft_discarded' );
 	}
 
 	public static function handle_recalc_schedule(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_recalc_fight_schedule', $competition_id );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$result = FightAutoGenerationService::recalc_schedule( $competition_id, $settings );
@@ -578,7 +580,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_swap_colors(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_swap_fight_colors', $competition_id );
 		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
 		if ( ! $fight_id ) {
@@ -589,7 +591,7 @@ class Bouts_AutoGeneration {
 	}
 
 	public static function handle_reorder_fights(): void {
-		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_reorder_fights', $competition_id );
 		$mode = isset( $_POST['mode'] ) ? sanitize_key( wp_unslash( $_POST['mode'] ) ) : 'fight_no';
 		$result = FightAutoGenerationService::reorder_fights( $competition_id, $mode );
@@ -628,6 +630,33 @@ class Bouts_AutoGeneration {
 		if ( ! Capabilities::user_can_manage() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
+	}
+
+	private static function resolve_competition_id( int $fallback = 0 ): int {
+		$candidates = array(
+			$fallback,
+			isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
+		);
+
+		$repo = new CompetitionRepository();
+		foreach ( $candidates as $candidate ) {
+			$candidate = absint( $candidate );
+			if ( $candidate <= 0 ) {
+				continue;
+			}
+			$competition = $repo->get( $candidate, true );
+			if ( $competition ) {
+				return $candidate;
+			}
+		}
+
+		$list = $repo->list( array( 'view' => 'all' ), 1, 0 );
+		if ( ! empty( $list ) && ! empty( $list[0]->id ) ) {
+			return absint( $list[0]->id );
+		}
+
+		return 0;
 	}
 
 	private static function guard_action( string $nonce_action, int $competition_id ): void {
