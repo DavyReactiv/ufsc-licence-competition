@@ -514,9 +514,48 @@ class EntryRepository {
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+			$search_likes = $this->build_search_like_values( (string) $filters['search'] );
+			$search_exprs = array();
+			$columns      = Db::get_table_columns( Db::entries_table() );
 			$licensee_expr = $this->get_licensee_id_expression();
-			$where[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+
+			$searchable_map = array(
+				'first_name',
+				'prenom',
+				'firstname',
+				'last_name',
+				'nom',
+				'lastname',
+				'license_number',
+				'licence_number',
+				'numero_licence',
+				'numero_licence_asptt',
+				'club_name',
+				'club_nom',
+				'weight_kg',
+				'weight_class',
+				'category',
+				'category_name',
+				'discipline',
+				'level',
+				'participant_type',
+				'fighter_number',
+				'competition_number',
+				'dossard',
+			);
+
+			foreach ( $search_likes as $like ) {
+				foreach ( $searchable_map as $column ) {
+					if ( in_array( $column, $columns, true ) ) {
+						$search_exprs[] = $wpdb->prepare( "{$column} LIKE %s", $like );
+					}
+				}
+				$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			}
+
+			if ( ! empty( $search_exprs ) ) {
+				$where[] = '(' . implode( ' OR ', array_unique( $search_exprs ) ) . ')';
+			}
 		}
 
 		if ( ! empty( $filters['group_label'] ) && $this->has_entry_column( 'group_label' ) ) {

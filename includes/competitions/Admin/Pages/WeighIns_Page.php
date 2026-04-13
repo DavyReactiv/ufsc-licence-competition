@@ -412,6 +412,12 @@ class WeighIns_Page {
 				$fighter_number_reassigned = true;
 			}
 		}
+		if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) && $fighter_number <= 0 ) {
+			return array( 'type' => 'error', 'message' => __( 'Numéro combattant requis pour valider la pesée.', 'ufsc-licence-competition' ) );
+		}
+		if ( $fighter_number > 0 && $this->find_duplicate_fighter_number_entry( $competition_id, $fighter_number, $entry_id ) > 0 ) {
+			return array( 'type' => 'error', 'message' => __( 'Conflit de numéro combattant persistant. Réessayez après actualisation.', 'ufsc-licence-competition' ) );
+		}
 
 		$meta = $existing_meta;
 		$meta['fighter_number'] = $fighter_number > 0 ? $fighter_number : '';
@@ -451,23 +457,24 @@ class WeighIns_Page {
 		}
 
 		$result = $wpdb->replace( Db::weighins_table(), $payload );
-		if ( false !== $result ) {
-			$entry_update = array();
-			if ( null !== $weight ) {
+			if ( false !== $result ) {
+				$entry_update = array();
 				$entry_update['weight_kg'] = $weight;
-			}
-			if ( $fighter_number > 0 ) {
-				$entry_update['fighter_number'] = $fighter_number;
-				$entry_update['competition_number'] = $fighter_number;
+				if ( $fighter_number > 0 ) {
+					$entry_update['fighter_number'] = $fighter_number;
+					$entry_update['competition_number'] = $fighter_number;
 				$entry_update['dossard'] = $fighter_number;
 			}
-			if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
-				$entry_update['status'] = 'approved';
+				if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
+					$entry_update['status'] = 'approved';
+				}
+				if ( ! empty( $entry_update ) ) {
+					$entry_updated = $this->entries->update( $entry_id, $entry_update );
+					if ( false === $entry_updated ) {
+						return array( 'type' => 'error', 'message' => __( 'Pesée enregistrée mais mise à jour inscription échouée.', 'ufsc-licence-competition' ) );
+					}
+				}
 			}
-			if ( ! empty( $entry_update ) ) {
-				$this->entries->update( $entry_id, $entry_update );
-			}
-		}
 
 		if ( false === $result ) {
 			return array( 'type' => 'error', 'message' => __( 'Enregistrement de pesée impossible.', 'ufsc-licence-competition' ) );

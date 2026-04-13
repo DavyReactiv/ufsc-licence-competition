@@ -930,7 +930,12 @@ class FightAutoGenerationService {
 		$duplicates = 0;
 
 		foreach ( $entries as $entry ) {
-			$number = isset( $entry->fighter_number ) ? absint( $entry->fighter_number ) : 0;
+			$number = absint(
+				$entry->fighter_number
+				?? $entry->competition_number
+				?? $entry->dossard
+				?? 0
+			);
 			if ( $number <= 0 ) {
 				continue;
 			}
