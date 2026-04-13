@@ -7,6 +7,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class Db {
+	/** @var array<string,bool> */
+	private static $table_exists_cache = array();
+	/** @var array<string,array<int,string>> */
+	private static $table_columns_cache = array();
+	/** @var array<string,bool> */
+	private static $table_column_exists_cache = array();
+
 	// Module DB version (bump when schema/index changes)
 	const DB_VERSION = '1.20';
 	const DB_VERSION_OPTION = 'ufsc_competitions_db_version';
@@ -148,11 +155,17 @@ class Db {
 		set_transient( 'ufsc_competitions_entries_schema_ok', '1', DAY_IN_SECONDS );
 	}
 
-	private static function table_exists( string $table ): bool {
+	public static function table_exists( string $table ): bool {
 		global $wpdb;
 
+		$table = (string) $table;
+		if ( isset( self::$table_exists_cache[ $table ] ) ) {
+			return self::$table_exists_cache[ $table ];
+		}
+
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		return ( $exists === $table );
+		self::$table_exists_cache[ $table ] = ( $exists === $table );
+		return self::$table_exists_cache[ $table ];
 	}
 
 	/**
@@ -248,8 +261,7 @@ class Db {
 
 		dbDelta( $categories_sql );
 
-		$entries_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $entries_table ) );
-		if ( $entries_exists !== $entries_table ) {
+		if ( ! self::table_exists( $entries_table ) ) {
 			$entries_sql = "CREATE TABLE {$entries_table} (
 				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 				competition_id bigint(20) unsigned NOT NULL,
@@ -377,8 +389,7 @@ class Db {
 		global $wpdb;
 
 		$table  = self::entries_table();
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		if ( $exists !== $table ) {
+		if ( ! self::table_exists( $table ) ) {
 			return;
 		}
 
@@ -497,8 +508,7 @@ class Db {
 		global $wpdb;
 
 		$table  = self::fights_table();
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		if ( $exists !== $table ) {
+		if ( ! self::table_exists( $table ) ) {
 			return;
 		}
 
@@ -575,8 +585,7 @@ class Db {
 		global $wpdb;
 
 		$table  = self::fights_table();
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		if ( $exists !== $table ) {
+		if ( ! self::table_exists( $table ) ) {
 			return false;
 		}
 
@@ -623,6 +632,11 @@ class Db {
 	public static function get_table_columns( string $table ): array {
 		global $wpdb;
 
+		$table = (string) $table;
+		if ( isset( self::$table_columns_cache[ $table ] ) ) {
+			return self::$table_columns_cache[ $table ];
+		}
+
 		$columns = array();
 		$results = $wpdb->get_results(
 			$wpdb->prepare(
@@ -640,35 +654,37 @@ class Db {
 		}
 
 		if ( $columns ) {
-			return $columns;
+			self::$table_columns_cache[ $table ] = $columns;
+			return self::$table_columns_cache[ $table ];
 		}
 
 		$fallback = $wpdb->get_col( "DESC {$table}", 0 );
-		return is_array( $fallback ) ? $fallback : array();
+		self::$table_columns_cache[ $table ] = is_array( $fallback ) ? $fallback : array();
+		return self::$table_columns_cache[ $table ];
 	}
 
 	public static function has_table_column( string $table, string $column ): bool {
-		static $cache = array();
-
+		$table     = (string) $table;
+		$column    = (string) $column;
 		$cache_key = $table . ':' . $column;
-		if ( array_key_exists( $cache_key, $cache ) ) {
-			return $cache[ $cache_key ];
+		if ( array_key_exists( $cache_key, self::$table_column_exists_cache ) ) {
+			return self::$table_column_exists_cache[ $cache_key ];
 		}
 
 		$wp_cache_key = 'ufsc_competitions_column_' . md5( $cache_key );
 		$cached       = wp_cache_get( $wp_cache_key, 'ufsc_competitions' );
 
 		if ( false !== $cached ) {
-			$cache[ $cache_key ] = (bool) $cached;
-			return $cache[ $cache_key ];
+			self::$table_column_exists_cache[ $cache_key ] = (bool) $cached;
+			return self::$table_column_exists_cache[ $cache_key ];
 		}
 
 		$columns              = self::get_table_columns( $table );
-		$cache[ $cache_key ]  = in_array( $column, $columns, true );
+		self::$table_column_exists_cache[ $cache_key ]  = in_array( $column, $columns, true );
 
-		wp_cache_set( $wp_cache_key, $cache[ $cache_key ], 'ufsc_competitions', HOUR_IN_SECONDS );
+		wp_cache_set( $wp_cache_key, self::$table_column_exists_cache[ $cache_key ], 'ufsc_competitions', HOUR_IN_SECONDS );
 
-		return $cache[ $cache_key ];
+		return self::$table_column_exists_cache[ $cache_key ];
 	}
 
 	private static function maybe_backfill_fight_no( string $table ): void {

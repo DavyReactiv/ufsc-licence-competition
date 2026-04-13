@@ -37,12 +37,18 @@ class FightAutoGenerationService {
 		$has_stored_settings        = ! empty( $stored );
 		$settings                  = array_merge( $defaults, $stored );
 		$settings['surface_count']  = min( 32, max( 1, absint( $settings['surface_count'] ) ) );
-		$settings['fight_duration'] = min( 30, max( 1, absint( $settings['fight_duration'] ) ) );
-		$settings['break_duration'] = min( 30, max( 0, absint( $settings['break_duration'] ) ) );
+		$settings['fight_duration']         = min( 30, max( 0, absint( $settings['fight_duration'] ) ) );
+		$settings['fight_duration_seconds'] = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
+		$settings['break_duration']         = min( 30, max( 0, absint( $settings['break_duration'] ) ) );
+		$settings['break_duration_seconds'] = min( 59, max( 0, absint( $settings['break_duration_seconds'] ?? 0 ) ) );
+		if ( 0 === $settings['fight_duration'] && 0 === $settings['fight_duration_seconds'] ) {
+			$settings['fight_duration'] = 1;
+		}
 		$settings['timing_mode']    = 'category' === ( $settings['timing_mode'] ?? 'global' ) ? 'category' : 'global';
 		$settings['mode']           = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock']      = ! empty( $settings['auto_lock'] ) ? 1 : 0;
 		$settings['allow_unweighed'] = ! empty( $settings['allow_unweighed'] ) ? 1 : 0;
+		$settings['settings_saved_at'] = sanitize_text_field( (string) ( $settings['settings_saved_at'] ?? '' ) );
 
 		if ( ! $has_stored_settings ) {
 			$competition_repo = new CompetitionRepository();
@@ -91,20 +97,37 @@ class FightAutoGenerationService {
 	}
 
 	public static function save_settings( int $competition_id, array $data ): bool {
+		$result = self::save_settings_with_result( $competition_id, $data );
+		return ! empty( $result['ok'] );
+	}
+
+	public static function save_settings_with_result( int $competition_id, array $data ): array {
 		if ( ! self::is_enabled() ) {
-			return false;
+			return array(
+				'ok'      => false,
+				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+				'errors'  => array( 'disabled' ),
+			);
 		}
 
 		if ( ! $competition_id ) {
-			return false;
+			return array(
+				'ok'      => false,
+				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
+				'errors'  => array( 'competition_id' ),
+			);
 		}
 
 		$settings = self::get_default_settings();
+		$errors   = array();
 
 		if ( isset( $data['plateau_name'] ) ) {
 			$settings['plateau_name'] = sanitize_text_field( (string) $data['plateau_name'] );
 		}
 		if ( isset( $data['surface_count'] ) ) {
+			if ( ! is_scalar( $data['surface_count'] ) || ! is_numeric( (string) $data['surface_count'] ) ) {
+				$errors[] = 'surface_count';
+			}
 			$settings['surface_count'] = min( 32, max( 1, absint( $data['surface_count'] ) ) );
 		}
 
@@ -113,16 +136,42 @@ class FightAutoGenerationService {
 			: array();
 
 		if ( isset( $data['fight_duration'] ) ) {
-			$settings['fight_duration'] = min( 30, max( 1, absint( $data['fight_duration'] ) ) );
+			if ( ! is_scalar( $data['fight_duration'] ) || ! is_numeric( (string) $data['fight_duration'] ) ) {
+				$errors[] = 'fight_duration';
+			}
+			$settings['fight_duration'] = min( 30, max( 0, absint( $data['fight_duration'] ) ) );
+		}
+		if ( isset( $data['fight_duration_seconds'] ) ) {
+			if ( ! is_scalar( $data['fight_duration_seconds'] ) || ! is_numeric( (string) $data['fight_duration_seconds'] ) ) {
+				$errors[] = 'fight_duration_seconds';
+			}
+			$settings['fight_duration_seconds'] = min( 59, max( 0, absint( $data['fight_duration_seconds'] ) ) );
 		}
 		if ( isset( $data['break_duration'] ) ) {
+			if ( ! is_scalar( $data['break_duration'] ) || ! is_numeric( (string) $data['break_duration'] ) ) {
+				$errors[] = 'break_duration';
+			}
 			$settings['break_duration'] = min( 30, max( 0, absint( $data['break_duration'] ) ) );
 		}
+		if ( isset( $data['break_duration_seconds'] ) ) {
+			if ( ! is_scalar( $data['break_duration_seconds'] ) || ! is_numeric( (string) $data['break_duration_seconds'] ) ) {
+				$errors[] = 'break_duration_seconds';
+			}
+			$settings['break_duration_seconds'] = min( 59, max( 0, absint( $data['break_duration_seconds'] ) ) );
+		}
 		if ( isset( $data['timing_mode'] ) ) {
-			$settings['timing_mode'] = 'category' === $data['timing_mode'] ? 'category' : 'global';
+			$raw_timing_mode = is_scalar( $data['timing_mode'] ) ? sanitize_key( (string) $data['timing_mode'] ) : '';
+			if ( ! in_array( $raw_timing_mode, array( 'global', 'category' ), true ) ) {
+				$errors[] = 'timing_mode';
+			}
+			$settings['timing_mode'] = 'category' === $raw_timing_mode ? 'category' : 'global';
 		}
 		if ( isset( $data['mode'] ) ) {
-			$settings['mode'] = 'manual' === $data['mode'] ? 'manual' : 'auto';
+			$raw_mode = is_scalar( $data['mode'] ) ? sanitize_key( (string) $data['mode'] ) : '';
+			if ( ! in_array( $raw_mode, array( 'auto', 'manual' ), true ) ) {
+				$errors[] = 'mode';
+			}
+			$settings['mode'] = 'manual' === $raw_mode ? 'manual' : 'auto';
 		}
 		if ( isset( $data['auto_lock'] ) ) {
 			$settings['auto_lock'] = ! empty( $data['auto_lock'] ) ? 1 : 0;
@@ -133,11 +182,19 @@ class FightAutoGenerationService {
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
 		if ( empty( $settings['surface_details'] ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC FightAutoGenerationService settings_validation_failed: empty surface_details' );
-			}
-			return false;
+			$settings['surface_details'] = self::sanitize_surface_details( array(), $settings['surface_count'] );
 		}
+		if ( 0 === $settings['fight_duration'] && 0 === $settings['fight_duration_seconds'] ) {
+			$errors[] = 'fight_duration_total';
+		}
+		if ( ! empty( $errors ) ) {
+			return array(
+				'ok'      => false,
+				'message' => __( 'Paramètres invalides : corrigez les champs timing/surfaces puis réessayez.', 'ufsc-licence-competition' ),
+				'errors'  => array_values( array_unique( $errors ) ),
+			);
+		}
+		$settings['settings_saved_at'] = current_time( 'mysql' );
 		$option_key = self::SETTINGS_PREFIX . $competition_id;
 		$existing   = get_option( $option_key, null );
 		$updated    = update_option( $option_key, $settings, false );
@@ -145,7 +202,11 @@ class FightAutoGenerationService {
 			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( 'UFSC FightAutoGenerationService settings_unchanged_but_valid ' . wp_json_encode( array( 'competition_id' => $competition_id ) ) );
 			}
-			return true;
+			return array(
+				'ok'      => true,
+				'message' => '',
+				'errors'  => array(),
+			);
 		}
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
@@ -161,7 +222,11 @@ class FightAutoGenerationService {
 			);
 		}
 
-		return (bool) $updated;
+		return array(
+			'ok'      => (bool) $updated,
+			'message' => (bool) $updated ? '' : __( 'Échec de sauvegarde des paramètres.', 'ufsc-licence-competition' ),
+			'errors'  => array(),
+		);
 	}
 
 	public static function get_draft( int $competition_id ): array {
@@ -219,6 +284,75 @@ class FightAutoGenerationService {
 			'excluded_unweighed'     => (int) ( $selection['excluded_unweighed'] ?? 0 ),
 			'can_override_unweighed' => ! empty( $selection['enforce_weighin'] ) && (int) ( $selection['excluded_unweighed'] ?? 0 ) > 0,
 		);
+	}
+
+	public static function get_generation_preview( int $competition_id, array $settings ): array {
+		$preview = array(
+			'estimated_fights'            => 0,
+			'estimated_categories'        => 0,
+			'surface_count'               => max( 1, absint( $settings['surface_count'] ?? 1 ) ),
+			'estimated_total_seconds'     => 0,
+			'estimated_per_surface'       => array(),
+			'eligible_entries'            => 0,
+			'excluded_unweighed'          => 0,
+			'duplicate_fighter_numbers'   => 0,
+			'can_generate'                => false,
+			'precheck'                    => array(),
+		);
+
+		if ( ! $competition_id ) {
+			return $preview;
+		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition      = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			return $preview;
+		}
+
+		$entry_repo = new EntryRepository();
+		$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
+		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
+		$groups     = self::group_entries_by_category( $eligible );
+
+		$estimated_fights = 0;
+		foreach ( $groups as $group_entries ) {
+			$estimated_fights += self::estimate_fights_for_group_size( count( $group_entries ) );
+		}
+
+		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
+		$fight_seconds = self::get_global_fight_seconds( $settings );
+		$pause_seconds = self::get_global_pause_seconds( $settings );
+		$step_seconds  = $fight_seconds + $pause_seconds;
+
+		$per_surface = array();
+		for ( $i = 0; $i < $surface_count; $i++ ) {
+			$bucket = (int) floor( $estimated_fights / $surface_count ) + ( $i < ( $estimated_fights % $surface_count ) ? 1 : 0 );
+			$per_surface[] = $bucket;
+		}
+
+		$duplicates = self::count_duplicate_fighter_numbers( $entries );
+		$timing_ok  = $fight_seconds > 0;
+		$surfaces_ok = $surface_count > 0 && count( self::normalize_surface_details( $settings ) ) >= $surface_count;
+		$eligible_ok = count( $eligible ) >= 2;
+
+		$preview['estimated_fights']          = $estimated_fights;
+		$preview['estimated_categories']      = count( $groups );
+		$preview['estimated_total_seconds']   = $estimated_fights * $step_seconds;
+		$preview['estimated_per_surface']     = $per_surface;
+		$preview['eligible_entries']          = count( $eligible );
+		$preview['excluded_unweighed']        = (int) ( $selection['excluded_unweighed'] ?? 0 );
+		$preview['duplicate_fighter_numbers'] = $duplicates;
+		$preview['can_generate']              = $surfaces_ok && $timing_ok && $eligible_ok && empty( $settings['auto_lock'] ) && 'manual' !== ( $settings['mode'] ?? 'auto' );
+		$preview['precheck']                  = array(
+			'surfaces_ok' => $surfaces_ok,
+			'timing_ok'   => $timing_ok,
+			'eligible_ok' => $eligible_ok,
+			'duplicates_ok' => 0 === $duplicates,
+		);
+
+		return $preview;
 	}
 
 	public static function generate_draft( int $competition_id, array $settings ): array {
@@ -290,6 +424,12 @@ class FightAutoGenerationService {
 			$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 
 			$total_entries = count( $entries );
+			if ( 0 === $total_entries ) {
+				return array(
+					'ok'      => false,
+					'message' => __( 'Aucune inscription approuvée trouvée pour cette compétition.', 'ufsc-licence-competition' ),
+				);
+			}
 
 			$selection         = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 			$valid_entries     = $selection['valid_entries'];
@@ -327,6 +467,22 @@ class FightAutoGenerationService {
 						'total_entries'      => $total_entries,
 						'eligible_entries'   => 0,
 						'excluded_unweighed' => $excluded_unweighed,
+					),
+				);
+			}
+			$duplicate_fighters = self::count_duplicate_fighter_numbers( $valid_entries );
+			if ( $duplicate_fighters > 0 ) {
+				return array(
+					'ok'      => false,
+					'message' => sprintf(
+						/* translators: %d: number of duplicate fighter-number conflicts */
+						__( 'Génération bloquée : %d conflit(s) de numéros combattants détecté(s). Corrigez les doublons avant de relancer.', 'ufsc-licence-competition' ),
+						$duplicate_fighters
+					),
+					'stats'   => array(
+						'duplicate_fighter_numbers' => $duplicate_fighters,
+						'total_entries'             => $total_entries,
+						'eligible_entries'          => count( $valid_entries ),
 					),
 				);
 			}
@@ -736,12 +892,69 @@ class FightAutoGenerationService {
 			'surface_labels'  => '',
 			'surface_details' => array(),
 			'fight_duration'  => 2,
+			'fight_duration_seconds' => 0,
 			'break_duration'  => 1,
+			'break_duration_seconds' => 0,
 			'timing_mode'     => 'global',
 			'mode'            => 'auto',
 			'auto_lock'       => 0,
 			'allow_unweighed' => 0,
+			'settings_saved_at' => '',
 		);
+	}
+
+	private static function estimate_fights_for_group_size( int $count ): int {
+		if ( $count < 2 ) {
+			return 0;
+		}
+		if ( 2 === $count ) {
+			return 1;
+		}
+		if ( 3 === $count ) {
+			return 3;
+		}
+		if ( 4 === $count ) {
+			return 3;
+		}
+
+		$bracket_size = 1;
+		while ( $bracket_size < $count ) {
+			$bracket_size *= 2;
+		}
+
+		return $bracket_size - 1;
+	}
+
+	private static function count_duplicate_fighter_numbers( array $entries ): int {
+		$seen       = array();
+		$duplicates = 0;
+
+		foreach ( $entries as $entry ) {
+			$number = isset( $entry->fighter_number ) ? absint( $entry->fighter_number ) : 0;
+			if ( $number <= 0 ) {
+				continue;
+			}
+			if ( isset( $seen[ $number ] ) ) {
+				$duplicates++;
+				continue;
+			}
+			$seen[ $number ] = true;
+		}
+
+		return $duplicates;
+	}
+
+	private static function get_global_fight_seconds( array $settings ): int {
+		$minutes = max( 0, absint( $settings['fight_duration'] ?? 2 ) );
+		$seconds = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
+		$total   = ( $minutes * MINUTE_IN_SECONDS ) + $seconds;
+		return max( 1, $total );
+	}
+
+	private static function get_global_pause_seconds( array $settings ): int {
+		$minutes = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$seconds = min( 59, max( 0, absint( $settings['break_duration_seconds'] ?? 0 ) ) );
+		return ( $minutes * MINUTE_IN_SECONDS ) + $seconds;
 	}
 
 	private static function extract_weighin_notes_meta( $row ): array {
@@ -1055,8 +1268,15 @@ class FightAutoGenerationService {
 		$surface_labels = self::get_surface_labels( $settings );
 		$surface_count  = max( 1, count( $surface_labels ) );
 
-		$duration = max( 1, absint( $settings['fight_duration'] ?? 2 ) );
-		$break    = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$duration_minutes = max( 0, absint( $settings['fight_duration'] ?? 2 ) );
+		$duration_seconds = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
+		$break_minutes    = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$break_seconds    = min( 59, max( 0, absint( $settings['break_duration_seconds'] ?? 0 ) ) );
+		$global_duration_seconds = ( $duration_minutes * MINUTE_IN_SECONDS ) + $duration_seconds;
+		$global_break_seconds    = ( $break_minutes * MINUTE_IN_SECONDS ) + $break_seconds;
+		if ( $global_duration_seconds < 1 ) {
+			$global_duration_seconds = MINUTE_IN_SECONDS;
+		}
 
 		$meta     = CompetitionMeta::get( $competition_id );
 		$start    = $meta['fights_start'] ?? '';
@@ -1108,7 +1328,7 @@ class FightAutoGenerationService {
 			$fights[ $index ]['ring'] = $surface_labels[ $surface_index ];
 			if ( $start_ts ) {
 				$fights[ $index ]['scheduled_at'] = date_i18n( 'Y-m-d H:i:s', $surface_times[ $surface_index ] );
-				$step = ( (int) $timing['fight_duration'] + (int) $timing['fight_pause'] ) * MINUTE_IN_SECONDS;
+				$step = (int) ( $timing['fight_duration_seconds'] ?? $global_duration_seconds ) + (int) ( $timing['fight_pause_seconds'] ?? $global_break_seconds );
 				$surface_times[ $surface_index ] += $step;
 			}
 		}
@@ -1223,8 +1443,15 @@ class FightAutoGenerationService {
 	}
 
 	private static function resolve_fight_timing( array $fight, array $settings, array $profiles, array $categories, $competition = null, array $surface_types = array() ): array {
-		$duration = max( 1, absint( $settings['fight_duration'] ?? 2 ) );
-		$pause    = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$duration_minutes = max( 0, absint( $settings['fight_duration'] ?? 2 ) );
+		$duration_seconds = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
+		$pause_minutes    = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$pause_seconds    = min( 59, max( 0, absint( $settings['break_duration_seconds'] ?? 0 ) ) );
+		$duration_total_seconds = ( $duration_minutes * MINUTE_IN_SECONDS ) + $duration_seconds;
+		$pause_total_seconds    = ( $pause_minutes * MINUTE_IN_SECONDS ) + $pause_seconds;
+		if ( $duration_total_seconds < 1 ) {
+			$duration_total_seconds = MINUTE_IN_SECONDS;
+		}
 
 		$timing = array(
 			'timing_profile_id' => array_key_exists( 'timing_profile_id', $fight ) ? absint( $fight['timing_profile_id'] ) : 0,
@@ -1233,18 +1460,24 @@ class FightAutoGenerationService {
 			'break_duration'    => array_key_exists( 'break_duration', $fight ) ? absint( $fight['break_duration'] ) : 0,
 			'fight_pause'       => array_key_exists( 'fight_pause', $fight ) ? absint( $fight['fight_pause'] ) : 0,
 			'fight_duration'    => array_key_exists( 'fight_duration', $fight ) ? absint( $fight['fight_duration'] ) : 0,
+			'fight_duration_seconds' => 0,
+			'fight_pause_seconds'    => 0,
 		);
 
 		if ( $timing['fight_duration'] > 0 ) {
 			if ( ! array_key_exists( 'fight_pause', $fight ) || null === $fight['fight_pause'] ) {
-				$timing['fight_pause'] = $pause;
+				$timing['fight_pause'] = $pause_minutes;
 			}
+			$timing['fight_duration_seconds'] = (int) $timing['fight_duration'] * MINUTE_IN_SECONDS;
+			$timing['fight_pause_seconds']    = (int) $timing['fight_pause'] * MINUTE_IN_SECONDS;
 			return $timing;
 		}
 
 		if ( 'category' !== ( $settings['timing_mode'] ?? 'global' ) || empty( $profiles ) ) {
-			$timing['fight_duration'] = $duration;
-			$timing['fight_pause']    = $pause;
+			$timing['fight_duration']         = $duration_minutes;
+			$timing['fight_pause']            = $pause_minutes;
+			$timing['fight_duration_seconds'] = $duration_total_seconds;
+			$timing['fight_pause_seconds']    = $pause_total_seconds;
 			return $timing;
 		}
 
@@ -1265,8 +1498,10 @@ class FightAutoGenerationService {
 		$profile                = self::match_timing_profile( $profiles, $category, $competition_type, $surface_types, $competition_discipline );
 
 		if ( ! $profile ) {
-			$timing['fight_duration'] = $duration;
-			$timing['fight_pause']    = $pause;
+			$timing['fight_duration']         = $duration_minutes;
+			$timing['fight_pause']            = $pause_minutes;
+			$timing['fight_duration_seconds'] = $duration_total_seconds;
+			$timing['fight_pause_seconds']    = $pause_total_seconds;
 			return $timing;
 		}
 
@@ -1281,6 +1516,8 @@ class FightAutoGenerationService {
 		$timing['break_duration']    = $break_duration;
 		$timing['fight_pause']       = $fight_pause;
 		$timing['fight_duration']    = ( $round_duration * $rounds ) + ( $rounds > 1 ? $break_duration * ( $rounds - 1 ) : 0 );
+		$timing['fight_duration_seconds'] = (int) $timing['fight_duration'] * MINUTE_IN_SECONDS;
+		$timing['fight_pause_seconds']    = (int) $timing['fight_pause'] * MINUTE_IN_SECONDS;
 
 		return $timing;
 	}
