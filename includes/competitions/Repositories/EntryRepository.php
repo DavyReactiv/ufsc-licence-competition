@@ -416,6 +416,27 @@ class EntryRepository {
 			$payload[ $column_name ] = '' !== $value ? $value : null;
 		}
 
+		$optional_int_columns = array(
+			'fighter_number'     => array( 'fighter_number', 'competition_number', 'dossard' ),
+			'competition_number' => array( 'competition_number', 'fighter_number', 'dossard' ),
+			'dossard'            => array( 'dossard', 'fighter_number', 'competition_number' ),
+		);
+		foreach ( $optional_int_columns as $column_name => $keys ) {
+			if ( ! Db::has_table_column( $table, $column_name ) ) {
+				continue;
+			}
+			$value = 0;
+			foreach ( $keys as $key ) {
+				if ( isset( $data[ $key ] ) ) {
+					$value = absint( $data[ $key ] );
+					if ( $value > 0 ) {
+						break;
+					}
+				}
+			}
+			$payload[ $column_name ] = $value > 0 ? $value : null;
+		}
+
 		return $payload;
 	}
 
@@ -627,6 +648,11 @@ class EntryRepository {
 				'licence_number',
 				'numero_licence',
 				'numero_licence_asptt',
+				'club_name',
+				'club_nom',
+				'fighter_number',
+				'competition_number',
+				'dossard',
 			);
 			foreach ( $searchable_map as $column ) {
 				if ( in_array( $column, $entry_columns, true ) ) {
