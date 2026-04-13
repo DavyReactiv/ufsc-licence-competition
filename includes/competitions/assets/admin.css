@@ -709,6 +709,14 @@
 	}
 
 	.ufsc-weighins-table input[type="number"],
+	.ufsc-weighins-table input[type="text"],
+	.ufsc-weighins-table select,
+	.ufsc-weighins-table .button {
+		min-height: 40px;
+		font-size: 14px;
+	}
+
+	.ufsc-weighins-table input[type="number"],
 	.ufsc-weighins-table select {
 		min-height: 38px;
 	}

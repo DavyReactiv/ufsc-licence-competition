@@ -351,7 +351,10 @@ class EntryRepository {
 
 		$payload = array();
 		if ( ! $is_update || array_key_exists( 'competition_id', $data ) ) {
-			$payload['competition_id'] = absint( $data['competition_id'] ?? 0 );
+			$candidate_competition_id = absint( $data['competition_id'] ?? 0 );
+			if ( ! $is_update || $candidate_competition_id > 0 ) {
+				$payload['competition_id'] = $candidate_competition_id;
+			}
 		}
 		if ( ! $is_update || array_key_exists( 'category_id', $data ) ) {
 			$payload['category_id'] = isset( $data['category_id'] ) && '' !== $data['category_id'] ? absint( $data['category_id'] ) : null;
@@ -602,6 +605,9 @@ class EntryRepository {
 			$competition_id = absint( $current->competition_id ?? 0 );
 		}
 		if ( $competition_id <= 0 ) {
+			foreach ( $fighter_keys as $key ) {
+				unset( $payload[ $key ] );
+			}
 			return $payload;
 		}
 

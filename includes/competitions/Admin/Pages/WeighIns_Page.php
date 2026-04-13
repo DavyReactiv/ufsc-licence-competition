@@ -384,7 +384,7 @@ class WeighIns_Page {
 		$existing_meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
 		$existing_fighter_number = absint( $existing_meta['fighter_number'] ?? 0 );
 		if ( $existing_fighter_number <= 0 ) {
-			$existing_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			$existing_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
 		}
 
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
@@ -607,7 +607,7 @@ class WeighIns_Page {
 			if ( $entry_id > 0 && $current_entry_id === $entry_id ) {
 				continue;
 			}
-			$number = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			$number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
 			if ( $number <= 0 && isset( $weighins[ $current_entry_id ] ) ) {
 				$meta = $this->extract_meta( (string) ( $weighins[ $current_entry_id ]->notes ?? '' ) );
 				$number = absint( $meta['fighter_number'] ?? 0 );
@@ -654,7 +654,7 @@ class WeighIns_Page {
 			if ( $entry_id <= 0 || $entry_id === $exclude_entry_id ) {
 				continue;
 			}
-			$current = absint( $entry->fighter_number ?? $entry->competition_number ?? 0 );
+			$current = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
 			if ( $current === $fighter_number ) {
 				return $entry_id;
 			}
