@@ -591,7 +591,7 @@ class WeighIns_Page {
 		}
 
 		$used = array();
-		$entries = $this->entries->list_with_details(
+		$entries = $this->entries->list(
 			array(
 				'view' => 'all',
 				'competition_id' => $competition_id,
@@ -641,7 +641,7 @@ class WeighIns_Page {
 			return $duplicate_entry_id;
 		}
 
-		$entries = $this->entries->list_with_details(
+		$entries = $this->entries->list(
 			array(
 				'view' => 'all',
 				'competition_id' => $competition_id,

@@ -846,7 +846,7 @@ class EntryRepository {
 		$external_phone_expr            = "''";
 		$external_comment_expr          = "''";
 		$external_table = Db::external_participants_table();
-		$external_exists = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $external_table ) ) === $external_table );
+		$external_exists = Db::table_exists( $external_table );
 		if ( $external_exists ) {
 			$external_columns = Db::get_table_columns( $external_table );
 			$joins[] = "LEFT JOIN {$external_table} ep ON ep.entry_id = {$entries_alias}.id";
@@ -1289,18 +1289,14 @@ class EntryRepository {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_licences';
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-
-		return ( $exists === $table ) ? $table : '';
+		return Db::table_exists( $table ) ? $table : '';
 	}
 
 	private function get_clubs_table(): string {
 		global $wpdb;
 
 		$table = $wpdb->prefix . 'ufsc_clubs';
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-
-		return ( $exists === $table ) ? $table : '';
+		return Db::table_exists( $table ) ? $table : '';
 	}
 
 	private function get_club_region_column(): string {
