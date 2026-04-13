@@ -378,7 +378,11 @@ class Bouts_AutoGeneration {
 					</ul>
 						<div class="ufsc-fightgen-result__actions">
 							<a class="button button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . Menu::PAGE_BOUTS . '&ufsc_competition_id=' . $competition_id ) ); ?>"><?php esc_html_e( 'Voir les combats', 'ufsc-licence-competition' ); ?></a>
-							<button type="button" class="button button-secondary" onclick="window.print();"><?php esc_html_e( 'Imprimer', 'ufsc-licence-competition' ); ?></button>
+							<?php if ( $has_draft ) : ?>
+								<button type="button" class="button button-secondary" onclick="window.print();"><?php esc_html_e( 'Imprimer', 'ufsc-licence-competition' ); ?></button>
+							<?php else : ?>
+								<button type="button" class="button button-secondary" disabled><?php esc_html_e( 'Imprimer', 'ufsc-licence-competition' ); ?></button>
+							<?php endif; ?>
 							<button type="button" class="button button-secondary" disabled><?php esc_html_e( 'Exporter (bientôt)', 'ufsc-licence-competition' ); ?></button>
 						</div>
 					<?php if ( $draft_warnings ) : ?>
@@ -389,34 +393,38 @@ class Bouts_AutoGeneration {
 							<?php endforeach; ?>
 						</ul>
 					<?php endif; ?>
-					<div class="ufsc-competitions-table-wrap">
-						<table class="widefat striped">
-							<thead>
-								<tr>
-									<th><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Horaire estimé', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Coin rouge', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Coin bleu', 'ufsc-licence-competition' ); ?></th>
-									<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
-								</tr>
-							</thead>
-							<tbody>
-								<?php foreach ( array_slice( (array) ( $draft['fights'] ?? array() ), 0, 80 ) as $fight_row ) : ?>
+					<?php if ( $has_draft ) : ?>
+						<div class="ufsc-competitions-table-wrap">
+							<table class="widefat striped">
+								<thead>
 									<tr>
-										<td><?php echo esc_html( (string) (int) ( $fight_row['fight_no'] ?? 0 ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['ring'] ?? '—' ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['scheduled_at'] ?? '—' ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['category_label'] ?? $fight_row['category_id'] ?? '—' ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['red_label'] ?? $fight_row['red_entry_id'] ?? 'TBD' ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['blue_label'] ?? $fight_row['blue_entry_id'] ?? 'TBD' ) ); ?></td>
-										<td><?php echo esc_html( (string) ( $fight_row['status'] ?? 'scheduled' ) ); ?></td>
+										<th><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Horaire estimé', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Coin rouge', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Coin bleu', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
 									</tr>
-								<?php endforeach; ?>
-							</tbody>
-						</table>
-					</div>
+								</thead>
+								<tbody>
+									<?php foreach ( array_slice( (array) ( $draft['fights'] ?? array() ), 0, 80 ) as $fight_row ) : ?>
+										<tr>
+											<td><?php echo esc_html( (string) (int) ( $fight_row['fight_no'] ?? 0 ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['ring'] ?? '—' ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['scheduled_at'] ?? '—' ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['category_label'] ?? $fight_row['category_id'] ?? '—' ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['red_label'] ?? $fight_row['red_entry_id'] ?? 'TBD' ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['blue_label'] ?? $fight_row['blue_entry_id'] ?? 'TBD' ) ); ?></td>
+											<td><?php echo esc_html( (string) ( $fight_row['status'] ?? 'scheduled' ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
+					<?php else : ?>
+						<p class="description"><?php esc_html_e( 'Aucun combat dans le brouillon courant. Vérifiez les éligibilités puis relancez la génération.', 'ufsc-licence-competition' ); ?></p>
+					<?php endif; ?>
 					</div>
 				<?php endif; ?>
 

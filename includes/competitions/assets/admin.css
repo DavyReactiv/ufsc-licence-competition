@@ -720,6 +720,17 @@
 	.ufsc-weighins-table select {
 		min-height: 38px;
 	}
+
+	.ufsc-weighins-table td {
+		white-space: normal;
+	}
+
+	.ufsc-weighins-table td input[type="number"],
+	.ufsc-weighins-table td select,
+	.ufsc-weighins-table td .button {
+		width: 100%;
+		max-width: 100%;
+	}
 }
 
 .ufsc-doc-grid {
