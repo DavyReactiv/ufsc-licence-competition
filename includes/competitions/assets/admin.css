@@ -698,6 +698,22 @@
 	max-width: 210px;
 }
 
+.ufsc-competitions-table-wrap {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 782px) {
+	.ufsc-weighins-table {
+		min-width: 980px;
+	}
+
+	.ufsc-weighins-table input[type="number"],
+	.ufsc-weighins-table select {
+		min-height: 38px;
+	}
+}
+
 .ufsc-doc-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
