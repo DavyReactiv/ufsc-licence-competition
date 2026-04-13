@@ -133,10 +133,7 @@ class FightAutoGenerationService {
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
 		if ( empty( $settings['surface_details'] ) ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC FightAutoGenerationService settings_validation_failed: empty surface_details' );
-			}
-			return false;
+			$settings['surface_details'] = self::sanitize_surface_details( array(), $settings['surface_count'] );
 		}
 		$option_key = self::SETTINGS_PREFIX . $competition_id;
 		$existing   = get_option( $option_key, null );
