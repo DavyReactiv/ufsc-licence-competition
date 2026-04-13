@@ -714,6 +714,7 @@ class EntryRepository {
 		$joins = array();
 		$where = array( '1=1' );
 		$entry_search_exprs = array();
+		$search_likes       = array();
 		$entry_columns      = Db::get_table_columns( $table );
 		$entry_birth_date_expr = $this->build_entry_date_expression(
 			$entries_alias . '.',
@@ -734,6 +735,31 @@ class EntryRepository {
 			$entries_alias . '.',
 			$entry_columns,
 			array( 'submitted_at', 'submitted', 'date_submitted', 'created_at', 'imported_at' )
+		);
+		$entry_weight_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'weight_kg', 'weight', 'poids' )
+		);
+		$entry_weight_class_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' )
+		);
+		$entry_category_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'category_name', 'category', 'category_label' )
+		);
+		$entry_discipline_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'discipline' )
+		);
+		$entry_level_expr = $this->build_entry_text_expression(
+			$entries_alias . '.',
+			$entry_columns,
+			array( 'level', 'classe', 'class', 'niveau' )
 		);
 
 		$view            = $filters['view'] ?? 'all';
@@ -783,7 +809,7 @@ class EntryRepository {
 		}
 
 		if ( ! empty( $filters['search'] ) ) {
-			$like           = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
+			$search_likes    = $this->build_search_like_values( (string) $filters['search'] );
 			$searchable_map = array(
 				'first_name',
 				'prenom',
@@ -797,13 +823,32 @@ class EntryRepository {
 				'numero_licence_asptt',
 				'club_name',
 				'club_nom',
+				'weight_kg',
+				'weight_class',
+				'category',
+				'category_name',
+				'discipline',
+				'level',
+				'birth_date',
+				'birth_year',
+				'participant_type',
 				'fighter_number',
 				'competition_number',
 				'dossard',
 			);
 			foreach ( $searchable_map as $column ) {
 				if ( in_array( $column, $entry_columns, true ) ) {
-					$entry_search_exprs[] = $wpdb->prepare( "{$entries_alias}.{$column} LIKE %s", $like );
+					foreach ( $search_likes as $like ) {
+						$entry_search_exprs[] = $wpdb->prepare( "{$entries_alias}.{$column} LIKE %s", $like );
+					}
+				}
+			}
+			foreach ( array( $entry_weight_expr, $entry_weight_class_expr, $entry_category_expr, $entry_discipline_expr, $entry_level_expr, $entry_birth_date_expr, $entry_birth_year_expr ) as $expression ) {
+				if ( "''" === $expression ) {
+					continue;
+				}
+				foreach ( $search_likes as $like ) {
+					$entry_search_exprs[] = $wpdb->prepare( "{$expression} LIKE %s", $like );
 				}
 			}
 		}
@@ -825,6 +870,7 @@ class EntryRepository {
 			}
 		}
 
+		$clubs_table = $this->get_clubs_table();
 		$licences_table = $this->get_licences_table();
 		$licence_columns = $licences_table ? Db::get_table_columns( $licences_table ) : array();
 		$licensee_expr = $this->get_licensee_id_expression( $entries_alias );
@@ -951,38 +997,46 @@ class EntryRepository {
 				$name_expr = $this->build_coalesce_expression( 'l.', $name_columns, '' );
 				$search_exprs = array();
 				if ( ! empty( $filters['search'] ) ) {
-					$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
 					if ( ! empty( $entry_search_exprs ) ) {
 						$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
 					}
-					if ( "''" !== $name_expr ) {
-						$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
-					}
-					if ( in_array( 'prenom', $licence_columns, true ) ) {
-						$search_exprs[] = $wpdb->prepare( 'l.prenom LIKE %s', $like );
-					}
-					$license_number_expr = $this->build_license_number_expression( $licence_columns );
-					if ( "''" !== $license_number_expr ) {
-						$search_exprs[] = $wpdb->prepare( "{$license_number_expr} LIKE %s", $like );
+					foreach ( $search_likes as $like ) {
+						if ( "''" !== $name_expr ) {
+							$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
+						}
+						if ( in_array( 'prenom', $licence_columns, true ) ) {
+							$search_exprs[] = $wpdb->prepare( 'l.prenom LIKE %s', $like );
+						}
+						$license_number_expr = $this->build_license_number_expression( $licence_columns );
+						if ( "''" !== $license_number_expr ) {
+							$search_exprs[] = $wpdb->prepare( "{$license_number_expr} LIKE %s", $like );
+						}
+						$search_exprs[] = $wpdb->prepare( "{$entry_fighter_expr} LIKE %s", $like );
+						$search_exprs[] = $wpdb->prepare( "{$external_participant_type_expr} LIKE %s", $like );
+						if ( $clubs_table ) {
+							$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+						}
 					}
 				}
 
 				if ( ! empty( $filters['search'] ) ) {
-					$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+					foreach ( $search_likes as $like ) {
+						$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+					}
 					$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 				}
 			}
 		} elseif ( ! empty( $filters['search'] ) ) {
-			$like = '%' . $wpdb->esc_like( $filters['search'] ) . '%';
 			$search_exprs = $entry_search_exprs;
-			$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			foreach ( $search_likes as $like ) {
+				$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+			}
 			$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 		}
 
-		$clubs_table = $this->get_clubs_table();
 		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$region_column = $this->get_club_region_column();
-		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region ) );
+		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region || ! empty( $filters['search'] ) ) );
 
 		if ( $needs_club_join ) {
 			$joins[] = "LEFT JOIN {$clubs_table} c ON c.id = {$club_join_expr}";
@@ -1012,7 +1066,6 @@ class EntryRepository {
 				$where[] = '1=0';
 			}
 		}
-
 		$where_sql = $where ? 'WHERE ' . implode( ' AND ', $where ) : '';
 		$join_sql = $joins ? ' ' . implode( ' ', $joins ) : '';
 
@@ -1078,6 +1131,28 @@ class EntryRepository {
 		$parts[] = "'" . $fallback . "'";
 
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function build_search_like_values( string $raw_search ): array {
+		global $wpdb;
+
+		$raw_search = trim( sanitize_text_field( $raw_search ) );
+		if ( '' === $raw_search ) {
+			return array();
+		}
+
+		$variants = array( $raw_search );
+		$without_hash = ltrim( $raw_search, "# \t\n\r\0\x0B" );
+		if ( '' !== $without_hash && $without_hash !== $raw_search ) {
+			$variants[] = $without_hash;
+		}
+
+		$likes = array();
+		foreach ( array_unique( $variants ) as $variant ) {
+			$likes[] = '%' . $wpdb->esc_like( $variant ) . '%';
+		}
+
+		return $likes;
 	}
 
 	private function build_license_number_expression( array $columns ): string {
