@@ -459,6 +459,7 @@ class WeighIns_Page {
 			if ( $fighter_number > 0 ) {
 				$entry_update['fighter_number'] = $fighter_number;
 				$entry_update['competition_number'] = $fighter_number;
+				$entry_update['dossard'] = $fighter_number;
 			}
 			if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
 				$entry_update['status'] = 'approved';
