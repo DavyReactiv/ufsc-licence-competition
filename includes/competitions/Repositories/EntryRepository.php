@@ -1045,14 +1045,21 @@ class EntryRepository {
 				}
 				$name_expr = $this->build_coalesce_expression( 'l.', $name_columns, '' );
 				$search_exprs = array();
-				if ( ! empty( $filters['search'] ) ) {
-					if ( ! empty( $entry_search_exprs ) ) {
-						$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
-					}
-					foreach ( $search_likes as $like ) {
-						if ( "''" !== $name_expr ) {
-							$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
+					if ( ! empty( $filters['search'] ) ) {
+						if ( ! empty( $entry_search_exprs ) ) {
+							$search_exprs = array_merge( $search_exprs, $entry_search_exprs );
 						}
+						$external_search_exprs = array(
+							$external_first_name_expr,
+							$external_last_name_expr,
+							$external_club_name_expr,
+							$external_discipline_expr,
+							$external_level_expr,
+						);
+						foreach ( $search_likes as $like ) {
+							if ( "''" !== $name_expr ) {
+								$search_exprs[] = $wpdb->prepare( "{$name_expr} LIKE %s", $like );
+							}
 						if ( in_array( 'prenom', $licence_columns, true ) ) {
 							$search_exprs[] = $wpdb->prepare( 'l.prenom LIKE %s', $like );
 						}
@@ -1060,13 +1067,18 @@ class EntryRepository {
 						if ( "''" !== $license_number_expr ) {
 							$search_exprs[] = $wpdb->prepare( "{$license_number_expr} LIKE %s", $like );
 						}
-						$search_exprs[] = $wpdb->prepare( "{$entry_fighter_expr} LIKE %s", $like );
-						$search_exprs[] = $wpdb->prepare( "{$external_participant_type_expr} LIKE %s", $like );
-						if ( $clubs_table ) {
-							$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+							$search_exprs[] = $wpdb->prepare( "{$entry_fighter_expr} LIKE %s", $like );
+							$search_exprs[] = $wpdb->prepare( "{$external_participant_type_expr} LIKE %s", $like );
+							foreach ( $external_search_exprs as $external_expr ) {
+								if ( "''" !== $external_expr ) {
+									$search_exprs[] = $wpdb->prepare( "{$external_expr} LIKE %s", $like );
+								}
+							}
+							if ( $clubs_table ) {
+								$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+							}
 						}
 					}
-				}
 
 				if ( ! empty( $filters['search'] ) ) {
 					foreach ( $search_likes as $like ) {
@@ -1075,18 +1087,30 @@ class EntryRepository {
 					$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 				}
 			}
-		} elseif ( ! empty( $filters['search'] ) ) {
-			$search_exprs = $entry_search_exprs;
-			if ( $clubs_table ) {
-				foreach ( $search_likes as $like ) {
-					$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+			} elseif ( ! empty( $filters['search'] ) ) {
+				$search_exprs = $entry_search_exprs;
+				$external_search_exprs = array(
+					$external_first_name_expr,
+					$external_last_name_expr,
+					$external_club_name_expr,
+					$external_discipline_expr,
+					$external_level_expr,
+				);
+				if ( $clubs_table ) {
+					foreach ( $search_likes as $like ) {
+						$search_exprs[] = $wpdb->prepare( 'c.nom LIKE %s', $like );
+					}
 				}
+				foreach ( $search_likes as $like ) {
+					foreach ( $external_search_exprs as $external_expr ) {
+						if ( "''" !== $external_expr ) {
+							$search_exprs[] = $wpdb->prepare( "{$external_expr} LIKE %s", $like );
+						}
+					}
+					$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
+				}
+				$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 			}
-			foreach ( $search_likes as $like ) {
-				$search_exprs[] = $wpdb->prepare( "{$licensee_expr} LIKE %s", $like );
-			}
-			$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
-		}
 
 		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
 		$region_column = $this->get_club_region_column();
