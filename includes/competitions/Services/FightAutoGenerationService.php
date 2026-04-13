@@ -48,6 +48,7 @@ class FightAutoGenerationService {
 		$settings['mode']           = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock']      = ! empty( $settings['auto_lock'] ) ? 1 : 0;
 		$settings['allow_unweighed'] = ! empty( $settings['allow_unweighed'] ) ? 1 : 0;
+		$settings['settings_saved_at'] = sanitize_text_field( (string) ( $settings['settings_saved_at'] ?? '' ) );
 
 		if ( ! $has_stored_settings ) {
 			$competition_repo = new CompetitionRepository();
@@ -193,6 +194,7 @@ class FightAutoGenerationService {
 				'errors'  => array_values( array_unique( $errors ) ),
 			);
 		}
+		$settings['settings_saved_at'] = current_time( 'mysql' );
 		$option_key = self::SETTINGS_PREFIX . $competition_id;
 		$existing   = get_option( $option_key, null );
 		$updated    = update_option( $option_key, $settings, false );
@@ -282,6 +284,75 @@ class FightAutoGenerationService {
 			'excluded_unweighed'     => (int) ( $selection['excluded_unweighed'] ?? 0 ),
 			'can_override_unweighed' => ! empty( $selection['enforce_weighin'] ) && (int) ( $selection['excluded_unweighed'] ?? 0 ) > 0,
 		);
+	}
+
+	public static function get_generation_preview( int $competition_id, array $settings ): array {
+		$preview = array(
+			'estimated_fights'            => 0,
+			'estimated_categories'        => 0,
+			'surface_count'               => max( 1, absint( $settings['surface_count'] ?? 1 ) ),
+			'estimated_total_seconds'     => 0,
+			'estimated_per_surface'       => array(),
+			'eligible_entries'            => 0,
+			'excluded_unweighed'          => 0,
+			'duplicate_fighter_numbers'   => 0,
+			'can_generate'                => false,
+			'precheck'                    => array(),
+		);
+
+		if ( ! $competition_id ) {
+			return $preview;
+		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition      = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			return $preview;
+		}
+
+		$entry_repo = new EntryRepository();
+		$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
+		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
+		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
+		$groups     = self::group_entries_by_category( $eligible );
+
+		$estimated_fights = 0;
+		foreach ( $groups as $group_entries ) {
+			$estimated_fights += self::estimate_fights_for_group_size( count( $group_entries ) );
+		}
+
+		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
+		$fight_seconds = self::get_global_fight_seconds( $settings );
+		$pause_seconds = self::get_global_pause_seconds( $settings );
+		$step_seconds  = $fight_seconds + $pause_seconds;
+
+		$per_surface = array();
+		for ( $i = 0; $i < $surface_count; $i++ ) {
+			$bucket = (int) floor( $estimated_fights / $surface_count ) + ( $i < ( $estimated_fights % $surface_count ) ? 1 : 0 );
+			$per_surface[] = $bucket;
+		}
+
+		$duplicates = self::count_duplicate_fighter_numbers( $entries );
+		$timing_ok  = $fight_seconds > 0;
+		$surfaces_ok = $surface_count > 0 && count( self::normalize_surface_details( $settings ) ) >= $surface_count;
+		$eligible_ok = count( $eligible ) >= 2;
+
+		$preview['estimated_fights']          = $estimated_fights;
+		$preview['estimated_categories']      = count( $groups );
+		$preview['estimated_total_seconds']   = $estimated_fights * $step_seconds;
+		$preview['estimated_per_surface']     = $per_surface;
+		$preview['eligible_entries']          = count( $eligible );
+		$preview['excluded_unweighed']        = (int) ( $selection['excluded_unweighed'] ?? 0 );
+		$preview['duplicate_fighter_numbers'] = $duplicates;
+		$preview['can_generate']              = $surfaces_ok && $timing_ok && $eligible_ok && empty( $settings['auto_lock'] ) && 'manual' !== ( $settings['mode'] ?? 'auto' );
+		$preview['precheck']                  = array(
+			'surfaces_ok' => $surfaces_ok,
+			'timing_ok'   => $timing_ok,
+			'eligible_ok' => $eligible_ok,
+			'duplicates_ok' => 0 === $duplicates,
+		);
+
+		return $preview;
 	}
 
 	public static function generate_draft( int $competition_id, array $settings ): array {
@@ -806,7 +877,62 @@ class FightAutoGenerationService {
 			'mode'            => 'auto',
 			'auto_lock'       => 0,
 			'allow_unweighed' => 0,
+			'settings_saved_at' => '',
 		);
+	}
+
+	private static function estimate_fights_for_group_size( int $count ): int {
+		if ( $count < 2 ) {
+			return 0;
+		}
+		if ( 2 === $count ) {
+			return 1;
+		}
+		if ( 3 === $count ) {
+			return 3;
+		}
+		if ( 4 === $count ) {
+			return 3;
+		}
+
+		$bracket_size = 1;
+		while ( $bracket_size < $count ) {
+			$bracket_size *= 2;
+		}
+
+		return $bracket_size - 1;
+	}
+
+	private static function count_duplicate_fighter_numbers( array $entries ): int {
+		$seen       = array();
+		$duplicates = 0;
+
+		foreach ( $entries as $entry ) {
+			$number = isset( $entry->fighter_number ) ? absint( $entry->fighter_number ) : 0;
+			if ( $number <= 0 ) {
+				continue;
+			}
+			if ( isset( $seen[ $number ] ) ) {
+				$duplicates++;
+				continue;
+			}
+			$seen[ $number ] = true;
+		}
+
+		return $duplicates;
+	}
+
+	private static function get_global_fight_seconds( array $settings ): int {
+		$minutes = max( 0, absint( $settings['fight_duration'] ?? 2 ) );
+		$seconds = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
+		$total   = ( $minutes * MINUTE_IN_SECONDS ) + $seconds;
+		return max( 1, $total );
+	}
+
+	private static function get_global_pause_seconds( array $settings ): int {
+		$minutes = max( 0, absint( $settings['break_duration'] ?? 1 ) );
+		$seconds = min( 59, max( 0, absint( $settings['break_duration_seconds'] ?? 0 ) ) );
+		return ( $minutes * MINUTE_IN_SECONDS ) + $seconds;
 	}
 
 	private static function extract_weighin_notes_meta( $row ): array {
