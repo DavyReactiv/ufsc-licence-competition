@@ -61,6 +61,7 @@ class WeighIns_Page {
 
 		$status_filter   = isset( $_GET['weighin_status'] ) ? sanitize_key( (string) wp_unslash( $_GET['weighin_status'] ) ) : 'all';
 		$category_filter = isset( $_GET['category_filter'] ) ? sanitize_text_field( (string) wp_unslash( $_GET['category_filter'] ) ) : '';
+		$search_filter   = isset( $_GET['s'] ) ? sanitize_text_field( (string) wp_unslash( $_GET['s'] ) ) : '';
 
 		$entries = array();
 		$stats   = array(
@@ -95,6 +96,9 @@ class WeighIns_Page {
 				'competition_id' => $competition_id,
 				'status' => $entry_statuses,
 			);
+			if ( '' !== $search_filter ) {
+				$entry_filters['search'] = $search_filter;
+			}
 			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 			}
@@ -201,6 +205,12 @@ class WeighIns_Page {
 					<?php endforeach; ?>
 				</select>
 				<?php if ( $competition_id > 0 ) : ?>
+					<input
+						type="search"
+						name="s"
+						value="<?php echo esc_attr( $search_filter ); ?>"
+						placeholder="<?php esc_attr_e( 'Nom, prénom, club, licence, n° combattant…', 'ufsc-licence-competition' ); ?>"
+					/>
 					<select name="category_filter">
 						<option value=""><?php esc_html_e( 'Toutes les catégories', 'ufsc-licence-competition' ); ?></option>
 						<?php foreach ( $this->get_distinct_categories( $entries ) as $category_label ) : ?>
@@ -214,6 +224,9 @@ class WeighIns_Page {
 					</select>
 				<?php endif; ?>
 				<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+				<?php if ( '' !== $search_filter ) : ?>
+					<a class="button button-link" href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_WEIGHINS, 'competition_id' => $competition_id ) ) ); ?>"><?php esc_html_e( 'Réinitialiser la recherche', 'ufsc-licence-competition' ); ?></a>
+				<?php endif; ?>
 			</form>
 
 			<?php if ( $competition_id > 0 ) : ?>
@@ -388,6 +401,7 @@ class WeighIns_Page {
 		}
 
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
+		$fighter_number_reassigned = false;
 		if ( $fighter_number > 0 ) {
 			$duplicate_entry_id = $this->find_duplicate_fighter_number_entry( $competition_id, $fighter_number, $entry_id );
 			if ( $duplicate_entry_id > 0 ) {
@@ -395,6 +409,7 @@ class WeighIns_Page {
 					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'duplicate_entry_id' => $duplicate_entry_id ) ) );
 				}
 				$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
+				$fighter_number_reassigned = true;
 			}
 		}
 
@@ -444,6 +459,7 @@ class WeighIns_Page {
 			if ( $fighter_number > 0 ) {
 				$entry_update['fighter_number'] = $fighter_number;
 				$entry_update['competition_number'] = $fighter_number;
+				$entry_update['dossard'] = $fighter_number;
 			}
 			if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
 				$entry_update['status'] = 'approved';
@@ -453,9 +469,20 @@ class WeighIns_Page {
 			}
 		}
 
-		return false === $result
-			? array( 'type' => 'error', 'message' => __( 'Enregistrement de pesée impossible.', 'ufsc-licence-competition' ) )
-			: array( 'type' => 'success', 'message' => __( 'Pesée mise à jour.', 'ufsc-licence-competition' ) );
+		if ( false === $result ) {
+			return array( 'type' => 'error', 'message' => __( 'Enregistrement de pesée impossible.', 'ufsc-licence-competition' ) );
+		}
+
+		$message = __( 'Pesée mise à jour.', 'ufsc-licence-competition' );
+		if ( $fighter_number_reassigned ) {
+			$message = sprintf(
+				/* translators: %d: fighter number reassigned automatically. */
+				__( 'Pesée mise à jour. Numéro déjà utilisé : réattribution automatique au n°%d.', 'ufsc-licence-competition' ),
+				(int) $fighter_number
+			);
+		}
+
+		return array( 'type' => 'success', 'message' => $message );
 	}
 
 	private function extract_meta( string $notes ): array {
