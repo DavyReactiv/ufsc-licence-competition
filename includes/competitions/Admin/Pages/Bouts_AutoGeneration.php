@@ -38,7 +38,7 @@ class Bouts_AutoGeneration {
 			'swap_ok' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
 			'reorder_ok' => __( 'Combats réordonnés.', 'ufsc-licence-competition' ),
 			'action_error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
-			'invalid_settings' => __( 'Paramètres invalides : vérifiez le type des surfaces et les valeurs numériques.', 'ufsc-licence-competition' ),
+			'invalid_settings' => __( 'Paramètres invalides : vérifiez les surfaces et les champs timing (minutes/secondes).', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -140,12 +140,43 @@ class Bouts_AutoGeneration {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_duration"><?php esc_html_e( 'Durée (minutes)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="fight_duration" type="number" min="1" max="30" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>">
+						<td><input name="fight_duration" type="number" min="0" max="30" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>">
 									<p class="description"><?php esc_html_e( 'Utilisé pour l’horaire estimé lorsque aucun profil timing n’est appliqué.', 'ufsc-licence-competition' ); ?></p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_fight_duration_seconds"><?php esc_html_e( 'Durée (secondes)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="fight_duration_seconds" type="number" min="0" max="59" id="ufsc_fight_duration_seconds" value="<?php echo esc_attr( $settings['fight_duration_seconds'] ?? 0 ); ?>">
+									<p class="description"><?php esc_html_e( 'Exemple: 1 minute 30 = 1 min + 30 sec.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_break_duration"><?php esc_html_e( 'Pause (minutes)', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="break_duration" type="number" min="0" max="30" id="ufsc_break_duration" value="<?php echo esc_attr( $settings['break_duration'] ); ?>"></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_break_duration_seconds"><?php esc_html_e( 'Pause (secondes)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="break_duration_seconds" type="number" min="0" max="59" id="ufsc_break_duration_seconds" value="<?php echo esc_attr( $settings['break_duration_seconds'] ?? 0 ); ?>"></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Timing global effectif', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php
+							$fight_minutes = (int) ( $settings['fight_duration'] ?? 0 );
+							$fight_seconds = (int) ( $settings['fight_duration_seconds'] ?? 0 );
+							$pause_minutes = (int) ( $settings['break_duration'] ?? 0 );
+							$pause_seconds = (int) ( $settings['break_duration_seconds'] ?? 0 );
+							printf(
+								'<strong>%s</strong>',
+								esc_html(
+									sprintf(
+										/* translators: 1: fight duration mm:ss, 2: break duration mm:ss */
+										__( 'Combat: %1$s — Pause inter-combat: %2$s', 'ufsc-licence-competition' ),
+										sprintf( '%02d:%02d', $fight_minutes, $fight_seconds ),
+										sprintf( '%02d:%02d', $pause_minutes, $pause_seconds )
+									)
+								)
+							);
+							?>
+						</td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_mode"><?php esc_html_e( 'Timing combats', 'ufsc-licence-competition' ); ?></label></th>
@@ -367,9 +398,9 @@ class Bouts_AutoGeneration {
 	public static function handle_save_settings(): void {
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
-		$saved = FightAutoGenerationService::save_settings( $competition_id, wp_unslash( $_POST ) );
-		if ( ! $saved ) {
-			self::redirect( $competition_id, 'invalid_settings' );
+		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
+		if ( empty( $result['ok'] ) ) {
+			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
 		}
 		self::redirect( $competition_id, 'settings_saved' );
 	}
