@@ -376,15 +376,6 @@ class WeighIns_Page {
 
 		$fighter_number = isset( $_POST['fighter_number'] ) ? absint( $_POST['fighter_number'] ) : 0;
 		$status_allows_fighter_number = $this->status_allows_auto_fighter_number( $status );
-		if ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 && $fighter_number > 0 ) {
-			if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( 'UFSC WeighIns_Page entry_excluded fighter_number_status_mismatch ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => $status, 'fighter_number' => $fighter_number ) ) );
-			}
-			return array(
-				'type' => 'error',
-				'message' => __( 'Le numéro combattant ne peut être attribué qu’avec une pesée valide.', 'ufsc-licence-competition' ),
-			);
-		}
 		if ( $fighter_number <= 0 && $existing_fighter_number > 0 ) {
 			$fighter_number = $existing_fighter_number;
 		} elseif ( $fighter_number <= 0 && $status_allows_fighter_number ) {
@@ -393,7 +384,7 @@ class WeighIns_Page {
 				error_log( 'UFSC WeighIns_Page fighter_number_assigned ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'source' => 'auto_on_validation' ) ) );
 			}
 		} elseif ( ! $status_allows_fighter_number && $existing_fighter_number <= 0 ) {
-			$fighter_number = 0;
+			$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
 		}
 
 		$reclass_category_id = isset( $_POST['reclass_category_id'] ) ? absint( $_POST['reclass_category_id'] ) : 0;
@@ -403,15 +394,7 @@ class WeighIns_Page {
 				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 					error_log( 'UFSC WeighIns_Page fighter_number_conflict ' . wp_json_encode( array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'fighter_number' => $fighter_number, 'duplicate_entry_id' => $duplicate_entry_id ) ) );
 				}
-				return array(
-					'type' => 'error',
-					'message' => sprintf(
-						/* translators: 1: fighter number, 2: entry id already using it. */
-						__( 'Numéro combattant #%1$d déjà utilisé dans cette compétition (inscription #%2$d).', 'ufsc-licence-competition' ),
-						$fighter_number,
-						$duplicate_entry_id
-					),
-				);
+				$fighter_number = $this->next_available_fighter_number( $competition_id, $entry_id );
 			}
 		}
 
@@ -435,6 +418,9 @@ class WeighIns_Page {
 		}
 
 		global $wpdb;
+		if ( ! $this->weighins->has_table() ) {
+			return array( 'type' => 'error', 'message' => __( 'Table des pesées introuvable.', 'ufsc-licence-competition' ) );
+		}
 		$payload = array(
 			'competition_id' => $competition_id,
 			'entry_id' => $entry_id,
@@ -450,6 +436,22 @@ class WeighIns_Page {
 		}
 
 		$result = $wpdb->replace( Db::weighins_table(), $payload );
+		if ( false !== $result ) {
+			$entry_update = array();
+			if ( null !== $weight ) {
+				$entry_update['weight_kg'] = $weight;
+			}
+			if ( $fighter_number > 0 ) {
+				$entry_update['fighter_number'] = $fighter_number;
+				$entry_update['competition_number'] = $fighter_number;
+			}
+			if ( in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true ) ) {
+				$entry_update['status'] = 'approved';
+			}
+			if ( ! empty( $entry_update ) ) {
+				$this->entries->update( $entry_id, $entry_update );
+			}
+		}
 
 		return false === $result
 			? array( 'type' => 'error', 'message' => __( 'Enregistrement de pesée impossible.', 'ufsc-licence-competition' ) )
