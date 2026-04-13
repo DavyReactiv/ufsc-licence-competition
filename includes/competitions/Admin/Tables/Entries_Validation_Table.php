@@ -138,6 +138,7 @@ class Entries_Validation_Table extends \WP_List_Table {
 
 	public function get_columns() {
 		$columns = array(
+			'cb' => '<input type="checkbox" />',
 			'licensee' => __( 'Licencié', 'ufsc-licence-competition' ),
 			'participant_type' => __( 'Type participant', 'ufsc-licence-competition' ),
 			'fighter_number' => __( 'N° combattant', 'ufsc-licence-competition' ),
@@ -172,6 +173,26 @@ class Entries_Validation_Table extends \WP_List_Table {
 		);
 
 		return $columns;
+	}
+
+	protected function get_bulk_actions() {
+		return array(
+			'bulk_validate' => __( 'Valider', 'ufsc-licence-competition' ),
+			'bulk_reject'   => __( 'Rejeter', 'ufsc-licence-competition' ),
+			'bulk_reopen'   => __( 'Ré-ouvrir', 'ufsc-licence-competition' ),
+		);
+	}
+
+	protected function column_cb( $item ) {
+		$entry_id = absint( $item->id ?? 0 );
+		if ( $entry_id <= 0 ) {
+			return '';
+		}
+
+		return sprintf(
+			'<input type="checkbox" name="ids[]" value="%d" />',
+			$entry_id
+		);
 	}
 
 	public function no_items() {

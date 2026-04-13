@@ -25,6 +25,7 @@ class Entries_Validation_Page {
 		}
 
 		$table = new Entries_Validation_Table();
+		$this->maybe_handle_bulk_actions( $table );
 		$table->prepare_items();
 		$table_output = $this->capture_list_table_output( $table );
 		$items_count = is_countable( $table->items ) ? count( $table->items ) : 0;
@@ -107,7 +108,7 @@ class Entries_Validation_Page {
 				<?php endif; ?>
 				<?php $table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-entry-validation' ); ?>
 			</form>
-			<form method="get">
+			<form method="post">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Entries_Validation_Menu::PAGE_SLUG ); ?>" />
 				<?php if ( $current_view ) : ?>
 					<input type="hidden" name="ufsc_view" value="<?php echo esc_attr( $current_view ); ?>" />
@@ -139,6 +140,7 @@ class Entries_Validation_Page {
 				<?php if ( $paged ) : ?>
 					<input type="hidden" name="paged" value="<?php echo esc_attr( $paged ); ?>" />
 				<?php endif; ?>
+				<?php wp_nonce_field( 'bulk-' . $table->_args['plural'] ); ?>
 				<?php
 				if ( '' !== trim( $table_output ) ) {
 					echo $table_output;
@@ -246,5 +248,42 @@ class Entries_Validation_Page {
 			esc_attr( $class ),
 			esc_html( $message )
 		);
+	}
+
+	private function maybe_handle_bulk_actions( Entries_Validation_Table $table ): void {
+		$action = $table->current_action();
+		if ( ! $action ) {
+			return;
+		}
+
+		check_admin_referer( 'bulk-' . $table->_args['plural'] );
+		$ids = isset( $_POST['ids'] ) ? array_filter( array_map( 'absint', (array) wp_unslash( $_POST['ids'] ) ) ) : array();
+		if ( empty( $ids ) ) {
+			return;
+		}
+
+		$repo = new EntryRepository();
+		foreach ( $ids as $entry_id ) {
+			if ( method_exists( $repo, 'assert_entry_in_scope' ) ) {
+				$repo->assert_entry_in_scope( (int) $entry_id );
+			}
+			if ( 'bulk_validate' === $action ) {
+				$repo->update( $entry_id, array( 'status' => 'approved' ) );
+			} elseif ( 'bulk_reject' === $action ) {
+				$repo->update( $entry_id, array( 'status' => 'rejected' ) );
+			} elseif ( 'bulk_reopen' === $action ) {
+				$repo->update( $entry_id, array( 'status' => 'submitted' ) );
+			}
+		}
+
+		$url = add_query_arg(
+			array(
+				'page' => Entries_Validation_Menu::PAGE_SLUG,
+				'ufsc_notice' => 'entry_validated',
+			),
+			admin_url( 'admin.php' )
+		);
+		wp_safe_redirect( $url );
+		exit;
 	}
 }
