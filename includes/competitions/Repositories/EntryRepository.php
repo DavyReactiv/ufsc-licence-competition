@@ -114,6 +114,7 @@ class EntryRepository {
 		global $wpdb;
 
 		$prepared = $this->sanitize( $data );
+		$prepared = $this->enforce_unique_fighter_number_payload( $prepared, 0 );
 		$prepared['created_at'] = current_time( 'mysql' );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['created_by'] = get_current_user_id() ?: null;
@@ -136,6 +137,7 @@ class EntryRepository {
 		global $wpdb;
 
 		$prepared = $this->sanitize( $data );
+		$prepared = $this->enforce_unique_fighter_number_payload( $prepared, absint( $id ) );
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['updated_by'] = get_current_user_id() ?: null;
 
@@ -526,6 +528,118 @@ class EntryRepository {
 		}
 
 		return $formats;
+	}
+
+	private function enforce_unique_fighter_number_payload( array $payload, int $entry_id = 0 ): array {
+		$table = Db::entries_table();
+		$has_fighter_number = Db::has_table_column( $table, 'fighter_number' );
+		$has_competition_number = Db::has_table_column( $table, 'competition_number' );
+		$has_dossard = Db::has_table_column( $table, 'dossard' );
+		$fighter_keys = array();
+		if ( $has_fighter_number ) {
+			$fighter_keys[] = 'fighter_number';
+		}
+		if ( $has_competition_number ) {
+			$fighter_keys[] = 'competition_number';
+		}
+		if ( $has_dossard ) {
+			$fighter_keys[] = 'dossard';
+		}
+
+		if ( empty( $fighter_keys ) ) {
+			return $payload;
+		}
+
+		$requested_number = 0;
+		foreach ( $fighter_keys as $key ) {
+			if ( isset( $payload[ $key ] ) ) {
+				$requested_number = absint( $payload[ $key ] );
+				if ( $requested_number > 0 ) {
+					break;
+				}
+			}
+		}
+		if ( $requested_number <= 0 ) {
+			return $payload;
+		}
+
+		$competition_id = isset( $payload['competition_id'] ) ? absint( $payload['competition_id'] ) : 0;
+		if ( $competition_id <= 0 && $entry_id > 0 ) {
+			$current = $this->get_with_details( $entry_id, true );
+			$competition_id = absint( $current->competition_id ?? 0 );
+		}
+		if ( $competition_id <= 0 ) {
+			return $payload;
+		}
+
+		$duplicate_entry_id = $this->find_entry_id_by_fighter_number( $competition_id, $requested_number, $entry_id );
+		$final_number       = $requested_number;
+		if ( $duplicate_entry_id > 0 ) {
+			$final_number = $this->next_available_fighter_number( $competition_id, $entry_id );
+		}
+
+		if ( $final_number <= 0 ) {
+			return $payload;
+		}
+
+		foreach ( $fighter_keys as $key ) {
+			$payload[ $key ] = $final_number;
+		}
+
+		return $payload;
+	}
+
+	private function find_entry_id_by_fighter_number( int $competition_id, int $fighter_number, int $exclude_entry_id = 0 ): int {
+		$entries = $this->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+
+		foreach ( $entries as $entry ) {
+			$current_entry_id = absint( $entry->id ?? 0 );
+			if ( $current_entry_id <= 0 || $current_entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$current_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
+			if ( $current_fighter_number === $fighter_number ) {
+				return $current_entry_id;
+			}
+		}
+
+		return 0;
+	}
+
+	private function next_available_fighter_number( int $competition_id, int $exclude_entry_id = 0 ): int {
+		$used    = array();
+		$entries = $this->list_with_details(
+			array(
+				'view' => 'all',
+				'competition_id' => $competition_id,
+			),
+			2000,
+			0
+		);
+		foreach ( $entries as $entry ) {
+			$current_entry_id = absint( $entry->id ?? 0 );
+			if ( $current_entry_id <= 0 || $current_entry_id === $exclude_entry_id ) {
+				continue;
+			}
+			$current_fighter_number = absint( $entry->fighter_number ?? $entry->competition_number ?? $entry->dossard ?? 0 );
+			if ( $current_fighter_number > 0 ) {
+				$used[ $current_fighter_number ] = true;
+			}
+		}
+
+		$next = 1;
+		while ( isset( $used[ $next ] ) ) {
+			$next++;
+		}
+
+		return $next;
 	}
 
 	private function extract_status_from_note( string $note ): string {
