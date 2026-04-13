@@ -38,7 +38,7 @@ class Bouts_AutoGeneration {
 			'swap_ok' => __( 'Couleurs inversées.', 'ufsc-licence-competition' ),
 			'reorder_ok' => __( 'Combats réordonnés.', 'ufsc-licence-competition' ),
 			'action_error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
-			'invalid_settings' => __( 'Paramètres invalides : vérifiez le type des surfaces et les valeurs numériques.', 'ufsc-licence-competition' ),
+			'invalid_settings' => __( 'Paramètres invalides : vérifiez les surfaces et les champs timing (minutes/secondes).', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -70,10 +70,49 @@ class Bouts_AutoGeneration {
 			'excluded_unweighed' => 0,
 			'can_override_unweighed' => false,
 		);
+		$preview = $competition_id ? FightAutoGenerationService::get_generation_preview( $competition_id, $settings ) : array();
+		$estimated_fights = (int) ( $preview['estimated_fights'] ?? 0 );
+		$estimated_total_seconds = (int) ( $preview['estimated_total_seconds'] ?? 0 );
+		$competition_label = $competition_id ? sprintf( __( 'Compétition #%d', 'ufsc-licence-competition' ), $competition_id ) : __( 'Aucune compétition sélectionnée', 'ufsc-licence-competition' );
+		$timing_profile_label = 'category' === ( $settings['timing_mode'] ?? 'global' )
+			? __( 'Profils par catégories actifs', 'ufsc-licence-competition' )
+			: __( 'Timing global manuel', 'ufsc-licence-competition' );
+		$generation_status_label = $can_generate ? __( 'Prêt à générer', 'ufsc-licence-competition' ) : __( 'Action requise avant génération', 'ufsc-licence-competition' );
+		$last_saved = ! empty( $settings['settings_saved_at'] ) ? sanitize_text_field( (string) $settings['settings_saved_at'] ) : __( 'Non enregistré', 'ufsc-licence-competition' );
 		?>
 		<div class="ufsc-competitions-box">
-			<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
-			<p><?php esc_html_e( 'Générez un brouillon basé sur les inscriptions approuvées, puis validez avant écriture définitive.', 'ufsc-licence-competition' ); ?></p>
+			<div class="ufsc-fightgen-header">
+				<div>
+					<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
+					<p><?php esc_html_e( 'Pilotez la génération opérationnelle des combats : contrôles, réglages timing et validation du brouillon.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+				<div class="ufsc-fightgen-header__meta">
+					<span class="<?php echo esc_attr( self::status_badge_class( $can_generate ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( $generation_status_label ); ?></span>
+					<span class="ufsc-badge ufsc-badge--info"><?php echo esc_html( $competition_label ); ?></span>
+					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Dernier enregistrement : %s', 'ufsc-licence-competition' ), $last_saved ) ); ?></span>
+					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( $timing_profile_label ); ?></span>
+				</div>
+			</div>
+
+			<div class="ufsc-fightgen-kpis">
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Inscriptions totales', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) (int) ( $counters['total_entries'] ?? 0 ) ); ?></strong></div>
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Éligibles', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) (int) ( $counters['eligible_entries'] ?? 0 ) ); ?></strong></div>
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Non pesés exclus', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) (int) ( $counters['excluded_unweighed'] ?? 0 ) ); ?></strong></div>
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Combats estimés', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) $estimated_fights ); ?></strong></div>
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) (int) ( $settings['surface_count'] ?? 1 ) ); ?></strong></div>
+				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Durée totale estimée', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( self::format_duration_label( $estimated_total_seconds ) ); ?></strong></div>
+			</div>
+
+			<div class="ufsc-fightgen-precheck">
+				<h3><?php esc_html_e( 'Contrôles avant génération', 'ufsc-licence-competition' ); ?></h3>
+				<ul>
+					<li><span class="<?php echo esc_attr( self::status_badge_class( ! empty( $preview['precheck']['surfaces_ok'] ) ? 'ok' : 'danger' ) ); ?>"><?php echo ! empty( $preview['precheck']['surfaces_ok'] ) ? esc_html__( 'OK', 'ufsc-licence-competition' ) : esc_html__( 'À corriger', 'ufsc-licence-competition' ); ?></span> <?php esc_html_e( 'Paramètres surfaces', 'ufsc-licence-competition' ); ?></li>
+					<li><span class="<?php echo esc_attr( self::status_badge_class( ! empty( $preview['precheck']['timing_ok'] ) ? 'ok' : 'danger' ) ); ?>"><?php echo ! empty( $preview['precheck']['timing_ok'] ) ? esc_html__( 'OK', 'ufsc-licence-competition' ) : esc_html__( 'Incomplet', 'ufsc-licence-competition' ); ?></span> <?php esc_html_e( 'Timing global/profil', 'ufsc-licence-competition' ); ?></li>
+					<li><span class="<?php echo esc_attr( self::status_badge_class( ! empty( $preview['precheck']['eligible_ok'] ) ? 'ok' : 'warn' ) ); ?>"><?php echo ! empty( $preview['precheck']['eligible_ok'] ) ? esc_html__( 'Suffisant', 'ufsc-licence-competition' ) : esc_html__( 'Insuffisant', 'ufsc-licence-competition' ); ?></span> <?php esc_html_e( 'Inscriptions éligibles', 'ufsc-licence-competition' ); ?></li>
+					<li><span class="<?php echo esc_attr( self::status_badge_class( empty( $preview['duplicate_fighter_numbers'] ) ? 'ok' : 'warn' ) ); ?>"><?php echo empty( $preview['duplicate_fighter_numbers'] ) ? esc_html__( 'Aucun doublon', 'ufsc-licence-competition' ) : esc_html__( 'Doublons détectés', 'ufsc-licence-competition' ); ?></span> <?php echo esc_html( sprintf( __( 'Numéros combattants en conflit : %d', 'ufsc-licence-competition' ), (int) ( $preview['duplicate_fighter_numbers'] ?? 0 ) ) ); ?></li>
+					<li><span class="<?php echo esc_attr( self::status_badge_class( $can_generate ? 'ok' : 'danger' ) ); ?>"><?php echo $can_generate ? esc_html__( 'Oui', 'ufsc-licence-competition' ) : esc_html__( 'Non', 'ufsc-licence-competition' ); ?></span> <?php esc_html_e( 'Capacité de génération immédiate', 'ufsc-licence-competition' ); ?></li>
+				</ul>
+			</div>
 
 			<ul>
 				<li><?php echo esc_html( sprintf( __( 'Inscriptions totales : %d', 'ufsc-licence-competition' ), (int) ( $counters['total_entries'] ?? 0 ) ) ); ?></li>
@@ -98,6 +137,7 @@ class Bouts_AutoGeneration {
 				<input type="hidden" name="action" value="ufsc_competitions_save_fight_settings">
 				<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 				<table class="form-table" role="presentation">
+					<tr><th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Informations générales', 'ufsc-licence-competition' ); ?></h3></th></tr>
 					<tr>
 						<th scope="row"><label for="ufsc_plateau_name"><?php esc_html_e( 'Nom du plateau', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="plateau_name" type="text" id="ufsc_plateau_name" class="regular-text" value="<?php echo esc_attr( $settings['plateau_name'] ); ?>"></td>
@@ -106,6 +146,9 @@ class Bouts_AutoGeneration {
 						<th scope="row"><label for="ufsc_surface_count"><?php esc_html_e( 'Nombre de surfaces', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="surface_count" type="number" min="1" max="32" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
 									<p class="description"><?php esc_html_e( 'Valeur recommandée : 1 à 12 surfaces (max 32).', 'ufsc-licence-competition' ); ?></p></td>
+					</tr>
+					<tr>
+						<th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Surfaces de combat', 'ufsc-licence-competition' ); ?></h3></th>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
@@ -138,15 +181,63 @@ class Bouts_AutoGeneration {
 							<p class="description"><?php esc_html_e( 'Le nombre de surfaces génère automatiquement les blocs ci-dessus.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
+					<tr><th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Timing', 'ufsc-licence-competition' ); ?></h3></th></tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_duration"><?php esc_html_e( 'Durée (minutes)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="fight_duration" type="number" min="1" max="30" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>">
+						<td><input name="fight_duration" type="number" min="0" max="30" id="ufsc_fight_duration" value="<?php echo esc_attr( $settings['fight_duration'] ); ?>">
 									<p class="description"><?php esc_html_e( 'Utilisé pour l’horaire estimé lorsque aucun profil timing n’est appliqué.', 'ufsc-licence-competition' ); ?></p></td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_fight_duration_seconds"><?php esc_html_e( 'Durée (secondes)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="fight_duration_seconds" type="number" min="0" max="59" id="ufsc_fight_duration_seconds" value="<?php echo esc_attr( $settings['fight_duration_seconds'] ?? 0 ); ?>">
+									<p class="description"><?php esc_html_e( 'Exemple: 1 minute 30 = 1 min + 30 sec.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_break_duration"><?php esc_html_e( 'Pause (minutes)', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="break_duration" type="number" min="0" max="30" id="ufsc_break_duration" value="<?php echo esc_attr( $settings['break_duration'] ); ?>"></td>
 					</tr>
+					<tr>
+						<th scope="row"><label for="ufsc_break_duration_seconds"><?php esc_html_e( 'Pause (secondes)', 'ufsc-licence-competition' ); ?></label></th>
+						<td><input name="break_duration_seconds" type="number" min="0" max="59" id="ufsc_break_duration_seconds" value="<?php echo esc_attr( $settings['break_duration_seconds'] ?? 0 ); ?>"></td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Timing global effectif', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php
+							$fight_minutes = (int) ( $settings['fight_duration'] ?? 0 );
+							$fight_seconds = (int) ( $settings['fight_duration_seconds'] ?? 0 );
+							$pause_minutes = (int) ( $settings['break_duration'] ?? 0 );
+							$pause_seconds = (int) ( $settings['break_duration_seconds'] ?? 0 );
+							printf(
+								'<strong>%s</strong>',
+								esc_html(
+									sprintf(
+										/* translators: 1: fight duration mm:ss, 2: break duration mm:ss */
+										__( 'Combat: %1$s — Pause inter-combat: %2$s', 'ufsc-licence-competition' ),
+										sprintf( '%02d:%02d', $fight_minutes, $fight_seconds ),
+										sprintf( '%02d:%02d', $pause_minutes, $pause_seconds )
+									)
+								)
+							);
+							?>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Lecture métier', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php
+							echo esc_html(
+								sprintf(
+									/* translators: 1: round style label, 2: inter combat pause */
+									__( 'Exemple de lecture: 1 round de %1$s, pause inter-combat %2$s.', 'ufsc-licence-competition' ),
+									self::format_duration_label( ( (int) ( $settings['fight_duration'] ?? 0 ) * MINUTE_IN_SECONDS ) + (int) ( $settings['fight_duration_seconds'] ?? 0 ) ),
+									self::format_duration_label( ( (int) ( $settings['break_duration'] ?? 0 ) * MINUTE_IN_SECONDS ) + (int) ( $settings['break_duration_seconds'] ?? 0 ) )
+								)
+							);
+							?>
+						</td>
+					</tr>
+					<tr><th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Règles appliquées', 'ufsc-licence-competition' ); ?></h3></th></tr>
 					<tr>
 						<th scope="row"><label for="ufsc_timing_mode"><?php esc_html_e( 'Timing combats', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
@@ -204,6 +295,17 @@ class Bouts_AutoGeneration {
 			<?php if ( ! $competition_id ) : ?>
 				<p class="description"><?php esc_html_e( 'Sélectionnez une compétition pour activer la génération.', 'ufsc-licence-competition' ); ?></p>
 			<?php else : ?>
+				<div class="ufsc-fightgen-preview">
+					<h3><?php esc_html_e( 'Aperçu avant génération', 'ufsc-licence-competition' ); ?></h3>
+					<ul>
+						<li><?php echo esc_html( sprintf( __( 'Combats estimés : %d', 'ufsc-licence-competition' ), $estimated_fights ) ); ?></li>
+						<li><?php echo esc_html( sprintf( __( 'Répartition moyenne par surface : %s', 'ufsc-licence-competition' ), implode( ' / ', array_map( 'intval', (array) ( $preview['estimated_per_surface'] ?? array() ) ) ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( __( 'Catégories détectées : %d', 'ufsc-licence-competition' ), (int) ( $preview['estimated_categories'] ?? 0 ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( __( 'Inscriptions exclues (non pesées) : %d', 'ufsc-licence-competition' ), (int) ( $preview['excluded_unweighed'] ?? 0 ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( __( 'Byes estimés (si tableau incomplet) : %d', 'ufsc-licence-competition' ), (int) ( $draft_stats['bye_slots'] ?? 0 ) ) ); ?></li>
+						<li><?php esc_html_e( 'Règles de tri : âge, poids, sexe, discipline, niveau, identifiant.', 'ufsc-licence-competition' ); ?></li>
+					</ul>
+				</div>
 				<div class="ufsc-competitions-actions">
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( self::nonce_action( 'ufsc_competitions_generate_fight_draft', $competition_id ) ); ?>
@@ -257,13 +359,20 @@ class Bouts_AutoGeneration {
 				</div>
 
 				<?php if ( $draft ) : ?>
-					<p><strong><?php esc_html_e( 'Brouillon actuel', 'ufsc-licence-competition' ); ?></strong></p>
+					<div class="ufsc-fightgen-result">
+					<p><strong><?php esc_html_e( 'Résultat de génération (brouillon actuel)', 'ufsc-licence-competition' ); ?></strong></p>
 					<ul>
 						<li><?php echo esc_html( sprintf( __( 'Combats : %d', 'ufsc-licence-competition' ), (int) ( $draft_stats['fights'] ?? 0 ) ) ); ?></li>
 						<li><?php echo esc_html( sprintf( __( 'Groupes : %d', 'ufsc-licence-competition' ), (int) ( $draft_stats['groups'] ?? 0 ) ) ); ?></li>
 						<li><?php echo esc_html( sprintf( __( 'Entrées : %d', 'ufsc-licence-competition' ), (int) ( $draft_stats['entries'] ?? 0 ) ) ); ?></li>
 						<li><?php echo esc_html( sprintf( __( 'Byes générés : %d', 'ufsc-licence-competition' ), (int) ( $draft_stats['bye_slots'] ?? 0 ) ) ); ?></li>
+						<li><?php echo esc_html( sprintf( __( 'Conflits numéros combattants : %d', 'ufsc-licence-competition' ), (int) ( $preview['duplicate_fighter_numbers'] ?? 0 ) ) ); ?></li>
 					</ul>
+					<div class="ufsc-fightgen-result__actions">
+						<a class="button button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . Menu::PAGE_BOUTS . '&ufsc_competition_id=' . $competition_id ) ); ?>"><?php esc_html_e( 'Voir les combats', 'ufsc-licence-competition' ); ?></a>
+						<button type="button" class="button button-secondary" onclick="window.print();"><?php esc_html_e( 'Imprimer', 'ufsc-licence-competition' ); ?></button>
+						<a class="button button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . Menu::PAGE_BOUTS . '&ufsc_competition_id=' . $competition_id . '&ufsc_export=csv' ) ); ?>"><?php esc_html_e( 'Exporter', 'ufsc-licence-competition' ); ?></a>
+					</div>
 					<?php if ( $draft_warnings ) : ?>
 						<p><strong><?php esc_html_e( 'Alertes', 'ufsc-licence-competition' ); ?></strong></p>
 						<ul>
@@ -272,6 +381,35 @@ class Bouts_AutoGeneration {
 							<?php endforeach; ?>
 						</ul>
 					<?php endif; ?>
+					<div class="ufsc-competitions-table-wrap">
+						<table class="widefat striped">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Horaire estimé', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Coin rouge', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Coin bleu', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( array_slice( (array) ( $draft['fights'] ?? array() ), 0, 80 ) as $fight_row ) : ?>
+									<tr>
+										<td><?php echo esc_html( (string) (int) ( $fight_row['fight_no'] ?? 0 ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['ring'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['scheduled_at'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['category_label'] ?? $fight_row['category_id'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['red_label'] ?? $fight_row['red_entry_id'] ?? 'TBD' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['blue_label'] ?? $fight_row['blue_entry_id'] ?? 'TBD' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $fight_row['status'] ?? 'scheduled' ) ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+					</div>
 				<?php endif; ?>
 
 				<hr />
@@ -367,9 +505,9 @@ class Bouts_AutoGeneration {
 	public static function handle_save_settings(): void {
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
-		$saved = FightAutoGenerationService::save_settings( $competition_id, wp_unslash( $_POST ) );
-		if ( ! $saved ) {
-			self::redirect( $competition_id, 'invalid_settings' );
+		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
+		if ( empty( $result['ok'] ) ) {
+			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
 		}
 		self::redirect( $competition_id, 'settings_saved' );
 	}
@@ -456,6 +594,34 @@ class Bouts_AutoGeneration {
 		$mode = isset( $_POST['mode'] ) ? sanitize_key( wp_unslash( $_POST['mode'] ) ) : 'fight_no';
 		$result = FightAutoGenerationService::reorder_fights( $competition_id, $mode );
 		self::redirect( $competition_id, $result['ok'] ? 'reorder_ok' : 'action_error', $result['message'] ?? '' );
+	}
+
+	private static function status_badge_class( string $status ): string {
+		if ( 'ok' === $status ) {
+			return 'ufsc-badge ufsc-badge--success';
+		}
+		if ( 'danger' === $status ) {
+			return 'ufsc-badge ufsc-badge--danger';
+		}
+		return 'ufsc-badge ufsc-badge--warning';
+	}
+
+	private static function format_duration_label( int $seconds ): string {
+		$seconds = max( 0, $seconds );
+		$minutes = (int) floor( $seconds / MINUTE_IN_SECONDS );
+		$remain  = $seconds % MINUTE_IN_SECONDS;
+
+		if ( 0 === $seconds ) {
+			return __( '0 sec', 'ufsc-licence-competition' );
+		}
+		if ( 0 === $remain ) {
+			return sprintf( __( '%d min', 'ufsc-licence-competition' ), $minutes );
+		}
+		if ( 0 === $minutes ) {
+			return sprintf( __( '%d sec', 'ufsc-licence-competition' ), $remain );
+		}
+
+		return sprintf( __( '%1$d min %2$d sec', 'ufsc-licence-competition' ), $minutes, $remain );
 	}
 
 	private static function ensure_manage_access(): void {
