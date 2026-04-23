@@ -35,6 +35,128 @@ class FightRepository {
 		);
 	}
 
+	public function is_fight_played( $fight ): bool {
+		if ( ! is_object( $fight ) && ! is_array( $fight ) ) {
+			return false;
+		}
+
+		$status = strtolower( trim( (string) ( is_array( $fight ) ? ( $fight['status'] ?? '' ) : ( $fight->status ?? '' ) ) ) );
+		if ( 'completed' === $status ) {
+			return true;
+		}
+
+		$winner_entry_id = absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+		if ( $winner_entry_id > 0 ) {
+			return true;
+		}
+
+		$result_method = trim( (string) ( is_array( $fight ) ? ( $fight['result_method'] ?? '' ) : ( $fight->result_method ?? '' ) ) );
+		if ( '' !== $result_method ) {
+			return true;
+		}
+
+		$score_red = trim( (string) ( is_array( $fight ) ? ( $fight['score_red'] ?? '' ) : ( $fight->score_red ?? '' ) ) );
+		$score_blue = trim( (string) ( is_array( $fight ) ? ( $fight['score_blue'] ?? '' ) : ( $fight->score_blue ?? '' ) ) );
+
+		return '' !== $score_red || '' !== $score_blue;
+	}
+
+	public function is_fight_running( $fight ): bool {
+		if ( ! is_object( $fight ) && ! is_array( $fight ) ) {
+			return false;
+		}
+
+		$status = strtolower( trim( (string) ( is_array( $fight ) ? ( $fight['status'] ?? '' ) : ( $fight->status ?? '' ) ) ) );
+		return 'running' === $status;
+	}
+
+	public function is_fight_sensitive( $fight ): bool {
+		return $this->is_fight_running( $fight ) || $this->is_fight_played( $fight );
+	}
+
+	public function can_delete_fight( $fight ): bool {
+		return ! $this->is_fight_sensitive( $fight );
+	}
+
+	public function can_regenerate_scope( int $competition_id, ?int $category_id = null ): array {
+		$competition_id = absint( $competition_id );
+		$category_id    = null !== $category_id ? absint( $category_id ) : null;
+		if ( $competition_id <= 0 ) {
+			return array(
+				'allowed'        => false,
+				'blocking_count' => 0,
+				'blocking_fights'=> array(),
+				'reason'         => 'invalid_competition',
+			);
+		}
+
+		$filters = array(
+			'view'           => 'all',
+			'competition_id' => $competition_id,
+		);
+		if ( $category_id && $category_id > 0 ) {
+			$filters['category_id'] = $category_id;
+		}
+
+		$fights = $this->list( $filters, 5000, 0 );
+		$blocking = array();
+		$inconsistent_scheduled = array();
+		foreach ( $fights as $fight ) {
+			if ( ! $this->is_fight_sensitive( $fight ) ) {
+				continue;
+			}
+			$status = sanitize_key( (string) ( $fight->status ?? '' ) );
+			$winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
+			$result_method   = sanitize_text_field( (string) ( $fight->result_method ?? '' ) );
+			$score_red       = sanitize_text_field( (string) ( $fight->score_red ?? '' ) );
+			$score_blue      = sanitize_text_field( (string) ( $fight->score_blue ?? '' ) );
+			if ( 'scheduled' === $status && ( $winner_entry_id > 0 || '' !== $result_method || '' !== trim( $score_red ) || '' !== trim( $score_blue ) ) ) {
+				$inconsistent_scheduled[] = (int) ( $fight->id ?? 0 );
+			}
+
+			$blocking[] = array(
+				'id'              => (int) ( $fight->id ?? 0 ),
+				'fight_no'        => (int) ( $fight->fight_no ?? 0 ),
+				'category_id'     => (int) ( $fight->category_id ?? 0 ),
+				'status'          => $status,
+				'winner_entry_id' => $winner_entry_id,
+				'result_method'   => $result_method,
+				'score_red'       => $score_red,
+				'score_blue'      => $score_blue,
+			);
+		}
+
+		if ( ! empty( $inconsistent_scheduled ) ) {
+			$this->logger->log(
+				'fight_status_inconsistent',
+				'fight',
+				$competition_id,
+				'Combats scheduled avec données résultat détectés.',
+				array(
+					'competition_id' => $competition_id,
+					'category_id'    => $category_id ?: 0,
+					'fight_ids'      => $inconsistent_scheduled,
+				)
+			);
+		}
+
+		if ( empty( $blocking ) ) {
+			return array(
+				'allowed'        => true,
+				'blocking_count' => 0,
+				'blocking_fights'=> array(),
+				'reason'         => 'ok',
+			);
+		}
+
+		return array(
+			'allowed'        => false,
+			'blocking_count' => count( $blocking ),
+			'blocking_fights'=> $blocking,
+			'reason'         => 'sensitive_fights_present',
+		);
+	}
+
 	public function list( array $filters, $limit, $offset ) {
 		global $wpdb;
 
