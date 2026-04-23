@@ -56,8 +56,8 @@ class Sensitive_Operations_Page {
 				<?php submit_button( __( 'Charger', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 			</form>
 
-			<?php if ( $competition_id > 0 ) : ?>
-			<div class="ufsc-step-grid">
+				<?php if ( $competition_id > 0 ) : ?>
+				<div class="ufsc-step-grid">
 				<section class="ufsc-step-card">
 					<h2><?php esc_html_e( 'Réintégration exceptionnelle', 'ufsc-licence-competition' ); ?></h2>
 					<p><?php esc_html_e( 'Ordre : réintégration simple → insertion bye/slot vide → régénération partielle non jouée → blocage explicite.', 'ufsc-licence-competition' ); ?></p>
@@ -88,12 +88,13 @@ class Sensitive_Operations_Page {
 					</section>
 				</div>
 
-				<?php if ( is_array( $this->partial_regen_preview ) ) : ?>
-					<?php $this->render_partial_regen_preview( $competition_id, $this->partial_regen_preview ); ?>
-				<?php endif; ?>
-				<?php endif; ?>
-			</div>
-		<?php
+					<?php if ( is_array( $this->partial_regen_preview ) ) : ?>
+						<?php $this->render_partial_regen_preview( $competition_id, $this->partial_regen_preview ); ?>
+					<?php endif; ?>
+					<?php $this->render_fights_diagnostic( $competition_id ); ?>
+					<?php endif; ?>
+				</div>
+			<?php
 	}
 
 	private function maybe_handle_post( int $competition_id ): ?array {
@@ -174,6 +175,27 @@ class Sensitive_Operations_Page {
 		if ( ! $category_id || '' === $reason || ! $supervised ) {
 			return array( 'type' => 'error', 'message' => __( 'Régénération partielle refusée : champs requis manquants.', 'ufsc-licence-competition' ) );
 		}
+		$scope_guard = $this->fights->can_regenerate_scope( $competition_id, $category_id );
+		if ( empty( $scope_guard['allowed'] ) ) {
+			$this->logger->log(
+				'partial_regeneration_blocked_sensitive_scope',
+				'fight',
+				$category_id,
+				'Simulation bloquée : combats sensibles détectés.',
+				array(
+					'competition_id' => $competition_id,
+					'blocking_count' => (int) ( $scope_guard['blocking_count'] ?? 0 ),
+				)
+			);
+			return array(
+				'type' => 'error',
+				'message' => sprintf(
+					/* translators: %d: sensitive fights count */
+					__( 'Simulation bloquée : %d combat(s) en cours/terminé(s) ou avec résultat dans cette catégorie.', 'ufsc-licence-competition' ),
+					(int) ( $scope_guard['blocking_count'] ?? 0 )
+				),
+			);
+		}
 
 		$plan = $this->build_partial_regen_plan( $competition_id, $category_id );
 		if ( empty( $plan['all_fights'] ) ) {
@@ -220,6 +242,27 @@ class Sensitive_Operations_Page {
 		$final_confirm = ! empty( $_POST['final_confirm'] );
 		if ( ! $category_id || '' === $reason || ! $supervised || ! $final_confirm ) {
 			return array( 'type' => 'error', 'message' => __( 'Exécution refusée : confirmation finale obligatoire.', 'ufsc-licence-competition' ) );
+		}
+		$scope_guard = $this->fights->can_regenerate_scope( $competition_id, $category_id );
+		if ( empty( $scope_guard['allowed'] ) ) {
+			$this->logger->log(
+				'partial_regeneration_blocked_sensitive_scope',
+				'fight',
+				$category_id,
+				'Exécution bloquée : combats sensibles détectés.',
+				array(
+					'competition_id' => $competition_id,
+					'blocking_count' => (int) ( $scope_guard['blocking_count'] ?? 0 ),
+				)
+			);
+			return array(
+				'type' => 'error',
+				'message' => sprintf(
+					/* translators: %d: sensitive fights count */
+					__( 'Exécution bloquée : %d combat(s) en cours/terminé(s) ou avec résultat dans cette catégorie.', 'ufsc-licence-competition' ),
+					(int) ( $scope_guard['blocking_count'] ?? 0 )
+				),
+			);
 		}
 
 		$plan = $this->build_partial_regen_plan( $competition_id, $category_id );
@@ -349,5 +392,115 @@ class Sensitive_Operations_Page {
 			</form>
 		</section>
 		<?php
+	}
+
+	private function render_fights_diagnostic( int $competition_id ): void {
+		$diagnostic = $this->build_fights_diagnostic( $competition_id );
+		$total      = (int) ( $diagnostic['total'] ?? 0 );
+		$issues     = (array) ( $diagnostic['issues'] ?? array() );
+		$sample     = array_slice( (array) ( $diagnostic['sample'] ?? array() ), 0, 30 );
+		?>
+		<section class="ufsc-admin-surface" style="margin-top:16px;">
+			<h2><?php esc_html_e( 'Diagnostic combats (non destructif)', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php esc_html_e( 'Ce contrôle ne modifie aucune donnée. Il signale uniquement les incohérences de workflow.', 'ufsc-licence-competition' ); ?></p>
+			<ul>
+				<li><?php echo esc_html( sprintf( __( 'Combats analysés : %d', 'ufsc-licence-competition' ), $total ) ); ?></li>
+				<?php foreach ( $issues as $code => $count ) : ?>
+					<li><?php echo esc_html( sprintf( '%s : %d', (string) $code, (int) $count ) ); ?></li>
+				<?php endforeach; ?>
+			</ul>
+
+			<div class="ufsc-competitions-table-wrap">
+				<table class="widefat striped">
+					<thead><tr><th>ID</th><th>fight_no</th><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Anomalies', 'ufsc-licence-competition' ); ?></th></tr></thead>
+					<tbody>
+					<?php if ( empty( $sample ) ) : ?>
+						<tr><td colspan="4"><?php esc_html_e( 'Aucune incohérence détectée.', 'ufsc-licence-competition' ); ?></td></tr>
+					<?php endif; ?>
+					<?php foreach ( $sample as $row ) : ?>
+						<tr>
+							<td><?php echo esc_html( (string) (int) ( $row['id'] ?? 0 ) ); ?></td>
+							<td><?php echo esc_html( (string) (int) ( $row['fight_no'] ?? 0 ) ); ?></td>
+							<td><?php echo esc_html( (string) ( $row['status'] ?? '' ) ); ?></td>
+							<td><?php echo esc_html( implode( ', ', array_map( 'strval', (array) ( $row['issues'] ?? array() ) ) ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		</section>
+		<?php
+	}
+
+	private function build_fights_diagnostic( int $competition_id ): array {
+		$fights = $this->fights->list(
+			array(
+				'view'           => 'all',
+				'competition_id' => $competition_id,
+			),
+			5000,
+			0
+		);
+
+		$issues_count = array(
+			'scheduled_with_winner'       => 0,
+			'scheduled_with_result_method'=> 0,
+			'scheduled_with_score'        => 0,
+			'completed_without_winner'    => 0,
+			'red_equals_blue'             => 0,
+			'empty_corners_without_flag'  => 0,
+		);
+		$sample = array();
+
+		foreach ( $fights as $fight ) {
+			$status       = sanitize_key( (string) ( $fight->status ?? '' ) );
+			$winner       = absint( $fight->winner_entry_id ?? 0 );
+			$result_method= trim( (string) ( $fight->result_method ?? '' ) );
+			$score_red    = trim( (string) ( $fight->score_red ?? '' ) );
+			$score_blue   = trim( (string) ( $fight->score_blue ?? '' ) );
+			$red_entry_id = absint( $fight->red_entry_id ?? 0 );
+			$blue_entry_id= absint( $fight->blue_entry_id ?? 0 );
+			$row_issues   = array();
+
+			if ( 'scheduled' === $status && $winner > 0 ) {
+				$issues_count['scheduled_with_winner']++;
+				$row_issues[] = 'scheduled_with_winner';
+			}
+			if ( 'scheduled' === $status && '' !== $result_method ) {
+				$issues_count['scheduled_with_result_method']++;
+				$row_issues[] = 'scheduled_with_result_method';
+			}
+			if ( 'scheduled' === $status && ( '' !== $score_red || '' !== $score_blue ) ) {
+				$issues_count['scheduled_with_score']++;
+				$row_issues[] = 'scheduled_with_score';
+			}
+			if ( 'completed' === $status && $winner <= 0 ) {
+				$issues_count['completed_without_winner']++;
+				$row_issues[] = 'completed_without_winner';
+			}
+			if ( $red_entry_id > 0 && $red_entry_id === $blue_entry_id ) {
+				$issues_count['red_equals_blue']++;
+				$row_issues[] = 'red_equals_blue';
+			}
+			if ( $red_entry_id <= 0 && $blue_entry_id <= 0 && ! in_array( $status, array( 'bye', 'placeholder' ), true ) ) {
+				$issues_count['empty_corners_without_flag']++;
+				$row_issues[] = 'empty_corners_without_flag';
+			}
+
+			if ( ! empty( $row_issues ) ) {
+				$sample[] = array(
+					'id'      => (int) ( $fight->id ?? 0 ),
+					'fight_no'=> (int) ( $fight->fight_no ?? 0 ),
+					'status'  => $status,
+					'issues'  => $row_issues,
+				);
+			}
+		}
+
+		return array(
+			'total'  => count( $fights ),
+			'issues' => $issues_count,
+			'sample' => $sample,
+		);
 	}
 }

@@ -394,18 +394,42 @@ class FightAutoGenerationService {
 
 		set_transient( $lock_key, 1, self::LOCK_TTL );
 
-		try {
-			$competition_repo = new CompetitionRepository();
-			$competition      = $competition_repo->get( $competition_id, true );
+			try {
+				$competition_repo = new CompetitionRepository();
+				$competition      = $competition_repo->get( $competition_id, true );
 			if ( ! $competition ) {
 				return array(
 					'ok'      => false,
 					'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 				);
-			}
+				}
 
-			$existing_fights = self::get_existing_generation_blockers( $competition_id );
-			if ( (int) $existing_fights['total'] > 0 ) {
+				$fight_repo         = new FightRepository();
+				$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
+				if ( empty( $regeneration_scope['allowed'] ) ) {
+					$blocking_count = (int) ( $regeneration_scope['blocking_count'] ?? 0 );
+					( new LogService() )->log(
+						'generation_blocked_sensitive_scope',
+						'fight',
+						$competition_id,
+						'Génération bloquée : combats sensibles détectés.',
+						array(
+							'blocking_count' => $blocking_count,
+							'reason'         => (string) ( $regeneration_scope['reason'] ?? '' ),
+						)
+					);
+					return array(
+						'ok'      => false,
+						'message' => sprintf(
+							/* translators: %d: sensitive fights count */
+							__( 'Génération bloquée : %d combat(s) en cours/terminé(s) ou avec résultat existent déjà dans ce périmètre. Utilisez le workflow d’actions sensibles.', 'ufsc-licence-competition' ),
+							$blocking_count
+						),
+					);
+				}
+
+				$existing_fights = self::get_existing_generation_blockers( $competition_id );
+				if ( (int) $existing_fights['total'] > 0 ) {
 				return array(
 					'ok'      => false,
 					'message' => sprintf(
@@ -533,8 +557,7 @@ class FightAutoGenerationService {
 
 			$groups = self::sort_groups_for_generation( $groups, $normalized_categories );
 
-			$fight_repo    = new FightRepository();
-			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+				$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 
 			$fights         = array();
 			$total_bye_slots = 0;
