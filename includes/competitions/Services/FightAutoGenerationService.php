@@ -315,6 +315,11 @@ class FightAutoGenerationService {
 		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
 		$groups     = self::group_entries_by_category( $eligible );
+		if ( ! $groups ) {
+			$preview['eligible_entries']   = count( $eligible );
+			$preview['excluded_unweighed'] = (int) ( $selection['excluded_unweighed'] ?? 0 );
+			return $preview;
+		}
 
 		$estimated_fights = 0;
 		foreach ( $groups as $group_entries ) {
@@ -946,6 +951,30 @@ class FightAutoGenerationService {
 		}
 
 		return $bracket_size - 1;
+	}
+
+	private static function group_entries_by_category( array $entries ): array {
+		$groups = array();
+
+		foreach ( $entries as $entry ) {
+			$category_id = 0;
+			if ( is_object( $entry ) ) {
+				$category_id = absint( $entry->category_id ?? 0 );
+			} elseif ( is_array( $entry ) ) {
+				$category_id = absint( $entry['category_id'] ?? 0 );
+			}
+
+			if ( ! $category_id ) {
+				continue;
+			}
+
+			if ( ! isset( $groups[ $category_id ] ) ) {
+				$groups[ $category_id ] = array();
+			}
+			$groups[ $category_id ][] = $entry;
+		}
+
+		return $groups;
 	}
 
 	private static function count_duplicate_fighter_numbers( array $entries ): int {
