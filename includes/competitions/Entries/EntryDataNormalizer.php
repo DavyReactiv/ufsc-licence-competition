@@ -83,7 +83,22 @@ class EntryDataNormalizer {
 	}
 
 	public static function resolve_license_number( $item ): string {
-		return self::get_text_value( $item, array( 'license_number', 'licence_number', 'licensee_number', 'license', 'licence', 'numero_licence', 'numero_licence_asptt' ) );
+		return self::get_text_value(
+			$item,
+			array(
+				'numero_licence',
+				'numero_licence_ufsc',
+				'ufsc_licence_number',
+				'numero_licence_asptt',
+				'numero_asptt',
+				'asptt_number',
+				'license_number',
+				'licence_number',
+				'licensee_number',
+				'license',
+				'licence',
+			)
+		);
 	}
 
 	public static function resolve_submitted_at( $item ): string {

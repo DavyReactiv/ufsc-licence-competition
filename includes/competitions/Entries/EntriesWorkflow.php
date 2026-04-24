@@ -65,7 +65,16 @@ class EntriesWorkflow {
 				return 'pending';
 			case 'validee':
 			case 'valide':
+			case 'valide_engage':
+			case 'validee_engagee':
 			case 'validated':
+			case 'engage':
+			case 'engaged':
+			case 'accepted':
+			case 'accepte':
+			case 'acceptee':
+			case 'completed':
+			case 'complete':
 			case 'ready':
 			case 'prete_au_tirage':
 			case 'weighed':
@@ -164,6 +173,12 @@ class EntriesWorkflow {
 				'Validée',
 				'validee',
 				'validée',
+				'Engagé',
+				'engage',
+				'engagé',
+				'engaged',
+				'accepted',
+				'completed',
 			),
 			'rejected' => array(
 				'rejected',
