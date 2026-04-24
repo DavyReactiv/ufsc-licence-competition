@@ -455,6 +455,12 @@ class Sensitive_Operations_Page {
 			'deleted_at_present'          => 0,
 			'bye_present_pre_activation'  => 0,
 			'placeholder_pre_activation'  => 0,
+			'bye_without_winner'          => 0,
+			'bye_with_two_empty_corners'  => 0,
+			'bye_with_two_fighters'       => 0,
+			'bye_winner_mismatch'         => 0,
+			'bye_with_score'              => 0,
+			'bye_effective_status_mismatch'=> 0,
 			'red_equals_blue'             => 0,
 			'empty_corners_without_flag'  => 0,
 		);
@@ -474,6 +480,7 @@ class Sensitive_Operations_Page {
 			$deleted_at   = trim( (string) ( $fight->deleted_at ?? '' ) );
 			$row_issues   = array();
 			$is_active_status = $this->fights->is_valid_fight_status( $status, false );
+			$effective_status = $this->fights->get_effective_fight_status( $fight );
 
 			if ( '' === $status_trim ) {
 				$issues_count['empty_status']++;
@@ -519,6 +526,31 @@ class Sensitive_Operations_Page {
 			if ( FightRepository::STATUS_BYE === $status ) {
 				$issues_count['bye_present_pre_activation']++;
 				$row_issues[] = 'bye_present_pre_activation';
+				if ( $winner <= 0 ) {
+					$issues_count['bye_without_winner']++;
+					$row_issues[] = 'bye_without_winner';
+				}
+				if ( $red_entry_id <= 0 && $blue_entry_id <= 0 ) {
+					$issues_count['bye_with_two_empty_corners']++;
+					$row_issues[] = 'bye_with_two_empty_corners';
+				}
+				if ( $red_entry_id > 0 && $blue_entry_id > 0 ) {
+					$issues_count['bye_with_two_fighters']++;
+					$row_issues[] = 'bye_with_two_fighters';
+				}
+				$single_corner_entry_id = $red_entry_id > 0 ? $red_entry_id : ( $blue_entry_id > 0 ? $blue_entry_id : 0 );
+				if ( $single_corner_entry_id > 0 && $winner > 0 && $winner !== $single_corner_entry_id ) {
+					$issues_count['bye_winner_mismatch']++;
+					$row_issues[] = 'bye_winner_mismatch';
+				}
+				if ( '' !== $score_red || '' !== $score_blue ) {
+					$issues_count['bye_with_score']++;
+					$row_issues[] = 'bye_with_score';
+				}
+				if ( FightRepository::STATUS_BYE !== $effective_status ) {
+					$issues_count['bye_effective_status_mismatch']++;
+					$row_issues[] = 'bye_effective_status_mismatch';
+				}
 			}
 			if ( FightRepository::STATUS_PLACEHOLDER === $status ) {
 				$issues_count['placeholder_pre_activation']++;

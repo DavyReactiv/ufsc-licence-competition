@@ -397,6 +397,9 @@ class Bouts_Page {
 		if ( ! $fight ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
 		}
+		if ( $this->repository->is_fight_bye( $fight ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction impossible : un BYE est une qualification automatique et ne se corrige pas comme un combat normal.', 'ufsc-licence-competition' ) );
+		}
 
 		$impacts = $this->get_impacted_fights( $fight );
 		$has_played_impacts = ! empty( $impacts['played'] );
@@ -461,6 +464,10 @@ class Bouts_Page {
 		$fight = $this->repository->get( $fight_id, true );
 		if ( ! $fight ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+		if ( $this->repository->is_fight_bye( $fight ) ) {
+			$this->logger->log( 'result_correction_blocked_bye', 'fight', $fight_id, 'Correction bloquée : combat BYE.', array() );
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction impossible : un BYE est une qualification automatique et ne se corrige pas comme un combat normal.', 'ufsc-licence-competition' ) );
 		}
 
 		$winner_entry_id = isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0;

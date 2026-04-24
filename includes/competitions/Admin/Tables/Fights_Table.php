@@ -173,7 +173,11 @@ class Fights_Table extends \WP_List_Table {
 
 		$actions = array();
 		if ( empty( $item->deleted_at ) ) {
-			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			$can_delete = $this->repository->can_delete_fight( $item );
+			$is_sensitive = $this->repository->is_fight_sensitive( $item );
+			if ( ! $is_sensitive ) {
+				$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			}
 			$effective_status = $this->repository->get_effective_fight_status( $item );
 			if ( in_array( $effective_status, array( FightRepository::STATUS_COMPLETED, FightRepository::STATUS_RUNNING ), true ) ) {
 				$actions['correct_result'] = sprintf(
@@ -192,12 +196,14 @@ class Fights_Table extends \WP_List_Table {
 					esc_html__( 'Corriger le résultat', 'ufsc-licence-competition' )
 				);
 			}
-			$actions['trash'] = sprintf(
-				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_fight', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_fight_' . $item->id ) ),
-				esc_attr__( 'Mettre ce combat à la corbeille ?', 'ufsc-licence-competition' ),
-				esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
-			);
+			if ( $can_delete ) {
+				$actions['trash'] = sprintf(
+					'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
+					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_fight', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_fight_' . $item->id ) ),
+					esc_attr__( 'Mettre ce combat à la corbeille ?', 'ufsc-licence-competition' ),
+					esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
+				);
+			}
 		} else {
 			$actions['restore'] = sprintf(
 				'<a href="%s">%s</a>',

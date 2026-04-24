@@ -54,11 +54,28 @@ class FightRepository {
 	}
 
 	public function is_fight_sensitive( $fight ): bool {
-		return $this->is_fight_running( $fight ) || $this->is_fight_played( $fight );
+		return $this->is_fight_running( $fight ) || $this->is_fight_played( $fight ) || $this->is_fight_bye( $fight );
 	}
 
 	public function can_delete_fight( $fight ): bool {
 		return ! $this->is_fight_sensitive( $fight );
+	}
+
+	public function is_fight_bye( $fight ): bool {
+		$effective_status = $this->get_effective_fight_status( $fight );
+		return self::STATUS_BYE === $effective_status;
+	}
+
+	public function get_bye_winner_entry_id( $fight ): int {
+		if ( ! $this->is_fight_bye( $fight ) ) {
+			return 0;
+		}
+
+		return absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+	}
+
+	public function is_real_played_fight( $fight ): bool {
+		return $this->is_fight_played( $fight ) && ! $this->is_fight_bye( $fight );
 	}
 
 	public function get_allowed_statuses( bool $include_prepared = true ): array {
@@ -153,6 +170,10 @@ class FightRepository {
 
 		$status = is_array( $fight ) ? (string) ( $fight['status'] ?? '' ) : (string) ( $fight->status ?? '' );
 		$status = $this->normalize_fight_status( $status );
+
+		if ( self::STATUS_BYE === $status ) {
+			return self::STATUS_BYE;
+		}
 
 		if ( self::STATUS_COMPLETED === $status ) {
 			return self::STATUS_COMPLETED;

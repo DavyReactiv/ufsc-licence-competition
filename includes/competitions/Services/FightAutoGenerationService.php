@@ -1144,15 +1144,23 @@ class FightAutoGenerationService {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 8 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				$next_no++;
-			}
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
+					$next_no++;
+				}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
 		} elseif ( $count >= 9 && $count <= 16 ) {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 16 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
 				$next_no++;
 			}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
@@ -1160,7 +1168,11 @@ class FightAutoGenerationService {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
 				$next_no++;
 			}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
@@ -1292,6 +1304,19 @@ class FightAutoGenerationService {
 		);
 	}
 
+	private static function build_bye_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no ): array {
+		$payload = self::build_fight_payload( $competition_id, $category_id, $fight_no, $red_entry, $blue_entry, $round_no );
+		$qualified_entry_id = $red_entry ? (int) ( $red_entry->id ?? 0 ) : ( $blue_entry ? (int) ( $blue_entry->id ?? 0 ) : 0 );
+
+		$payload['status']          = FightRepository::STATUS_BYE;
+		$payload['winner_entry_id'] = $qualified_entry_id > 0 ? $qualified_entry_id : null;
+		$payload['result_method']   = '';
+		$payload['score_red']       = '';
+		$payload['score_blue']      = '';
+
+		return $payload;
+	}
+
 	public static function assign_surfaces_and_schedule( array $fights, array $settings, int $competition_id ): array {
 		$surface_labels = self::get_surface_labels( $settings );
 		$surface_count  = max( 1, count( $surface_labels ) );
@@ -1340,6 +1365,12 @@ class FightAutoGenerationService {
 		}
 
 		foreach ( $fights as $index => $fight ) {
+			if ( FightRepository::STATUS_BYE === sanitize_key( (string) ( $fight['status'] ?? '' ) ) ) {
+				$fights[ $index ]['ring'] = '';
+				$fights[ $index ]['scheduled_at'] = null;
+				continue;
+			}
+
 			$surface_index = 0;
 			$min_time      = $surface_times[0];
 
