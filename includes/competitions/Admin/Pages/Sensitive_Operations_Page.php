@@ -443,24 +443,46 @@ class Sensitive_Operations_Page {
 		);
 
 		$issues_count = array(
+			'unknown_status'              => 0,
+			'empty_status'                => 0,
 			'scheduled_with_winner'       => 0,
 			'scheduled_with_result_method'=> 0,
 			'scheduled_with_score'        => 0,
+			'running_with_winner'         => 0,
+			'running_with_result_method'  => 0,
+			'running_with_score'          => 0,
 			'completed_without_winner'    => 0,
+			'deleted_at_present'          => 0,
+			'bye_present_pre_activation'  => 0,
+			'placeholder_pre_activation'  => 0,
 			'red_equals_blue'             => 0,
 			'empty_corners_without_flag'  => 0,
 		);
 		$sample = array();
+		$sample_limit = 100;
 
 		foreach ( $fights as $fight ) {
-			$status       = sanitize_key( (string) ( $fight->status ?? '' ) );
+			$status_raw   = sanitize_text_field( (string) ( $fight->status ?? '' ) );
+			$status_trim  = trim( $status_raw );
+			$status       = $this->fights->normalize_fight_status( $status_raw );
 			$winner       = absint( $fight->winner_entry_id ?? 0 );
 			$result_method= trim( (string) ( $fight->result_method ?? '' ) );
 			$score_red    = trim( (string) ( $fight->score_red ?? '' ) );
 			$score_blue   = trim( (string) ( $fight->score_blue ?? '' ) );
 			$red_entry_id = absint( $fight->red_entry_id ?? 0 );
 			$blue_entry_id= absint( $fight->blue_entry_id ?? 0 );
+			$deleted_at   = trim( (string) ( $fight->deleted_at ?? '' ) );
 			$row_issues   = array();
+			$is_active_status = $this->fights->is_valid_fight_status( $status, false );
+
+			if ( '' === $status_trim ) {
+				$issues_count['empty_status']++;
+				$row_issues[] = 'empty_status';
+			}
+			if ( '' !== $status_trim && ! $is_active_status ) {
+				$issues_count['unknown_status']++;
+				$row_issues[] = 'unknown_status';
+			}
 
 			if ( 'scheduled' === $status && $winner > 0 ) {
 				$issues_count['scheduled_with_winner']++;
@@ -478,6 +500,30 @@ class Sensitive_Operations_Page {
 				$issues_count['completed_without_winner']++;
 				$row_issues[] = 'completed_without_winner';
 			}
+			if ( 'running' === $status && $winner > 0 ) {
+				$issues_count['running_with_winner']++;
+				$row_issues[] = 'running_with_winner';
+			}
+			if ( 'running' === $status && '' !== $result_method ) {
+				$issues_count['running_with_result_method']++;
+				$row_issues[] = 'running_with_result_method';
+			}
+			if ( 'running' === $status && ( '' !== $score_red || '' !== $score_blue ) ) {
+				$issues_count['running_with_score']++;
+				$row_issues[] = 'running_with_score';
+			}
+			if ( '' !== $deleted_at ) {
+				$issues_count['deleted_at_present']++;
+				$row_issues[] = 'deleted_at_present';
+			}
+			if ( FightRepository::STATUS_BYE === $status ) {
+				$issues_count['bye_present_pre_activation']++;
+				$row_issues[] = 'bye_present_pre_activation';
+			}
+			if ( FightRepository::STATUS_PLACEHOLDER === $status ) {
+				$issues_count['placeholder_pre_activation']++;
+				$row_issues[] = 'placeholder_pre_activation';
+			}
 			if ( $red_entry_id > 0 && $red_entry_id === $blue_entry_id ) {
 				$issues_count['red_equals_blue']++;
 				$row_issues[] = 'red_equals_blue';
@@ -487,7 +533,7 @@ class Sensitive_Operations_Page {
 				$row_issues[] = 'empty_corners_without_flag';
 			}
 
-			if ( ! empty( $row_issues ) ) {
+			if ( ! empty( $row_issues ) && count( $sample ) < $sample_limit ) {
 				$sample[] = array(
 					'id'      => (int) ( $fight->id ?? 0 ),
 					'fight_no'=> (int) ( $fight->fight_no ?? 0 ),
