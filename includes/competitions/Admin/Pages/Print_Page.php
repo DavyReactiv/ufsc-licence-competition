@@ -337,7 +337,7 @@ class Print_Page {
 					. '<td>' . esc_html( $blue_club ) . '</td>'
 					. '<td>' . esc_html( $category_weight ) . '</td>'
 					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
-					. '<td>' . esc_html( $this->format_fight_status( (string) ( $fight->status ?? '' ) ) ) . '</td>'
+					. '<td>' . esc_html( $this->format_fight_status( (string) ( $fight->status ?? '' ), $fight ) ) . '</td>'
 					. '</tr>';
 			}
 
@@ -409,7 +409,7 @@ class Print_Page {
 
 			arsort( $status_counts );
 			$dominant_status_key = (string) key( $status_counts );
-			$dominant_status = '' !== $dominant_status_key ? $this->format_fight_status( $dominant_status_key ) : '—';
+				$dominant_status = '' !== $dominant_status_key ? $this->format_fight_status( $dominant_status_key ) : '—';
 
 			echo '<tr>'
 				. '<td>' . esc_html( $surface ) . '</td>'
@@ -600,14 +600,22 @@ class Print_Page {
 		return $competition_id . ':' . $category_id;
 	}
 
-	private function format_fight_status( string $status ): string {
-		$labels = array(
-			'scheduled' => __( 'Planifié', 'ufsc-licence-competition' ),
-			'running' => __( 'En cours', 'ufsc-licence-competition' ),
-			'completed' => __( 'Terminé', 'ufsc-licence-competition' ),
-		);
+	private function format_fight_status( string $status, $fight = null ): string {
+		$status_label = $this->fights->get_status_label( $status );
+		if ( ! $fight || ! $this->fights->is_fight_bye( $fight ) ) {
+			return $status_label;
+		}
 
-		return $labels[ $status ] ?? $status;
+		$winner_entry_id = $this->fights->get_bye_winner_entry_id( $fight );
+		if ( $winner_entry_id <= 0 ) {
+			return $status_label;
+		}
+
+		return sprintf(
+			/* translators: %s: status label */
+			__( '%s — Qualifié automatiquement', 'ufsc-licence-competition' ),
+			$status_label
+		);
 	}
 
 }

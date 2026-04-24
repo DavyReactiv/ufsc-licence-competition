@@ -29,6 +29,7 @@ class BracketGenerator {
 				'red'  => $red,
 				'blue' => $blue,
 				'is_bye' => ! $red || ! $blue,
+				'bye_winner' => $red ?: $blue,
 			);
 		}
 

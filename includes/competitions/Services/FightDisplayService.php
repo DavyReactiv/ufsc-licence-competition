@@ -20,9 +20,7 @@ class FightDisplayService {
 
 		$corner = 'blue' === $corner ? 'blue' : 'red';
 		$status = strtolower( trim( (string) ( $fight->status ?? '' ) ) );
-		$round_no = max( 1, (int) ( $fight->round_no ?? 1 ) );
-
-		if ( 'bye' === $status && 1 === $round_no ) {
+		if ( 'bye' === $status ) {
 			return __( 'BYE', 'ufsc-licence-competition' );
 		}
 

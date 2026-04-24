@@ -67,11 +67,20 @@ class Fights_Table extends \WP_List_Table {
 			$this->competition_view_fallback = ( 'all_with_archived' !== $competition_view_raw );
 		}
 
+		$status_raw = isset( $_REQUEST['ufsc_status'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '';
+		$status_filter = '';
+		if ( '' !== $status_raw ) {
+			$status_normalized = $this->repository->normalize_fight_status( $status_raw );
+			if ( $this->repository->is_valid_fight_status( $status_normalized, false ) ) {
+				$status_filter = $status_normalized;
+			}
+		}
+
 		$filters = array(
 			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
 			'competition_view' => $competition_view,
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
-			'status'         => isset( $_REQUEST['ufsc_status'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_status'] ) ) : '',
+			'status'         => $status_filter,
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 		);
 
@@ -164,8 +173,13 @@ class Fights_Table extends \WP_List_Table {
 
 		$actions = array();
 		if ( empty( $item->deleted_at ) ) {
-			$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
-			if ( in_array( (string) ( $item->status ?? '' ), array( 'completed', 'running' ), true ) ) {
+			$can_delete = $this->repository->can_delete_fight( $item );
+			$is_sensitive = $this->repository->is_fight_sensitive( $item );
+			if ( ! $is_sensitive ) {
+				$actions['edit'] = sprintf( '<a href="%s">%s</a>', esc_url( $edit_url ), esc_html__( 'Modifier', 'ufsc-licence-competition' ) );
+			}
+			$effective_status = $this->repository->get_effective_fight_status( $item );
+			if ( in_array( $effective_status, array( FightRepository::STATUS_COMPLETED, FightRepository::STATUS_RUNNING ), true ) ) {
 				$actions['correct_result'] = sprintf(
 					'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
 					esc_url(
@@ -182,12 +196,14 @@ class Fights_Table extends \WP_List_Table {
 					esc_html__( 'Corriger le résultat', 'ufsc-licence-competition' )
 				);
 			}
-			$actions['trash'] = sprintf(
-				'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
-				esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_fight', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_fight_' . $item->id ) ),
-				esc_attr__( 'Mettre ce combat à la corbeille ?', 'ufsc-licence-competition' ),
-				esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
-			);
+			if ( $can_delete ) {
+				$actions['trash'] = sprintf(
+					'<a href="%s" class="ufsc-confirm" data-ufsc-confirm="%s">%s</a>',
+					esc_url( wp_nonce_url( add_query_arg( array( 'action' => 'ufsc_competitions_trash_fight', 'id' => $item->id ), admin_url( 'admin-post.php' ) ), 'ufsc_competitions_trash_fight_' . $item->id ) ),
+					esc_attr__( 'Mettre ce combat à la corbeille ?', 'ufsc-licence-competition' ),
+					esc_html__( 'Mettre à la corbeille', 'ufsc-licence-competition' )
+				);
+			}
 		} else {
 			$actions['restore'] = sprintf(
 				'<a href="%s">%s</a>',
@@ -230,7 +246,7 @@ class Fights_Table extends \WP_List_Table {
 			case 'round_no':
 				return esc_html( $item->round_no );
 			case 'status':
-				return esc_html( $this->format_status( $item->status ) );
+				return $this->format_status_badge( $item );
 			case 'scheduled':
 				return esc_html( $this->format_datetime( $item->scheduled_at ) );
 			default:
@@ -340,14 +356,16 @@ class Fights_Table extends \WP_List_Table {
 		return '';
 	}
 
-	private function format_status( $status ) {
-		$labels = array(
-			'scheduled' => __( 'Planifié', 'ufsc-licence-competition' ),
-			'running'   => __( 'En cours', 'ufsc-licence-competition' ),
-			'completed' => __( 'Terminé', 'ufsc-licence-competition' ),
-		);
+	private function format_status_badge( $fight ): string {
+		$status = $this->repository->get_effective_fight_status( $fight );
+		$label  = $this->repository->get_status_label( $status );
+		$class  = trim( 'ufsc-badge ' . $this->repository->get_status_badge_class( $status ) );
 
-		return $labels[ $status ] ?? $status;
+		return sprintf(
+			'<span class="%s">%s</span>',
+			esc_attr( $class ),
+			esc_html( $label )
+		);
 	}
 
 	private function format_datetime( $date ) {

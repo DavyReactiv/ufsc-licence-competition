@@ -394,18 +394,42 @@ class FightAutoGenerationService {
 
 		set_transient( $lock_key, 1, self::LOCK_TTL );
 
-		try {
-			$competition_repo = new CompetitionRepository();
-			$competition      = $competition_repo->get( $competition_id, true );
+			try {
+				$competition_repo = new CompetitionRepository();
+				$competition      = $competition_repo->get( $competition_id, true );
 			if ( ! $competition ) {
 				return array(
 					'ok'      => false,
 					'message' => __( 'Compétition introuvable.', 'ufsc-licence-competition' ),
 				);
-			}
+				}
 
-			$existing_fights = self::get_existing_generation_blockers( $competition_id );
-			if ( (int) $existing_fights['total'] > 0 ) {
+				$fight_repo         = new FightRepository();
+				$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
+				if ( empty( $regeneration_scope['allowed'] ) ) {
+					$blocking_count = (int) ( $regeneration_scope['blocking_count'] ?? 0 );
+					( new LogService() )->log(
+						'generation_blocked_sensitive_scope',
+						'fight',
+						$competition_id,
+						'Génération bloquée : combats sensibles détectés.',
+						array(
+							'blocking_count' => $blocking_count,
+							'reason'         => (string) ( $regeneration_scope['reason'] ?? '' ),
+						)
+					);
+					return array(
+						'ok'      => false,
+						'message' => sprintf(
+							/* translators: %d: sensitive fights count */
+							__( 'Génération bloquée : %d combat(s) en cours/terminé(s) ou avec résultat existent déjà dans ce périmètre. Utilisez le workflow d’actions sensibles.', 'ufsc-licence-competition' ),
+							$blocking_count
+						),
+					);
+				}
+
+				$existing_fights = self::get_existing_generation_blockers( $competition_id );
+				if ( (int) $existing_fights['total'] > 0 ) {
 				return array(
 					'ok'      => false,
 					'message' => sprintf(
@@ -533,8 +557,7 @@ class FightAutoGenerationService {
 
 			$groups = self::sort_groups_for_generation( $groups, $normalized_categories );
 
-			$fight_repo    = new FightRepository();
-			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+				$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 
 			$fights         = array();
 			$total_bye_slots = 0;
@@ -1121,15 +1144,23 @@ class FightAutoGenerationService {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 8 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				$next_no++;
-			}
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
+					$next_no++;
+				}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
 		} elseif ( $count >= 9 && $count <= 16 ) {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 16 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
 				$next_no++;
 			}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
@@ -1137,7 +1168,11 @@ class FightAutoGenerationService {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				if ( ! empty( $match['is_bye'] ) ) {
+					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				} else {
+					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
+				}
 				$next_no++;
 			}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
@@ -1269,6 +1304,19 @@ class FightAutoGenerationService {
 		);
 	}
 
+	private static function build_bye_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no ): array {
+		$payload = self::build_fight_payload( $competition_id, $category_id, $fight_no, $red_entry, $blue_entry, $round_no );
+		$qualified_entry_id = $red_entry ? (int) ( $red_entry->id ?? 0 ) : ( $blue_entry ? (int) ( $blue_entry->id ?? 0 ) : 0 );
+
+		$payload['status']          = FightRepository::STATUS_BYE;
+		$payload['winner_entry_id'] = $qualified_entry_id > 0 ? $qualified_entry_id : null;
+		$payload['result_method']   = '';
+		$payload['score_red']       = '';
+		$payload['score_blue']      = '';
+
+		return $payload;
+	}
+
 	public static function assign_surfaces_and_schedule( array $fights, array $settings, int $competition_id ): array {
 		$surface_labels = self::get_surface_labels( $settings );
 		$surface_count  = max( 1, count( $surface_labels ) );
@@ -1317,6 +1365,12 @@ class FightAutoGenerationService {
 		}
 
 		foreach ( $fights as $index => $fight ) {
+			if ( FightRepository::STATUS_BYE === sanitize_key( (string) ( $fight['status'] ?? '' ) ) ) {
+				$fights[ $index ]['ring'] = '';
+				$fights[ $index ]['scheduled_at'] = null;
+				continue;
+			}
+
 			$surface_index = 0;
 			$min_time      = $surface_times[0];
 
