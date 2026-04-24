@@ -75,6 +75,9 @@ class Bouts_AutoGeneration {
 		$preview = $competition_id ? FightAutoGenerationService::get_generation_preview( $competition_id, $settings ) : array();
 		$estimated_fights = (int) ( $preview['estimated_fights'] ?? 0 );
 		$estimated_total_seconds = (int) ( $preview['estimated_total_seconds'] ?? 0 );
+		$diagnostics = isset( $preview['rejection_diagnostics'] ) && is_array( $preview['rejection_diagnostics'] )
+			? $preview['rejection_diagnostics']
+			: ( isset( $counters['diagnostics'] ) && is_array( $counters['diagnostics'] ) ? $counters['diagnostics'] : array() );
 		$competition_label = $competition_id ? sprintf( __( 'Compétition #%d', 'ufsc-licence-competition' ), $competition_id ) : __( 'Aucune compétition sélectionnée (ouvrez une compétition active).', 'ufsc-licence-competition' );
 		$timing_profile_label = 'category' === ( $settings['timing_mode'] ?? 'global' )
 			? __( 'Profils par catégories actifs', 'ufsc-licence-competition' )
@@ -115,6 +118,80 @@ class Bouts_AutoGeneration {
 					<li><span class="<?php echo esc_attr( self::status_badge_class( $can_generate ? 'ok' : 'danger' ) ); ?>"><?php echo $can_generate ? esc_html__( 'Oui', 'ufsc-licence-competition' ) : esc_html__( 'Non', 'ufsc-licence-competition' ); ?></span> <?php esc_html_e( 'Capacité de génération immédiate', 'ufsc-licence-competition' ); ?></li>
 				</ul>
 			</div>
+
+			<?php if ( ! empty( $diagnostics ) ) : ?>
+			<div class="ufsc-fightgen-precheck">
+				<h3><?php esc_html_e( 'Diagnostic des rejets', 'ufsc-licence-competition' ); ?></h3>
+				<ul>
+					<li><?php echo esc_html( sprintf( __( 'Inscriptions totales : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['total_entries'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Éligibles : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['eligible_entries'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par statut : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_status'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par licence/type participant : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_license_or_participant'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par pesée : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_weighin'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par données sportives manquantes : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_missing_sport_data'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par catégorie/poids/niveau : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_category_weight_level'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par discipline : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_discipline'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées car club absent : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_club'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées car données combattant incomplètes : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_incomplete_fighter_data'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Rejetées par doublon n° combattant : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_duplicate_fighter_number'] ?? 0 ) ) ); ?></li>
+				</ul>
+				<?php if ( ! empty( $diagnostics['sport_data_subreasons'] ) && is_array( $diagnostics['sport_data_subreasons'] ) ) : ?>
+					<p><strong><?php esc_html_e( 'Détail données sportives manquantes :', 'ufsc-licence-competition' ); ?></strong></p>
+					<ul>
+						<?php foreach ( $diagnostics['sport_data_subreasons'] as $reason_key => $reason_count ) : ?>
+							<li><?php echo esc_html( sprintf( '%s : %d', sanitize_key( (string) $reason_key ), (int) $reason_count ) ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+				<?php if ( ! empty( $diagnostics['rejected_entries_preview'] ) && is_array( $diagnostics['rejected_entries_preview'] ) ) : ?>
+					<p><strong><?php esc_html_e( 'Exemples (10 premières inscriptions rejetées)', 'ufsc-licence-competition' ); ?></strong></p>
+					<div class="table-responsive">
+						<table class="widefat striped">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'ID', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Cat. poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Sexe brut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Sexe norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Naissance brute', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Naissance norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Niveau brut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Niveau norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Motifs exacts', 'ufsc-licence-competition' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $diagnostics['rejected_entries_preview'] as $entry_diag ) : ?>
+									<tr>
+										<td><?php echo esc_html( (string) (int) ( $entry_diag['entry_id'] ?? 0 ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['last_name'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['first_name'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['status'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['discipline'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['category'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['weight_class'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['weight'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['sex_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['sex_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['birthdate_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['birthdate_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['level_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['level_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( implode( ', ', array_map( 'sanitize_key', (array) ( $entry_diag['reasons'] ?? array() ) ) ) ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
+			</div>
+			<?php endif; ?>
 
 			<ul>
 				<li><?php echo esc_html( sprintf( __( 'Inscriptions totales : %d', 'ufsc-licence-competition' ), (int) ( $counters['total_entries'] ?? 0 ) ) ); ?></li>

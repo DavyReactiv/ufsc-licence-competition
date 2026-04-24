@@ -283,6 +283,7 @@ class FightAutoGenerationService {
 			'eligible_entries'       => count( $selection['valid_entries'] ),
 			'excluded_unweighed'     => (int) ( $selection['excluded_unweighed'] ?? 0 ),
 			'can_override_unweighed' => ! empty( $selection['enforce_weighin'] ) && (int) ( $selection['excluded_unweighed'] ?? 0 ) > 0,
+			'diagnostics'            => self::build_rejection_diagnostics( $entries, $selection ),
 		);
 	}
 
@@ -298,6 +299,7 @@ class FightAutoGenerationService {
 			'duplicate_fighter_numbers'   => 0,
 			'can_generate'                => false,
 			'precheck'                    => array(),
+			'rejection_diagnostics'       => array(),
 		);
 
 		if ( ! $competition_id ) {
@@ -318,6 +320,7 @@ class FightAutoGenerationService {
 		if ( ! $groups ) {
 			$preview['eligible_entries']   = count( $eligible );
 			$preview['excluded_unweighed'] = (int) ( $selection['excluded_unweighed'] ?? 0 );
+			$preview['rejection_diagnostics'] = self::build_rejection_diagnostics( $entries, $selection );
 			return $preview;
 		}
 
@@ -350,6 +353,7 @@ class FightAutoGenerationService {
 		$preview['excluded_unweighed']        = (int) ( $selection['excluded_unweighed'] ?? 0 );
 		$preview['duplicate_fighter_numbers'] = $duplicates;
 		$preview['can_generate']              = $surfaces_ok && $timing_ok && $eligible_ok && empty( $settings['auto_lock'] ) && 'manual' !== ( $settings['mode'] ?? 'auto' );
+		$preview['rejection_diagnostics']     = self::build_rejection_diagnostics( $entries, $selection );
 		$preview['precheck']                  = array(
 			'surfaces_ok' => $surfaces_ok,
 			'timing_ok'   => $timing_ok,
@@ -463,6 +467,7 @@ class FightAutoGenerationService {
 			$selection         = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 			$valid_entries     = $selection['valid_entries'];
 			$ineligible_reasons = $selection['ineligible_reasons'];
+			$reason_counts      = (array) ( $selection['reason_counts'] ?? array() );
 			$excluded_unweighed = (int) ( $selection['excluded_unweighed'] ?? 0 );
 
 			if ( ! $valid_entries ) {
@@ -496,6 +501,7 @@ class FightAutoGenerationService {
 						'total_entries'      => $total_entries,
 						'eligible_entries'   => 0,
 						'excluded_unweighed' => $excluded_unweighed,
+						'reason_counts'      => $reason_counts,
 					),
 				);
 			}
@@ -811,7 +817,9 @@ class FightAutoGenerationService {
 	private static function select_eligible_entries( array $entries, int $competition_id, $competition, array $settings ): array {
 		$valid_entries      = array();
 		$ineligible_reasons = array();
+		$reason_counts      = array();
 		$excluded_unweighed = 0;
+		$rejected_entries   = array();
 
 		$allow_unweighed = ! empty( $settings['allow_unweighed'] );
 		$weighin_repo    = new WeighInRepository();
@@ -857,8 +865,18 @@ class FightAutoGenerationService {
 					);
 				}
 				foreach ( (array) ( $eligibility['reasons'] ?? array() ) as $reason ) {
+					$reason = sanitize_key( (string) $reason );
+					if ( '' === $reason ) {
+						continue;
+					}
 					$ineligible_reasons[ $reason ] = true;
+					$reason_counts[ $reason ]      = (int) ( $reason_counts[ $reason ] ?? 0 ) + 1;
 				}
+				$rejected_entries[] = self::build_rejected_entry_snapshot(
+					$entry,
+					(array) ( $eligibility['reasons'] ?? array() ),
+					(string) ( $eligibility['status'] ?? '' )
+				);
 				continue;
 			}
 
@@ -870,7 +888,9 @@ class FightAutoGenerationService {
 					: $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
 					if ( ! $has_weighin ) {
 						$ineligible_reasons['weighin_missing'] = true;
+						$reason_counts['weighin_missing']      = (int) ( $reason_counts['weighin_missing'] ?? 0 ) + 1;
 						$excluded_unweighed++;
+						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'weighin_missing' ) );
 						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'weighin_missing' ), 'context' => 'weighin' ) ) );
 						}
@@ -880,7 +900,9 @@ class FightAutoGenerationService {
 					$meta = self::extract_weighin_notes_meta( $row );
 					if ( ! empty( $meta['reclass_pending'] ) ) {
 						$ineligible_reasons['reclass_pending'] = true;
+						$reason_counts['reclass_pending']      = (int) ( $reason_counts['reclass_pending'] ?? 0 ) + 1;
 						$excluded_unweighed++;
+						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'reclass_pending' ) );
 						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'reclass_pending' ), 'context' => 'weighin' ) ) );
 						}
@@ -900,6 +922,7 @@ class FightAutoGenerationService {
 						'eligible_entries'    => count( $valid_entries ),
 						'excluded_unweighed'  => $excluded_unweighed,
 						'exclusion_reasons'   => array_keys( $ineligible_reasons ),
+						'reason_counts'       => $reason_counts,
 					)
 				)
 			);
@@ -908,9 +931,160 @@ class FightAutoGenerationService {
 		return array(
 			'valid_entries'      => $valid_entries,
 			'ineligible_reasons' => $ineligible_reasons,
+			'reason_counts'      => $reason_counts,
 			'excluded_unweighed' => $excluded_unweighed,
 			'enforce_weighin'    => $enforce_weighin,
+			'rejected_entries'   => $rejected_entries,
 		);
+	}
+
+	private static function build_rejection_diagnostics( array $entries, array $selection ): array {
+		$reason_counts = (array) ( $selection['reason_counts'] ?? array() );
+		$total_rejected = 0;
+		foreach ( $reason_counts as $count ) {
+			$total_rejected += (int) $count;
+		}
+
+		$sum = static function ( array $keys ) use ( $reason_counts ): int {
+			$total = 0;
+			foreach ( $keys as $key ) {
+				$total += (int) ( $reason_counts[ $key ] ?? 0 );
+			}
+			return $total;
+		};
+
+		return array(
+			'total_entries'                     => count( $entries ),
+			'eligible_entries'                  => count( (array) ( $selection['valid_entries'] ?? array() ) ),
+			'rejected_total'                    => $total_rejected,
+			'rejected_status'                   => $sum( array( 'status_not_approved', 'status_not_pending', 'status_not_exportable' ) ),
+			'rejected_license_or_participant'   => $sum( array( 'license_missing', 'external_not_allowed_for_competition' ) ),
+			'rejected_weighin'                  => $sum( array( 'weighin_missing', 'reclass_pending' ) ),
+			'rejected_missing_sport_data'       => $sum( array( 'external_identity_incomplete', 'external_missing_required_sport_data', 'external_birth_date_invalid', 'external_birth_date_future', 'external_sex_invalid', 'external_minor_guardian_missing' ) ),
+			'rejected_category_weight_level'    => $sum( array( 'weight_missing', 'weight_class_missing' ) ),
+			'rejected_discipline'               => $sum( array( 'discipline_missing' ) ),
+			'rejected_club'                     => $sum( array( 'club_missing' ) ),
+			'rejected_incomplete_fighter_data'  => $sum( array( 'entry_missing', 'entry_not_found', 'entry_deleted' ) ),
+			'rejected_duplicate_fighter_number' => self::count_duplicate_fighter_numbers( $entries ),
+			'sport_data_subreasons'             => self::build_subreason_counts(
+				$reason_counts,
+				array(
+					'external_identity_incomplete',
+					'external_missing_required_sport_data',
+					'external_birth_date_invalid',
+					'external_birth_date_future',
+					'external_sex_invalid',
+					'external_minor_guardian_missing',
+					'external_guardian_email_invalid',
+					'external_guardian_phone_invalid',
+				)
+			),
+			'rejected_entries_preview'          => array_slice( (array) ( $selection['rejected_entries'] ?? array() ), 0, 10 ),
+		);
+	}
+
+	private static function build_subreason_counts( array $reason_counts, array $keys ): array {
+		$counts = array();
+		foreach ( $keys as $key ) {
+			$value = (int) ( $reason_counts[ $key ] ?? 0 );
+			if ( $value > 0 ) {
+				$counts[ $key ] = $value;
+			}
+		}
+
+		return $counts;
+	}
+
+	private static function build_rejected_entry_snapshot( $entry, array $reasons, string $status = '' ): array {
+		$name_keys = array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' );
+		$first_keys = array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' );
+		$discipline_keys = array( 'discipline' );
+		$category_keys = array( 'category_name', 'category', 'categorie' );
+		$weight_class_keys = array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' );
+		$weight_keys = array( 'weight_kg', 'weight', 'poids' );
+		$level_keys = array( 'level', 'class', 'classe', 'niveau' );
+		$birth_keys = array( 'birth_date', 'date_naissance', 'birthdate', 'dob', 'date_of_birth', 'naissance', 'licensee_birthdate' );
+		$sex_keys = array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' );
+
+		$birth_raw  = self::pick_entry_value( $entry, $birth_keys );
+		$sex_raw    = self::pick_entry_value( $entry, $sex_keys );
+		$level_raw  = self::pick_entry_value( $entry, $level_keys );
+		$category   = self::pick_entry_value( $entry, $category_keys );
+		$sex_normalized = self::normalize_sex_value( $sex_raw, $category );
+		$date_normalized = self::normalize_birth_date_value( $birth_raw );
+		$level_normalized = '' !== $level_raw ? $level_raw : 'non_defini';
+		$resolved_status = '' !== $status ? $status : sanitize_key( (string) ( $entry->status ?? '' ) );
+
+		return array(
+			'entry_id'               => (int) ( $entry->id ?? 0 ),
+			'last_name'              => self::pick_entry_value( $entry, $name_keys ),
+			'first_name'             => self::pick_entry_value( $entry, $first_keys ),
+			'status'                 => $resolved_status,
+			'discipline'             => self::pick_entry_value( $entry, $discipline_keys ),
+			'category'               => $category,
+			'weight_class'           => self::pick_entry_value( $entry, $weight_class_keys ),
+			'weight'                 => self::pick_entry_value( $entry, $weight_keys ),
+			'sex_raw'                => $sex_raw,
+			'sex_normalized'         => $sex_normalized,
+			'birthdate_raw'          => $birth_raw,
+			'birthdate_normalized'   => $date_normalized,
+			'level_raw'              => $level_raw,
+			'level_normalized'       => $level_normalized,
+			'reasons'                => array_values( array_filter( array_map( 'sanitize_key', $reasons ) ) ),
+		);
+	}
+
+	private static function pick_entry_value( $entry, array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( isset( $entry->{$key} ) ) {
+				$value = trim( (string) $entry->{$key} );
+				if ( '' !== $value ) {
+					return sanitize_text_field( $value );
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private static function normalize_birth_date_value( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+		if ( preg_match( '/^(\d{4})-\d{2}-\d{2}/', $value, $matches ) ) {
+			return $matches[0];
+		}
+		if ( preg_match( '/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+		if ( preg_match( '/^(\d{2})-(\d{2})-(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+
+		return '';
+	}
+
+	private static function normalize_sex_value( string $raw, string $category = '' ): string {
+		$raw = sanitize_key( $raw );
+		if ( in_array( $raw, array( 'f', 'female', 'feminin', 'woman', 'femme' ), true ) ) {
+			return 'f';
+		}
+		if ( in_array( $raw, array( 'm', 'h', 'male', 'masculin', 'homme' ), true ) ) {
+			return 'm';
+		}
+
+		$category_upper = function_exists( 'mb_strtoupper' ) ? mb_strtoupper( $category ) : strtoupper( $category );
+		if ( '' !== $category_upper ) {
+			if ( preg_match( '/(?:\s|^)(F|FEM|FEMININ|FEMME)(?:\s|$)/u', $category_upper ) ) {
+				return 'f';
+			}
+			if ( preg_match( '/(?:\s|^)(H|M|HOM|HOMME|MASC|MASCULIN)(?:\s|$)/u', $category_upper ) ) {
+				return 'm';
+			}
+		}
+
+		return '';
 	}
 
 	private static function get_default_settings(): array {
@@ -1074,6 +1248,9 @@ class FightAutoGenerationService {
 				$level = sanitize_text_field( (string) $entry->{$key} );
 				break;
 			}
+		}
+		if ( '' === $level ) {
+			$level = 'non_defini';
 		}
 
 		return array(
