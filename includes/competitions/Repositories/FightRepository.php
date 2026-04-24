@@ -15,6 +15,14 @@ if ( class_exists( __NAMESPACE__ . '\\FightRepository', false ) ) {
 
 class FightRepository {
 	private const DRAFT_PREFIX = 'ufsc_competitions_fight_draft_';
+	public const STATUS_SCHEDULED   = 'scheduled';
+	public const STATUS_RUNNING     = 'running';
+	public const STATUS_COMPLETED   = 'completed';
+	public const STATUS_BYE         = 'bye';
+	public const STATUS_PLACEHOLDER = 'placeholder';
+	public const STATUS_CANCELLED   = 'cancelled';
+	public const STATUS_LOCKED      = 'locked';
+	public const STATUS_TRASHED     = 'trashed';
 
 	private $logger;
 
@@ -33,6 +41,282 @@ class FightRepository {
 				absint( $id )
 			)
 		);
+	}
+
+	public function is_fight_played( $fight ): bool {
+		$effective_status = $this->get_effective_fight_status( $fight );
+		return self::STATUS_COMPLETED === $effective_status;
+	}
+
+	public function is_fight_running( $fight ): bool {
+		$effective_status = $this->get_effective_fight_status( $fight );
+		return self::STATUS_RUNNING === $effective_status;
+	}
+
+	public function is_fight_sensitive( $fight ): bool {
+		return $this->is_fight_running( $fight ) || $this->is_fight_played( $fight );
+	}
+
+	public function can_delete_fight( $fight ): bool {
+		return ! $this->is_fight_sensitive( $fight );
+	}
+
+	public function get_allowed_statuses( bool $include_prepared = true ): array {
+		$active = array(
+			self::STATUS_SCHEDULED,
+			self::STATUS_RUNNING,
+			self::STATUS_COMPLETED,
+		);
+		if ( ! $include_prepared ) {
+			return $active;
+		}
+
+		return array_merge(
+			$active,
+			array(
+				self::STATUS_BYE,
+				self::STATUS_PLACEHOLDER,
+				self::STATUS_CANCELLED,
+				self::STATUS_LOCKED,
+			)
+		);
+	}
+
+	public function is_valid_fight_status( string $status, bool $include_prepared = true ): bool {
+		$status = $this->normalize_fight_status( $status );
+		return in_array( $status, $this->get_allowed_statuses( $include_prepared ), true );
+	}
+
+	public function normalize_fight_status( string $status ): string {
+		$status = sanitize_key( trim( strtolower( $status ) ) );
+		if ( '' === $status ) {
+			return self::STATUS_SCHEDULED;
+		}
+
+		$aliases = array(
+			'draft'    => self::STATUS_SCHEDULED,
+			'planned'  => self::STATUS_SCHEDULED,
+			'planifie' => self::STATUS_SCHEDULED,
+			'planifiee'=> self::STATUS_SCHEDULED,
+			'en_cours' => self::STATUS_RUNNING,
+			'termine'  => self::STATUS_COMPLETED,
+			'finished' => self::STATUS_COMPLETED,
+		);
+
+		return $aliases[ $status ] ?? $status;
+	}
+
+	public function get_status_label( string $status ): string {
+		$status = $this->normalize_fight_status( $status );
+		$labels = array(
+			self::STATUS_SCHEDULED   => __( 'Prévu', 'ufsc-licence-competition' ),
+			self::STATUS_RUNNING     => __( 'En cours', 'ufsc-licence-competition' ),
+			self::STATUS_COMPLETED   => __( 'Terminé', 'ufsc-licence-competition' ),
+			self::STATUS_BYE         => __( 'BYE', 'ufsc-licence-competition' ),
+			self::STATUS_PLACEHOLDER => __( 'Placeholder', 'ufsc-licence-competition' ),
+			self::STATUS_CANCELLED   => __( 'Annulé', 'ufsc-licence-competition' ),
+			self::STATUS_LOCKED      => __( 'Verrouillé', 'ufsc-licence-competition' ),
+			self::STATUS_TRASHED     => __( 'Corbeille', 'ufsc-licence-competition' ),
+		);
+
+		return $labels[ $status ] ?? __( 'Inconnu', 'ufsc-licence-competition' );
+	}
+
+	public function get_status_badge_class( string $status ): string {
+		$status = $this->normalize_fight_status( $status );
+		switch ( $status ) {
+			case self::STATUS_COMPLETED:
+				return 'ufsc-badge--success';
+			case self::STATUS_RUNNING:
+				return 'ufsc-badge--warning';
+			case self::STATUS_CANCELLED:
+			case self::STATUS_LOCKED:
+				return 'ufsc-badge--danger';
+			case self::STATUS_BYE:
+			case self::STATUS_PLACEHOLDER:
+				return 'ufsc-badge--info';
+			case self::STATUS_SCHEDULED:
+			default:
+				return 'ufsc-badge--muted';
+		}
+	}
+
+	public function get_effective_fight_status( $fight ): string {
+		if ( ! is_object( $fight ) && ! is_array( $fight ) ) {
+			return self::STATUS_SCHEDULED;
+		}
+
+		$deleted_at = is_array( $fight ) ? ( $fight['deleted_at'] ?? '' ) : ( $fight->deleted_at ?? '' );
+		if ( '' !== trim( (string) $deleted_at ) ) {
+			return self::STATUS_TRASHED;
+		}
+
+		$status = is_array( $fight ) ? (string) ( $fight['status'] ?? '' ) : (string) ( $fight->status ?? '' );
+		$status = $this->normalize_fight_status( $status );
+
+		if ( self::STATUS_COMPLETED === $status ) {
+			return self::STATUS_COMPLETED;
+		}
+
+		if ( $this->has_result_payload( $fight ) ) {
+			return self::STATUS_COMPLETED;
+		}
+
+		if ( self::STATUS_RUNNING === $status ) {
+			return self::STATUS_RUNNING;
+		}
+
+		if ( ! $this->is_valid_fight_status( $status ) ) {
+			return self::STATUS_SCHEDULED;
+		}
+
+		return $status;
+	}
+
+	public function can_transition_status( $fight, string $new_status ): bool {
+		$new_status = $this->normalize_fight_status( $new_status );
+		if ( ! $this->is_valid_fight_status( $new_status ) ) {
+			return false;
+		}
+
+		$current = $this->get_effective_fight_status( $fight );
+		if ( $current === $new_status ) {
+			return true;
+		}
+		if ( self::STATUS_TRASHED === $current || self::STATUS_TRASHED === $new_status ) {
+			return false;
+		}
+
+		if ( self::STATUS_COMPLETED === $current ) {
+			return false;
+		}
+		if ( self::STATUS_RUNNING === $current && self::STATUS_COMPLETED === $new_status ) {
+			return $this->has_coherent_result_winner( $fight );
+		}
+		if ( self::STATUS_SCHEDULED === $current && self::STATUS_RUNNING === $new_status ) {
+			return true;
+		}
+		if ( self::STATUS_SCHEDULED === $current && self::STATUS_COMPLETED === $new_status ) {
+			return $this->has_coherent_result_winner( $fight );
+		}
+		if ( self::STATUS_RUNNING === $current && self::STATUS_SCHEDULED === $new_status ) {
+			return ! $this->has_result_payload( $fight );
+		}
+		if ( self::STATUS_SCHEDULED === $current && self::STATUS_CANCELLED === $new_status ) {
+			return true;
+		}
+
+		return self::STATUS_SCHEDULED === $current && self::STATUS_SCHEDULED === $new_status;
+	}
+
+	public function can_regenerate_scope( int $competition_id, ?int $category_id = null ): array {
+		$competition_id = absint( $competition_id );
+		$category_id    = null !== $category_id ? absint( $category_id ) : null;
+		if ( $competition_id <= 0 ) {
+			return array(
+				'allowed'        => false,
+				'blocking_count' => 0,
+				'blocking_fights'=> array(),
+				'reason'         => 'invalid_competition',
+			);
+		}
+
+		$filters = array(
+			'view'           => 'all',
+			'competition_id' => $competition_id,
+		);
+		if ( $category_id && $category_id > 0 ) {
+			$filters['category_id'] = $category_id;
+		}
+
+		$fights = $this->list( $filters, 5000, 0 );
+		$blocking = array();
+		$inconsistent_scheduled = array();
+		foreach ( $fights as $fight ) {
+			if ( ! $this->is_fight_sensitive( $fight ) ) {
+				continue;
+			}
+			$status = $this->normalize_fight_status( (string) ( $fight->status ?? '' ) );
+			$winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
+			$result_method   = sanitize_text_field( (string) ( $fight->result_method ?? '' ) );
+			$score_red       = sanitize_text_field( (string) ( $fight->score_red ?? '' ) );
+			$score_blue      = sanitize_text_field( (string) ( $fight->score_blue ?? '' ) );
+			if ( self::STATUS_SCHEDULED === $status && ( $winner_entry_id > 0 || '' !== $result_method || '' !== trim( $score_red ) || '' !== trim( $score_blue ) ) ) {
+				$inconsistent_scheduled[] = (int) ( $fight->id ?? 0 );
+			}
+
+			$blocking[] = array(
+				'id'              => (int) ( $fight->id ?? 0 ),
+				'fight_no'        => (int) ( $fight->fight_no ?? 0 ),
+				'category_id'     => (int) ( $fight->category_id ?? 0 ),
+				'status'          => $status,
+				'winner_entry_id' => $winner_entry_id,
+				'result_method'   => $result_method,
+				'score_red'       => $score_red,
+				'score_blue'      => $score_blue,
+			);
+		}
+
+		if ( ! empty( $inconsistent_scheduled ) ) {
+			$this->logger->log(
+				'fight_status_inconsistent',
+				'fight',
+				$competition_id,
+				'Combats scheduled avec données résultat détectés.',
+				array(
+					'competition_id' => $competition_id,
+					'category_id'    => $category_id ?: 0,
+					'fight_ids'      => $inconsistent_scheduled,
+				)
+			);
+		}
+
+		if ( empty( $blocking ) ) {
+			return array(
+				'allowed'        => true,
+				'blocking_count' => 0,
+				'blocking_fights'=> array(),
+				'reason'         => 'ok',
+			);
+		}
+
+		return array(
+			'allowed'        => false,
+			'blocking_count' => count( $blocking ),
+			'blocking_fights'=> $blocking,
+			'reason'         => 'sensitive_fights_present',
+		);
+	}
+
+	private function has_result_payload( $fight ): bool {
+		$winner_entry_id = absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+		if ( $winner_entry_id > 0 ) {
+			return true;
+		}
+
+		$result_method = trim( (string) ( is_array( $fight ) ? ( $fight['result_method'] ?? '' ) : ( $fight->result_method ?? '' ) ) );
+		if ( '' !== $result_method ) {
+			return true;
+		}
+
+		$score_red  = trim( (string) ( is_array( $fight ) ? ( $fight['score_red'] ?? '' ) : ( $fight->score_red ?? '' ) ) );
+		$score_blue = trim( (string) ( is_array( $fight ) ? ( $fight['score_blue'] ?? '' ) : ( $fight->score_blue ?? '' ) ) );
+		return '' !== $score_red || '' !== $score_blue;
+	}
+
+	private function has_coherent_result_winner( $fight ): bool {
+		$winner_entry_id = absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+		if ( $winner_entry_id <= 0 ) {
+			return false;
+		}
+
+		$red_entry_id  = absint( is_array( $fight ) ? ( $fight['red_entry_id'] ?? 0 ) : ( $fight->red_entry_id ?? 0 ) );
+		$blue_entry_id = absint( is_array( $fight ) ? ( $fight['blue_entry_id'] ?? 0 ) : ( $fight->blue_entry_id ?? 0 ) );
+		if ( $red_entry_id <= 0 || $blue_entry_id <= 0 ) {
+			return false;
+		}
+
+		return $winner_entry_id === $red_entry_id || $winner_entry_id === $blue_entry_id;
 	}
 
 	public function list( array $filters, $limit, $offset ) {
