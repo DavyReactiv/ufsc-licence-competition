@@ -124,6 +124,12 @@ class Bouts_Page {
 		check_admin_referer( 'ufsc_competitions_save_fight' );
 
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+		$raw_status = isset( $_POST['status'] ) ? sanitize_text_field( wp_unslash( $_POST['status'] ) ) : FightRepository::STATUS_SCHEDULED;
+		$normalized_status = $this->repository->normalize_fight_status( $raw_status );
+		if ( ! $this->repository->is_valid_fight_status( $normalized_status, false ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'status_invalid', $id, __( 'Le statut demandé n’est pas autorisé.', 'ufsc-licence-competition' ) );
+		}
+
 		$data = array(
 			'competition_id'  => isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0,
 			'category_id'     => isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0,
@@ -133,7 +139,7 @@ class Bouts_Page {
 			'red_entry_id'    => isset( $_POST['red_entry_id'] ) ? absint( $_POST['red_entry_id'] ) : 0,
 			'blue_entry_id'   => isset( $_POST['blue_entry_id'] ) ? absint( $_POST['blue_entry_id'] ) : 0,
 			'winner_entry_id' => isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0,
-			'status'          => isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'scheduled',
+			'status'          => $normalized_status,
 			'result_method'   => isset( $_POST['result_method'] ) ? sanitize_text_field( wp_unslash( $_POST['result_method'] ) ) : '',
 			'score_red'       => isset( $_POST['score_red'] ) ? sanitize_text_field( wp_unslash( $_POST['score_red'] ) ) : '',
 			'score_blue'      => isset( $_POST['score_blue'] ) ? sanitize_text_field( wp_unslash( $_POST['score_blue'] ) ) : '',
@@ -158,6 +164,18 @@ class Bouts_Page {
 					)
 				);
 				$this->redirect_with_notice( Menu::PAGE_BOUTS, 'protected_edit', $id );
+			}
+			if ( $existing ) {
+				$current_effective_status = $this->repository->get_effective_fight_status( $existing );
+				if ( $current_effective_status !== $data['status'] && ! $this->repository->can_transition_status( $existing, $data['status'] ) ) {
+					$message = __( 'Le statut demandé n’est pas autorisé.', 'ufsc-licence-competition' );
+					if ( FightRepository::STATUS_COMPLETED === $current_effective_status && FightRepository::STATUS_SCHEDULED === $data['status'] ) {
+						$message = __( 'Un combat terminé ne peut pas revenir au statut prévu sans procédure de correction supervisée.', 'ufsc-licence-competition' );
+					} elseif ( $this->fight_has_result_payload( $existing ) ) {
+						$message = __( 'Le statut de ce combat ne peut pas être modifié car il contient déjà un résultat.', 'ufsc-licence-competition' );
+					}
+					$this->redirect_with_notice( Menu::PAGE_BOUTS, 'status_transition_blocked', $id, $message );
+				}
 			}
 		}
 
@@ -726,15 +744,33 @@ class Bouts_Page {
 				'correction_done' => __( 'Correction de résultat enregistrée et auditée.', 'ufsc-licence-competition' ),
 				'correction_invalid' => __( 'Correction invalide : vainqueur et motif obligatoires.', 'ufsc-licence-competition' ),
 				'correction_supervisor_required' => __( 'Validation superviseur obligatoire : des combats suivants sont déjà joués.', 'ufsc-licence-competition' ),
-			);
+				'status_invalid' => __( 'Statut invalide.', 'ufsc-licence-competition' ),
+				'status_transition_blocked' => __( 'Transition de statut refusée.', 'ufsc-licence-competition' ),
+				);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked' ), true ) ? 'error' : 'success';
 		$text = '' !== $custom_message ? $custom_message : $messages[ $notice ];
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $text ) );
+	}
+
+	private function fight_has_result_payload( $fight ): bool {
+		$winner_entry_id = absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+		if ( $winner_entry_id > 0 ) {
+			return true;
+		}
+
+		$result_method = trim( (string) ( is_array( $fight ) ? ( $fight['result_method'] ?? '' ) : ( $fight->result_method ?? '' ) ) );
+		if ( '' !== $result_method ) {
+			return true;
+		}
+
+		$score_red  = trim( (string) ( is_array( $fight ) ? ( $fight['score_red'] ?? '' ) : ( $fight->score_red ?? '' ) ) );
+		$score_blue = trim( (string) ( is_array( $fight ) ? ( $fight['score_blue'] ?? '' ) : ( $fight->score_blue ?? '' ) ) );
+		return '' !== $score_red || '' !== $score_blue;
 	}
 
 	private function maybe_handle_bulk_actions( Fights_Table $list_table, $page_slug ) {
