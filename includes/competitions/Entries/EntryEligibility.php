@@ -92,7 +92,7 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 		}
 
 		$weight_class = '';
-		foreach ( array( 'weight_class', 'weight_cat', 'weight_category' ) as $key ) {
+		foreach ( array( 'weight_class', 'weight_cat', 'weight_category', 'categorie_poids', 'category_weight' ) as $key ) {
 			if ( isset( $entry->{$key} ) && '' !== (string) $entry->{$key} ) {
 				$weight_class = sanitize_text_field( (string) $entry->{$key} );
 				break;
@@ -100,7 +100,13 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 		}
 
 		$license_id     = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
-		$license_number = sanitize_text_field( (string) ( $entry->license_number ?? '' ) );
+		$license_number = '';
+		foreach ( array( 'license_number', 'licence_number', 'numero_licence', 'numero_licence_ufsc', 'ufsc_licence_number', 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'licensee_number' ) as $key ) {
+			if ( isset( $entry->{$key} ) && '' !== trim( (string) $entry->{$key} ) ) {
+				$license_number = sanitize_text_field( (string) $entry->{$key} );
+				break;
+			}
+		}
 		$has_license    = ( $license_id > 0 ) || '' !== $license_number;
 		$participant_type = sanitize_key( (string) ( $entry->participant_type ?? 'licensed_ufsc' ) );
 		if ( ! in_array( $participant_type, array( 'licensed_ufsc', 'external_non_licensed' ), true ) ) {
@@ -162,8 +168,21 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 							array( 'require_sport_data' => true )
 						);
 						if ( is_array( $external_check ) && ! empty( $external_check['reasons'] ) ) {
-							$eligible = false;
-							$reasons = array_merge( $reasons, array_map( 'sanitize_key', (array) $external_check['reasons'] ) );
+							$external_reasons = array_values(
+								array_filter(
+									array_map( 'sanitize_key', (array) $external_check['reasons'] ),
+									static function ( string $reason ): bool {
+										return 'external_not_allowed_for_competition' !== $reason;
+									}
+								)
+							);
+							if ( empty( $external_reasons ) ) {
+								$external_reasons = array();
+							}
+							if ( ! empty( $external_reasons ) ) {
+								$eligible = false;
+								$reasons  = array_merge( $reasons, $external_reasons );
+							}
 						}
 					} else {
 						$first_name = sanitize_text_field( (string) ( $entry->first_name ?? $entry->licensee_first_name ?? '' ) );
