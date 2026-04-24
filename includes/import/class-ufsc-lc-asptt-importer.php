@@ -4808,9 +4808,6 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 
 		$fields  = array();
 		$formats = array();
-		$target_asptt_column = $asptt_columns[0];
-		$fields[ $target_asptt_column ] = $license_number;
-		$formats[] = '%s';
 
 		$date_asptt = isset( $data['date_asptt'] ) ? $this->parse_source_created_at( $data['date_asptt'] ) : null;
 		if ( null !== $date_asptt ) {
@@ -4849,13 +4846,25 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 		}
 
 		if ( $existing ) {
-			$updated = $wpdb->update(
-				$table,
-				$fields,
-				array( 'id' => (int) $existing->id ),
-				$formats,
-				array( '%d' )
+			$this->persist_import_asptt_number_for_existing_licence(
+				(int) $existing->id,
+				$license_number,
+				array(
+					'nom'    => isset( $data['nom'] ) ? (string) $data['nom'] : '',
+					'prenom' => isset( $data['prenom'] ) ? (string) $data['prenom'] : '',
+				)
 			);
+
+			$updated = 0;
+			if ( ! empty( $fields ) ) {
+				$updated = $wpdb->update(
+					$table,
+					$fields,
+					array( 'id' => (int) $existing->id ),
+					$formats,
+					array( '%d' )
+				);
+			}
 
 			if ( false === $updated && ! empty( $wpdb->last_error ) ) {
 				return new WP_Error( 'licence_update_failed', __( 'Erreur lors de la mise à jour de la licence.', 'ufsc-licence-competition' ) );
@@ -4869,6 +4878,90 @@ private function licence_requires_asptt_sync( $licence_id, $asptt_number, $date_
 		}
 
 		return new WP_Error( 'licence_not_found', __( 'Licence introuvable : import en mode mise à jour uniquement.', 'ufsc-licence-competition' ) );
+	}
+
+	private function persist_import_asptt_number_for_existing_licence( $licence_id, $incoming_asptt_number, $context = array() ) {
+		global $wpdb;
+
+		$licence_id            = (int) $licence_id;
+		$incoming_asptt_number = trim( (string) $incoming_asptt_number );
+		if ( $licence_id <= 0 || '' === $incoming_asptt_number ) {
+			return false;
+		}
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return false;
+		}
+
+		$target_column = 'numero_licence_asptt';
+		if ( ! $this->column_exists( $table, $target_column ) ) {
+			$asptt_columns = $this->get_asptt_target_columns();
+			$target_column = ! empty( $asptt_columns ) ? (string) $asptt_columns[0] : '';
+		}
+
+		if ( '' === $target_column ) {
+			return false;
+		}
+
+		$existing_asptt_number = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT {$target_column} FROM {$table} WHERE id = %d",
+				$licence_id
+			)
+		);
+		$existing_asptt_number = trim( (string) $existing_asptt_number );
+
+		if ( '' === $existing_asptt_number ) {
+			$updated = $wpdb->update(
+				$table,
+				array(
+					$target_column => $incoming_asptt_number,
+				),
+				array(
+					'id' => $licence_id,
+				),
+				array( '%s' ),
+				array( '%d' )
+			);
+
+			if ( false !== $updated ) {
+				$this->debug_asptt_event(
+					'UFSC LC Import ASPTT persist updated',
+					array(
+						'licence_id'      => $licence_id,
+						'nom'             => isset( $context['nom'] ) ? (string) $context['nom'] : '',
+						'prenom'          => isset( $context['prenom'] ) ? (string) $context['prenom'] : '',
+						'incoming_asptt'  => $incoming_asptt_number,
+						'previous_asptt'  => $existing_asptt_number,
+					)
+				);
+			}
+
+			return false !== $updated;
+		}
+
+		if ( $existing_asptt_number === $incoming_asptt_number ) {
+			$this->debug_asptt_event(
+				'UFSC LC Import ASPTT persist unchanged',
+				array(
+					'licence_id'     => $licence_id,
+					'incoming_asptt' => $incoming_asptt_number,
+				)
+			);
+			return true;
+		}
+
+		$this->debug_asptt_event(
+			'UFSC LC Import ASPTT persist conflict',
+			array(
+				'licence_id'     => $licence_id,
+				'incoming_asptt' => $incoming_asptt_number,
+				'existing_asptt' => $existing_asptt_number,
+			)
+		);
+
+		return true;
 	}
 
 	private function normalize_phone( $value ) {
