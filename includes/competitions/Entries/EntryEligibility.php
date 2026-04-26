@@ -157,13 +157,78 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 				}
 				if ( 'external_non_licensed' === $participant_type ) {
 					if ( class_exists( '\\UFSC\\Competitions\\Services\\ExternalParticipantEligibility' ) ) {
+						$pick_external_value = static function ( $entry_obj, array $keys ): string {
+							foreach ( $keys as $key ) {
+								if ( isset( $entry_obj->{$key} ) ) {
+									$value = trim( (string) $entry_obj->{$key} );
+									if ( '' !== $value ) {
+										return sanitize_text_field( $value );
+									}
+								}
+							}
+
+							return '';
+						};
+						$normalize_external_birth_date = static function ( string $value ): string {
+							$value = trim( $value );
+							if ( '' === $value ) {
+								return '';
+							}
+							if ( preg_match( '/^(\d{4})-\d{2}-\d{2}/', $value, $matches ) ) {
+								return $matches[0];
+							}
+							if ( preg_match( '/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches ) ) {
+								return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+							}
+							if ( preg_match( '/^(\d{2})-(\d{2})-(\d{4})$/', $value, $matches ) ) {
+								return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+							}
+
+							return '';
+						};
+						$normalize_external_sex = static function ( string $raw, string $category = '' ): string {
+							$raw = sanitize_key( $raw );
+							if ( in_array( $raw, array( 'f', 'female', 'feminin', 'femme' ), true ) ) {
+								return 'f';
+							}
+							if ( in_array( $raw, array( 'm', 'h', 'male', 'masculin', 'homme' ), true ) ) {
+								return 'm';
+							}
+
+							$upper_category = function_exists( 'mb_strtoupper' ) ? mb_strtoupper( $category ) : strtoupper( $category );
+							if ( '' !== $upper_category ) {
+								if ( preg_match( '/(?:\s|^)(F|FEM|FEMININ|FEMME)(?:\s|$)/u', $upper_category ) ) {
+									return 'f';
+								}
+								if ( preg_match( '/(?:\s|^)(H|M|HOM|HOMME|MASC|MASCULIN)(?:\s|$)/u', $upper_category ) ) {
+									return 'm';
+								}
+							}
+
+							return '';
+						};
+
+						$category_value = $pick_external_value( $entry, array( 'category', 'category_name', 'categorie' ) );
+						$normalized_external = clone $entry;
+						$normalized_external->first_name = $pick_external_value( $entry, array( 'first_name', 'licensee_first_name', 'prenom', 'given_name' ) );
+						$normalized_external->last_name  = $pick_external_value( $entry, array( 'last_name', 'licensee_last_name', 'nom', 'family_name' ) );
+						$normalized_external->birth_date = $normalize_external_birth_date(
+							$pick_external_value( $entry, array( 'birth_date', 'date_naissance', 'birthdate', 'dob', 'date_of_birth', 'naissance', 'licensee_birthdate' ) )
+						);
+						$normalized_external->sex = $normalize_external_sex(
+							$pick_external_value( $entry, array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' ) ),
+							$category_value
+						);
+						$normalized_external->weight = $pick_external_value( $entry, array( 'weight', 'weight_kg', 'poids' ) );
+						$normalized_external->category = $category_value;
+
 						$competition_meta = array( 'allow_external_non_licensed' => true );
 						$competition_id = absint( $entry->competition_id ?? 0 );
 						if ( $competition_id && class_exists( '\\UFSC\\Competitions\\Services\\CompetitionMeta' ) ) {
 							$competition_meta = \UFSC\Competitions\Services\CompetitionMeta::get( $competition_id );
 						}
 						$external_check = \UFSC\Competitions\Services\ExternalParticipantEligibility::validate_for_competition(
-							$entry,
+							$normalized_external,
 							is_array( $competition_meta ) ? $competition_meta : array(),
 							array( 'require_sport_data' => true )
 						);

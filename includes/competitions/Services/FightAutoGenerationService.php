@@ -819,6 +819,7 @@ class FightAutoGenerationService {
 		$ineligible_reasons = array();
 		$reason_counts      = array();
 		$excluded_unweighed = 0;
+		$rejected_entries   = array();
 
 		$allow_unweighed = ! empty( $settings['allow_unweighed'] );
 		$weighin_repo    = new WeighInRepository();
@@ -871,6 +872,11 @@ class FightAutoGenerationService {
 					$ineligible_reasons[ $reason ] = true;
 					$reason_counts[ $reason ]      = (int) ( $reason_counts[ $reason ] ?? 0 ) + 1;
 				}
+				$rejected_entries[] = self::build_rejected_entry_snapshot(
+					$entry,
+					(array) ( $eligibility['reasons'] ?? array() ),
+					(string) ( $eligibility['status'] ?? '' )
+				);
 				continue;
 			}
 
@@ -884,6 +890,7 @@ class FightAutoGenerationService {
 						$ineligible_reasons['weighin_missing'] = true;
 						$reason_counts['weighin_missing']      = (int) ( $reason_counts['weighin_missing'] ?? 0 ) + 1;
 						$excluded_unweighed++;
+						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'weighin_missing' ) );
 						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'weighin_missing' ), 'context' => 'weighin' ) ) );
 						}
@@ -895,6 +902,7 @@ class FightAutoGenerationService {
 						$ineligible_reasons['reclass_pending'] = true;
 						$reason_counts['reclass_pending']      = (int) ( $reason_counts['reclass_pending'] ?? 0 ) + 1;
 						$excluded_unweighed++;
+						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'reclass_pending' ) );
 						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'reclass_pending' ), 'context' => 'weighin' ) ) );
 						}
@@ -926,6 +934,7 @@ class FightAutoGenerationService {
 			'reason_counts'      => $reason_counts,
 			'excluded_unweighed' => $excluded_unweighed,
 			'enforce_weighin'    => $enforce_weighin,
+			'rejected_entries'   => $rejected_entries,
 		);
 	}
 
@@ -957,7 +966,125 @@ class FightAutoGenerationService {
 			'rejected_club'                     => $sum( array( 'club_missing' ) ),
 			'rejected_incomplete_fighter_data'  => $sum( array( 'entry_missing', 'entry_not_found', 'entry_deleted' ) ),
 			'rejected_duplicate_fighter_number' => self::count_duplicate_fighter_numbers( $entries ),
+			'sport_data_subreasons'             => self::build_subreason_counts(
+				$reason_counts,
+				array(
+					'external_identity_incomplete',
+					'external_missing_required_sport_data',
+					'external_birth_date_invalid',
+					'external_birth_date_future',
+					'external_sex_invalid',
+					'external_minor_guardian_missing',
+					'external_guardian_email_invalid',
+					'external_guardian_phone_invalid',
+				)
+			),
+			'rejected_entries_preview'          => array_slice( (array) ( $selection['rejected_entries'] ?? array() ), 0, 10 ),
 		);
+	}
+
+	private static function build_subreason_counts( array $reason_counts, array $keys ): array {
+		$counts = array();
+		foreach ( $keys as $key ) {
+			$value = (int) ( $reason_counts[ $key ] ?? 0 );
+			if ( $value > 0 ) {
+				$counts[ $key ] = $value;
+			}
+		}
+
+		return $counts;
+	}
+
+	private static function build_rejected_entry_snapshot( $entry, array $reasons, string $status = '' ): array {
+		$name_keys = array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' );
+		$first_keys = array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' );
+		$discipline_keys = array( 'discipline' );
+		$category_keys = array( 'category_name', 'category', 'categorie' );
+		$weight_class_keys = array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' );
+		$weight_keys = array( 'weight_kg', 'weight', 'poids' );
+		$level_keys = array( 'level', 'class', 'classe', 'niveau' );
+		$birth_keys = array( 'birth_date', 'date_naissance', 'birthdate', 'dob', 'date_of_birth', 'naissance', 'licensee_birthdate' );
+		$sex_keys = array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' );
+
+		$birth_raw  = self::pick_entry_value( $entry, $birth_keys );
+		$sex_raw    = self::pick_entry_value( $entry, $sex_keys );
+		$level_raw  = self::pick_entry_value( $entry, $level_keys );
+		$category   = self::pick_entry_value( $entry, $category_keys );
+		$sex_normalized = self::normalize_sex_value( $sex_raw, $category );
+		$date_normalized = self::normalize_birth_date_value( $birth_raw );
+		$level_normalized = '' !== $level_raw ? $level_raw : 'non_defini';
+		$resolved_status = '' !== $status ? $status : sanitize_key( (string) ( $entry->status ?? '' ) );
+
+		return array(
+			'entry_id'               => (int) ( $entry->id ?? 0 ),
+			'last_name'              => self::pick_entry_value( $entry, $name_keys ),
+			'first_name'             => self::pick_entry_value( $entry, $first_keys ),
+			'status'                 => $resolved_status,
+			'discipline'             => self::pick_entry_value( $entry, $discipline_keys ),
+			'category'               => $category,
+			'weight_class'           => self::pick_entry_value( $entry, $weight_class_keys ),
+			'weight'                 => self::pick_entry_value( $entry, $weight_keys ),
+			'sex_raw'                => $sex_raw,
+			'sex_normalized'         => $sex_normalized,
+			'birthdate_raw'          => $birth_raw,
+			'birthdate_normalized'   => $date_normalized,
+			'level_raw'              => $level_raw,
+			'level_normalized'       => $level_normalized,
+			'reasons'                => array_values( array_filter( array_map( 'sanitize_key', $reasons ) ) ),
+		);
+	}
+
+	private static function pick_entry_value( $entry, array $keys ): string {
+		foreach ( $keys as $key ) {
+			if ( isset( $entry->{$key} ) ) {
+				$value = trim( (string) $entry->{$key} );
+				if ( '' !== $value ) {
+					return sanitize_text_field( $value );
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private static function normalize_birth_date_value( string $value ): string {
+		$value = trim( $value );
+		if ( '' === $value ) {
+			return '';
+		}
+		if ( preg_match( '/^(\d{4})-\d{2}-\d{2}/', $value, $matches ) ) {
+			return $matches[0];
+		}
+		if ( preg_match( '/^(\d{2})\/(\d{2})\/(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+		if ( preg_match( '/^(\d{2})-(\d{2})-(\d{4})$/', $value, $matches ) ) {
+			return $matches[3] . '-' . $matches[2] . '-' . $matches[1];
+		}
+
+		return '';
+	}
+
+	private static function normalize_sex_value( string $raw, string $category = '' ): string {
+		$raw = sanitize_key( $raw );
+		if ( in_array( $raw, array( 'f', 'female', 'feminin', 'woman', 'femme' ), true ) ) {
+			return 'f';
+		}
+		if ( in_array( $raw, array( 'm', 'h', 'male', 'masculin', 'homme' ), true ) ) {
+			return 'm';
+		}
+
+		$category_upper = function_exists( 'mb_strtoupper' ) ? mb_strtoupper( $category ) : strtoupper( $category );
+		if ( '' !== $category_upper ) {
+			if ( preg_match( '/(?:\s|^)(F|FEM|FEMININ|FEMME)(?:\s|$)/u', $category_upper ) ) {
+				return 'f';
+			}
+			if ( preg_match( '/(?:\s|^)(H|M|HOM|HOMME|MASC|MASCULIN)(?:\s|$)/u', $category_upper ) ) {
+				return 'm';
+			}
+		}
+
+		return '';
 	}
 
 	private static function get_default_settings(): array {

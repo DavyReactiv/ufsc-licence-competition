@@ -135,6 +135,61 @@ class Bouts_AutoGeneration {
 					<li><?php echo esc_html( sprintf( __( 'Rejetées car données combattant incomplètes : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_incomplete_fighter_data'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par doublon n° combattant : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_duplicate_fighter_number'] ?? 0 ) ) ); ?></li>
 				</ul>
+				<?php if ( ! empty( $diagnostics['sport_data_subreasons'] ) && is_array( $diagnostics['sport_data_subreasons'] ) ) : ?>
+					<p><strong><?php esc_html_e( 'Détail données sportives manquantes :', 'ufsc-licence-competition' ); ?></strong></p>
+					<ul>
+						<?php foreach ( $diagnostics['sport_data_subreasons'] as $reason_key => $reason_count ) : ?>
+							<li><?php echo esc_html( sprintf( '%s : %d', sanitize_key( (string) $reason_key ), (int) $reason_count ) ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+				<?php if ( ! empty( $diagnostics['rejected_entries_preview'] ) && is_array( $diagnostics['rejected_entries_preview'] ) ) : ?>
+					<p><strong><?php esc_html_e( 'Exemples (10 premières inscriptions rejetées)', 'ufsc-licence-competition' ); ?></strong></p>
+					<div class="table-responsive">
+						<table class="widefat striped">
+							<thead>
+								<tr>
+									<th><?php esc_html_e( 'ID', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Cat. poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Sexe brut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Sexe norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Naissance brute', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Naissance norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Niveau brut', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Niveau norm.', 'ufsc-licence-competition' ); ?></th>
+									<th><?php esc_html_e( 'Motifs exacts', 'ufsc-licence-competition' ); ?></th>
+								</tr>
+							</thead>
+							<tbody>
+								<?php foreach ( $diagnostics['rejected_entries_preview'] as $entry_diag ) : ?>
+									<tr>
+										<td><?php echo esc_html( (string) (int) ( $entry_diag['entry_id'] ?? 0 ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['last_name'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['first_name'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['status'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['discipline'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['category'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['weight_class'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['weight'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['sex_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['sex_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['birthdate_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['birthdate_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['level_raw'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( (string) ( $entry_diag['level_normalized'] ?? '—' ) ); ?></td>
+										<td><?php echo esc_html( implode( ', ', array_map( 'sanitize_key', (array) ( $entry_diag['reasons'] ?? array() ) ) ) ); ?></td>
+									</tr>
+								<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				<?php endif; ?>
 			</div>
 			<?php endif; ?>
 

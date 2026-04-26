@@ -58,7 +58,7 @@ class EntryDataNormalizer {
 	}
 
 	public static function resolve_birth_date( $item ): string {
-		return self::get_text_value( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance' ) );
+		return self::get_text_value( $item, array( 'licensee_birthdate', 'birth_date', 'birthdate', 'date_of_birth', 'dob', 'date_naissance', 'naissance' ) );
 	}
 
 	public static function resolve_birth_year( $item ): string {
