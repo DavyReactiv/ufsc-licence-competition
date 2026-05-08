@@ -33,7 +33,7 @@ class FightRepository {
 	public function get( $id, $include_deleted = false ) {
 		global $wpdb;
 
-		$where_deleted = ( $include_deleted || ! $this->has_deleted_at_column() ) ? '' : 'AND deleted_at IS NULL';
+		$where_deleted = ( $include_deleted ) ? '' : $this->maybe_where_not_deleted( 'AND' );
 
 		return $wpdb->get_row(
 			$wpdb->prepare(
@@ -351,7 +351,8 @@ class FightRepository {
 		return $wpdb->get_results( $sql );
 	}
 
-	public function count( array $filters ) {
+	public function count( $filters = array() ) {
+		$filters = is_array( $filters ) ? $filters : array( "status" => $filters );
 		global $wpdb;
 
 		$where = $this->build_where( $filters );
@@ -664,8 +665,8 @@ class FightRepository {
 			$where[] = $wpdb->prepare( 'category_id = %d', absint( $filters['category_id'] ) );
 		}
 
-		if ( ! empty( $filters['status'] ) ) {
-			$where[] = $wpdb->prepare( 'status = %s', sanitize_key( $filters['status'] ) );
+		if ( ! empty( $filters['status'] ) && $this->has_status_column() ) {
+			$where[] = $wpdb->prepare( 'status = %s', $this->normalize_fight_status( (string) $filters['status'] ) );
 		}
 
 		return 'WHERE ' . implode( ' AND ', $where );
@@ -680,6 +681,23 @@ class FightRepository {
 		return 'ORDER BY id ASC';
 	}
 
+
+	private function maybe_where_not_deleted( string $prefix = '' ): string {
+		if ( ! $this->has_deleted_at_column() ) {
+			return '';
+		}
+
+		$prefix = strtoupper( trim( $prefix ) );
+		if ( 'AND' === $prefix ) {
+			return 'AND deleted_at IS NULL';
+		}
+
+		return 'deleted_at IS NULL';
+	}
+
+	private function has_status_column(): bool {
+		return Db::has_table_column( Db::fights_table(), 'status' );
+	}
 	private function has_deleted_at_column(): bool {
 		return Db::has_table_column( Db::fights_table(), 'deleted_at' );
 	}
