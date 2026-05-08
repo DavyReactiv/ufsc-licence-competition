@@ -525,6 +525,7 @@ class Db {
 			'break_duration'    => "ALTER TABLE {$table} ADD COLUMN break_duration smallint(5) unsigned NULL",
 			'fight_pause'       => "ALTER TABLE {$table} ADD COLUMN fight_pause smallint(5) unsigned NULL",
 			'fight_duration'    => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
+			'status'            => "ALTER TABLE {$table} ADD COLUMN status varchar(30) NOT NULL DEFAULT 'scheduled'",
 			'deleted_at'        => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
 		);
 
@@ -547,6 +548,23 @@ class Db {
 			}
 		}
 
+		if ( in_array( 'status', $columns, true ) ) {
+			$wpdb->query( "UPDATE {$table} SET status = 'scheduled' WHERE status IS NULL OR status = ''" );
+
+			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_status'" );
+			if ( empty( $index_exists ) ) {
+				$index_result = $wpdb->query( "ALTER TABLE {$table} ADD INDEX idx_status (status)" );
+				if ( false === $index_result ) {
+					error_log(
+						sprintf(
+							'UFSC Competitions DB upgrade failed to add index idx_status: %s',
+							$wpdb->last_error
+						)
+					);
+				}
+			}
+		}
+
 		if ( in_array( 'deleted_at', $columns, true ) ) {
 			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_deleted_at'" );
 			if ( empty( $index_exists ) ) {
@@ -558,6 +576,26 @@ class Db {
 							$wpdb->last_error
 						)
 					);
+				}
+			}
+		}
+
+		if ( in_array( 'deleted_at', $columns, true ) && in_array( 'status', $columns, true ) ) {
+			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_deleted_status'" );
+			if ( empty( $index_exists ) ) {
+				$index_result = $wpdb->query( "ALTER TABLE {$table} ADD INDEX idx_deleted_status (deleted_at,status)" );
+				if ( false === $index_result ) {
+					error_log( sprintf( 'UFSC Competitions DB upgrade failed to add index idx_deleted_status: %s', $wpdb->last_error ) );
+				}
+			}
+		}
+
+		if ( in_array( 'competition_id', $columns, true ) && in_array( 'status', $columns, true ) ) {
+			$index_exists = $wpdb->get_var( "SHOW INDEX FROM {$table} WHERE Key_name = 'idx_competition_status'" );
+			if ( empty( $index_exists ) ) {
+				$index_result = $wpdb->query( "ALTER TABLE {$table} ADD INDEX idx_competition_status (competition_id,status)" );
+				if ( false === $index_result ) {
+					error_log( sprintf( 'UFSC Competitions DB upgrade failed to add index idx_competition_status: %s', $wpdb->last_error ) );
 				}
 			}
 		}
@@ -594,7 +632,7 @@ class Db {
 			return true;
 		}
 
-		foreach ( array( 'fight_no', 'deleted_at' ) as $required ) {
+		foreach ( array( 'fight_no', 'deleted_at', 'status' ) as $required ) {
 			if ( ! in_array( $required, $columns, true ) ) {
 				return true;
 			}
