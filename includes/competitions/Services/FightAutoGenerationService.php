@@ -471,28 +471,7 @@ class FightAutoGenerationService {
 			$excluded_unweighed = (int) ( $selection['excluded_unweighed'] ?? 0 );
 
 			if ( ! $valid_entries ) {
-				$reason_messages = array(
-					'status_not_approved'   => __( 'Validation admin requise.', 'ufsc-licence-competition' ),
-					'weight_missing'        => __( 'Poids manquant.', 'ufsc-licence-competition' ),
-					'weight_class_missing'  => __( 'Catégorie de poids manquante.', 'ufsc-licence-competition' ),
-					'license_missing'       => __( 'Licence manquante.', 'ufsc-licence-competition' ),
-					'club_missing'          => __( 'Club manquant.', 'ufsc-licence-competition' ),
-					'entry_deleted'         => __( 'Inscription supprimée.', 'ufsc-licence-competition' ),
-					'weighin_missing'       => __( 'Pesée valide requise.', 'ufsc-licence-competition' ),
-					'reclass_pending'       => __( 'Reclassement pesée en attente.', 'ufsc-licence-competition' ),
-				);
-
-				$reasons = array();
-				foreach ( array_keys( $ineligible_reasons ) as $reason ) {
-					if ( isset( $reason_messages[ $reason ] ) ) {
-						$reasons[] = $reason_messages[ $reason ];
-					}
-				}
-
-				$message = __( 'Aucun combattant éligible pour générer des combats.', 'ufsc-licence-competition' );
-				if ( $reasons ) {
-					$message .= ' ' . implode( ' ', $reasons );
-				}
+				$message = self::build_generation_rejection_message( $total_entries, $reason_counts, 0 );
 
 				return array(
 					'ok'      => false,
@@ -500,6 +479,7 @@ class FightAutoGenerationService {
 					'stats'   => array(
 						'total_entries'      => $total_entries,
 						'eligible_entries'   => 0,
+						'rejected_entries'   => $total_entries,
 						'excluded_unweighed' => $excluded_unweighed,
 						'reason_counts'      => $reason_counts,
 					),
@@ -572,12 +552,16 @@ class FightAutoGenerationService {
 
 			$fights         = array();
 			$total_bye_slots = 0;
+			$ignored_groups = 0;
 			foreach ( $groups as $category_id => $group_entries ) {
 				$group_entries = self::sort_entries_for_generation( $group_entries );
 				$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no );
 				$fights    = array_merge( $fights, $generated['fights'] );
 				$next_fight_no = $generated['next_no'];
 				$total_bye_slots += (int) ( $generated['bye_slots'] ?? 0 );
+				if ( count( $group_entries ) < 2 ) {
+					$ignored_groups++;
+				}
 			}
 
 			$fights = self::assign_surfaces_and_schedule( $fights, $settings, (int) $competition_id );
@@ -590,6 +574,8 @@ class FightAutoGenerationService {
 				'eligible_entries'  => count( $valid_entries ),
 				'excluded_unweighed' => $excluded_unweighed,
 				'bye_slots'         => $total_bye_slots,
+				'ignored_groups'    => $ignored_groups,
+				'reason_counts'      => $reason_counts,
 			);
 
 			$draft = array(
@@ -606,7 +592,7 @@ class FightAutoGenerationService {
 
 			$message = __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' );
 			if ( 0 === count( $fights ) ) {
-				$message = __( '0 combat généré : vérifiez les catégories, statuts d’inscription et pesées.', 'ufsc-licence-competition' );
+				$message = self::build_generation_rejection_message( $total_entries, $reason_counts, count( $valid_entries ), $ignored_groups );
 			}
 
 			return array(
@@ -840,9 +826,18 @@ class FightAutoGenerationService {
 		}
 
 		$competition_tolerance = isset( $competition->weight_tolerance ) ? (float) $competition->weight_tolerance : 0.0;
+		$entry_assigned_to_active_fight = self::get_entries_already_assigned_to_active_fights( $competition_id );
+
 
 		foreach ( $entries as $entry ) {
 			$entry_id = (int) ( $entry->id ?? 0 );
+			if ( $entry_id > 0 && isset( $entry_assigned_to_active_fight[ $entry_id ] ) ) {
+				$ineligible_reasons['already_assigned_fight'] = true;
+				$reason_counts['already_assigned_fight']      = (int) ( $reason_counts['already_assigned_fight'] ?? 0 ) + 1;
+				$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'already_assigned_fight' ) );
+				continue;
+			}
+
 
 			if ( function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 				$eligibility = ufsc_lc_is_entry_eligible_from_entry( $entry, 'fights' );
@@ -981,6 +976,40 @@ class FightAutoGenerationService {
 			),
 			'rejected_entries_preview'          => array_slice( (array) ( $selection['rejected_entries'] ?? array() ), 0, 10 ),
 		);
+	}
+
+
+	private static function get_entries_already_assigned_to_active_fights( int $competition_id ): array {
+		$fight_repo = new FightRepository();
+		$fights     = $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
+		$assigned   = array();
+		foreach ( $fights as $fight ) {
+			$status = $fight_repo->get_effective_fight_status( $fight );
+			if ( in_array( $status, array( FightRepository::STATUS_CANCELLED, FightRepository::STATUS_TRASHED ), true ) ) {
+				continue;
+			}
+			$red  = absint( $fight->red_entry_id ?? 0 );
+			$blue = absint( $fight->blue_entry_id ?? 0 );
+			if ( $red > 0 ) { $assigned[ $red ] = true; }
+			if ( $blue > 0 ) { $assigned[ $blue ] = true; }
+		}
+
+		return $assigned;
+	}
+
+	private static function build_generation_rejection_message( int $total_entries, array $reason_counts, int $eligible_entries = 0, int $ignored_groups = 0 ): string {
+		$rejected_entries = max( 0, $total_entries - $eligible_entries );
+		$lines = array(
+			__( 'Aucun combat n’a été généré.', 'ufsc-licence-competition' ),
+			sprintf( __( '%1$d participants analysés, %2$d éligibles, %3$d rejetés.', 'ufsc-licence-competition' ), $total_entries, $eligible_entries, $rejected_entries ),
+			sprintf( __( 'Statut non compatible : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['status_not_approved'] ?? 0 ) ),
+			sprintf( __( 'Catégorie manquante : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['weight_class_missing'] ?? 0 ) ),
+			sprintf( __( 'Pesée non validée : %d', 'ufsc-licence-competition' ), (int) ( ( $reason_counts['weighin_missing'] ?? 0 ) + ( $reason_counts['reclass_pending'] ?? 0 ) ) ),
+			sprintf( __( 'Déjà affecté à un combat : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['already_assigned_fight'] ?? 0 ) ),
+			sprintf( __( 'Groupes avec moins de 2 combattants : %d', 'ufsc-licence-competition' ), $ignored_groups ),
+		);
+
+		return implode( ' ', $lines );
 	}
 
 	private static function build_subreason_counts( array $reason_counts, array $keys ): array {

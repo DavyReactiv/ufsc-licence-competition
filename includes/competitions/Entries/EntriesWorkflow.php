@@ -83,6 +83,12 @@ class EntriesWorkflow {
 			case 'approved':
 			case 'approuvee':
 			case 'approuve':
+			case 'eligible':
+			case 'confirmed':
+			case 'inscrit':
+			case 'inscription_validee':
+			case 'paid':
+			case 'paye':
 				return 'approved';
 			case 'rejected':
 			case 'refusee':
