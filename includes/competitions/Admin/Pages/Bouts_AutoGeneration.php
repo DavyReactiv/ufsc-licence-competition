@@ -7,6 +7,7 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\FightAutoGenerationService;
+use UFSC\Competitions\Db;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -27,6 +28,10 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_recalc_fight_schedule', array( __CLASS__, 'handle_recalc_schedule' ) );
 		add_action( 'admin_post_ufsc_competitions_swap_fight_colors', array( __CLASS__, 'handle_swap_colors' ) );
 		add_action( 'admin_post_ufsc_competitions_reorder_fights', array( __CLASS__, 'handle_reorder_fights' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_create', array( __CLASS__, 'handle_test_fixture_create' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_reset', array( __CLASS__, 'handle_test_fixture_reset' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_delete', array( __CLASS__, 'handle_test_fixture_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_run', array( __CLASS__, 'handle_test_fixture_run' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -603,6 +608,35 @@ class Bouts_AutoGeneration {
 					<?php submit_button( __( 'Réordonner', 'ufsc-licence-competition' ), 'secondary', '', false, $has_draft ? array() : array( 'disabled' => 'disabled' ) ); ?>
 				</form>
 			<?php endif; ?>
+
+			<details class="ufsc-competitions-helper-details">
+				<summary><?php esc_html_e( 'Outils de test génération', 'ufsc-licence-competition' ); ?></summary>
+				<p class="description"><?php esc_html_e( 'Réservé aux administrateurs. Les données créées sont marquées [TEST] et suivies pour suppression sécurisée.', 'ufsc-licence-competition' ); ?></p>
+				<div class="ufsc-competitions-actions">
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
+						<?php submit_button( __( 'Créer une compétition de test', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Confirmer la réinitialisation du jeu de test ?', 'ufsc-licence-competition' ) ); ?>');">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_reset' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_reset">
+						<?php submit_button( __( 'Réinitialiser le test', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Suppression définitive des données [TEST] suivies. Confirmer ?', 'ufsc-licence-competition' ) ); ?>');">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_delete' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_delete">
+						<?php submit_button( __( 'Supprimer les données de test', 'ufsc-licence-competition' ), 'delete', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_run' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_run">
+						<label><input type="checkbox" name="auto_validate" value="1"> <?php esc_html_e( 'Valider automatiquement le brouillon', 'ufsc-licence-competition' ); ?></label>
+						<?php submit_button( __( 'Lancer un test complet', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
+					</form>
+				</div>
+			</details>
+
 		</div>
 		<script>
 			(function() {
@@ -755,6 +789,94 @@ class Bouts_AutoGeneration {
 		$mode = isset( $_POST['mode'] ) ? sanitize_key( wp_unslash( $_POST['mode'] ) ) : 'fight_no';
 		$result = FightAutoGenerationService::reorder_fights( $competition_id, $mode );
 		self::redirect( $competition_id, $result['ok'] ? 'reorder_ok' : 'action_error', $result['message'] ?? '' );
+	}
+
+
+	public static function handle_test_fixture_create(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_create', 0 );
+		$result = self::create_test_fixture();
+		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+	}
+
+	public static function handle_test_fixture_reset(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_reset', 0 );
+		self::delete_test_fixture();
+		$result = self::create_test_fixture();
+		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+	}
+
+	public static function handle_test_fixture_delete(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_delete', 0 );
+		$deleted = self::delete_test_fixture();
+		self::redirect( 0, 'settings_saved', sprintf( __( 'Données de test supprimées: %d éléments.', 'ufsc-licence-competition' ), $deleted ) );
+	}
+
+	public static function handle_test_fixture_run(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_run', 0 );
+		$fixture = self::create_test_fixture();
+		if ( empty( $fixture['ok'] ) ) { self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) ); }
+		$competition_id = (int) $fixture['competition_id'];
+		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
+		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
+		$msg = sprintf( 'TEST: groups=%d estimated=%d draft=%s', (int) ( $preview['estimated_categories'] ?? 0 ), (int) ( $preview['estimated_fights'] ?? 0 ), ! empty( $draft['ok'] ) ? 'ok' : 'ko' );
+		if ( ! empty( $_POST['auto_validate'] ) && ! empty( $draft['ok'] ) ) {
+			$apply = FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' );
+			$msg .= ' | validate=' . ( ! empty( $apply['ok'] ) ? 'ok' : 'ko' ) . ' | ' . (string) ( $apply['message'] ?? '' );
+		}
+		self::redirect( $competition_id, 'settings_saved', $msg );
+	}
+
+	private static function create_test_fixture(): array {
+		$comp_repo = new CompetitionRepository();
+		$entry_repo = new EntryRepository();
+		$season = gmdate( 'Y' ) . '/' . (string) ( (int) gmdate( 'Y' ) + 1 );
+		$competition_id = (int) $comp_repo->save( array( 'name' => '[TEST] Génération combats', 'discipline' => 'light_contact', 'type' => 'open', 'season' => $season, 'status' => 'open' ) );
+		if ( $competition_id <= 0 ) { return array( 'ok' => false, 'message' => __( 'Impossible de créer la compétition test.', 'ufsc-licence-competition' ) ); }
+		FightAutoGenerationService::save_settings( $competition_id, array( 'surface_count' => 2, 'fight_duration' => 2, 'break_duration' => 1 ) );
+		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
+		$rows = array(
+			array('M','70kg','A','approved',true,'light_contact'),array('M','70kg','A','approved',true,'light_contact'),
+			array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),
+			array('M','80kg','A','approved',true,'light_contact'),
+			array('M','75kg','A','approved',false,'light_contact'),array('M','75kg','A','approved',false,'light_contact'),
+			array('M','55kg','Cadet','approved',true,'kickboxing'),array('M','55kg','Cadet','approved',true,'kickboxing')
+		);
+		$i=1; foreach($rows as $r){
+			$eid=(int)$entry_repo->insert(array('competition_id'=>$competition_id,'status'=>$r[3],'first_name'=>'Test'.$i,'last_name'=>'Athlete','sex'=>$r[0],'category'=>$r[2],'weight_class'=>$r[1],'discipline'=>$r[5],'participant_type'=>'external','notes'=>'[TEST_GENERATION]'));
+			if($eid>0){$ids['entries'][]=$eid; if($r[4]){self::insert_test_weighin($competition_id,$eid);}} $i++;
+		}
+		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
+		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Compétition et données de test créées.', 'ufsc-licence-competition' ) );
+	}
+
+	private static function insert_test_weighin( int $competition_id, int $entry_id ): void {
+		global $wpdb; $table = Db::weighins_table(); if ( ! Db::table_exists( $table ) ) { return; }
+		$data = array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => 'ok', 'notes' => wp_json_encode( array( 'marker' => '[TEST_GENERATION]' ) ) );
+		$formats = array( '%d', '%d', '%s', '%s' );
+		$wpdb->insert( $table, $data, $formats );
+	}
+
+	private static function delete_test_fixture(): int {
+		global $wpdb;
+		$ids = get_option( 'ufsc_generation_test_fixture_ids', array() );
+		$count = 0;
+		$entry_ids = array_map( 'absint', (array) ( $ids['entries'] ?? array() ) );
+		$competition_id = absint( $ids['competition_id'] ?? 0 );
+		if ( $entry_ids ) {
+			$in = implode( ',', $entry_ids );
+			$wpdb->query( 'DELETE FROM ' . Db::weighins_table() . ' WHERE entry_id IN (' . $in . ')' );
+			$count += (int) $wpdb->rows_affected;
+			$wpdb->query( 'DELETE FROM ' . Db::entries_table() . ' WHERE id IN (' . $in . ')' );
+			$count += (int) $wpdb->rows_affected;
+		}
+		if ( $competition_id > 0 ) {
+			$wpdb->delete( Db::fights_table(), array( 'competition_id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
+			$wpdb->delete( Db::competitions_table(), array( 'id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
+			delete_option( 'ufsc_competitions_fight_generation_draft_' . $competition_id );
+		}
+		delete_option( 'ufsc_generation_test_fixture_ids' );
+		return $count;
 	}
 
 	private static function status_badge_class( string $status ): string {
