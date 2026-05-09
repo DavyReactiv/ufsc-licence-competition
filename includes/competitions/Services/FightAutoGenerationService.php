@@ -48,6 +48,8 @@ class FightAutoGenerationService {
 		$settings['mode']           = 'manual' === $settings['mode'] ? 'manual' : 'auto';
 		$settings['auto_lock']      = ! empty( $settings['auto_lock'] ) ? 1 : 0;
 		$settings['allow_unweighed'] = ! empty( $settings['allow_unweighed'] ) ? 1 : 0;
+		$settings['use_level_split'] = ! empty( $settings['use_level_split'] ) ? 1 : 0;
+		$settings['guardian_required_for_minors'] = ! empty( $settings['guardian_required_for_minors'] ) ? 1 : 0;
 		$settings['settings_saved_at'] = sanitize_text_field( (string) ( $settings['settings_saved_at'] ?? '' ) );
 
 		if ( ! $has_stored_settings ) {
@@ -178,6 +180,12 @@ class FightAutoGenerationService {
 		}
 		if ( isset( $data['allow_unweighed'] ) ) {
 			$settings['allow_unweighed'] = ! empty( $data['allow_unweighed'] ) ? 1 : 0;
+		}
+		if ( isset( $data['use_level_split'] ) ) {
+			$settings['use_level_split'] = ! empty( $data['use_level_split'] ) ? 1 : 0;
+		}
+		if ( isset( $data['guardian_required_for_minors'] ) ) {
+			$settings['guardian_required_for_minors'] = ! empty( $data['guardian_required_for_minors'] ) ? 1 : 0;
 		}
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
@@ -316,7 +324,7 @@ class FightAutoGenerationService {
 		$entries    = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 );
 		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
-		$groups     = self::group_entries_by_category( $eligible );
+		$groups     = self::group_entries_by_category( $eligible, $settings );
 		if ( ! $groups ) {
 			$preview['eligible_entries']   = count( $eligible );
 			$preview['excluded_unweighed'] = (int) ( $selection['excluded_unweighed'] ?? 0 );
@@ -847,6 +855,7 @@ class FightAutoGenerationService {
 					: array( 'eligible' => false, 'reasons' => array( 'status_not_approved' ) );
 			}
 
+			$entry_warnings = array();
 			if ( empty( $eligibility['eligible'] ) ) {
 				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 					error_log(
@@ -867,12 +876,17 @@ class FightAutoGenerationService {
 					$ineligible_reasons[ $reason ] = true;
 					$reason_counts[ $reason ]      = (int) ( $reason_counts[ $reason ] ?? 0 ) + 1;
 				}
-				$rejected_entries[] = self::build_rejected_entry_snapshot(
-					$entry,
-					(array) ( $eligibility['reasons'] ?? array() ),
-					(string) ( $eligibility['status'] ?? '' )
-				);
-				continue;
+				$raw_reasons = array_values( array_filter( array_map( 'sanitize_key', (array) ( $eligibility['reasons'] ?? array() ) ) ) );
+				$blocking_reasons = array_values( array_diff( $raw_reasons, self::get_non_blocking_reasons( $settings ) ) );
+				$entry_warnings   = array_values( array_intersect( $raw_reasons, self::get_non_blocking_reasons( $settings ) ) );
+				if ( ! empty( $blocking_reasons ) ) {
+					$rejected_entries[] = self::build_rejected_entry_snapshot(
+						$entry,
+						$blocking_reasons,
+						(string) ( $eligibility['status'] ?? '' )
+					);
+					continue;
+				}
 			}
 
 				if ( $enforce_weighin ) {
@@ -1012,6 +1026,20 @@ class FightAutoGenerationService {
 		return implode( ' ', $lines );
 	}
 
+
+	private static function get_non_blocking_reasons( array $settings ): array {
+		$reasons = array(
+			'external_minor_guardian_missing',
+			'external_guardian_email_invalid',
+			'external_guardian_phone_invalid',
+			'club_missing',
+		);
+		if ( empty( $settings['guardian_required_for_minors'] ) ) {
+			$reasons[] = 'external_minor_guardian_missing';
+		}
+		return array_values( array_unique( $reasons ) );
+	}
+
 	private static function build_subreason_counts( array $reason_counts, array $keys ): array {
 		$counts = array();
 		foreach ( $keys as $key ) {
@@ -1130,6 +1158,8 @@ class FightAutoGenerationService {
 			'mode'            => 'auto',
 			'auto_lock'       => 0,
 			'allow_unweighed' => 0,
+			'use_level_split' => 0,
+			'guardian_required_for_minors' => 0,
 			'settings_saved_at' => '',
 		);
 	}
@@ -1156,28 +1186,45 @@ class FightAutoGenerationService {
 		return $bracket_size - 1;
 	}
 
-	private static function group_entries_by_category( array $entries ): array {
+	private static function group_entries_by_category( array $entries, array $settings = array() ): array {
 		$groups = array();
 
 		foreach ( $entries as $entry ) {
-			$category_id = 0;
-			if ( is_object( $entry ) ) {
-				$category_id = absint( $entry->category_id ?? 0 );
-			} elseif ( is_array( $entry ) ) {
-				$category_id = absint( $entry['category_id'] ?? 0 );
-			}
-
-			if ( ! $category_id ) {
+			$group_key = self::get_generation_category_key( $entry, $settings );
+			if ( '' === $group_key ) {
 				continue;
 			}
-
-			if ( ! isset( $groups[ $category_id ] ) ) {
-				$groups[ $category_id ] = array();
+			if ( ! isset( $groups[ $group_key ] ) ) {
+				$groups[ $group_key ] = array();
 			}
-			$groups[ $category_id ][] = $entry;
+			$groups[ $group_key ][] = $entry;
 		}
 
 		return $groups;
+	}
+
+	private static function get_generation_category_key( $entry, array $settings = array() ): string {
+		$read = static function ( $entry, array $keys ): string {
+			foreach ( $keys as $key ) {
+				if ( is_object( $entry ) && isset( $entry->{$key} ) && '' !== trim( (string) $entry->{$key} ) ) {
+					return sanitize_text_field( (string) $entry->{$key} );
+				}
+				if ( is_array( $entry ) && isset( $entry[$key] ) && '' !== trim( (string) $entry[$key] ) ) {
+					return sanitize_text_field( (string) $entry[$key] );
+				}
+			}
+			return '';
+		};
+		$category_id = absint( $read( $entry, array( 'category_id' ) ) );
+		$discipline = sanitize_key( $read( $entry, array( 'discipline' ) ) );
+		$sex = self::normalize_sex_value( $read( $entry, array( 'sex','sexe','gender','licensee_sex' ) ), $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age' ) ) );
+		$age_category = $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age','category_label' ) );
+		$weight_category = $read( $entry, array( 'weight_class','weight_category','weight_cat','categorie_poids','category_weight' ) );
+		$level = $read( $entry, array( 'level','class','classe','niveau' ) );
+		if ( '' === $age_category && $category_id <= 0 ) { return ''; }
+		$key = array($discipline ?: 'na', $sex ?: 'x', $age_category ?: ('category_'.$category_id), $weight_category ?: 'poids_na');
+		if ( ! empty( $settings['use_level_split'] ) ) { $key[] = ('' !== $level ? sanitize_key($level) : 'non_defini'); }
+		return implode('|',$key);
 	}
 
 	private static function count_duplicate_fighter_numbers( array $entries ): int {

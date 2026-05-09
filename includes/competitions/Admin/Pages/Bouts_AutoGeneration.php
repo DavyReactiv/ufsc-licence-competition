@@ -359,6 +359,15 @@ class Bouts_AutoGeneration {
 						</td>
 					</tr>
 					<tr>
+						<th scope="row"><?php esc_html_e( 'Règles externes', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<label><input name="guardian_required_for_minors" type="checkbox" value="1" <?php checked( $settings['guardian_required_for_minors'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Mineur externe sans représentant légal = blocant', 'ufsc-licence-competition' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Par défaut, ce point est un avertissement non bloquant pour la génération sportive.', 'ufsc-licence-competition' ); ?></p>
+							<label><input name="use_level_split" type="checkbox" value="1" <?php checked( $settings['use_level_split'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Utiliser le niveau comme critère de séparation', 'ufsc-licence-competition' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Par défaut, le niveau non défini ne bloque pas et ne segmente pas les groupes.', 'ufsc-licence-competition' ); ?></p>
+						</td>
+					</tr>
+					<tr>
 						<th scope="row"><?php esc_html_e( 'Verrouillage auto', 'ufsc-licence-competition' ); ?></th>
 						<td>
 							<label>
