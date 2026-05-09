@@ -662,15 +662,48 @@ class FightAutoGenerationService {
 			$next_fight_no++;
 		}
 
+		$attempted = count( $prepared_fights );
+		$inserted  = 0;
+		$table     = Db::fights_table();
+
 		foreach ( $prepared_fights as $fight ) {
-			$fight_repo->insert( $fight );
+			$insert_id = (int) $fight_repo->insert( $fight );
+			if ( $insert_id <= 0 ) {
+				global $wpdb;
+				$last_error = isset( $wpdb->last_error ) ? (string) $wpdb->last_error : '';
+				$columns = implode( ', ', array_keys( $fight ) );
+
+				return array(
+					'ok'      => false,
+					'message' => sprintf(
+						/* translators: 1: table name, 2: SQL error, 3: competition id, 4: attempted inserts, 5: successful inserts, 6: columns */
+						__( 'Échec insertion SQL. Table: %1$s | SQL: %2$s | competition_id: %3$d | inserts tentés: %4$d | inserts réussis: %5$d | colonnes: %6$s', 'ufsc-licence-competition' ),
+						$table,
+						$last_error ?: 'n/a',
+						$competition_id,
+						$attempted,
+						$inserted,
+						$columns
+					),
+				);
+			}
+
+			$inserted++;
 		}
 
 		self::clear_draft( $competition_id );
 
 		return array(
 			'ok'      => true,
-			'message' => __( 'Combats enregistrés.', 'ufsc-licence-competition' ),
+			'message' => sprintf(
+				/* translators: %d: created fights count */
+				__( '%d combats créés et planifiés.', 'ufsc-licence-competition' ),
+				$inserted
+			),
+			'stats'    => array(
+				'inserts_attempted' => $attempted,
+				'inserts_success'   => $inserted,
+			),
 		);
 	}
 
