@@ -1160,8 +1160,38 @@ class FightAutoGenerationService {
 			'allow_unweighed' => 0,
 			'use_level_split' => 0,
 			'guardian_required_for_minors' => 0,
+			'allow_compatible_disciplines' => 0,
 			'settings_saved_at' => '',
 		);
+	}
+
+	public static function normalize_discipline_for_generation( string $value ): string {
+		$raw = function_exists( 'remove_accents' ) ? remove_accents( $value ) : $value;
+		$raw = strtolower( sanitize_text_field( $raw ) );
+		$raw = str_replace( array( '-', '_', '/' ), ' ', $raw );
+		$raw = trim( preg_replace( '/\s+/', ' ', $raw ) );
+		$map = array(
+			'kickboxing'                => 'kickboxing',
+			'kick boxing'               => 'kickboxing',
+			'boxe pieds poings'         => 'kickboxing',
+			'light contact'             => 'light_contact',
+			'kick light'                => 'light_contact',
+			'kickboxing light'          => 'light_contact',
+			'kickboxing light contact'  => 'light_contact',
+			'kick boxing light contact' => 'light_contact',
+			'full contact'              => 'full_contact',
+			'plein contact'             => 'full_contact',
+			'k1'                        => 'k1',
+			'k 1'                       => 'k1',
+			'k1 rules'                  => 'k1',
+			'muay thai'                 => 'muay_thai',
+			'boxe thai'                 => 'muay_thai',
+			'thaiboxing'                => 'muay_thai',
+		);
+		if ( isset( $map[ $raw ] ) ) {
+			return $map[ $raw ];
+		}
+		return sanitize_key( str_replace( ' ', '_', $raw ) );
 	}
 
 	private static function estimate_fights_for_group_size( int $count ): int {
@@ -1216,7 +1246,7 @@ class FightAutoGenerationService {
 			return '';
 		};
 		$category_id = absint( $read( $entry, array( 'category_id' ) ) );
-		$discipline = sanitize_key( $read( $entry, array( 'discipline' ) ) );
+		$discipline = self::normalize_discipline_for_generation( $read( $entry, array( 'discipline' ) ) );
 		$sex = self::normalize_sex_value( $read( $entry, array( 'sex','sexe','gender','licensee_sex' ) ), $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age' ) ) );
 		$age_category = $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age','category_label' ) );
 		$weight_category = $read( $entry, array( 'weight_class','weight_category','weight_cat','categorie_poids','category_weight' ) );

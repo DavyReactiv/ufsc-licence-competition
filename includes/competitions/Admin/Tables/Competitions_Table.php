@@ -158,6 +158,11 @@ class Competitions_Table extends \WP_List_Table {
 		);
 
 		$actions = array();
+		$entries_counts = $this->entry_counts[ $id ] ?? array();
+		$total_entries = (int) ( $entries_counts['total'] ?? 0 );
+		$approved_entries = (int) ( $entries_counts['approved'] ?? 0 );
+		$competition_status = sanitize_key( (string) ( $item->status ?? '' ) );
+		$can_generate = in_array( $competition_status, array( 'open', 'active' ), true ) && $total_entries > 0 && $approved_entries > 0;
 
 		if ( 'trash' === $view ) {
 			$restore_url = wp_nonce_url(
@@ -250,6 +255,38 @@ class Competitions_Table extends \WP_List_Table {
 				esc_html__( 'Corbeille', 'ufsc-licence-competition' )
 			);
 		}
+
+		$entries_url = add_query_arg(
+			array(
+				'page'                => Menu::PAGE_ENTRIES,
+				'ufsc_competition_id' => $id,
+			),
+			admin_url( 'admin.php' )
+		);
+		$fights_url = add_query_arg(
+			array(
+				'page'                => Menu::PAGE_BOUTS,
+				'ufsc_competition_id' => $id,
+			),
+			admin_url( 'admin.php' )
+		);
+		$generate_url = add_query_arg(
+			array(
+				'page'                => Menu::PAGE_BOUTS,
+				'ufsc_competition_id' => $id,
+				'competition_id'      => $id,
+				'tab'                 => 'generation',
+			),
+			admin_url( 'admin.php' )
+		);
+
+		$actions['view_entries'] = sprintf( '<a href="%s">%s</a>', esc_url( $entries_url ), esc_html__( 'Voir les inscriptions', 'ufsc-licence-competition' ) );
+		if ( $can_generate ) {
+			$actions['generate_fights'] = sprintf( '<a href="%s">%s</a>', esc_url( $generate_url ), esc_html__( 'Générer les combats', 'ufsc-licence-competition' ) );
+		} else {
+			$actions['generate_fights'] = sprintf( '<span class="ufsc-row-action-muted">%s</span>', esc_html__( 'Aucune inscription générable', 'ufsc-licence-competition' ) );
+		}
+		$actions['view_fights'] = sprintf( '<a href="%s">%s</a>', esc_url( $fights_url ), esc_html__( 'Voir les combats', 'ufsc-licence-competition' ) );
 
 		// Exports (Phase 2.4) — only for users who can validate entries.
 		if ( \UFSC\Competitions\Capabilities::user_can_validate_entries() ) {

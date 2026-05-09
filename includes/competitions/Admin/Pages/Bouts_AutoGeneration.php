@@ -5,6 +5,7 @@ namespace UFSC\Competitions\Admin\Pages;
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\FightAutoGenerationService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -79,6 +80,28 @@ class Bouts_AutoGeneration {
 			? $preview['rejection_diagnostics']
 			: ( isset( $counters['diagnostics'] ) && is_array( $counters['diagnostics'] ) ? $counters['diagnostics'] : array() );
 		$competition_label = $competition_id ? sprintf( __( 'Compétition #%d', 'ufsc-licence-competition' ), $competition_id ) : __( 'Aucune compétition sélectionnée (ouvrez une compétition active).', 'ufsc-licence-competition' );
+		$competition_repo = new CompetitionRepository();
+		$entry_repo = new EntryRepository();
+		$competition = $competition_id ? $competition_repo->get( $competition_id, true ) : null;
+		$competition_name = $competition ? sanitize_text_field( (string) ( $competition->name ?? '' ) ) : '';
+		$competition_label = $competition_name ? $competition_name : $competition_label;
+		$entries = $competition_id ? $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 ) : array();
+		$approved_count = 0;
+		$detected_disciplines = array();
+		foreach ( $entries as $entry ) {
+			$status = sanitize_key( (string) ( $entry->status ?? '' ) );
+			if ( 'approved' === $status ) {
+				$approved_count++;
+			}
+			$raw_discipline = sanitize_text_field( (string) ( $entry->discipline ?? '' ) );
+			if ( '' === $raw_discipline ) {
+				continue;
+			}
+			$normalized = FightAutoGenerationService::normalize_discipline_for_generation( $raw_discipline );
+			$detected_disciplines[ $raw_discipline ] = $normalized;
+		}
+		$competition_discipline_raw = $competition ? sanitize_text_field( (string) ( $competition->discipline ?? '' ) ) : '';
+		$competition_discipline_normalized = FightAutoGenerationService::normalize_discipline_for_generation( $competition_discipline_raw );
 		$timing_profile_label = 'category' === ( $settings['timing_mode'] ?? 'global' )
 			? __( 'Profils par catégories actifs', 'ufsc-licence-competition' )
 			: __( 'Timing global manuel', 'ufsc-licence-competition' );
@@ -97,6 +120,23 @@ class Bouts_AutoGeneration {
 					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Dernier enregistrement : %s', 'ufsc-licence-competition' ), $last_saved ) ); ?></span>
 					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( $timing_profile_label ); ?></span>
 				</div>
+			</div>
+			<div class="notice notice-info inline">
+				<p><strong><?php echo esc_html( sprintf( __( 'Génération des combats pour : %s', 'ufsc-licence-competition' ), $competition_label ) ); ?></strong></p>
+				<p><?php esc_html_e( 'Cette page permet de créer les combats uniquement pour la compétition sélectionnée. Les combats en cours, terminés ou verrouillés ne sont jamais modifiés.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php echo esc_html( sprintf( __( 'Inscriptions liées : %1$d — Approuvées : %2$d', 'ufsc-licence-competition' ), count( $entries ), $approved_count ) ); ?></p>
+				<p><?php echo esc_html( sprintf( __( 'Discipline compétition : %1$s (normalisée : %2$s)', 'ufsc-licence-competition' ), $competition_discipline_raw ?: '—', $competition_discipline_normalized ?: '—' ) ); ?></p>
+				<?php if ( ! empty( $detected_disciplines ) ) : ?>
+					<p><?php esc_html_e( 'Disciplines détectées dans les inscriptions :', 'ufsc-licence-competition' ); ?>
+					<?php
+					$pairs = array();
+					foreach ( $detected_disciplines as $raw => $normalized ) {
+						$pairs[] = sprintf( '%s → %s', $raw, $normalized );
+					}
+					echo esc_html( implode( ' | ', $pairs ) );
+					?>
+					</p>
+				<?php endif; ?>
 			</div>
 
 			<div class="ufsc-fightgen-kpis">
@@ -749,11 +789,6 @@ class Bouts_AutoGeneration {
 			if ( $competition ) {
 				return $candidate;
 			}
-		}
-
-		$list = $repo->list( array( 'view' => 'all' ), 1, 0 );
-		if ( ! empty( $list ) && ! empty( $list[0]->id ) ) {
-			return absint( $list[0]->id );
 		}
 
 		return 0;
