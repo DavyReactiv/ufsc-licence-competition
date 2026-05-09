@@ -795,7 +795,12 @@ class Bouts_AutoGeneration {
 	public static function handle_test_fixture_create(): void {
 		self::guard_action( 'ufsc_competitions_test_fixture_create', 0 );
 		$result = self::create_test_fixture();
-		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+		$competition_id = (int) ( $result['competition_id'] ?? 0 );
+		$message = (string) ( $result['message'] ?? '' );
+		if ( $competition_id > 0 ) {
+			$message .= sprintf( ' [TEST] competition_id=%d', $competition_id );
+		}
+		self::redirect( $competition_id, empty( $result['ok'] ) ? 'action_error' : 'settings_saved', $message );
 	}
 
 	public static function handle_test_fixture_reset(): void {
@@ -819,15 +824,36 @@ class Bouts_AutoGeneration {
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
-		$msg = sprintf( 'TEST: groups=%d estimated=%d draft=%s', (int) ( $preview['estimated_categories'] ?? 0 ), (int) ( $preview['estimated_fights'] ?? 0 ), ! empty( $draft['ok'] ) ? 'ok' : 'ko' );
+		$fixture_ids = get_option( 'ufsc_generation_test_fixture_ids', array() );
+		$entries_total = count( (array) ( $fixture_ids['entries'] ?? array() ) );
+		$counters = FightAutoGenerationService::get_generation_counters( $competition_id, $settings );
+		$msg = sprintf(
+			'[TEST] comp=%1$d entries=%2$d approved=%3$d groups=%4$d generables=%5$d estimated=%6$d draft=%7$s',
+			$competition_id,
+			$entries_total,
+			(int) ( $counters['eligible_entries'] ?? 0 ),
+			(int) ( $preview['estimated_categories'] ?? 0 ),
+			(int) ( $preview['estimated_categories'] ?? 0 ),
+			(int) ( $preview['estimated_fights'] ?? 0 ),
+			! empty( $draft['ok'] ) ? 'yes' : 'no'
+		);
 		if ( ! empty( $_POST['auto_validate'] ) && ! empty( $draft['ok'] ) ) {
 			$apply = FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' );
-			$msg .= ' | validate=' . ( ! empty( $apply['ok'] ) ? 'ok' : 'ko' ) . ' | ' . (string) ( $apply['message'] ?? '' );
+			$stats = is_array( $apply['stats'] ?? null ) ? $apply['stats'] : array();
+			$msg .= sprintf(
+				' | validate=%1$s inserts=%2$d/%3$d fights_created=%4$d %5$s',
+				! empty( $apply['ok'] ) ? 'yes' : 'no',
+				(int) ( $stats['inserts_success'] ?? 0 ),
+				(int) ( $stats['inserts_attempted'] ?? 0 ),
+				(int) ( $stats['inserts_success'] ?? 0 ),
+				(string) ( $apply['message'] ?? '' )
+			);
 		}
 		self::redirect( $competition_id, 'settings_saved', $msg );
 	}
 
 	private static function create_test_fixture(): array {
+		self::delete_test_fixture();
 		$comp_repo = new CompetitionRepository();
 		$entry_repo = new EntryRepository();
 		$season = gmdate( 'Y' ) . '/' . (string) ( (int) gmdate( 'Y' ) + 1 );
@@ -864,11 +890,15 @@ class Bouts_AutoGeneration {
 		$entry_ids = array_map( 'absint', (array) ( $ids['entries'] ?? array() ) );
 		$competition_id = absint( $ids['competition_id'] ?? 0 );
 		if ( $entry_ids ) {
-			$in = implode( ',', $entry_ids );
-			$wpdb->query( 'DELETE FROM ' . Db::weighins_table() . ' WHERE entry_id IN (' . $in . ')' );
-			$count += (int) $wpdb->rows_affected;
-			$wpdb->query( 'DELETE FROM ' . Db::entries_table() . ' WHERE id IN (' . $in . ')' );
-			$count += (int) $wpdb->rows_affected;
+			foreach ( $entry_ids as $entry_id ) {
+				if ( $entry_id <= 0 ) {
+					continue;
+				}
+				$wpdb->delete( Db::weighins_table(), array( 'entry_id' => $entry_id ), array( '%d' ) );
+				$count += (int) $wpdb->rows_affected;
+				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id ), array( '%d' ) );
+				$count += (int) $wpdb->rows_affected;
+			}
 		}
 		if ( $competition_id > 0 ) {
 			$wpdb->delete( Db::fights_table(), array( 'competition_id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
