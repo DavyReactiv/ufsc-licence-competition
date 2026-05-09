@@ -308,6 +308,7 @@ class FightAutoGenerationService {
 			'can_generate'                => false,
 			'precheck'                    => array(),
 			'rejection_diagnostics'       => array(),
+			'groups_preview'              => array(),
 		);
 
 		if ( ! $competition_id ) {
@@ -368,6 +369,7 @@ class FightAutoGenerationService {
 			'eligible_ok' => $eligible_ok,
 			'duplicates_ok' => 0 === $duplicates,
 		);
+		$preview['groups_preview']            = self::build_groups_preview( $groups, $settings );
 
 		return $preview;
 	}
@@ -949,10 +951,15 @@ class FightAutoGenerationService {
 
 	private static function build_rejection_diagnostics( array $entries, array $selection ): array {
 		$reason_counts = (array) ( $selection['reason_counts'] ?? array() );
+		$non_blocking_reasons = self::get_non_blocking_reasons( self::get_settings( 0 ) );
 		$total_rejected = 0;
 		foreach ( $reason_counts as $count ) {
 			$total_rejected += (int) $count;
 		}
+		foreach ( $non_blocking_reasons as $reason_key ) {
+			$total_rejected -= (int) ( $reason_counts[ $reason_key ] ?? 0 );
+		}
+		$total_rejected = max( 0, $total_rejected );
 
 		$sum = static function ( array $keys ) use ( $reason_counts ): int {
 			$total = 0;
@@ -969,7 +976,8 @@ class FightAutoGenerationService {
 			'rejected_status'                   => $sum( array( 'status_not_approved', 'status_not_pending', 'status_not_exportable' ) ),
 			'rejected_license_or_participant'   => $sum( array( 'license_missing', 'external_not_allowed_for_competition' ) ),
 			'rejected_weighin'                  => $sum( array( 'weighin_missing', 'reclass_pending' ) ),
-			'rejected_missing_sport_data'       => $sum( array( 'external_identity_incomplete', 'external_missing_required_sport_data', 'external_birth_date_invalid', 'external_birth_date_future', 'external_sex_invalid', 'external_minor_guardian_missing' ) ),
+			'rejected_missing_sport_data'       => $sum( array( 'external_identity_incomplete', 'external_missing_required_sport_data', 'external_birth_date_invalid', 'external_birth_date_future', 'external_sex_invalid' ) ),
+			'non_blocking_warnings'             => $sum( $non_blocking_reasons ),
 			'rejected_category_weight_level'    => $sum( array( 'weight_missing', 'weight_class_missing' ) ),
 			'rejected_discipline'               => $sum( array( 'discipline_missing' ) ),
 			'rejected_club'                     => $sum( array( 'club_missing' ) ),
@@ -990,6 +998,32 @@ class FightAutoGenerationService {
 			),
 			'rejected_entries_preview'          => array_slice( (array) ( $selection['rejected_entries'] ?? array() ), 0, 10 ),
 		);
+	}
+
+	private static function build_groups_preview( array $groups, array $settings ): array {
+		$rows = array();
+		foreach ( $groups as $group_key => $group_entries ) {
+			$group_entries = is_array( $group_entries ) ? $group_entries : array();
+			$count         = count( $group_entries );
+			$status        = $count >= 2 ? 'generable' : 'insufficient';
+			$athletes      = array();
+			foreach ( $group_entries as $entry ) {
+				$athletes[] = array(
+					'id'         => (int) ( $entry->id ?? 0 ),
+					'last_name'  => self::pick_entry_value( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' ) ),
+					'first_name' => self::pick_entry_value( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) ),
+				);
+			}
+			$rows[] = array(
+				'group_key'         => (string) $group_key,
+				'entries_count'     => $count,
+				'estimated_fights'  => self::estimate_fights_for_group_size( $count ),
+				'status'            => $status,
+				'use_level_split'   => ! empty( $settings['use_level_split'] ),
+				'athletes'          => $athletes,
+			);
+		}
+		return $rows;
 	}
 
 

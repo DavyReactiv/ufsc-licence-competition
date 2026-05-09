@@ -106,6 +106,9 @@ class Bouts_AutoGeneration {
 			? __( 'Profils par catégories actifs', 'ufsc-licence-competition' )
 			: __( 'Timing global manuel', 'ufsc-licence-competition' );
 		$generation_status_label = $can_generate ? __( 'Prêt à générer', 'ufsc-licence-competition' ) : __( 'Action requise avant génération', 'ufsc-licence-competition' );
+		$generation_summary_message = $estimated_fights > 0
+			? __( 'Prêt à générer : au moins un groupe contient 2 athlètes ou plus.', 'ufsc-licence-competition' )
+			: __( 'Aucun groupe générable détecté. Vérifiez les motifs bloquants ci-dessous.', 'ufsc-licence-competition' );
 		$last_saved = ! empty( $settings['settings_saved_at'] ) ? sanitize_text_field( (string) $settings['settings_saved_at'] ) : __( 'Non enregistré', 'ufsc-licence-competition' );
 		?>
 		<div class="ufsc-competitions-box">
@@ -147,6 +150,7 @@ class Bouts_AutoGeneration {
 				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( (string) (int) ( $settings['surface_count'] ?? 1 ) ); ?></strong></div>
 				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Durée totale estimée', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( self::format_duration_label( $estimated_total_seconds ) ); ?></strong></div>
 			</div>
+			<div class="notice notice-<?php echo $estimated_fights > 0 ? 'success' : 'warning'; ?> inline"><p><?php echo esc_html( $generation_summary_message ); ?></p></div>
 
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Contrôles avant génération', 'ufsc-licence-competition' ); ?></h3>
@@ -161,7 +165,7 @@ class Bouts_AutoGeneration {
 
 			<?php if ( ! empty( $diagnostics ) ) : ?>
 			<div class="ufsc-fightgen-precheck">
-				<h3><?php esc_html_e( 'Diagnostic des rejets', 'ufsc-licence-competition' ); ?></h3>
+				<h3><?php esc_html_e( 'Athlètes bloqués (motifs bloquants)', 'ufsc-licence-competition' ); ?></h3>
 				<ul>
 					<li><?php echo esc_html( sprintf( __( 'Inscriptions totales : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['total_entries'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Éligibles : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['eligible_entries'] ?? 0 ) ) ); ?></li>
@@ -169,6 +173,7 @@ class Bouts_AutoGeneration {
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par licence/type participant : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_license_or_participant'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par pesée : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_weighin'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par données sportives manquantes : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_missing_sport_data'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Avertissements non bloquants : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['non_blocking_warnings'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par catégorie/poids/niveau : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_category_weight_level'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées par discipline : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_discipline'] ?? 0 ) ) ); ?></li>
 					<li><?php echo esc_html( sprintf( __( 'Rejetées car club absent : %d', 'ufsc-licence-competition' ), (int) ( $diagnostics['rejected_club'] ?? 0 ) ) ); ?></li>
@@ -184,7 +189,7 @@ class Bouts_AutoGeneration {
 					</ul>
 				<?php endif; ?>
 				<?php if ( ! empty( $diagnostics['rejected_entries_preview'] ) && is_array( $diagnostics['rejected_entries_preview'] ) ) : ?>
-					<p><strong><?php esc_html_e( 'Exemples (10 premières inscriptions rejetées)', 'ufsc-licence-competition' ); ?></strong></p>
+					<p><strong><?php esc_html_e( 'Athlètes bloqués — exemples (10 premiers)', 'ufsc-licence-competition' ); ?></strong></p>
 					<div class="table-responsive">
 						<table class="widefat striped">
 							<thead>
@@ -230,6 +235,20 @@ class Bouts_AutoGeneration {
 						</table>
 					</div>
 				<?php endif; ?>
+			</div>
+			<?php endif; ?>
+			<?php if ( ! empty( $preview['groups_preview'] ) && is_array( $preview['groups_preview'] ) ) : ?>
+			<div class="ufsc-fightgen-precheck">
+				<h3><?php esc_html_e( 'Groupes détectés avant génération', 'ufsc-licence-competition' ); ?></h3>
+				<ul>
+					<?php foreach ( $preview['groups_preview'] as $group_row ) : ?>
+						<li>
+							<strong><?php echo esc_html( (string) ( $group_row['group_key'] ?? '—' ) ); ?></strong>
+							— <?php echo esc_html( sprintf( __( '%1$d athlètes, %2$d combats estimés', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? 0 ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?>
+							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
+						</li>
+					<?php endforeach; ?>
+				</ul>
 			</div>
 			<?php endif; ?>
 
@@ -445,7 +464,7 @@ class Bouts_AutoGeneration {
 						<?php wp_nonce_field( self::nonce_action( 'ufsc_competitions_generate_fight_draft', $competition_id ) ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_generate_fight_draft">
 						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
-						<?php submit_button( __( 'Générer un brouillon', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array() : array( 'disabled' => 'disabled' ) ); ?>
+						<?php submit_button( __( 'Créer le brouillon des combats', 'ufsc-licence-competition' ), 'secondary', '', false, $can_generate ? array() : array( 'disabled' => 'disabled' ) ); ?>
 					</form>
 					<?php if ( ! empty( $counters['can_override_unweighed'] ) ) : ?>
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -482,7 +501,7 @@ class Bouts_AutoGeneration {
 								<?php esc_html_e( 'Je confirme la suppression des combats existants', 'ufsc-licence-competition' ); ?>
 							</label>
 						</fieldset>
-						<?php submit_button( __( 'Valider le brouillon', 'ufsc-licence-competition' ), 'primary', '', false, $has_draft ? array() : array( 'disabled' => 'disabled' ) ); ?>
+						<?php submit_button( __( 'Valider et créer les combats', 'ufsc-licence-competition' ), 'primary', '', false, $has_draft ? array() : array( 'disabled' => 'disabled' ) ); ?>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_discard_fight_draft' ); ?>
