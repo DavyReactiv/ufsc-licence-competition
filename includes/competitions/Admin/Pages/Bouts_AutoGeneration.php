@@ -770,9 +770,31 @@ class Bouts_AutoGeneration {
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft_result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		if ( empty( $draft_result['ok'] ) ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			if ( ! empty( $fallback['ok'] ) ) {
+				$message = sprintf(
+					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
+					(int) ( $fallback['attempted_inserts'] ?? 0 ),
+					(int) ( $fallback['successful_inserts'] ?? 0 ),
+					count( (array) ( $fallback['lone_groups'] ?? array() ) )
+				);
+				self::redirect( $competition_id, 'draft_validated', $message );
+			}
 			self::redirect( $competition_id, 'draft_error', (string) ( $draft_result['message'] ?? '' ) );
 		}
 		$apply_result = FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' );
+		if ( empty( $apply_result['ok'] ) || (int) ( $apply_result['stats']['inserts_success'] ?? 0 ) <= 0 ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			if ( ! empty( $fallback['ok'] ) ) {
+				$message = sprintf(
+					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
+					(int) ( $fallback['attempted_inserts'] ?? 0 ),
+					(int) ( $fallback['successful_inserts'] ?? 0 ),
+					count( (array) ( $fallback['lone_groups'] ?? array() ) )
+				);
+				self::redirect( $competition_id, 'draft_validated', $message );
+			}
+		}
 		$stats = (array) ( $apply_result['stats'] ?? array() );
 		$diag_message = sprintf(
 			'Action=direct | competition_id_received=%1$d | competition_id_used=%2$d | groups_generables=%3$d | combats_estimes=%4$d | inserts_tentes=%5$d | inserts_reussis=%6$d | draft=%7$s | result=%8$s',
