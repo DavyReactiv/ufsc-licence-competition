@@ -528,6 +528,12 @@ class Db {
 			'fight_duration'    => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
 			'status'            => "ALTER TABLE {$table} ADD COLUMN status varchar(30) NOT NULL DEFAULT 'scheduled'",
 			'deleted_at'        => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
+			'surface_index'     => "ALTER TABLE {$table} ADD COLUMN surface_index int NULL",
+			'surface_name'      => "ALTER TABLE {$table} ADD COLUMN surface_name varchar(120) NULL",
+			'surface_short_label' => "ALTER TABLE {$table} ADD COLUMN surface_short_label varchar(20) NULL",
+			'surface_type'      => "ALTER TABLE {$table} ADD COLUMN surface_type varchar(40) NULL",
+			'scheduled_order'   => "ALTER TABLE {$table} ADD COLUMN scheduled_order int NULL",
+			'scheduled_time'    => "ALTER TABLE {$table} ADD COLUMN scheduled_time datetime NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {

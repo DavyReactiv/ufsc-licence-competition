@@ -71,6 +71,7 @@ class Print_Page {
 					<option value="entries" <?php selected( $type, 'entries' ); ?>><?php esc_html_e( 'Liste détaillée des inscrits', 'ufsc-licence-competition' ); ?></option>
 					<option value="categories" <?php selected( $type, 'categories' ); ?>><?php esc_html_e( 'Référentiel catégories', 'ufsc-licence-competition' ); ?></option>
 					<option value="fights_by_surface" <?php selected( $type, 'fights_by_surface' ); ?>><?php esc_html_e( 'Répartition des combats par surface', 'ufsc-licence-competition' ); ?></option>
+					<option value="surface_sheet" <?php selected( $type, 'surface_sheet' ); ?>><?php esc_html_e( 'Feuille de surface', 'ufsc-licence-competition' ); ?></option>
 					<option value="surface_overview" <?php selected( $type, 'surface_overview' ); ?>><?php esc_html_e( 'Affichage synthétique organisation', 'ufsc-licence-competition' ); ?></option>
 					<option value="results_sheet" <?php selected( $type, 'results_sheet' ); ?>><?php esc_html_e( 'Feuille de résultats', 'ufsc-licence-competition' ); ?></option>
 					<option value="results_entered" <?php selected( $type, 'results_entered' ); ?>><?php esc_html_e( 'Résultats saisis', 'ufsc-licence-competition' ); ?></option>
@@ -129,7 +130,7 @@ class Print_Page {
 
 						if ( 'categories' === $type ) {
 							$this->render_categories_table( $competition_id );
-						} elseif ( 'fights_by_surface' === $type ) {
+						} elseif ( 'fights_by_surface' === $type || 'surface_sheet' === $type ) {
 							$this->render_fights_by_surface( $competition_id );
 						} elseif ( 'surface_overview' === $type ) {
 							$this->render_surface_overview( $competition_id );
@@ -421,15 +422,20 @@ class Print_Page {
 		}
 
 		$groups = array();
+		$non_assigned = 0;
 		foreach ( $fights as $fight ) {
 			$surface = trim( (string) ( $fight->ring ?? '' ) );
 			$surface = '' !== $surface ? $surface : __( 'Surface non assignée', 'ufsc-licence-competition' );
+			if ( __( 'Surface non assignée', 'ufsc-licence-competition' ) === $surface ) {
+				$non_assigned++;
+			}
 			if ( ! isset( $groups[ $surface ] ) ) {
 				$groups[ $surface ] = array();
 			}
 			$groups[ $surface ][] = $fight;
 		}
 		ksort( $groups, SORT_NATURAL | SORT_FLAG_CASE );
+		echo '<p><strong>' . esc_html( sprintf( 'Surfaces utilisées: %1$d | Combats non assignés: %2$d', count( $groups ), $non_assigned ) ) . '</strong></p>';
 
 		echo '<table class="widefat striped ufsc-print-table ufsc-print-table--surface-overview">';
 		echo '<thead><tr>'
@@ -506,6 +512,7 @@ class Print_Page {
 			'entries' => __( 'État administratif des inscrits', 'ufsc-licence-competition' ),
 			'categories' => __( 'Référentiel des catégories', 'ufsc-licence-competition' ),
 			'fights_by_surface' => __( 'Répartition des combats', 'ufsc-licence-competition' ),
+			'surface_sheet' => __( 'Feuille de surface', 'ufsc-licence-competition' ),
 			'surface_overview' => __( 'Affichage synthétique organisation', 'ufsc-licence-competition' ),
 			'results_sheet' => __( 'Feuille de résultats', 'ufsc-licence-competition' ),
 			'results_entered' => __( 'Résultats saisis', 'ufsc-licence-competition' ),
