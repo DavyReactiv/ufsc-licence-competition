@@ -135,6 +135,9 @@ class Entries_Page {
 		}
 		$has_table_nonce  = false !== strpos( $table_output, 'name="_wpnonce"' );
 		$needs_bulk_nonce = ( '' !== trim( $table_output ) ) && ! $has_table_nonce;
+		$forced_entry_id = isset( $_GET['entry_id'] ) ? absint( wp_unslash( $_GET['entry_id'] ) ) : 0;
+		$highlight_entry = isset( $_GET['highlight_entry'] ) ? absint( wp_unslash( $_GET['highlight_entry'] ) ) : 0;
+		$forced_entry = $forced_entry_id > 0 ? $this->repository->get_with_details( $forced_entry_id, true ) : null;
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG && current_user_can( 'manage_options' ) ) {
 			error_log(
@@ -163,6 +166,17 @@ class Entries_Page {
 					</div>
 				<?php endif; ?>
 			</header>
+			<?php if ( $forced_entry_id > 0 && current_user_can( 'manage_options' ) ) : ?>
+				<div class="notice notice-info inline">
+					<p><strong><?php esc_html_e( 'Diagnostic inscription ciblée', 'ufsc-licence-competition' ); ?></strong></p>
+					<p><?php echo esc_html( sprintf( 'entry_id=%d | highlight_entry=%d | competition_filter=%d', $forced_entry_id, $highlight_entry, (int) ( $filters['competition_id'] ?? 0 ) ) ); ?></p>
+					<?php if ( $forced_entry ) : ?>
+						<p><?php echo esc_html( sprintf( 'found=yes | entry_competition_id=%d | licensee_id=%d | status=%s | deleted_at=%s', (int) ( $forced_entry->competition_id ?? 0 ), (int) ( $forced_entry->licensee_id ?? 0 ), (string) ( $forced_entry->status ?? '' ), (string) ( $forced_entry->deleted_at ?? 'null' ) ) ); ?></p>
+					<?php else : ?>
+						<p><?php esc_html_e( 'found=no (entrée introuvable dans la table des inscriptions).', 'ufsc-licence-competition' ); ?></p>
+					<?php endif; ?>
+				</div>
+			<?php endif; ?>
 			<section class="ufsc-kpis ufsc-kpis--premium">
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Total inscriptions', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $total_entries ) ); ?></strong></article>
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'À valider', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $submitted_entries ) ); ?></strong></article>

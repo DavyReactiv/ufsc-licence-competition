@@ -66,6 +66,17 @@ class Entries_Table extends \WP_List_Table {
 			'entry_id'       => isset( $_REQUEST['entry_id'] ) ? absint( wp_unslash( $_REQUEST['entry_id'] ) ) : 0,
 		);
 		$competition_source = (string) $competition_context['source'];
+		$forced_entry_id = (int) ( $filters['entry_id'] ?? 0 );
+		if ( $forced_entry_id > 0 ) {
+			$filters['search'] = '';
+			$filters['status'] = '';
+			$filters['discipline'] = '';
+			$filters['participant_type'] = '';
+			$filters['group_label'] = '';
+			$filters['club_affiliation'] = '';
+			$filters['view'] = 'all';
+			$current_page = 1;
+		}
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
@@ -94,7 +105,7 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		$total_items = $this->repository->count_with_details( $filters );
-		$this->items = $this->repository->list_with_details( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$this->items = $this->repository->list_with_details( $filters, $forced_entry_id > 0 ? 200 : $per_page, ( $current_page - 1 ) * $per_page );
 		$this->fighter_numbers_by_entry = $this->build_fighter_number_map_for_items( $this->items );
 
 		$this->set_pagination_args(
