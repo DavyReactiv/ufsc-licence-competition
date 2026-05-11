@@ -47,9 +47,16 @@ class Assets {
 				wp_enqueue_script(
 					self::SCRIPT_HANDLE,
 					$js_url,
-					$deps,
+					array_merge( $deps, array( 'jquery' ) ),
 					$ver_js,
 					true
+				);
+				wp_localize_script(
+					self::SCRIPT_HANDLE,
+					'ufscCompetitionAdmin',
+					array(
+						'debug' => defined( 'WP_DEBUG' ) && WP_DEBUG,
+					)
 				);
 			}
 
