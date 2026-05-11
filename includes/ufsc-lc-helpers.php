@@ -254,6 +254,104 @@ if ( ! function_exists( 'ufsc_lc_get_excluded_licence_statuses' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_competition_get_surface_types' ) ) {
+	function ufsc_competition_get_surface_types(): array {
+		$types = array(
+			'tatami' => __( 'Tatami', 'ufsc-licence-competition' ),
+			'ring'   => __( 'Ring', 'ufsc-licence-competition' ),
+			'aire'   => __( 'Aire', 'ufsc-licence-competition' ),
+			'cage'   => __( 'Cage', 'ufsc-licence-competition' ),
+			'zone'   => __( 'Zone', 'ufsc-licence-competition' ),
+			'autre'  => __( 'Autre', 'ufsc-licence-competition' ),
+		);
+		return (array) apply_filters( 'ufsc_competition_surface_types', $types );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_normalize_surfaces' ) ) {
+	function ufsc_competition_normalize_surfaces( $raw_surfaces, int $fallback_count = 1 ): array {
+		$max = max( 1, (int) apply_filters( 'ufsc_competition_max_surfaces', 500 ) );
+		if ( is_string( $raw_surfaces ) ) {
+			$decoded = json_decode( $raw_surfaces, true );
+			$raw_surfaces = is_array( $decoded ) ? $decoded : array();
+		}
+		if ( isset( $raw_surfaces['surface_details'] ) && is_array( $raw_surfaces['surface_details'] ) ) {
+			$raw_surfaces = $raw_surfaces['surface_details'];
+		}
+		$rows = is_array( $raw_surfaces ) ? array_values( $raw_surfaces ) : array();
+		$types = ufsc_competition_get_surface_types();
+		$normalized = array();
+		foreach ( array_slice( $rows, 0, $max ) as $idx => $row ) {
+			$row = is_array( $row ) ? $row : array();
+			$name = sanitize_text_field( (string) ( $row['name'] ?? $row['label'] ?? '' ) );
+			$type = sanitize_key( (string) ( $row['type'] ?? 'tatami' ) );
+			$short = sanitize_text_field( (string) ( $row['short_label'] ?? $row['short'] ?? '' ) );
+			$active = ! empty( $row['active'] ) ? 1 : 0;
+			$uuid = sanitize_key( (string) ( $row['uuid'] ?? '' ) );
+			if ( '' === $name && '' === $short && 0 === $active ) {
+				continue;
+			}
+			if ( '' === $uuid ) {
+				$uuid = uniqid( 'surface_', false );
+			}
+			if ( ! isset( $types[ $type ] ) ) {
+				$type = 'autre';
+			}
+			$normalized[] = array(
+				'uuid' => $uuid,
+				'index' => count( $normalized ) + 1,
+				'name' => '' !== $name ? $name : sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), count( $normalized ) + 1 ),
+				'type' => $type,
+				'short_label' => $short,
+				'order' => count( $normalized ) + 1,
+				'active' => $active,
+			);
+		}
+		if ( empty( $normalized ) ) {
+			$count = max( 1, min( $fallback_count, $max ) );
+			for ( $i = 1; $i <= $count; $i++ ) {
+				$normalized[] = array(
+					'uuid' => uniqid( 'surface_', false ),
+					'index' => $i,
+					'name' => sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i ),
+					'type' => 'tatami',
+					'short_label' => 'T' . $i,
+					'order' => $i,
+					'active' => 1,
+				);
+			}
+		}
+		if ( 0 === count( array_filter( $normalized, static fn( $row ) => ! empty( $row['active'] ) ) ) ) {
+			$normalized[0]['active'] = 1;
+		}
+		return $normalized;
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_save_surfaces' ) ) {
+	function ufsc_competition_save_surfaces( int $competition_id, $raw_surfaces ): array {
+		$competition_id = absint( $competition_id );
+		if ( $competition_id <= 0 ) {
+			return array();
+		}
+		$surfaces = ufsc_competition_normalize_surfaces( $raw_surfaces );
+		update_option( 'ufsc_competitions_surfaces_' . $competition_id, $surfaces, false );
+		return $surfaces;
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
+	function ufsc_competition_get_surfaces( int $competition_id, array $args = array() ): array {
+		$competition_id = absint( $competition_id );
+		$fallback_count = max( 1, absint( $args['fallback_count'] ?? 1 ) );
+		if ( $competition_id <= 0 ) {
+			return ufsc_competition_normalize_surfaces( array(), $fallback_count );
+		}
+		$raw = get_option( 'ufsc_competitions_surfaces_' . $competition_id, array() );
+		return ufsc_competition_normalize_surfaces( $raw, $fallback_count );
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	function ufsc_lc_extract_club_disciplines( $club ): array {
 		if ( ! is_object( $club ) ) {

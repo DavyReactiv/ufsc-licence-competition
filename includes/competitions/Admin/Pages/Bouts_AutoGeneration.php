@@ -300,17 +300,17 @@ class Bouts_AutoGeneration {
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
 						<td>
-							<div class="ufsc-competitions-surfaces" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+							<div class="ufsc-competitions-surfaces ufsc-surfaces-manager" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
 								<?php
-								$surface_details = isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] )
-									? $settings['surface_details']
-									: array();
-								for ( $i = 0; $i < $settings['surface_count']; $i++ ) :
-									$detail = $surface_details[ $i ] ?? array();
+								$surface_details = function_exists( 'ufsc_competition_get_surfaces' )
+									? ufsc_competition_get_surfaces( $competition_id, array( 'fallback_count' => (int) $settings['surface_count'] ) )
+									: ( isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] ) ? $settings['surface_details'] : array() );
+								$surface_types = function_exists( 'ufsc_competition_get_surface_types' ) ? ufsc_competition_get_surface_types() : array( 'tatami' => 'Tatami', 'ring' => 'Ring', 'aire' => 'Aire', 'cage' => 'Cage', 'zone' => 'Zone', 'autre' => 'Autre' );
+								foreach ( $surface_details as $i => $detail ) :
 									$surface_name = (string) ( $detail['name'] ?? '' );
 									$surface_type = (string) ( $detail['type'] ?? 'tatami' );
 									?>
-									<div class="ufsc-competitions-surface-row">
+									<div class="ufsc-competitions-surface-row ufsc-surface-row">
 										<label>
 											<?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?>
 											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" placeholder="<?php echo esc_attr( (string) ( $i + 1 ) ); ?>">
@@ -318,15 +318,22 @@ class Bouts_AutoGeneration {
 										<label>
 											<?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?>
 											<select name="surface_details[<?php echo esc_attr( $i ); ?>][type]" required>
-												<option value="tatami" <?php selected( $surface_type, 'tatami' ); ?>><?php esc_html_e( 'Tatami', 'ufsc-licence-competition' ); ?></option>
-												<option value="ring" <?php selected( $surface_type, 'ring' ); ?>><?php esc_html_e( 'Ring', 'ufsc-licence-competition' ); ?></option>
-												<option value="aire" <?php selected( $surface_type, 'aire' ); ?>><?php esc_html_e( 'Aire', 'ufsc-licence-competition' ); ?></option>
+												<?php foreach ( $surface_types as $surface_type_key => $surface_type_label ) : ?>
+													<option value="<?php echo esc_attr( (string) $surface_type_key ); ?>" <?php selected( $surface_type, (string) $surface_type_key ); ?>><?php echo esc_html( (string) $surface_type_label ); ?></option>
+												<?php endforeach; ?>
 											</select>
 										</label>
+										<label><?php esc_html_e( 'Code court', 'ufsc-licence-competition' ); ?><input name="surface_details[<?php echo esc_attr( $i ); ?>][short_label]" type="text" value="<?php echo esc_attr( (string) ( $detail['short_label'] ?? '' ) ); ?>" class="small-text"></label>
+										<label><input type="checkbox" name="surface_details[<?php echo esc_attr( $i ); ?>][active]" value="1" <?php checked( ! empty( $detail['active'] ) ); ?>> <?php esc_html_e( 'Active', 'ufsc-licence-competition' ); ?></label>
+										<button type="button" class="button ufsc-duplicate-surface"><?php esc_html_e( 'Dupliquer', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-remove-surface"><?php esc_html_e( 'Supprimer', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-move-surface-up">↑</button>
+										<button type="button" class="button ufsc-move-surface-down">↓</button>
 									</div>
-								<?php endfor; ?>
+								<?php endforeach; ?>
 							</div>
-							<p class="description"><?php esc_html_e( 'Le nombre de surfaces génère automatiquement les blocs ci-dessus.', 'ufsc-licence-competition' ); ?></p>
+							<p><button type="button" class="button ufsc-add-surface"><?php esc_html_e( 'Ajouter une surface', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-add-five-surfaces"><?php esc_html_e( 'Ajouter 5 surfaces', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-duplicate-last-surface"><?php esc_html_e( 'Dupliquer la dernière', 'ufsc-licence-competition' ); ?></button></p>
+							<p class="description"><?php esc_html_e( 'Ajoutez autant de surfaces que nécessaire pour votre compétition.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 					<tr><th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Timing', 'ufsc-licence-competition' ); ?></h3></th></tr>
@@ -724,6 +731,9 @@ class Bouts_AutoGeneration {
 	public static function handle_save_settings(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
+		if ( function_exists( 'ufsc_competition_save_surfaces' ) ) {
+			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ?? array() ) );
+		}
 		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
 		if ( empty( $result['ok'] ) ) {
 			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
