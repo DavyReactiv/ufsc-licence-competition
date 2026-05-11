@@ -72,6 +72,9 @@ class Print_Page {
 					<option value="categories" <?php selected( $type, 'categories' ); ?>><?php esc_html_e( 'Référentiel catégories', 'ufsc-licence-competition' ); ?></option>
 					<option value="fights_by_surface" <?php selected( $type, 'fights_by_surface' ); ?>><?php esc_html_e( 'Répartition des combats par surface', 'ufsc-licence-competition' ); ?></option>
 					<option value="surface_overview" <?php selected( $type, 'surface_overview' ); ?>><?php esc_html_e( 'Affichage synthétique organisation', 'ufsc-licence-competition' ); ?></option>
+					<option value="results_sheet" <?php selected( $type, 'results_sheet' ); ?>><?php esc_html_e( 'Feuille de résultats', 'ufsc-licence-competition' ); ?></option>
+					<option value="results_entered" <?php selected( $type, 'results_entered' ); ?>><?php esc_html_e( 'Résultats saisis', 'ufsc-licence-competition' ); ?></option>
+					<option value="lone_fighters" <?php selected( $type, 'lone_fighters' ); ?>><?php esc_html_e( 'Combattants sans adversaire', 'ufsc-licence-competition' ); ?></option>
 				</select>
 				<label for="ufsc_print_format" class="screen-reader-text"><?php esc_html_e( 'Format', 'ufsc-licence-competition' ); ?></label>
 				<select name="print_format" id="ufsc_print_format">
@@ -130,6 +133,12 @@ class Print_Page {
 							$this->render_fights_by_surface( $competition_id );
 						} elseif ( 'surface_overview' === $type ) {
 							$this->render_surface_overview( $competition_id );
+						} elseif ( 'results_sheet' === $type ) {
+							$this->render_results_sheet( $competition_id, false );
+						} elseif ( 'results_entered' === $type ) {
+							$this->render_results_sheet( $competition_id, true );
+						} elseif ( 'lone_fighters' === $type ) {
+							$this->render_lone_fighters( $competition_id );
 						} else {
 							$this->render_entries_table( $competition_id, $competition );
 						}
@@ -193,6 +202,7 @@ class Print_Page {
 		echo '<h2>' . esc_html__( 'Liste des inscrits', 'ufsc-licence-competition' ) . '</h2>';
 		echo '<table class="widefat striped ufsc-print-table ufsc-print-table--entries">';
 		echo '<thead><tr>'
+			. '<th>' . esc_html__( 'N° combattant', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Licence', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Prénom', 'ufsc-licence-competition' ) . '</th>'
@@ -225,6 +235,7 @@ class Print_Page {
 			$club_name = (string) ( $entry->club_name ?? '—' );
 
 			echo '<tr>'
+				. '<td>' . esc_html( $this->format_competitor_number( $entry ) ) . '</td>'
 				. '<td>' . esc_html( (string) ( $entry->license_number ?? '—' ) ) . '</td>'
 				. '<td>' . esc_html( $fighter_last_name ) . '</td>'
 				. '<td>' . esc_html( $fighter_first_name ) . '</td>'
@@ -240,7 +251,7 @@ class Print_Page {
 		}
 
 		if ( ! $entries ) {
-			echo '<tr><td colspan="11">' . esc_html__( 'Aucune inscription.', 'ufsc-licence-competition' ) . '</td></tr>';
+			echo '<tr><td colspan="12">' . esc_html__( 'Aucune inscription.', 'ufsc-licence-competition' ) . '</td></tr>';
 		}
 
 		echo '</tbody></table>';
@@ -297,8 +308,19 @@ class Print_Page {
 		echo '<h2>' . esc_html__( 'Répartition des combats par surface / tatami / ring / aire', 'ufsc-licence-competition' ) . '</h2>';
 		if ( ! $groups ) {
 			$last_diag = get_option( 'ufsc_competition_last_generation_diagnostic_' . $competition_id, array() );
+			$statuses = array();
+			foreach ( $entries as $entry ) {
+				$status = sanitize_key( (string) ( $entry->status ?? '' ) );
+				$statuses[ $status ] = (int) ( $statuses[ $status ] ?? 0 ) + 1;
+			}
+			$accepted_statuses = function_exists( 'ufsc_competition_get_generation_entry_statuses' )
+				? ufsc_competition_get_generation_entry_statuses()
+				: array( 'approved' );
 			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
 			echo '<p>' . esc_html( sprintf( 'competition_id: %d', $competition_id ) ) . '</p>';
+			echo '<p>' . esc_html( sprintf( 'inscriptions_liées: %d', count( $entries ) ) ) . '</p>';
+			echo '<p>' . esc_html( 'statuts_présents: ' . wp_json_encode( $statuses ) ) . '</p>';
+			echo '<p>' . esc_html( 'statuts_acceptés: ' . wp_json_encode( $accepted_statuses ) ) . '</p>';
 			if ( ! empty( $last_diag ) ) {
 				echo '<p><code>' . esc_html( wp_json_encode( $last_diag ) ) . '</code></p>';
 			}
@@ -336,8 +358,8 @@ class Print_Page {
 				$blue = $entry_map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null;
 				$category_key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
 				$category_fights = $fights_by_category[ $category_key ] ?? array();
-				$red_label = FightDisplayService::format_corner_label( $fight, $red, 'red', $category_fights, array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) );
-				$blue_label = FightDisplayService::format_corner_label( $fight, $blue, 'blue', $category_fights, array( 'fighter_numbers_by_entry' => $this->fighter_numbers_by_entry ) );
+				$red_label = $this->format_fighter_label( $red );
+				$blue_label = $this->format_fighter_label( $blue );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
 				$phase_label = FightDisplayService::format_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
@@ -471,9 +493,48 @@ class Print_Page {
 			'categories' => __( 'Référentiel des catégories', 'ufsc-licence-competition' ),
 			'fights_by_surface' => __( 'Répartition des combats', 'ufsc-licence-competition' ),
 			'surface_overview' => __( 'Affichage synthétique organisation', 'ufsc-licence-competition' ),
+			'results_sheet' => __( 'Feuille de résultats', 'ufsc-licence-competition' ),
+			'results_entered' => __( 'Résultats saisis', 'ufsc-licence-competition' ),
+			'lone_fighters' => __( 'Combattants sans adversaire', 'ufsc-licence-competition' ),
 		);
 
 		return $map[ $type ] ?? __( 'Sortie compétition', 'ufsc-licence-competition' );
+	}
+
+	private function render_results_sheet( int $competition_id, bool $only_entered ): void {
+		$fights = $this->fights->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
+		$entries = $this->entries->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 3000, 0 );
+		$map = array();
+		foreach ( $entries as $e ) { $map[ (int) $e->id ] = $e; }
+		echo '<h2>' . esc_html( $only_entered ? __( 'Résultats saisis', 'ufsc-licence-competition' ) : __( 'Feuille de résultats', 'ufsc-licence-competition' ) ) . '</h2>';
+		echo '<table class="widefat striped"><thead><tr><th>N°</th><th>Rouge</th><th>Bleu</th><th>Résultat</th><th>Observation</th><th>Signature</th></tr></thead><tbody>';
+		$count = 0;
+		foreach ( $fights as $fight ) {
+			$result = trim( (string) ( $fight->result ?? '' ) );
+			if ( $only_entered && '' === $result && 'completed' !== (string) ( $fight->status ?? '' ) ) { continue; }
+			$count++;
+			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
+		}
+		if ( 0 === $count ) { echo '<tr><td colspan="6">' . esc_html__( 'Aucun résultat saisi pour cette compétition.', 'ufsc-licence-competition' ) . '</td></tr>'; }
+		echo '</tbody></table>';
+	}
+
+	private function render_lone_fighters( int $competition_id ): void {
+		$entries = $this->entries->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 3000, 0 );
+		$groups = array();
+		foreach ( $entries as $entry ) {
+			$key = sanitize_key( (string) ( $entry->category ?? $entry->category_name ?? 'nc' ) ) . '|' . sanitize_text_field( (string) ( $entry->weight_class ?? 'nc' ) );
+			$groups[ $key ][] = $entry;
+		}
+		echo '<h2>' . esc_html__( 'Combattants sans adversaire', 'ufsc-licence-competition' ) . '</h2><table class="widefat striped"><thead><tr><th>N°</th><th>Nom</th><th>Club</th><th>Catégorie</th><th>Poids</th><th>Raison</th><th>Action conseillée</th></tr></thead><tbody>';
+		$has = false;
+		foreach ( $groups as $g ) {
+			if ( count( $g ) !== 1 ) { continue; }
+			$has = true; $e = $g[0];
+			echo '<tr><td>' . esc_html( $this->format_competitor_number( $e ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $e ) ) . '</td><td>' . esc_html( $this->format_competitor_club( $e ) ) . '</td><td>' . esc_html( (string) ( $e->category ?? $e->category_name ?? '—' ) ) . '</td><td>' . esc_html( (string) ( $e->weight_class ?? '—' ) ) . '</td><td>' . esc_html__( 'Seul dans sa catégorie', 'ufsc-licence-competition' ) . '</td><td>' . esc_html__( 'Attendre inscription / regrouper / opposition gala', 'ufsc-licence-competition' ) . '</td></tr>';
+		}
+		if ( ! $has ) { echo '<tr><td colspan="7">—</td></tr>'; }
+		echo '</tbody></table>';
 	}
 
 	private function format_datetime( string $value ): string {
@@ -564,9 +625,12 @@ class Print_Page {
 		if ( ! $entry ) {
 			return '—';
 		}
-		$name = trim( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '' ) . ' ' . (string) ( $entry->licensee_first_name ?? $entry->first_name ?? '' ) );
+		$name = trim( (string) ( $entry->participant_name ?? '' ) );
 		if ( '' === $name ) {
-			$name = '#' . (int) ( $entry->id ?? 0 );
+			$name = trim( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '' ) . ' ' . (string) ( $entry->licensee_first_name ?? $entry->first_name ?? '' ) );
+		}
+		if ( '' === $name ) {
+			$name = 'Combattant #' . (int) ( $entry->id ?? 0 );
 		}
 		$club = (string) ( $entry->club_name ?? '' );
 		$license = (string) ( $entry->license_number ?? '' );
@@ -579,13 +643,24 @@ class Print_Page {
 		if ( ! $entry ) {
 			return '—';
 		}
-
-		$number = FighterNumberService::resolve_for_entry( $entry, $this->fighter_numbers_by_entry );
-		if ( $number > 0 ) {
-			return '#' . $number;
+		$number = '';
+		foreach ( array( 'fighter_number', 'combatant_number', 'contestant_number', 'numero_combattant' ) as $field ) {
+			$value = trim( (string) ( $entry->{$field} ?? '' ) );
+			if ( '' !== $value ) {
+				$number = $value;
+				break;
+			}
 		}
-
-		return '#' . (int) ( $entry->id ?? 0 );
+		if ( '' === $number ) {
+			$resolved = FighterNumberService::resolve_for_entry( $entry, $this->fighter_numbers_by_entry );
+			if ( $resolved > 0 ) {
+				$number = (string) $resolved;
+			}
+		}
+		if ( '' === $number ) {
+			return '—';
+		}
+		return '#' . str_pad( preg_replace( '/\D+/', '', (string) $number ) ?: (string) $number, 3, '0', STR_PAD_LEFT );
 	}
 
 	private function format_competitor_club( $entry ): string {

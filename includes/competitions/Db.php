@@ -420,6 +420,7 @@ class Db {
 			'imported_at'     => "ALTER TABLE {$table} ADD COLUMN imported_at datetime NULL",
 			'import_source'   => "ALTER TABLE {$table} ADD COLUMN import_source varchar(50) NULL",
 			'created_by_import' => "ALTER TABLE {$table} ADD COLUMN created_by_import tinyint(1) NOT NULL DEFAULT 0",
+			'fighter_number'   => "ALTER TABLE {$table} ADD COLUMN fighter_number varchar(20) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
