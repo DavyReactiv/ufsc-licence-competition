@@ -158,29 +158,43 @@ class Print_Page {
 
 	private function render_categories_table( int $competition_id ): void {
 		$categories = $this->categories->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 500, 0 );
+		$entries = $this->entries->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 3000, 0 );
+		$fights = $this->fights->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
 
 		echo '<h2>' . esc_html__( 'Catégories et classes', 'ufsc-licence-competition' ) . '</h2>';
 		echo '<table class="widefat striped ufsc-print-table">';
 		echo '<thead><tr>'
+			. '<th>' . esc_html__( 'Discipline', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Catégorie', 'ufsc-licence-competition' ) . '</th>'
-			. '<th>' . esc_html__( 'Âges', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Sexe', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Poids', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Sexe', 'ufsc-licence-competition' ) . '</th>'
 			. '<th>' . esc_html__( 'Niveau', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Inscrits', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Combats', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Statut', 'ufsc-licence-competition' ) . '</th>'
 			. '</tr></thead><tbody>';
-
-		foreach ( $categories as $category ) {
-			echo '<tr>'
-				. '<td>' . esc_html( $category->name ) . '</td>'
-				. '<td>' . esc_html( $this->format_range( $category->age_min ?? '', $category->age_max ?? '', __( 'ans', 'ufsc-licence-competition' ) ) ) . '</td>'
-				. '<td>' . esc_html( $this->format_range( $category->weight_min ?? '', $category->weight_max ?? '', 'kg' ) ) . '</td>'
-				. '<td>' . esc_html( (string) ( $category->sex ?? '—' ) ) . '</td>'
-				. '<td>' . esc_html( (string) ( $category->class_level ?? '—' ) ) . '</td>'
-				. '</tr>';
+		$rows = array();
+		foreach ( $entries as $entry ) {
+			$key = strtolower( trim( (string) ( $entry->category ?? $entry->category_name ?? '—' ) ) ) . '|' . strtolower( trim( (string) ( $entry->weight_class ?? '—' ) ) );
+			if ( ! isset( $rows[ $key ] ) ) {
+				$rows[ $key ] = array( 'discipline' => (string) ( $entry->discipline ?? '—' ), 'category' => (string) ( $entry->category ?? $entry->category_name ?? '—' ), 'sex' => (string) ( $entry->sex ?? '—' ), 'weight' => (string) ( $entry->weight_class ?? '—' ), 'level' => (string) ( $entry->level ?? '—' ), 'entries' => 0, 'fights' => 0 );
+			}
+			$rows[ $key ]['entries']++;
 		}
-
-		if ( ! $categories ) {
-			echo '<tr><td colspan="5">' . esc_html__( 'Aucune catégorie.', 'ufsc-licence-competition' ) . '</td></tr>';
+		foreach ( $fights as $fight ) {
+			$key = strtolower( trim( (string) ( $fight->category_name ?? $fight->category ?? '—' ) ) ) . '|' . strtolower( trim( (string) ( $fight->weight_class ?? '—' ) ) );
+			if ( isset( $rows[ $key ] ) ) { $rows[ $key ]['fights']++; }
+		}
+		if ( empty( $rows ) ) {
+			foreach ( $categories as $category ) {
+				$key = strtolower( (string) $category->name ) . '|—';
+				$rows[ $key ] = array( 'discipline' => '—', 'category' => (string) $category->name, 'sex' => (string) ( $category->sex ?? '—' ), 'weight' => '—', 'level' => (string) ( $category->class_level ?? '—' ), 'entries' => 0, 'fights' => 0 );
+			}
+		}
+		foreach ( $rows as $row ) {
+			$status = $row['entries'] <= 1 ? __( 'combattant seul', 'ufsc-licence-competition' ) : ( $row['fights'] > 0 ? __( 'générée', 'ufsc-licence-competition' ) : __( 'en attente', 'ufsc-licence-competition' ) );
+			echo '<tr><td>' . esc_html( $row['discipline'] ) . '</td><td>' . esc_html( $row['category'] ) . '</td><td>' . esc_html( $row['sex'] ) . '</td><td>' . esc_html( $row['weight'] ) . '</td><td>' . esc_html( $row['sex'] ) . '</td><td>' . esc_html( $row['level'] ) . '</td><td>' . esc_html( (string) $row['entries'] ) . '</td><td>' . esc_html( (string) $row['fights'] ) . '</td><td>' . esc_html( $status ) . '</td></tr>';
 		}
 
 		echo '</tbody></table>';

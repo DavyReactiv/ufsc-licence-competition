@@ -35,6 +35,7 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_test_fixture_run', array( __CLASS__, 'handle_test_fixture_run' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_open150', array( __CLASS__, 'handle_test_fixture_open150' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_open150_generate', array( __CLASS__, 'handle_test_fixture_open150_generate' ) );
+		add_action( 'admin_post_ufsc_competitions_assign_fighter_numbers', array( __CLASS__, 'handle_assign_fighter_numbers' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -729,12 +730,18 @@ class Bouts_AutoGeneration {
 							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
 							<?php submit_button( __( 'Créer test Open 150 participants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 						</form>
-						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-							<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150_generate' ); ?>
-							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150_generate">
-							<?php submit_button( __( 'Créer + générer test Open 150', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
-						</form>
-					</div>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150_generate' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150_generate">
+						<?php submit_button( __( 'Créer + générer test Open 150', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_assign_fighter_numbers' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_assign_fighter_numbers">
+						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
+						<label><input type="checkbox" name="force_reassign" value="1"> <?php esc_html_e( 'Réattribuer tous les numéros (action sensible)', 'ufsc-licence-competition' ); ?></label>
+						<?php submit_button( __( 'Attribuer les numéros combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
 				</div>
 
 		</div>
@@ -1003,6 +1010,31 @@ class Bouts_AutoGeneration {
 			(int) ( $preview['estimated_fights'] ?? 0 )
 		);
 		self::redirect( $competition_id, 'draft_validated', $msg );
+	}
+
+	public static function handle_assign_fighter_numbers(): void {
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
+		self::guard_action( 'ufsc_competitions_assign_fighter_numbers', $competition_id );
+		global $wpdb;
+		$entries_table = Db::entries_table();
+		$fights_table  = Db::fights_table();
+		$force = ! empty( $_POST['force_reassign'] );
+		$fights_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$fights_table} WHERE competition_id = %d", $competition_id ) );
+		if ( $fights_count > 0 && ! $force ) {
+			self::redirect( $competition_id, 'action_error', 'Numérotation bloquée: des combats existent déjà. Cochez la réattribution sensible si nécessaire.' );
+		}
+		$entries = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$entries_table} WHERE competition_id = %d AND (deleted_at IS NULL OR deleted_at='') ORDER BY category ASC, weight_class ASC, club_name ASC, last_name ASC, first_name ASC, id ASC", $competition_id ) );
+		$assigned = 0; $kept = 0; $i = 1;
+		foreach ( (array) $entries as $entry ) {
+			$current = function_exists( 'ufsc_competition_get_fighter_number' ) ? ufsc_competition_get_fighter_number( $entry ) : '';
+			if ( '' !== $current && ! $force ) { $kept++; continue; }
+			$number = str_pad( (string) $i, 3, '0', STR_PAD_LEFT );
+			$wpdb->update( $entries_table, array( 'fighter_number' => $number ), array( 'id' => (int) $entry->id ), array( '%s' ), array( '%d' ) );
+			$assigned++; $i++;
+		}
+		$duplicates = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM (SELECT fighter_number, COUNT(*) c FROM {$entries_table} WHERE competition_id=%d AND fighter_number IS NOT NULL AND fighter_number<>'' GROUP BY fighter_number HAVING c>1) t", $competition_id ) );
+		$msg = sprintf( 'Numéros combattants: total=%1$d, attribués=%2$d, conservés=%3$d, doublons=%4$d, combats_existants=%5$d', count( (array) $entries ), $assigned, $kept, $duplicates, $fights_count );
+		self::redirect( $competition_id, 'settings_saved', $msg );
 	}
 
 	private static function create_test_fixture(): array {
