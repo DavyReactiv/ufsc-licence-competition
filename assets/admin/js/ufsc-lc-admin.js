@@ -344,18 +344,33 @@
 	function bindSurfacesManager() {
 		document.querySelectorAll('.ufsc-surfaces-manager').forEach(function(manager) {
 			var parent = manager.parentElement || manager;
+			var list = manager.querySelector('.ufsc-surfaces-list') || manager;
 			var addBtn = parent.querySelector('.ufsc-add-surface');
 			var addFiveBtn = parent.querySelector('.ufsc-add-five-surfaces');
 			var dupLastBtn = parent.querySelector('.ufsc-duplicate-last-surface');
+			var counter = parent.querySelector('.ufsc-surfaces-counter');
 			var countInput = document.getElementById('ufsc_surface_count');
-			function getRows() { return Array.prototype.slice.call(manager.querySelectorAll('.ufsc-surface-row')); }
+			function getRows() { return Array.prototype.slice.call(list.querySelectorAll('.ufsc-surface-row')); }
 			function sync() {
 				getRows().forEach(function(row, idx) {
 					row.querySelectorAll('input,select').forEach(function(field) {
 						field.name = field.name.replace(/surface_details\[\d+\]/, 'surface_details[' + idx + ']');
 					});
+					var badge = row.querySelector('.ufsc-surface-badge');
+					if (badge) { badge.textContent = 'Surface ' + (idx + 1); }
+					var order = row.querySelector('.ufsc-surface-order');
+					if (order) { order.value = String(idx + 1); }
+					var upBtn = row.querySelector('.ufsc-move-surface-up');
+					var downBtn = row.querySelector('.ufsc-move-surface-down');
+					if (upBtn) { upBtn.disabled = idx === 0; }
+					if (downBtn) { downBtn.disabled = idx === getRows().length - 1; }
 				});
 				if (countInput) { countInput.value = String(Math.max(1, getRows().length)); }
+				var activeCount = getRows().filter(function(row) {
+					var cb = row.querySelector('input[name*="[active]"]');
+					return cb && cb.checked;
+				}).length;
+				if (counter) { counter.textContent = getRows().length + ' surfaces configurées — ' + activeCount + ' actives'; }
 			}
 			function addRow(source) {
 				var base = source || getRows()[0];
@@ -368,7 +383,9 @@
 				});
 				var nameInput = clone.querySelector('input[name*="[name]"]');
 				if (nameInput) { nameInput.value = 'Surface ' + idx; }
-				manager.appendChild(clone);
+				var shortInput = clone.querySelector('input[name*="[short_label]"]');
+				if (shortInput) { shortInput.value = 'S' + idx; }
+				list.appendChild(clone);
 				sync();
 			}
 			manager.addEventListener('click', function(event) {
@@ -376,8 +393,16 @@
 				if (!row) { return; }
 				if (event.target.classList.contains('ufsc-duplicate-surface')) { event.preventDefault(); addRow(row); }
 				if (event.target.classList.contains('ufsc-remove-surface')) { event.preventDefault(); if (getRows().length > 1) { row.remove(); sync(); } }
-				if (event.target.classList.contains('ufsc-move-surface-up')) { event.preventDefault(); if (row.previousElementSibling) { manager.insertBefore(row, row.previousElementSibling); sync(); } }
-				if (event.target.classList.contains('ufsc-move-surface-down')) { event.preventDefault(); if (row.nextElementSibling) { manager.insertBefore(row.nextElementSibling, row); sync(); } }
+				if (event.target.classList.contains('ufsc-move-surface-up')) { event.preventDefault(); if (row.previousElementSibling) { list.insertBefore(row, row.previousElementSibling); sync(); } }
+				if (event.target.classList.contains('ufsc-move-surface-down')) { event.preventDefault(); if (row.nextElementSibling) { list.insertBefore(row.nextElementSibling, row); sync(); } }
+			});
+			manager.addEventListener('change', function(event) {
+				if (!event.target.matches('input[name*="[active]"]')) { return; }
+				var active = getRows().filter(function(row) { var cb = row.querySelector('input[name*="[active]"]'); return cb && cb.checked; }).length;
+				if (0 === active) {
+					event.target.checked = true;
+				}
+				sync();
 			});
 			if (addBtn) { addBtn.addEventListener('click', function(e) { e.preventDefault(); addRow(); }); }
 			if (addFiveBtn) { addFiveBtn.addEventListener('click', function(e) { e.preventDefault(); for (var i = 0; i < 5; i++) { addRow(); } }); }

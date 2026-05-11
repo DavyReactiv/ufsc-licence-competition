@@ -301,6 +301,16 @@ class Bouts_AutoGeneration {
 						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
 						<td>
 							<div class="ufsc-competitions-surfaces ufsc-surfaces-manager" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+								<div class="ufsc-surfaces-toolbar">
+									<div class="ufsc-surfaces-toolbar__actions">
+										<button type="button" class="button button-primary ufsc-add-surface ufsc-surface-main-action">+ <?php esc_html_e( 'Ajouter une surface', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-add-five-surfaces">+ <?php esc_html_e( 'Ajouter 5 surfaces', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-duplicate-last-surface"><?php esc_html_e( 'Dupliquer la dernière', 'ufsc-licence-competition' ); ?></button>
+									</div>
+									<p class="description"><?php esc_html_e( 'Les surfaces actives seront utilisées pour répartir automatiquement les combats.', 'ufsc-licence-competition' ); ?></p>
+									<p class="ufsc-surfaces-counter" aria-live="polite"></p>
+								</div>
+								<div class="ufsc-surfaces-list">
 								<?php
 								$surface_details = function_exists( 'ufsc_competition_get_surfaces' )
 									? ufsc_competition_get_surfaces( $competition_id, array( 'fallback_count' => (int) $settings['surface_count'] ) )
@@ -311,8 +321,10 @@ class Bouts_AutoGeneration {
 									$surface_type = (string) ( $detail['type'] ?? 'tatami' );
 									?>
 									<div class="ufsc-competitions-surface-row ufsc-surface-row">
+										<div class="ufsc-surface-header"><span class="ufsc-surface-badge"><?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?></span></div>
+										<div class="ufsc-surface-fields">
 										<label>
-											<?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?>
+											<?php esc_html_e( 'Nom de la surface', 'ufsc-licence-competition' ); ?>
 											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" placeholder="<?php echo esc_attr( (string) ( $i + 1 ) ); ?>">
 										</label>
 										<label>
@@ -325,14 +337,19 @@ class Bouts_AutoGeneration {
 										</label>
 										<label><?php esc_html_e( 'Code court', 'ufsc-licence-competition' ); ?><input name="surface_details[<?php echo esc_attr( $i ); ?>][short_label]" type="text" value="<?php echo esc_attr( (string) ( $detail['short_label'] ?? '' ) ); ?>" class="small-text"></label>
 										<label><input type="checkbox" name="surface_details[<?php echo esc_attr( $i ); ?>][active]" value="1" <?php checked( ! empty( $detail['active'] ) ); ?>> <?php esc_html_e( 'Active', 'ufsc-licence-competition' ); ?></label>
-										<button type="button" class="button ufsc-duplicate-surface"><?php esc_html_e( 'Dupliquer', 'ufsc-licence-competition' ); ?></button>
-										<button type="button" class="button ufsc-remove-surface"><?php esc_html_e( 'Supprimer', 'ufsc-licence-competition' ); ?></button>
-										<button type="button" class="button ufsc-move-surface-up">↑</button>
-										<button type="button" class="button ufsc-move-surface-down">↓</button>
+										<input type="hidden" name="surface_details[<?php echo esc_attr( $i ); ?>][uuid]" value="<?php echo esc_attr( (string) ( $detail['uuid'] ?? '' ) ); ?>">
+										<input type="hidden" class="ufsc-surface-order" name="surface_details[<?php echo esc_attr( $i ); ?>][order]" value="<?php echo esc_attr( (string) ( $detail['order'] ?? ( $i + 1 ) ) ); ?>">
+										</div>
+										<div class="ufsc-surface-actions">
+											<button type="button" class="button ufsc-duplicate-surface"><?php esc_html_e( 'Dupliquer', 'ufsc-licence-competition' ); ?></button>
+											<button type="button" class="button ufsc-remove-surface ufsc-surface-danger-action"><?php esc_html_e( 'Supprimer', 'ufsc-licence-competition' ); ?></button>
+											<button type="button" class="button ufsc-move-surface-up ufsc-surface-move-action" title="<?php esc_attr_e( 'Monter cette surface', 'ufsc-licence-competition' ); ?>" aria-label="<?php esc_attr_e( 'Monter cette surface', 'ufsc-licence-competition' ); ?>"><?php esc_html_e( 'Monter', 'ufsc-licence-competition' ); ?></button>
+											<button type="button" class="button ufsc-move-surface-down ufsc-surface-move-action" title="<?php esc_attr_e( 'Descendre cette surface', 'ufsc-licence-competition' ); ?>" aria-label="<?php esc_attr_e( 'Descendre cette surface', 'ufsc-licence-competition' ); ?>"><?php esc_html_e( 'Descendre', 'ufsc-licence-competition' ); ?></button>
+										</div>
 									</div>
 								<?php endforeach; ?>
+								</div>
 							</div>
-							<p><button type="button" class="button ufsc-add-surface"><?php esc_html_e( 'Ajouter une surface', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-add-five-surfaces"><?php esc_html_e( 'Ajouter 5 surfaces', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-duplicate-last-surface"><?php esc_html_e( 'Dupliquer la dernière', 'ufsc-licence-competition' ); ?></button></p>
 							<p class="description"><?php esc_html_e( 'Ajoutez autant de surfaces que nécessaire pour votre compétition.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
@@ -667,64 +684,6 @@ class Bouts_AutoGeneration {
 			</div>
 
 		</div>
-		<script>
-			(function() {
-				const countInput = document.getElementById('ufsc_surface_count');
-				const container = document.querySelector('.ufsc-competitions-surfaces');
-				if (!countInput || !container) {
-					return;
-				}
-
-				const buildRow = (index) => {
-					const row = document.createElement('div');
-					row.className = 'ufsc-competitions-surface-row';
-
-					const label = document.createElement('label');
-					label.textContent = `<?php echo esc_js( __( 'Surface', 'ufsc-licence-competition' ) ); ?> ${index + 1} `;
-
-					const input = document.createElement('input');
-					input.type = 'text';
-					input.name = `surface_details[${index}][name]`;
-					input.className = 'regular-text';
-					input.placeholder = `${index + 1}`;
-					label.appendChild(input);
-
-					const typeLabel = document.createElement('label');
-					typeLabel.textContent = '<?php echo esc_js( __( 'Type', 'ufsc-licence-competition' ) ); ?> ';
-
-					const select = document.createElement('select');
-					select.name = `surface_details[${index}][type]`;
-					select.required = true;
-						const tatami = new Option('<?php echo esc_js( __( 'Tatami', 'ufsc-licence-competition' ) ); ?>', 'tatami');
-						const ring = new Option('<?php echo esc_js( __( 'Ring', 'ufsc-licence-competition' ) ); ?>', 'ring');
-						const aire = new Option('<?php echo esc_js( __( 'Aire', 'ufsc-licence-competition' ) ); ?>', 'aire');
-						select.appendChild(tatami);
-						select.appendChild(ring);
-						select.appendChild(aire);
-					typeLabel.appendChild(select);
-
-					row.appendChild(label);
-					row.appendChild(typeLabel);
-					return row;
-				};
-
-				const syncRows = () => {
-					const targetCount = Math.max(1, parseInt(countInput.value || '1', 10));
-					const rows = container.querySelectorAll('.ufsc-competitions-surface-row');
-					if (rows.length > targetCount) {
-						for (let i = rows.length - 1; i >= targetCount; i--) {
-							rows[i].remove();
-						}
-					} else if (rows.length < targetCount) {
-						for (let i = rows.length; i < targetCount; i++) {
-							container.appendChild(buildRow(i));
-						}
-					}
-				};
-
-				countInput.addEventListener('input', syncRows);
-			})();
-		</script>
 		<?php
 	}
 
