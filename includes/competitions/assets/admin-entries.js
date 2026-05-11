@@ -288,6 +288,7 @@
       radio.name = "ufsc_entry_licensee_result";
       radio.id = radioId;
       radio.value = String(item.licence_id || 0);
+      radio.dataset.licenseeId = String(item.licence_id || 0);
       radio.dataset.licenceId = String(item.licence_id || 0);
       radio.dataset.clubId = String(item.club_id || 0);
       radio.dataset.clubNom = item.club_nom || "";
@@ -354,6 +355,11 @@
   }
 
   async function performSearch() {
+    licenseeInput.value = "0";
+    selectedHidden.value = "";
+    clubInput.value = "0";
+    selectedLabel.textContent = "";
+    lastSelected = null;
     const payload = getSearchPayload();
     if (window.console && typeof window.console.debug === "function") {
       window.console.debug("license_search_request_payload", payload);
@@ -438,7 +444,7 @@
     }
 
     const data = {
-      licence_id: parseInt(selected.dataset.licenceId || "0", 10),
+      licence_id: parseInt(selected.dataset.licenseeId || selected.dataset.licenceId || "0", 10),
       club_id: parseInt(selected.dataset.clubId || "0", 10),
       club_nom: selected.dataset.clubNom || "",
       nom: selected.dataset.nom || "",
@@ -470,12 +476,28 @@
     const displayName = `${data.nom || ""} ${data.prenom || ""}`.trim();
     const birthdate = data.date_naissance_fmt || data.date_naissance || "";
     selectedLabel.textContent = displayName
-      ? `Sélectionné : ${displayName}${birthdate ? ` · ${birthdate}` : ""}`
+      ? `Licencié sélectionné : ${displayName}${data.club_nom ? ` — ${data.club_nom}` : ""}${birthdate ? ` · ${birthdate}` : ""}`
       : "";
 
     updateAutoCategory(data);
     resolveWeightClass();
   }
+
+  resultsContainer.addEventListener("change", function(event) {
+    if (!event.target || !event.target.matches('input[name="ufsc_entry_licensee_result"]')) {
+      return;
+    }
+    const selected = event.target;
+    const licenceId = parseInt(selected.dataset.licenseeId || selected.dataset.licenceId || "0", 10);
+    if (licenceId > 0) {
+      licenseeInput.value = String(licenceId);
+      selectedHidden.value = String(licenceId);
+    }
+    const clubId = parseInt(selected.dataset.clubId || "0", 10);
+    if (clubId > 0) {
+      clubInput.value = String(clubId);
+    }
+  });
 
   async function fetchLicenseeById(id) {
     if (!id) {

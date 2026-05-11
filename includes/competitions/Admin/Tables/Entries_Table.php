@@ -63,8 +63,20 @@ class Entries_Table extends \WP_List_Table {
 			'group_label'    => isset( $_REQUEST['ufsc_group_label'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_group_label'] ) ) : '',
 			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
+			'entry_id'       => isset( $_REQUEST['entry_id'] ) ? absint( wp_unslash( $_REQUEST['entry_id'] ) ) : 0,
 		);
 		$competition_source = (string) $competition_context['source'];
+		$forced_entry_id = (int) ( $filters['entry_id'] ?? 0 );
+		if ( $forced_entry_id > 0 ) {
+			$filters['search'] = '';
+			$filters['status'] = '';
+			$filters['discipline'] = '';
+			$filters['participant_type'] = '';
+			$filters['group_label'] = '';
+			$filters['club_affiliation'] = '';
+			$filters['view'] = 'all';
+			$current_page = 1;
+		}
 
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$filters = ufsc_lc_competitions_apply_scope_to_query_args( $filters );
@@ -93,7 +105,7 @@ class Entries_Table extends \WP_List_Table {
 		}
 
 		$total_items = $this->repository->count_with_details( $filters );
-		$this->items = $this->repository->list_with_details( $filters, $per_page, ( $current_page - 1 ) * $per_page );
+		$this->items = $this->repository->list_with_details( $filters, $forced_entry_id > 0 ? 200 : $per_page, ( $current_page - 1 ) * $per_page );
 		$this->fighter_numbers_by_entry = $this->build_fighter_number_map_for_items( $this->items );
 
 		$this->set_pagination_args(
@@ -210,7 +222,9 @@ class Entries_Table extends \WP_List_Table {
 			admin_url( 'admin.php' )
 		);
 
-		return sprintf( '<strong><a href="%s">%s</a></strong>', esc_url( $edit_url ), esc_html( $name ) );
+		$highlight_entry = isset( $_REQUEST['highlight_entry'] ) ? absint( wp_unslash( $_REQUEST['highlight_entry'] ) ) : 0;
+		$badge = ( $highlight_entry > 0 && $highlight_entry === $entry_id ) ? ' <span class="ufsc-badge ufsc-badge--warning">' . esc_html__( 'Doublon détecté', 'ufsc-licence-competition' ) . '</span>' : '';
+		return sprintf( '<strong><a href="%s">%s</a></strong>%s', esc_url( $edit_url ), esc_html( $name ), $badge );
 	}
 
 	protected function column_actions( $item ) {
