@@ -19,6 +19,10 @@ class FightAutoGenerationService {
 	private const LOCK_PREFIX     = 'ufsc_autogen_lock_';
 	private const LOCK_TTL        = 60;
 
+	private static function get_max_surfaces(): int {
+		return max( 1, (int) apply_filters( 'ufsc_competition_max_surfaces', 500 ) );
+	}
+
 	public static function is_enabled(): bool {
 		return (bool) apply_filters( 'ufsc_enable_auto_fight_generation', true );
 	}
@@ -36,7 +40,7 @@ class FightAutoGenerationService {
 
 		$has_stored_settings        = ! empty( $stored );
 		$settings                  = array_merge( $defaults, $stored );
-		$settings['surface_count']  = min( 32, max( 1, absint( $settings['surface_count'] ) ) );
+		$settings['surface_count']  = min( self::get_max_surfaces(), max( 1, absint( $settings['surface_count'] ) ) );
 		$settings['fight_duration']         = min( 30, max( 0, absint( $settings['fight_duration'] ) ) );
 		$settings['fight_duration_seconds'] = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
 		$settings['break_duration']         = min( 30, max( 0, absint( $settings['break_duration'] ) ) );
@@ -130,7 +134,7 @@ class FightAutoGenerationService {
 			if ( ! is_scalar( $data['surface_count'] ) || ! is_numeric( (string) $data['surface_count'] ) ) {
 				$errors[] = 'surface_count';
 			}
-			$settings['surface_count'] = min( 32, max( 1, absint( $data['surface_count'] ) ) );
+			$settings['surface_count'] = min( self::get_max_surfaces(), max( 1, absint( $data['surface_count'] ) ) );
 		}
 
 		$settings['surface_details'] = isset( $data['surface_details'] ) && is_array( $data['surface_details'] )
@@ -616,10 +620,35 @@ class FightAutoGenerationService {
 	}
 
 	public static function validate_and_apply_draft( int $competition_id, string $apply_mode = 'append' ): array {
+		$diagnostic = array(
+			'success'              => false,
+			'competition_id'       => $competition_id,
+			'entries_found'        => 0,
+			'entries_approved'     => 0,
+			'eligible_entries'     => 0,
+			'blocked_entries'      => 0,
+			'warnings_count'       => 0,
+			'groups_created'       => 0,
+			'groups_rejected'      => 0,
+			'estimated_fights'     => 0,
+			'attempted_inserts'    => 0,
+			'successful_inserts'   => 0,
+			'failed_inserts'       => 0,
+			'byes_inserted'        => 0,
+			'placeholders_inserted'=> 0,
+			'surfaces_received'    => 0,
+			'surfaces_active'      => 0,
+			'surfaces_used'        => 0,
+			'assigned_fights'      => 0,
+			'last_sql_error'       => '',
+			'errors'               => array(),
+			'warnings'             => array(),
+		);
 		if ( ! self::is_enabled() ) {
 			return array(
 				'ok'      => false,
 				'message' => __( 'La génération automatique est désactivée.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
 			);
 		}
 
@@ -627,6 +656,7 @@ class FightAutoGenerationService {
 			return array(
 				'ok'      => false,
 				'message' => __( 'Compétition invalide.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
 			);
 		}
 
@@ -639,6 +669,8 @@ class FightAutoGenerationService {
 		}
 
 		$draft = self::get_draft( $competition_id );
+		$diagnostic['estimated_fights'] = is_array( $draft['fights'] ?? null ) ? count( $draft['fights'] ) : 0;
+		$diagnostic['warnings_count'] = is_array( $draft['warnings'] ?? null ) ? count( $draft['warnings'] ) : 0;
 		if ( empty( $draft['fights'] ) || ! is_array( $draft['fights'] ) ) {
 			return array(
 				'ok'      => false,
@@ -665,12 +697,16 @@ class FightAutoGenerationService {
 		$attempted = count( $prepared_fights );
 		$inserted  = 0;
 		$table     = Db::fights_table();
+		$diagnostic['attempted_inserts'] = $attempted;
 
 		foreach ( $prepared_fights as $fight ) {
 			$insert_id = (int) $fight_repo->insert( $fight );
 			if ( $insert_id <= 0 ) {
 				global $wpdb;
 				$last_error = isset( $wpdb->last_error ) ? (string) $wpdb->last_error : '';
+				$diagnostic['last_sql_error'] = $last_error;
+				$diagnostic['failed_inserts'] = max( 1, $attempted - $inserted );
+				$diagnostic['errors'][] = $last_error ?: 'sql_insert_failed';
 				$columns = implode( ', ', array_keys( $fight ) );
 
 				return array(
@@ -685,10 +721,18 @@ class FightAutoGenerationService {
 						$inserted,
 						$columns
 					),
+					'diagnostic' => $diagnostic,
 				);
 			}
 
 			$inserted++;
+		}
+		$diagnostic['successful_inserts'] = $inserted;
+		$diagnostic['failed_inserts'] = max( 0, $attempted - $inserted );
+		$diagnostic['success'] = $inserted > 0;
+		if ( $diagnostic['estimated_fights'] > 0 && 0 === $inserted ) {
+			$diagnostic['success'] = false;
+			$diagnostic['errors'][] = 'estimated_but_not_inserted';
 		}
 
 		self::clear_draft( $competition_id );
@@ -704,6 +748,7 @@ class FightAutoGenerationService {
 				'inserts_attempted' => $attempted,
 				'inserts_success'   => $inserted,
 			),
+			'diagnostic' => $diagnostic,
 		);
 	}
 
