@@ -734,6 +734,28 @@ class FightAutoGenerationService {
 			$diagnostic['success'] = false;
 			$diagnostic['errors'][] = 'estimated_but_not_inserted';
 		}
+		$settings = self::get_settings( $competition_id );
+		if ( function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
+			$assignment = ufsc_competition_assign_surfaces_and_times( $competition_id, array(), $settings );
+			$diagnostic['assigned_fights'] = (int) ( $assignment['assigned_fights'] ?? 0 );
+			$diagnostic['surfaces_active'] = (int) ( $assignment['surfaces_active'] ?? 0 );
+			$diagnostic['surfaces_used'] = (int) ( $assignment['surfaces_used'] ?? 0 );
+			if ( ! empty( $assignment['skipped_sensitive'] ) ) {
+				$diagnostic['warnings'][] = 'skipped_sensitive=' . (int) $assignment['skipped_sensitive'];
+			}
+			if ( ! empty( $assignment['last_sql_error'] ) ) {
+				$diagnostic['last_sql_error'] = (string) $assignment['last_sql_error'];
+			}
+		}
+		update_option( 'ufsc_competition_last_generation_diagnostic_' . $competition_id, array(
+			'timestamp' => current_time( 'mysql' ),
+			'competition_id' => $competition_id,
+			'estimated_fights' => (int) $diagnostic['estimated_fights'],
+			'successful_inserts' => (int) $diagnostic['successful_inserts'],
+			'assigned_fights' => (int) ( $diagnostic['assigned_fights'] ?? 0 ),
+			'errors' => (array) $diagnostic['errors'],
+			'warnings' => (array) $diagnostic['warnings'],
+		), false );
 
 		self::clear_draft( $competition_id );
 

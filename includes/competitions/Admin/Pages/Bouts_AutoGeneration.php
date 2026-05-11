@@ -825,8 +825,19 @@ class Bouts_AutoGeneration {
 	public static function handle_recalc_schedule(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_recalc_fight_schedule', $competition_id );
+		if ( function_exists( 'ufsc_competition_save_surfaces' ) && isset( $_POST['surface_details'] ) ) {
+			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ) );
+		}
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$result = FightAutoGenerationService::recalc_schedule( $competition_id, $settings );
+		if ( function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
+			$assignment = ufsc_competition_assign_surfaces_and_times( $competition_id, array(), $settings );
+			$msg = sprintf( __( '%1$d combats analysés, %2$d assignés, %3$d surfaces utilisées, %4$d sensibles ignorés.', 'ufsc-licence-competition' ), (int) ( $assignment['modifiable_fights'] ?? 0 ), (int) ( $assignment['assigned_fights'] ?? 0 ), (int) ( $assignment['surfaces_used'] ?? 0 ), (int) ( $assignment['skipped_sensitive'] ?? 0 ) );
+			if ( ! empty( $assignment['last_sql_error'] ) ) {
+				$msg .= ' SQL: ' . sanitize_text_field( (string) $assignment['last_sql_error'] );
+			}
+			self::redirect( $competition_id, ! empty( $assignment['success'] ) ? 'schedule_recalc' : 'action_error', $msg );
+		}
 		self::redirect( $competition_id, $result['ok'] ? 'schedule_recalc' : 'action_error', $result['message'] ?? '' );
 	}
 

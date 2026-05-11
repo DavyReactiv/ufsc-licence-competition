@@ -265,7 +265,11 @@ class Print_Page {
 		$groups = array();
 		$fights_by_category = array();
 		foreach ( $fights as $fight ) {
-			$surface = trim( (string) ( $fight->ring ?? '' ) );
+			$surface = trim( (string) ( $fight->surface_name ?? $fight->ring ?? '' ) );
+			$short = trim( (string) ( $fight->surface_short_label ?? '' ) );
+			if ( '' !== $short && '' !== $surface ) {
+				$surface .= ' — ' . $short;
+			}
 			$surface = '' !== $surface ? $surface : __( 'Surface non assignée', 'ufsc-licence-competition' );
 			if ( ! isset( $groups[ $surface ] ) ) {
 				$groups[ $surface ] = array();
@@ -281,7 +285,13 @@ class Print_Page {
 
 		echo '<h2>' . esc_html__( 'Répartition des combats par surface / tatami / ring / aire', 'ufsc-licence-competition' ) . '</h2>';
 		if ( ! $groups ) {
-			echo '<p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
+			$last_diag = get_option( 'ufsc_competition_last_generation_diagnostic_' . $competition_id, array() );
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
+			echo '<p>' . esc_html( sprintf( 'competition_id: %d', $competition_id ) ) . '</p>';
+			if ( ! empty( $last_diag ) ) {
+				echo '<p><code>' . esc_html( wp_json_encode( $last_diag ) ) . '</code></p>';
+			}
+			echo '</div>';
 			return;
 		}
 
