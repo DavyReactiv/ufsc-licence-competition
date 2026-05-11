@@ -19,6 +19,10 @@ class FightAutoGenerationService {
 	private const LOCK_PREFIX     = 'ufsc_autogen_lock_';
 	private const LOCK_TTL        = 60;
 
+	private static function get_max_surfaces(): int {
+		return max( 1, (int) apply_filters( 'ufsc_competition_max_surfaces', 500 ) );
+	}
+
 	public static function is_enabled(): bool {
 		return (bool) apply_filters( 'ufsc_enable_auto_fight_generation', true );
 	}
@@ -36,7 +40,7 @@ class FightAutoGenerationService {
 
 		$has_stored_settings        = ! empty( $stored );
 		$settings                  = array_merge( $defaults, $stored );
-		$settings['surface_count']  = min( 32, max( 1, absint( $settings['surface_count'] ) ) );
+		$settings['surface_count']  = min( self::get_max_surfaces(), max( 1, absint( $settings['surface_count'] ) ) );
 		$settings['fight_duration']         = min( 30, max( 0, absint( $settings['fight_duration'] ) ) );
 		$settings['fight_duration_seconds'] = min( 59, max( 0, absint( $settings['fight_duration_seconds'] ?? 0 ) ) );
 		$settings['break_duration']         = min( 30, max( 0, absint( $settings['break_duration'] ) ) );
@@ -130,7 +134,7 @@ class FightAutoGenerationService {
 			if ( ! is_scalar( $data['surface_count'] ) || ! is_numeric( (string) $data['surface_count'] ) ) {
 				$errors[] = 'surface_count';
 			}
-			$settings['surface_count'] = min( 32, max( 1, absint( $data['surface_count'] ) ) );
+			$settings['surface_count'] = min( self::get_max_surfaces(), max( 1, absint( $data['surface_count'] ) ) );
 		}
 
 		$settings['surface_details'] = isset( $data['surface_details'] ) && is_array( $data['surface_details'] )
