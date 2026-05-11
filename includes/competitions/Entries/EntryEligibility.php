@@ -487,3 +487,21 @@ if ( ! function_exists( 'ufsc_competition_recommend_group_format' ) ) {
 		return array( 'recommended_format' => 'bracket_bye', 'label' => 'Tableau avec BYE recommandé', 'explanation' => 'Le tableau nécessite des BYE pour compléter la puissance de 2.', 'estimated_fights' => max( 1, $count - 1 ), 'warnings' => array( 'Certains combattants passeront un tour sans combattre.' ), 'risks' => array( 'bye_equity' ), 'admin_choices' => array( 'bracket_bye', 'pool' ) );
 	}
 }
+
+if ( ! function_exists( 'ufsc_competition_get_fighter_number' ) ) {
+	function ufsc_competition_get_fighter_number( $entry, bool $allow_generated = false, int $fallback_index = 0 ): string {
+		if ( ! is_object( $entry ) ) {
+			return '';
+		}
+		foreach ( array( 'fighter_number', 'combatant_number', 'contestant_number', 'numero_combattant' ) as $field ) {
+			$value = trim( (string) ( $entry->{$field} ?? '' ) );
+			if ( '' !== $value ) {
+				return is_numeric( $value ) ? str_pad( (string) absint( $value ), 3, '0', STR_PAD_LEFT ) : $value;
+			}
+		}
+		if ( $allow_generated && $fallback_index > 0 ) {
+			return str_pad( (string) $fallback_index, 3, '0', STR_PAD_LEFT );
+		}
+		return '';
+	}
+}
