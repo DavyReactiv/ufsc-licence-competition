@@ -33,6 +33,7 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_test_fixture_reset', array( __CLASS__, 'handle_test_fixture_reset' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_delete', array( __CLASS__, 'handle_test_fixture_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_run', array( __CLASS__, 'handle_test_fixture_run' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_open150', array( __CLASS__, 'handle_test_fixture_open150' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -683,6 +684,11 @@ class Bouts_AutoGeneration {
 						<label><input type="checkbox" name="auto_validate" value="1"> <?php esc_html_e( 'Valider automatiquement les combats test après création du brouillon', 'ufsc-licence-competition' ); ?></label>
 						<?php submit_button( __( 'Lancer un test complet', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
 					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
+						<?php submit_button( __( 'Créer test Open 150 participants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
 				</div>
 			</div>
 
@@ -916,6 +922,12 @@ class Bouts_AutoGeneration {
 		self::redirect( $competition_id, 'settings_saved', $msg );
 	}
 
+	public static function handle_test_fixture_open150(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_open150', 0 );
+		$result = self::create_test_fixture_open150();
+		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+	}
+
 	private static function create_test_fixture(): array {
 		self::delete_test_fixture();
 		$comp_repo = new CompetitionRepository();
@@ -949,6 +961,56 @@ class Bouts_AutoGeneration {
 		}
 		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
 		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Compétition et données de test créées.', 'ufsc-licence-competition' ) );
+	}
+
+	private static function create_test_fixture_open150(): array {
+		self::delete_test_fixture();
+		$comp_repo = new CompetitionRepository();
+		$entry_repo = new EntryRepository();
+		$season = gmdate( 'Y' ) . '/' . (string) ( (int) gmdate( 'Y' ) + 1 );
+		$competition_id = (int) $comp_repo->save( array( 'name' => '[TEST] Open Light Contact 150 participants', 'discipline' => 'light_contact', 'type' => 'open', 'season' => $season, 'status' => 'open' ) );
+		if ( $competition_id <= 0 ) {
+			return array( 'ok' => false, 'message' => __( 'Impossible de créer la compétition Open 150.', 'ufsc-licence-competition' ) );
+		}
+		FightAutoGenerationService::save_settings( $competition_id, array( 'surface_count' => 6, 'fight_duration' => 2, 'break_duration' => 1, 'include_submitted_club' => 1 ) );
+		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
+		$categories = array( 'Educatif', 'Minime', 'Cadet', 'Junior', 'Senior', 'Veteran' );
+		$weights = array( '45kg', '50kg', '55kg', '60kg', '65kg', '70kg', '75kg', '80kg', '85kg' );
+		$statuses = array_merge( array_fill( 0, 120, 'approved' ), array_fill( 0, 15, 'submitted' ), array_fill( 0, 8, 'draft' ), array_fill( 0, 7, 'rejected' ) );
+		shuffle( $statuses );
+		for ( $i = 1; $i <= 150; $i++ ) {
+			$category = $categories[ ( $i - 1 ) % count( $categories ) ];
+			$weight = $weights[ ( $i - 1 ) % count( $weights ) ];
+			$sex = ( $i % 3 === 0 ) ? 'F' : 'M';
+			$status = $statuses[ $i - 1 ] ?? 'approved';
+			$is_external = $i > 120;
+			$entry_id = (int) $entry_repo->insert( array(
+				'competition_id' => $competition_id,
+				'status' => $status,
+				'first_name' => 'Open' . $i,
+				'last_name' => 'Fighter',
+				'participant_name' => 'Open Fighter #' . $i,
+				'sex' => $sex,
+				'category' => $category,
+				'category_name' => $category,
+				'weight_class' => $weight,
+				'discipline' => 'light_contact',
+				'participant_type' => $is_external ? 'external_non_licensed' : 'licensed_ufsc',
+				'club_name' => 'Club Test ' . ( ( $i % 15 ) + 1 ),
+				'level' => ( 'Senior' === $category ) ? 'classe_d' : 'non_defini',
+				'license_number' => $is_external ? '' : 'OPEN150-' . $competition_id . '-' . $i,
+				'birthdate' => '2000-01-' . str_pad( (string) ( ( $i % 28 ) + 1 ), 2, '0', STR_PAD_LEFT ),
+				'notes' => '[TEST_GENERATION_OPEN150]',
+			) );
+			if ( $entry_id > 0 ) {
+				$ids['entries'][] = $entry_id;
+				if ( $status === 'approved' && $i % 10 !== 0 ) {
+					self::insert_test_weighin( $competition_id, $entry_id );
+				}
+			}
+		}
+		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
+		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Open 150 créé (inscriptions, pesées partielles, statuts mixtes).', 'ufsc-licence-competition' ) );
 	}
 
 	private static function insert_test_weighin( int $competition_id, int $entry_id ): void {
