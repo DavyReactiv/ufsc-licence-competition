@@ -291,8 +291,8 @@ class Bouts_AutoGeneration {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_surface_count"><?php esc_html_e( 'Nombre de surfaces', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="surface_count" type="number" min="1" max="32" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
-									<p class="description"><?php esc_html_e( 'Valeur recommandée : 1 à 12 surfaces (max 32).', 'ufsc-licence-competition' ); ?></p></td>
+						<td><input name="surface_count" type="number" min="1" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+									<p class="description"><?php esc_html_e( 'Ajoutez autant de surfaces que nécessaire pour votre compétition. Une limite technique de sécurité peut être appliquée côté serveur.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Surfaces de combat', 'ufsc-licence-competition' ); ?></h3></th>

@@ -385,51 +385,6 @@ if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	}
 }
 
-if ( ! function_exists( 'ufsc_competition_normalize_surfaces' ) ) {
-	function ufsc_competition_normalize_surfaces( $raw_surfaces, int $fallback_count = 1 ): array {
-		$fallback_count = max( 1, absint( $fallback_count ) );
-		$surfaces = array();
-		$allowed_types = array( 'tatami', 'ring', 'aire' );
-		$raw = is_array( $raw_surfaces ) ? $raw_surfaces : array();
-		foreach ( $raw as $i => $surface ) {
-			if ( ! is_array( $surface ) ) {
-				continue;
-			}
-			$index = absint( $surface['index'] ?? ( $i + 1 ) );
-			$name  = sanitize_text_field( (string) ( $surface['name'] ?? '' ) );
-			$type  = sanitize_key( (string) ( $surface['type'] ?? 'tatami' ) );
-			$order = absint( $surface['order'] ?? ( $i + 1 ) );
-			if ( ! in_array( $type, $allowed_types, true ) ) { $type = 'tatami'; }
-			if ( '' === $name ) { $name = sprintf( 'Surface %d', max( 1, $index ) ); }
-			$surfaces[] = array( 'index' => max( 1, $index ), 'name' => $name, 'type' => $type, 'order' => max( 1, $order ) );
-		}
-		if ( empty( $surfaces ) ) {
-			for ( $i = 1; $i <= $fallback_count; $i++ ) {
-				$surfaces[] = array( 'index' => $i, 'name' => sprintf( 'Surface %d', $i ), 'type' => 'tatami', 'order' => $i );
-			}
-		}
-		usort( $surfaces, static function( $a, $b ) { return (int) $a['order'] <=> (int) $b['order']; } );
-		return array_values( $surfaces );
-	}
-}
-
-if ( ! function_exists( 'ufsc_competition_save_surfaces' ) ) {
-	function ufsc_competition_save_surfaces( int $competition_id, $raw_surfaces ): bool {
-		$competition_id = absint( $competition_id );
-		if ( $competition_id <= 0 ) { return false; }
-		$normalized = ufsc_competition_normalize_surfaces( $raw_surfaces, 1 );
-		return (bool) update_option( 'ufsc_competition_surfaces_' . $competition_id, $normalized, false );
-	}
-}
-
-if ( ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
-	function ufsc_competition_get_surfaces( int $competition_id ): array {
-		$competition_id = absint( $competition_id );
-		$stored = $competition_id > 0 ? get_option( 'ufsc_competition_surfaces_' . $competition_id, array() ) : array();
-		return ufsc_competition_normalize_surfaces( is_array( $stored ) ? $stored : array(), 1 );
-	}
-}
-
 if ( ! function_exists( 'ufsc_lc_get_cache_version' ) ) {
 	function ufsc_lc_get_cache_version( string $bucket, int $id = 0 ): string {
 		$key    = sprintf( 'ufsc_lc_cache_version_%s_%d', $bucket, $id );
