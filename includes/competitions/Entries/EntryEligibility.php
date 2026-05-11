@@ -343,6 +343,8 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 		$status = '' !== $status ? $status : 'draft';
 		$is_test_mode = ! empty( $context['is_test_mode'] ) || ! empty( $competition['is_test'] );
 		$license_required = isset( $context['license_required'] ) ? (bool) $context['license_required'] : ! $is_test_mode;
+		$club_required = isset( $context['club_required'] ) ? (bool) $context['club_required'] : ! $is_test_mode;
+		$use_level_split = ! empty( $context['use_level_split'] );
 
 		$weight_value = null;
 		foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
@@ -371,13 +373,22 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 		$license_id = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
 		$license_number = sanitize_text_field( (string) ( $entry->license_number ?? $entry->licence_number ?? '' ) );
 		$has_license = $license_id > 0 || '' !== $license_number;
+		$club_name = sanitize_text_field( (string) ( $entry->club_name ?? $entry->club ?? '' ) );
+		$has_club = '' !== $club_name;
+		$first_name = sanitize_text_field( (string) ( $entry->first_name ?? '' ) );
+		$last_name = sanitize_text_field( (string) ( $entry->last_name ?? '' ) );
+		$entry_id = absint( $entry->id ?? 0 );
+		$display_name = trim( $first_name . ' ' . $last_name );
+		if ( '' === $display_name ) {
+			$display_name = sprintf( 'Combattant #%d', $entry_id > 0 ? $entry_id : 0 );
+		}
 
 		$blocking = array();
 		$warnings = array();
 		if ( 'approved' !== $status ) {
 			$blocking[] = 'status_not_approved';
 		}
-		if ( null === $weight_value || $weight_value <= 0 ) {
+		if ( ( null === $weight_value || $weight_value <= 0 ) && '' === $weight_category ) {
 			$blocking[] = 'weight_missing';
 		}
 		if ( '' === $weight_category ) {
@@ -385,12 +396,22 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 		}
 		if ( 'non_defini' === $level ) {
 			$warnings[] = 'level_non_defini';
+			if ( $use_level_split && ! $is_test_mode ) {
+				$blocking[] = 'level_non_defini';
+			}
 		}
 		if ( ! $has_license ) {
 			if ( $is_test_mode || ! $license_required ) {
 				$warnings[] = 'license_missing';
 			} else {
 				$blocking[] = 'license_missing';
+			}
+		}
+		if ( ! $has_club ) {
+			if ( $is_test_mode || ! $club_required ) {
+				$warnings[] = 'club_missing';
+			} else {
+				$blocking[] = 'club_missing';
 			}
 		}
 
@@ -401,6 +422,8 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 			'normalized'       => array(
 				'discipline'      => sanitize_key( (string) ( $entry->discipline ?? '' ) ),
 				'age_category'    => sanitize_key( (string) ( $entry->category ?? $entry->category_name ?? '' ) ),
+				'display_name'    => $display_name,
+				'club_name'       => $has_club ? $club_name : 'Club non renseigné',
 				'weight_category' => $weight_category,
 				'weight_value'    => $weight_value,
 				'sex'             => sanitize_key( (string) ( $entry->sex ?? $entry->sexe ?? $entry->gender ?? 'unknown' ) ),

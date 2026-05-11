@@ -192,3 +192,20 @@
 		max-width: 90vw;
 	}
 }
+
+/* Surfaces manager premium UI */
+.ufsc-surfaces-manager { max-width: 1100px; }
+.ufsc-surfaces-toolbar { margin-bottom: 12px; }
+.ufsc-surfaces-toolbar__actions { display:flex; gap:8px; flex-wrap:wrap; }
+.ufsc-surfaces-counter { margin:8px 0 0; font-weight:600; }
+.ufsc-surfaces-list { display:grid; gap:12px; }
+.ufsc-surface-row { background:#fff; border:1px solid #dcdcde; border-radius:8px; padding:12px; box-shadow:0 1px 0 rgba(0,0,0,.03); }
+.ufsc-surface-row:hover { border-color:#b5bcc2; }
+.ufsc-surface-header { margin-bottom:8px; }
+.ufsc-surface-badge { display:inline-block; background:#2271b1; color:#fff; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:600; }
+.ufsc-surface-fields { display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:10px; align-items:end; }
+.ufsc-surface-fields label { display:flex; flex-direction:column; gap:4px; }
+.ufsc-surface-actions { margin-top:10px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+.ufsc-surface-danger-action { border-color:#d63638 !important; color:#d63638 !important; }
+.ufsc-surface-move-action[disabled] { opacity:.45; cursor:not-allowed; }
+@media (max-width: 782px){ .ufsc-surface-fields{grid-template-columns:1fr;} .ufsc-surface-actions{justify-content:flex-start;} }

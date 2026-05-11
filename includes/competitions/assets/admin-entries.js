@@ -470,12 +470,28 @@
     const displayName = `${data.nom || ""} ${data.prenom || ""}`.trim();
     const birthdate = data.date_naissance_fmt || data.date_naissance || "";
     selectedLabel.textContent = displayName
-      ? `Sélectionné : ${displayName}${birthdate ? ` · ${birthdate}` : ""}`
+      ? `Licencié sélectionné : ${displayName}${data.club_nom ? ` — ${data.club_nom}` : ""}${birthdate ? ` · ${birthdate}` : ""}`
       : "";
 
     updateAutoCategory(data);
     resolveWeightClass();
   }
+
+  resultsContainer.addEventListener("change", function(event) {
+    if (!event.target || !event.target.matches('input[name="ufsc_entry_licensee_result"]')) {
+      return;
+    }
+    const selected = event.target;
+    const licenceId = parseInt(selected.dataset.licenceId || "0", 10);
+    if (licenceId > 0) {
+      licenseeInput.value = String(licenceId);
+      selectedHidden.value = String(licenceId);
+    }
+    const clubId = parseInt(selected.dataset.clubId || "0", 10);
+    if (clubId > 0) {
+      clubInput.value = String(clubId);
+    }
+  });
 
   async function fetchLicenseeById(id) {
     if (!id) {
