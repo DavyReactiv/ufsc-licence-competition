@@ -146,6 +146,119 @@ document.addEventListener('submit', (event) => {
   }
 })();
 
+/* UFSC Competitions - surfaces manager */
+(function($) {
+  "use strict";
+
+  function initSurfacesManager() {
+    const $manager = $(".ufsc-surfaces-manager");
+    if (!$manager.length) {
+      return;
+    }
+
+    if (window.ufscCompetitionAdmin && window.ufscCompetitionAdmin.debug) {
+      // Debug-only trace requested for troubleshooting load/bind issues.
+      console.info("UFSC surfaces manager loaded");
+    }
+
+    $manager.each(function() {
+      const $root = $(this);
+      const $list = $root.find(".ufsc-surfaces-list").first();
+      const $countInput = $("#ufsc_surface_count");
+      const $counter = $root.find(".ufsc-surfaces-counter").first();
+
+      const typesOptionsHtml = $list.find(".ufsc-surface-row:first select[name*='[type]'] option")
+        .map(function() { return this.outerHTML; })
+        .get()
+        .join("");
+
+      function rows() { return $list.find(".ufsc-surface-row"); }
+      function activeCount() { return rows().find("input[name*='[active]']:checked").length; }
+      function nextLabelIndex() { return rows().length + 1; }
+
+      function sync() {
+        rows().each(function(i) {
+          const $row = $(this);
+          $row.find("input,select").each(function() {
+            const n = $(this).attr("name");
+            if (n) {
+              $(this).attr("name", n.replace(/surface_details\[\d+\]/, "surface_details[" + i + "]"));
+            }
+          });
+          $row.find(".ufsc-surface-badge").text("Surface " + (i + 1));
+          $row.find(".ufsc-surface-order").val(String(i + 1));
+          $row.find(".ufsc-move-surface-up").prop("disabled", i === 0);
+          $row.find(".ufsc-move-surface-down").prop("disabled", i === rows().length - 1);
+        });
+        $countInput.val(String(Math.max(1, rows().length)));
+        if ($counter.length) {
+          $counter.text(rows().length + " surfaces configurées — " + activeCount() + " actives");
+        }
+      }
+
+      function buildRow(copyData) {
+        const idx = nextLabelIndex();
+        const uuid = "ufsc-surface-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
+        const baseName = "Surface " + idx;
+        const short = "T" + idx;
+        return $(
+          '<div class="ufsc-competitions-surface-row ufsc-surface-row">' +
+            '<div class="ufsc-surface-header"><span class="ufsc-surface-badge">' + baseName + "</span></div>" +
+            '<div class="ufsc-surface-fields">' +
+              '<label>Nom de la surface <input name="surface_details[0][name]" type="text" class="regular-text"></label>' +
+              '<label>Type <select name="surface_details[0][type]" required>' + typesOptionsHtml + "</select></label>" +
+              '<label>Code court <input name="surface_details[0][short_label]" type="text" class="small-text"></label>' +
+              '<label><input type="checkbox" name="surface_details[0][active]" value="1" checked> Active</label>' +
+              '<input type="hidden" name="surface_details[0][uuid]" value="' + uuid + '">' +
+              '<input type="hidden" class="ufsc-surface-order" name="surface_details[0][order]" value="' + idx + '">' +
+            "</div>" +
+            '<div class="ufsc-surface-actions">' +
+              '<button type="button" class="button ufsc-duplicate-surface">Dupliquer</button>' +
+              '<button type="button" class="button ufsc-remove-surface ufsc-surface-danger-action">Supprimer</button>' +
+              '<button type="button" class="button ufsc-move-surface-up ufsc-surface-move-action">Monter</button>' +
+              '<button type="button" class="button ufsc-move-surface-down ufsc-surface-move-action">Descendre</button>' +
+            "</div>" +
+          "</div>"
+        );
+      }
+
+      function appendRowFrom(sourceRow) {
+        const $row = buildRow();
+        if (sourceRow && sourceRow.length) {
+          $row.find("input[name*='[name]']").val(sourceRow.find("input[name*='[name]']").val() || ("Surface " + nextLabelIndex()));
+          $row.find("select[name*='[type]']").val(sourceRow.find("select[name*='[type]']").val() || "tatami");
+          $row.find("input[name*='[active]']").prop("checked", sourceRow.find("input[name*='[active]']").is(":checked"));
+        } else {
+          $row.find("input[name*='[name]']").val("Surface " + nextLabelIndex());
+          $row.find("select[name*='[type]']").val("tatami");
+          $row.find("input[name*='[active]']").prop("checked", true);
+        }
+        $row.find("input[name*='[short_label]']").val("T" + nextLabelIndex());
+        $list.append($row);
+        sync();
+      }
+
+      $root.on("click", ".ufsc-add-surface", function(e) { e.preventDefault(); appendRowFrom(null); });
+      $root.on("click", ".ufsc-add-five-surfaces", function(e) { e.preventDefault(); for (let i = 0; i < 5; i++) appendRowFrom(null); });
+      $root.on("click", ".ufsc-duplicate-last-surface", function(e) { e.preventDefault(); const $r = rows().last(); if ($r.length) appendRowFrom($r); });
+      $root.on("click", ".ufsc-duplicate-surface", function(e) { e.preventDefault(); appendRowFrom($(this).closest(".ufsc-surface-row")); });
+      $root.on("click", ".ufsc-remove-surface", function(e) {
+        e.preventDefault();
+        if (rows().length <= 1) { return; }
+        $(this).closest(".ufsc-surface-row").remove();
+        if (activeCount() === 0) { rows().first().find("input[name*='[active]']").prop("checked", true); }
+        sync();
+      });
+      $root.on("click", ".ufsc-move-surface-up", function(e) { e.preventDefault(); const $r = $(this).closest(".ufsc-surface-row"); $r.prev(".ufsc-surface-row").before($r); sync(); });
+      $root.on("click", ".ufsc-move-surface-down", function(e) { e.preventDefault(); const $r = $(this).closest(".ufsc-surface-row"); $r.next(".ufsc-surface-row").after($r); sync(); });
+      $root.on("change", "input[name*='[active]']", function() { if (activeCount() === 0) { $(this).prop("checked", true); } sync(); });
+      sync();
+    });
+  }
+
+  $(document).ready(initSurfacesManager);
+})(jQuery);
+
 /* UFSC Competitions - admin media uploader */
 (() => {
   "use strict";
