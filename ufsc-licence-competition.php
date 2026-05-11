@@ -42,6 +42,10 @@ if ( ! defined( 'UFSC_LC_DEBUG_PERF' ) ) {
 	define( 'UFSC_LC_DEBUG_PERF', false );
 }
 
+if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
+	define( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL', 'https://ufsc-france.fr/wp-content/uploads/2026/04/AGES-CATEGORIES-DE-POIDS-TATAMI-SAISON-2025-2026-V2_2026.pdf' );
+}
+
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 

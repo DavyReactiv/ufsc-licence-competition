@@ -280,6 +280,10 @@ class Competitions_Page {
 		$organizer_phone         = (string) ( $event_meta['organizer_phone'] ?? '' );
 		$organizer_email         = (string) ( $event_meta['organizer_email'] ?? '' );
 		$club_notes              = (string) ( $event_meta['club_notes'] ?? '' );
+		$notes_club_format       = (string) ( $event_meta['notes_club_format'] ?? 'auto' );
+		if ( ! in_array( $notes_club_format, array( 'auto', 'html', 'plain' ), true ) ) {
+			$notes_club_format = 'auto';
+		}
 		$access_mode             = (string) ( $event_meta['access_mode'] ?? 'affiliated' );
 		$allowed_regions          = is_array( $event_meta['allowed_regions'] ?? null ) ? $event_meta['allowed_regions'] : array();
 		$allowed_disciplines      = is_array( $event_meta['allowed_disciplines'] ?? null ) ? $event_meta['allowed_disciplines'] : array();
@@ -589,6 +593,19 @@ class Competitions_Page {
 								<p class="description"><?php esc_html_e( 'Optionnel – affiché aux clubs sur la page détail.', 'ufsc-licence-competition' ); ?></p>
 							</td>
 						</tr>
+
+						<tr>
+							<th scope="row"><label for="notes_club_format"><?php esc_html_e( 'Format d’affichage de la note club', 'ufsc-licence-competition' ); ?></label></th>
+							<td>
+								<select name="notes_club_format" id="notes_club_format" class="regular-text">
+									<option value="auto" <?php selected( $notes_club_format, 'auto' ); ?>><?php esc_html_e( 'Auto – mise en page intelligente recommandée', 'ufsc-licence-competition' ); ?></option>
+									<option value="html" <?php selected( $notes_club_format, 'html' ); ?>><?php esc_html_e( 'HTML sécurisé – pour une note personnalisée avec balises autorisées', 'ufsc-licence-competition' ); ?></option>
+									<option value="plain" <?php selected( $notes_club_format, 'plain' ); ?>><?php esc_html_e( 'Texte brut – affichage simple', 'ufsc-licence-competition' ); ?></option>
+								</select>
+								<p class="description"><?php esc_html_e( 'Le mode Auto transforme un texte simple en fiche lisible côté clubs. Le mode HTML sécurisé est réservé aux administrateurs avancés.', 'ufsc-licence-competition' ); ?></p>
+							</td>
+						</tr>
+
 						<tr>
 							<th scope="row"><label for="club_notes"><?php esc_html_e( 'Notes clubs', 'ufsc-licence-competition' ); ?></label></th>
 							<td>
@@ -907,6 +924,12 @@ class Competitions_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
+		$allowed_formats   = array( 'auto', 'html', 'plain' );
+		$notes_club_format = isset( $_POST['notes_club_format'] ) ? sanitize_key( wp_unslash( $_POST['notes_club_format'] ) ) : 'auto';
+		if ( ! in_array( $notes_club_format, $allowed_formats, true ) ) {
+			$notes_club_format = 'auto';
+		}
+
 		$saved_id = $this->repository->save( $data );
 		if ( $saved_id ) {
 			CompetitionMeta::save(
@@ -925,6 +948,7 @@ class Competitions_Page {
 					'organizer_phone'       => isset( $_POST['organizer_phone'] ) ? wp_unslash( $_POST['organizer_phone'] ) : '',
 					'organizer_email'       => isset( $_POST['organizer_email'] ) ? wp_unslash( $_POST['organizer_email'] ) : '',
 					'club_notes'            => isset( $_POST['club_notes'] ) ? wp_unslash( $_POST['club_notes'] ) : '',
+					'notes_club_format'     => $notes_club_format,
 					'access_mode'           => isset( $_POST['access_mode'] ) ? wp_unslash( $_POST['access_mode'] ) : '',
 					'allowed_regions'       => $allowed_regions,
 					'allowed_regions_keys'  => $allowed_regions_keys,
