@@ -148,6 +148,13 @@ class CompetitionMeta {
 				$out['club_notes'] = sanitize_textarea_field( (string) $data['club_notes'] );
 			}
 		}
+		if ( isset( $data['notes_club_format'] ) ) {
+			$format = sanitize_key( (string) $data['notes_club_format'] );
+			if ( ! in_array( $format, array( 'auto', 'html', 'plain' ), true ) ) {
+				$format = 'auto';
+			}
+			$out['notes_club_format'] = $format;
+		}
 		if ( isset( $data['access_mode'] ) ) {
 			$out['access_mode'] = sanitize_key( (string) $data['access_mode'] );
 		}
