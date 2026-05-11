@@ -254,6 +254,206 @@ if ( ! function_exists( 'ufsc_lc_get_excluded_licence_statuses' ) ) {
 	}
 }
 
+if ( ! function_exists( 'ufsc_competition_get_surface_types' ) ) {
+	function ufsc_competition_get_surface_types(): array {
+		$types = array(
+			'tatami' => __( 'Tatami', 'ufsc-licence-competition' ),
+			'ring'   => __( 'Ring', 'ufsc-licence-competition' ),
+			'aire'   => __( 'Aire', 'ufsc-licence-competition' ),
+			'cage'   => __( 'Cage', 'ufsc-licence-competition' ),
+			'zone'   => __( 'Zone', 'ufsc-licence-competition' ),
+			'autre'  => __( 'Autre', 'ufsc-licence-competition' ),
+		);
+		return (array) apply_filters( 'ufsc_competition_surface_types', $types );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_normalize_surfaces' ) ) {
+	function ufsc_competition_normalize_surfaces( $raw_surfaces, int $fallback_count = 1 ): array {
+		$max = max( 1, (int) apply_filters( 'ufsc_competition_max_surfaces', 500 ) );
+		if ( is_string( $raw_surfaces ) ) {
+			$decoded = json_decode( $raw_surfaces, true );
+			$raw_surfaces = is_array( $decoded ) ? $decoded : array();
+		}
+		if ( isset( $raw_surfaces['surface_details'] ) && is_array( $raw_surfaces['surface_details'] ) ) {
+			$raw_surfaces = $raw_surfaces['surface_details'];
+		}
+		$rows = is_array( $raw_surfaces ) ? array_values( $raw_surfaces ) : array();
+		$types = ufsc_competition_get_surface_types();
+		$normalized = array();
+		foreach ( array_slice( $rows, 0, $max ) as $idx => $row ) {
+			$row = is_array( $row ) ? $row : array();
+			$name = sanitize_text_field( (string) ( $row['name'] ?? $row['label'] ?? '' ) );
+			$type = sanitize_key( (string) ( $row['type'] ?? 'tatami' ) );
+			$short = sanitize_text_field( (string) ( $row['short_label'] ?? $row['short'] ?? '' ) );
+			$active = ! empty( $row['active'] ) ? 1 : 0;
+			$uuid = sanitize_key( (string) ( $row['uuid'] ?? '' ) );
+			if ( '' === $name && '' === $short && 0 === $active ) {
+				continue;
+			}
+			if ( '' === $uuid ) {
+				$uuid = uniqid( 'surface_', false );
+			}
+			if ( ! isset( $types[ $type ] ) ) {
+				$type = 'autre';
+			}
+			$normalized[] = array(
+				'uuid' => $uuid,
+				'index' => count( $normalized ) + 1,
+				'name' => '' !== $name ? $name : sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), count( $normalized ) + 1 ),
+				'type' => $type,
+				'short_label' => $short,
+				'order' => count( $normalized ) + 1,
+				'active' => $active,
+			);
+		}
+		if ( empty( $normalized ) ) {
+			$count = max( 1, min( $fallback_count, $max ) );
+			for ( $i = 1; $i <= $count; $i++ ) {
+				$normalized[] = array(
+					'uuid' => uniqid( 'surface_', false ),
+					'index' => $i,
+					'name' => sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i ),
+					'type' => 'tatami',
+					'short_label' => 'T' . $i,
+					'order' => $i,
+					'active' => 1,
+				);
+			}
+		}
+		if ( 0 === count( array_filter( $normalized, static fn( $row ) => ! empty( $row['active'] ) ) ) ) {
+			$normalized[0]['active'] = 1;
+		}
+		return $normalized;
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_save_surfaces' ) ) {
+	function ufsc_competition_save_surfaces( int $competition_id, $raw_surfaces ): array {
+		$competition_id = absint( $competition_id );
+		if ( $competition_id <= 0 ) {
+			return array();
+		}
+		$surfaces = ufsc_competition_normalize_surfaces( $raw_surfaces );
+		update_option( 'ufsc_competitions_surfaces_' . $competition_id, $surfaces, false );
+		return $surfaces;
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
+	function ufsc_competition_get_surfaces( int $competition_id, array $args = array() ): array {
+		$competition_id = absint( $competition_id );
+		$fallback_count = max( 1, absint( $args['fallback_count'] ?? 1 ) );
+		if ( $competition_id <= 0 ) {
+			return ufsc_competition_normalize_surfaces( array(), $fallback_count );
+		}
+		$raw = get_option( 'ufsc_competitions_surfaces_' . $competition_id, array() );
+		return ufsc_competition_normalize_surfaces( $raw, $fallback_count );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_get_table_columns' ) ) {
+	function ufsc_competition_get_table_columns( string $table_name ): array {
+		global $wpdb;
+		$table_name = preg_replace( '/[^a-zA-Z0-9_]/', '', $table_name );
+		if ( '' === $table_name ) {
+			return array();
+		}
+		$rows = $wpdb->get_results( "SHOW COLUMNS FROM `{$table_name}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		if ( ! is_array( $rows ) ) {
+			return array();
+		}
+		$columns = array();
+		foreach ( $rows as $row ) {
+			$key = isset( $row->Field ) ? sanitize_key( (string) $row->Field ) : '';
+			if ( '' !== $key ) {
+				$columns[] = $key;
+			}
+		}
+		return array_values( array_unique( $columns ) );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_filter_payload_for_existing_columns' ) ) {
+	function ufsc_competition_filter_payload_for_existing_columns( string $table_name, array $payload ): array {
+		$columns = ufsc_competition_get_table_columns( $table_name );
+		if ( empty( $columns ) ) {
+			return array();
+		}
+		$allowed = array_fill_keys( $columns, true );
+		return array_intersect_key( $payload, $allowed );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
+	function ufsc_competition_assign_surfaces_and_times( int $competition_id, array $surfaces = array(), array $timing = array() ): array {
+		global $wpdb;
+		$result = array( 'success' => false, 'competition_id' => $competition_id, 'modifiable_fights' => 0, 'assigned_fights' => 0, 'surfaces_active' => 0, 'surfaces_used' => 0, 'skipped_sensitive' => 0, 'last_sql_error' => '', 'errors' => array(), 'warnings' => array() );
+		$competition_id = absint( $competition_id );
+		if ( $competition_id <= 0 ) {
+			$result['errors'][] = 'competition_id_invalid';
+			return $result;
+		}
+		$surfaces = ! empty( $surfaces ) ? ufsc_competition_normalize_surfaces( $surfaces ) : ufsc_competition_get_surfaces( $competition_id );
+		$active_surfaces = array_values( array_filter( $surfaces, static fn( $s ) => ! empty( $s['active'] ) ) );
+		if ( empty( $active_surfaces ) ) {
+			$active_surfaces = array( array( 'uuid' => uniqid( 'surface_', false ), 'index' => 1, 'name' => 'Surface 1', 'type' => 'tatami', 'short_label' => 'T1', 'order' => 1, 'active' => 1 ) );
+		}
+		$result['surfaces_active'] = count( $active_surfaces );
+		$table = $wpdb->prefix . 'ufsc_competitions_fights';
+		$statuses = array( 'scheduled', 'bye', 'placeholder', 'draft' );
+		$placeholders = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
+		$sql = $wpdb->prepare( "SELECT * FROM {$table} WHERE competition_id = %d AND status IN ({$placeholders}) ORDER BY fight_no ASC", array_merge( array( $competition_id ), $statuses ) );
+		$fights = $wpdb->get_results( $sql );
+		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE competition_id = %d", $competition_id ) );
+		$result['skipped_sensitive'] = max( 0, $total - count( $fights ) );
+		$result['modifiable_fights'] = count( $fights );
+		if ( empty( $fights ) ) {
+			$result['warnings'][] = 'no_modifiable_fights';
+			return $result;
+		}
+		$columns = ufsc_competition_get_table_columns( $table );
+		$surface_load = array_fill( 0, count( $active_surfaces ), 0 );
+		$surface_orders = array_fill( 0, count( $active_surfaces ), 0 );
+		$fight_seconds = max( 30, ( (int) ( $timing['fight_duration'] ?? 1 ) * 60 ) + (int) ( $timing['fight_duration_seconds'] ?? 0 ) + ( (int) ( $timing['break_duration'] ?? 0 ) * 60 ) + (int) ( $timing['break_duration_seconds'] ?? 0 ) );
+		$groups = array();
+		foreach ( $fights as $fight ) { $g = sanitize_text_field( (string) ( $fight->group_key ?? 'default' ) ); $groups[ $g ][] = $fight; }
+		foreach ( $groups as $group_fights ) {
+			$target = array_search( min( $surface_load ), $surface_load, true );
+			if ( false === $target ) { $target = 0; }
+			foreach ( $group_fights as $fight ) {
+				$surface_orders[ $target ]++;
+				$payload = array(
+					'surface_uuid' => (string) ( $active_surfaces[ $target ]['uuid'] ?? '' ),
+					'surface_index' => (int) ( $active_surfaces[ $target ]['index'] ?? ( $target + 1 ) ),
+					'surface_name' => (string) ( $active_surfaces[ $target ]['name'] ?? '' ),
+					'surface_type' => (string) ( $active_surfaces[ $target ]['type'] ?? 'tatami' ),
+					'surface_short_label' => (string) ( $active_surfaces[ $target ]['short_label'] ?? '' ),
+					'scheduled_order' => $surface_orders[ $target ],
+					'updated_at' => current_time( 'mysql' ),
+				);
+				if ( in_array( 'scheduled_time', $columns, true ) ) { $payload['scheduled_time'] = ''; }
+				$payload = ufsc_competition_filter_payload_for_existing_columns( $table, $payload );
+				if ( empty( $payload ) ) { continue; }
+				$updated = $wpdb->update( $table, $payload, array( 'id' => (int) $fight->id, 'competition_id' => $competition_id ), null, array( '%d', '%d' ) );
+				if ( false === $updated ) {
+					$result['last_sql_error'] = (string) $wpdb->last_error;
+					$result['errors'][] = 'update_failed_fight_' . (int) $fight->id;
+					continue;
+				}
+				$result['assigned_fights']++;
+				$surface_load[ $target ] += $fight_seconds;
+			}
+		}
+		$result['surfaces_used'] = count( array_filter( $surface_orders ) );
+		$result['success'] = $result['assigned_fights'] > 0;
+		if ( $result['modifiable_fights'] > 0 && 0 === $result['assigned_fights'] ) {
+			$result['errors'][] = 'no_fight_assigned';
+		}
+		return $result;
+	}
+}
+
 if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 	function ufsc_lc_extract_club_disciplines( $club ): array {
 		if ( ! is_object( $club ) ) {
@@ -284,51 +484,6 @@ if ( ! function_exists( 'ufsc_lc_extract_club_disciplines' ) ) {
 		}
 
 		return array_values( array_unique( $disciplines ) );
-	}
-}
-
-if ( ! function_exists( 'ufsc_competition_normalize_surfaces' ) ) {
-	function ufsc_competition_normalize_surfaces( $raw_surfaces, int $fallback_count = 1 ): array {
-		$fallback_count = max( 1, absint( $fallback_count ) );
-		$surfaces = array();
-		$allowed_types = array( 'tatami', 'ring', 'aire' );
-		$raw = is_array( $raw_surfaces ) ? $raw_surfaces : array();
-		foreach ( $raw as $i => $surface ) {
-			if ( ! is_array( $surface ) ) {
-				continue;
-			}
-			$index = absint( $surface['index'] ?? ( $i + 1 ) );
-			$name  = sanitize_text_field( (string) ( $surface['name'] ?? '' ) );
-			$type  = sanitize_key( (string) ( $surface['type'] ?? 'tatami' ) );
-			$order = absint( $surface['order'] ?? ( $i + 1 ) );
-			if ( ! in_array( $type, $allowed_types, true ) ) { $type = 'tatami'; }
-			if ( '' === $name ) { $name = sprintf( 'Surface %d', max( 1, $index ) ); }
-			$surfaces[] = array( 'index' => max( 1, $index ), 'name' => $name, 'type' => $type, 'order' => max( 1, $order ) );
-		}
-		if ( empty( $surfaces ) ) {
-			for ( $i = 1; $i <= $fallback_count; $i++ ) {
-				$surfaces[] = array( 'index' => $i, 'name' => sprintf( 'Surface %d', $i ), 'type' => 'tatami', 'order' => $i );
-			}
-		}
-		usort( $surfaces, static function( $a, $b ) { return (int) $a['order'] <=> (int) $b['order']; } );
-		return array_values( $surfaces );
-	}
-}
-
-if ( ! function_exists( 'ufsc_competition_save_surfaces' ) ) {
-	function ufsc_competition_save_surfaces( int $competition_id, $raw_surfaces ): bool {
-		$competition_id = absint( $competition_id );
-		if ( $competition_id <= 0 ) { return false; }
-		$normalized = ufsc_competition_normalize_surfaces( $raw_surfaces, 1 );
-		return (bool) update_option( 'ufsc_competition_surfaces_' . $competition_id, $normalized, false );
-	}
-}
-
-if ( ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
-	function ufsc_competition_get_surfaces( int $competition_id ): array {
-		$competition_id = absint( $competition_id );
-		$stored = $competition_id > 0 ? get_option( 'ufsc_competition_surfaces_' . $competition_id, array() ) : array();
-		return ufsc_competition_normalize_surfaces( is_array( $stored ) ? $stored : array(), 1 );
 	}
 }
 
