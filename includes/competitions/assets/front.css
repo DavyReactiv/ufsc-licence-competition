@@ -220,3 +220,54 @@
 		grid-template-columns: 1fr;
 	}
 }
+.ufsc-competition-notes.ufsc-panel {
+	padding: 0;
+	border: none;
+	box-shadow: none;
+	background: transparent;
+}
+
+.ufsc-club-note {
+	background: #ffffff;
+	border: 1px solid #e2e8f0;
+	border-radius: 22px;
+	padding: 28px;
+	margin-top: 18px;
+	box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
+	color: #0f172a;
+}
+.ufsc-club-note__hero { background: linear-gradient(135deg, #0f172a, #1e293b); border-radius: 18px; padding: 24px; margin-bottom: 22px; color: #fff; }
+.ufsc-club-note__title { margin: 0 0 8px; font-size: 28px; font-weight: 900; color: #fff; }
+.ufsc-club-note__subtitle { margin: 0 0 6px; font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.ufsc-club-note__meta { margin: 0; font-size: 15px; color: #cbd5e1; }
+.ufsc-club-note__box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 20px; margin-bottom: 16px; }
+.ufsc-club-note__box h4 { margin: 0 0 12px; font-size: 18px; font-weight: 800; color: #0f172a; }
+.ufsc-club-note__box p { margin: 0 0 10px; color: #334155; line-height: 1.7; }
+.ufsc-club-note__box p:last-child { margin-bottom: 0; }
+.ufsc-club-note__box ul { margin: 0; padding-left: 20px; }
+.ufsc-club-note__box li { margin-bottom: 8px; color: #334155; line-height: 1.6; }
+.ufsc-club-note__box li:last-child { margin-bottom: 0; }
+.ufsc-club-note__box--warning { background: #fff7ed; border-color: #fed7aa; }
+.ufsc-club-note__box--warning h4,.ufsc-club-note__box--warning p,.ufsc-club-note__box--warning li { color: #9a3412; }
+.ufsc-club-note__box--alert { background: #fef2f2; border-color: #fecaca; }
+.ufsc-club-note__box--alert h4,.ufsc-club-note__box--alert p,.ufsc-club-note__box--alert li { color: #991b1b; }
+.ufsc-club-note__box--dark { background: linear-gradient(135deg, #111827, #1f2937); border-color: #111827; }
+.ufsc-club-note__box--dark h4 { color: #fff; }
+.ufsc-club-note__box--dark p,.ufsc-club-note__box--dark li { color: #e5e7eb; }
+.ufsc-club-note__box--docs { background: #eff6ff; border-color: #bfdbfe; }
+.ufsc-club-note__box--equip { background: #f0fdf4; border-color: #bbf7d0; }
+.ufsc-club-note--plain,.ufsc-club-note--html { line-height: 1.7; }
+.ufsc-club-note--plain p { margin: 0 0 12px; color: #334155; }
+
+.ufsc-competition-regulations .ufsc-doc-links a {
+	display: inline-block;
+	text-decoration: none;
+	font-weight: 600;
+}
+.ufsc-competition-regulations .ufsc-doc-links a:hover { text-decoration: underline; }
+
+@media (max-width: 768px) {
+	.ufsc-club-note { padding: 20px; }
+	.ufsc-club-note__title { font-size: 22px; }
+	.ufsc-club-note__subtitle { font-size: 16px; }
+}

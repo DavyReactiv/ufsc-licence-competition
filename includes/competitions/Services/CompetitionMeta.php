@@ -79,6 +79,7 @@ class CompetitionMeta {
 			'organizer_phone'         => '',
 			'organizer_email'         => '',
 			'club_notes'              => '',
+			'notes_club_format'       => 'auto',
 			'access_mode'             => 'affiliated',
 			'allowed_regions'         => array(),
 			'allowed_regions_keys'    => array(),
@@ -138,6 +139,13 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['club_notes'] ) ) {
 			$out['club_notes'] = sanitize_textarea_field( (string) $data['club_notes'] );
+		}
+		if ( isset( $data['notes_club_format'] ) ) {
+			$format = sanitize_key( (string) $data['notes_club_format'] );
+			if ( ! in_array( $format, array( 'auto', 'html', 'plain' ), true ) ) {
+				$format = 'auto';
+			}
+			$out['notes_club_format'] = $format;
 		}
 		if ( isset( $data['access_mode'] ) ) {
 			$out['access_mode'] = sanitize_key( (string) $data['access_mode'] );

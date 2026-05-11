@@ -135,7 +135,9 @@ class CompetitionDetailsShortcode {
 			$info_rows[ __( 'Contact organisateur', 'ufsc-licence-competition' ) ] = implode( ' · ', $contact_bits );
 		}
 
-		$club_notes = (string) ( $competition->club_notes ?? '' );
+		$club_notes       = (string) ( $competition->club_notes ?? '' );
+		$note_format      = ! empty( $competition->notes_club_format ) ? (string) $competition->notes_club_format : 'auto';
+		$club_notes_html  = function_exists( 'ufsc_render_club_note' ) ? ufsc_render_club_note( $club_notes, $note_format ) : '';
 		?>
 		<div class="ufsc-competition-details">
 			<section class="ufsc-competition-hero">
@@ -175,10 +177,9 @@ class CompetitionDetailsShortcode {
 				</div>
 			<?php endif; ?>
 
-			<?php if ( $club_notes ) : ?>
+			<?php if ( '' !== $club_notes_html ) : ?>
 				<div class="ufsc-competition-notes ufsc-panel">
-					<h3><?php echo esc_html__( 'Notes clubs', 'ufsc-licence-competition' ); ?></h3>
-					<p><?php echo esc_html( $club_notes ); ?></p>
+					<?php echo wp_kses_post( $club_notes_html ); ?>
 				</div>
 			<?php endif; ?>
 
@@ -208,7 +209,7 @@ class CompetitionDetailsShortcode {
 								</a>
 							</li>
 							<li>
-								<a href="<?php echo esc_url( 'https://ufsc-france.fr/wp-content/uploads/2025/06/CATEGORIES-DE-POIDS-2024-2024.pdf' ); ?>" target="_blank" rel="noopener noreferrer">
+								<a href="<?php echo esc_url( defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ? UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL : 'https://ufsc-france.fr/wp-content/uploads/2026/04/AGES-CATEGORIES-DE-POIDS-TATAMI-SAISON-2025-2026-V2_2026.pdf' ); ?>" target="_blank" rel="noopener noreferrer">
 									<?php echo esc_html__( 'Catégories de poids (PDF)', 'ufsc-licence-competition' ); ?>
 								</a>
 							</li>

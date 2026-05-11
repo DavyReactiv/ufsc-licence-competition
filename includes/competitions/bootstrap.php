@@ -104,6 +104,7 @@ function load_competitions_core_dependencies(): void {
 
 		// Front repositories / handlers required for front + ajax/admin-post.
 		$base . '/Front/Access/ClubAccess.php',
+		$base . '/Front/Rendering.php',
 		$base . '/Front/Access/ClubAccessHelpers.php',
 		$base . '/Front/Entries/EntryActions.php',
 		$base . '/Front/Entries/EntryFormRenderer.php',
