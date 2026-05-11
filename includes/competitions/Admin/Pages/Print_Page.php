@@ -82,6 +82,17 @@ class Print_Page {
 				<?php submit_button( __( 'Afficher', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 				<?php submit_button( __( 'Imprimer', 'ufsc-licence-competition' ), 'primary', 'ufsc_print_now', false, array( 'onclick' => 'window.print();return false;' ) ); ?>
 			</form>
+			<p class="description">
+				<?php
+				$desc = array(
+					'fights_by_surface' => __( 'Ce document affiche le plateau opérationnel : ordre des combats, surfaces, horaires estimés, coins rouge/bleu et observations.', 'ufsc-licence-competition' ),
+					'surface_overview' => __( 'Ce document sert aux officiels et à l’organisation : résumé des surfaces, volumes de combats, catégories ouvertes, alertes et besoins humains par surface.', 'ufsc-licence-competition' ),
+					'categories' => __( 'Ce document liste les catégories réellement détectées dans les inscriptions ou dans les combats générés.', 'ufsc-licence-competition' ),
+					'entries' => __( 'Ce document permet de contrôler les engagés, les données manquantes et les informations administratives avant génération.', 'ufsc-licence-competition' ),
+				);
+				echo esc_html( $desc[ $type ] ?? $desc['entries'] );
+				?>
+			</p>
 
 			<?php if ( $competition_id ) : ?>
 				<?php
@@ -265,7 +276,11 @@ class Print_Page {
 		$groups = array();
 		$fights_by_category = array();
 		foreach ( $fights as $fight ) {
-			$surface = trim( (string) ( $fight->ring ?? '' ) );
+			$surface = trim( (string) ( $fight->surface_name ?? $fight->ring ?? '' ) );
+			$short = trim( (string) ( $fight->surface_short_label ?? '' ) );
+			if ( '' !== $short && '' !== $surface ) {
+				$surface .= ' — ' . $short;
+			}
 			$surface = '' !== $surface ? $surface : __( 'Surface non assignée', 'ufsc-licence-competition' );
 			if ( ! isset( $groups[ $surface ] ) ) {
 				$groups[ $surface ] = array();
@@ -281,7 +296,13 @@ class Print_Page {
 
 		echo '<h2>' . esc_html__( 'Répartition des combats par surface / tatami / ring / aire', 'ufsc-licence-competition' ) . '</h2>';
 		if ( ! $groups ) {
-			echo '<p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
+			$last_diag = get_option( 'ufsc_competition_last_generation_diagnostic_' . $competition_id, array() );
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
+			echo '<p>' . esc_html( sprintf( 'competition_id: %d', $competition_id ) ) . '</p>';
+			if ( ! empty( $last_diag ) ) {
+				echo '<p><code>' . esc_html( wp_json_encode( $last_diag ) ) . '</code></p>';
+			}
+			echo '</div>';
 			return;
 		}
 
