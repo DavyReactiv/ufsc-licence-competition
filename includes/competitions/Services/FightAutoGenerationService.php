@@ -1189,6 +1189,13 @@ class FightAutoGenerationService {
 				'format'            => self::recommend_group_format( $count, $settings ),
 				'bye_slots'         => self::estimate_bye_slots( $count ),
 				'lone_fighter'      => 1 === $count,
+				'recommendation'    => function_exists( 'ufsc_competition_recommend_group_format' )
+					? ufsc_competition_recommend_group_format(
+						array( 'entries_count' => $count ),
+						sanitize_key( (string) ( $settings['competition_type'] ?? '' ) ),
+						$settings
+					)
+					: array(),
 				'use_level_split'   => ! empty( $settings['use_level_split'] ),
 				'athletes'          => $athletes,
 			);

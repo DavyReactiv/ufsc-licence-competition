@@ -162,6 +162,15 @@ class Bouts_AutoGeneration {
 				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Durée totale estimée', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( self::format_duration_label( $estimated_total_seconds ) ); ?></strong></div>
 			</div>
 			<div class="notice notice-<?php echo $estimated_fights > 0 ? 'success' : 'warning'; ?> inline"><p><?php echo esc_html( $generation_summary_message ); ?></p></div>
+			<div class="ufsc-fightgen-precheck">
+				<h3><?php esc_html_e( 'Aide au choix du format sportif', 'ufsc-licence-competition' ); ?></h3>
+				<p><?php esc_html_e( 'Avant de générer les combats, vérifiez les formats proposés (combat direct, poule, tableau BYE, petite finale, repêchage). Ces choix influencent l’équité sportive et le timing total.', 'ufsc-licence-competition' ); ?></p>
+				<ul>
+					<li><?php esc_html_e( '2 combattants : combat direct recommandé.', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( '3 combattants : poule complète recommandée (plus équitable, plus long).', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( '5+ combattants : tableau avec BYE recommandé (plus rapide, moins équilibré).', 'ufsc-licence-competition' ); ?></li>
+				</ul>
+			</div>
 
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Contrôles avant génération', 'ufsc-licence-competition' ); ?></h3>
@@ -256,8 +265,12 @@ class Bouts_AutoGeneration {
 						<li>
 							<strong><?php echo esc_html( (string) ( $group_row['group_key'] ?? '—' ) ); ?></strong>
 							— <?php echo esc_html( sprintf( __( '%1$d athlètes, %2$d combats estimés', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? 0 ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?>
-							— <?php echo esc_html( sprintf( __( 'Format conseillé : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? 'tableau' ) ) ); ?>
-							— <?php echo esc_html( sprintf( __( 'BYE estimés : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?>
+								— <?php echo esc_html( sprintf( __( 'Format conseillé : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? 'tableau' ) ) ); ?>
+								— <?php echo esc_html( sprintf( __( 'BYE estimés : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?>
+								<?php if ( ! empty( $group_row['recommendation'] ) && is_array( $group_row['recommendation'] ) ) : ?>
+									— <?php echo esc_html( sprintf( __( 'Recommandation : %s', 'ufsc-licence-competition' ), (string) ( $group_row['recommendation']['label'] ?? '' ) ) ); ?>
+									— <?php echo esc_html( (string) ( $group_row['recommendation']['explanation'] ?? '' ) ); ?>
+								<?php endif; ?>
 							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
 							<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
 								— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
