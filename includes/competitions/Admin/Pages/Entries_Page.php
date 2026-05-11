@@ -46,6 +46,7 @@ class Entries_Page {
 		add_action( 'admin_post_ufsc_competitions_save_entry', array( $this, 'handle_save' ) );
 		add_action( 'admin_post_ufsc_competitions_trash_entry', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_entry', array( $this, 'handle_restore' ) );
+		add_action( 'admin_post_ufsc_competitions_restore_duplicate_entry', array( $this, 'handle_restore_duplicate' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_entry', array( $this, 'handle_delete' ) );
 		add_action( 'wp_ajax_ufsc_lc_search_licence', array( $this, 'ajax_search_licence' ) );
 		add_action( 'wp_ajax_ufsc_lc_get_licensee', array( $this, 'ajax_get_licensee' ) );
@@ -344,6 +345,24 @@ class Entries_Page {
 					);
 					$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id, $dup_message );
 				}
+				$trashed_entry = $this->find_trashed_entry( $data['competition_id'], $data['licensee_id'] );
+				if ( $trashed_entry ) {
+					$restore_url = wp_nonce_url(
+						add_query_arg(
+							array(
+								'action' => 'ufsc_competitions_restore_duplicate_entry',
+								'id' => (int) ( $trashed_entry->id ?? 0 ),
+								'competition_id' => (int) $data['competition_id'],
+								'licensee_id' => (int) $data['licensee_id'],
+							),
+							admin_url( 'admin-post.php' )
+						),
+						'ufsc_competitions_restore_duplicate_entry_' . (int) ( $trashed_entry->id ?? 0 )
+					);
+					$trash_url = add_query_arg( array( 'page' => Menu::PAGE_ENTRIES, 'ufsc_competition_id' => (int) $data['competition_id'], 'ufsc_view' => 'trash', 'entry_id' => (int) ( $trashed_entry->id ?? 0 ), 'highlight_entry' => (int) ( $trashed_entry->id ?? 0 ) ), admin_url( 'admin.php' ) );
+					$msg = sprintf( __( 'Ce licencié possède une ancienne inscription supprimée (#%1$d) pour cette compétition. <a href="%2$s">Restaurer l’inscription</a> · <a href="%3$s">Voir la corbeille</a>.', 'ufsc-licence-competition' ), (int) ( $trashed_entry->id ?? 0 ), esc_url( $restore_url ), esc_url( $trash_url ) );
+					$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id, $msg );
+				}
 		}
 
 		$external_payload = $this->build_external_payload_from_request();
@@ -424,6 +443,24 @@ class Entries_Page {
 
 	public function handle_restore() {
 		$this->handle_simple_action( 'ufsc_competitions_restore_entry', 'restore', Menu::PAGE_ENTRIES );
+	}
+
+	public function handle_restore_duplicate(): void {
+		if ( ! Capabilities::user_can_manage_entries() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$licensee_id = isset( $_GET['licensee_id'] ) ? absint( $_GET['licensee_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_restore_duplicate_entry_' . $id );
+		$row = $this->repository->get( $id, true );
+		if ( ! $row || (int) ( $row->competition_id ?? 0 ) !== $competition_id || (int) ( $row->licensee_id ?? 0 ) !== $licensee_id ) {
+			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'not_found' );
+		}
+		$this->repository->restore( $id );
+		$url = add_query_arg( array( 'page' => Menu::PAGE_ENTRIES, 'ufsc_competition_id' => $competition_id, 'entry_id' => $id, 'highlight_entry' => $id, 'ufsc_notice' => 'restored' ), admin_url( 'admin.php' ) );
+		wp_safe_redirect( $url );
+		exit;
 	}
 
 	public function handle_delete() {
@@ -1351,6 +1388,21 @@ class Entries_Page {
 			)
 		);
 		return $row ?: null;
+	}
+
+	private function find_trashed_entry( int $competition_id, int $licensee_id ) {
+		global $wpdb;
+		if ( $competition_id <= 0 || $licensee_id <= 0 ) {
+			return null;
+		}
+		$table = Db::entries_table();
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE competition_id = %d AND licensee_id = %d AND deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 1",
+				$competition_id,
+				$licensee_id
+			)
+		);
 	}
 
 	private function get_requested_licensee_id_from_post(): int {
