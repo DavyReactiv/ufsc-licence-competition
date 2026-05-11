@@ -191,6 +191,13 @@ class FightAutoGenerationService {
 		if ( isset( $data['guardian_required_for_minors'] ) ) {
 			$settings['guardian_required_for_minors'] = ! empty( $data['guardian_required_for_minors'] ) ? 1 : 0;
 		}
+		$settings['group_generation_options'] = array();
+		if ( isset( $data['group_generation_options'] ) && is_array( $data['group_generation_options'] ) ) {
+			foreach ( $data['group_generation_options'] as $group_key => $row ) {
+				$format = sanitize_key( (string) ( $row['format'] ?? 'auto' ) );
+				$settings['group_generation_options'][ sanitize_text_field( (string) $group_key ) ] = array( 'format' => $format );
+			}
+		}
 
 		$settings['surface_details'] = self::sanitize_surface_details( $settings['surface_details'], $settings['surface_count'] );
 		if ( empty( $settings['surface_details'] ) ) {
@@ -805,8 +812,27 @@ class FightAutoGenerationService {
 		foreach ( $groups as $group_key => $group_entries ) {
 			usort( $group_entries, static function ( $a, $b ) { return (int) $a->id <=> (int) $b->id; } );
 			$count = count( $group_entries );
+			$group_format = sanitize_key( (string) ( $settings['group_generation_options'][ $group_key ]['format'] ?? 'auto' ) );
+			if ( 'wait' === $group_format || 'none' === $group_format ) {
+				$lone[] = $group_key . ':wait';
+				continue;
+			}
 			if ( $count < 2 ) {
 				$lone[] = $group_key;
+				continue;
+			}
+			if ( 'pool' === $group_format ) {
+				for ( $i = 0; $i < $count; $i++ ) {
+					for ( $j = $i + 1; $j < $count; $j++ ) {
+						$attempted++;
+						$id = $fight_repo->insert( array(
+							'competition_id' => $competition_id, 'round_no' => 1, 'fight_no' => $next_no++,
+							'red_entry_id' => (int) $group_entries[ $i ]->id, 'blue_entry_id' => (int) $group_entries[ $j ]->id, 'status' => 'scheduled',
+							'timing_profile_id' => null, 'round_duration' => 120, 'rounds' => 1, 'break_duration' => 60, 'fight_pause' => 60, 'fight_duration' => 180,
+						) );
+						if ( $id > 0 ) { $inserted++; }
+					}
+				}
 				continue;
 			}
 			for ( $i = 0; $i + 1 < $count; $i += 2 ) {
@@ -1401,6 +1427,7 @@ class FightAutoGenerationService {
 			'allow_unweighed' => 0,
 			'use_level_split' => 0,
 			'guardian_required_for_minors' => 0,
+			'group_generation_options' => array(),
 			'allow_compatible_disciplines' => 0,
 			'settings_saved_at' => '',
 		);

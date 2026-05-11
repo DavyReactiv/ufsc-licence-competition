@@ -260,6 +260,10 @@ class Bouts_AutoGeneration {
 			<?php if ( ! empty( $preview['groups_preview'] ) && is_array( $preview['groups_preview'] ) ) : ?>
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Groupes détectés avant génération', 'ufsc-licence-competition' ); ?></h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_competitions_save_fight_settings' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_save_fight_settings">
+					<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 				<ul>
 					<?php foreach ( $preview['groups_preview'] as $group_row ) : ?>
 						<li>
@@ -272,12 +276,29 @@ class Bouts_AutoGeneration {
 									— <?php echo esc_html( (string) ( $group_row['recommendation']['explanation'] ?? '' ) ); ?>
 								<?php endif; ?>
 							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
-							<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
-								— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
-							<?php endif; ?>
+								<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
+									— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<br>
+								<label>
+									<?php esc_html_e( 'Choix admin', 'ufsc-licence-competition' ); ?> :
+									<select name="group_generation_options[<?php echo esc_attr( (string) ( $group_row['group_key'] ?? '' ) ); ?>][format]">
+										<?php $selected_group_format = sanitize_key( (string) ( $settings['group_generation_options'][ (string) ( $group_row['group_key'] ?? '' ) ]['format'] ?? 'auto' ) ); ?>
+										<option value="auto" <?php selected( $selected_group_format, 'auto' ); ?>><?php esc_html_e( 'Auto / recommandation', 'ufsc-licence-competition' ); ?></option>
+										<option value="direct" <?php selected( $selected_group_format, 'direct' ); ?>><?php esc_html_e( 'Combat direct', 'ufsc-licence-competition' ); ?></option>
+										<option value="pool" <?php selected( $selected_group_format, 'pool' ); ?>><?php esc_html_e( 'Poule complète', 'ufsc-licence-competition' ); ?></option>
+										<option value="bracket" <?php selected( $selected_group_format, 'bracket' ); ?>><?php esc_html_e( 'Tableau', 'ufsc-licence-competition' ); ?></option>
+										<option value="bracket_bye" <?php selected( $selected_group_format, 'bracket_bye' ); ?>><?php esc_html_e( 'Tableau avec BYE', 'ufsc-licence-competition' ); ?></option>
+										<option value="small_final" <?php selected( $selected_group_format, 'small_final' ); ?>><?php esc_html_e( 'Petite finale', 'ufsc-licence-competition' ); ?></option>
+										<option value="repechage" <?php selected( $selected_group_format, 'repechage' ); ?>><?php esc_html_e( 'Repêchage', 'ufsc-licence-competition' ); ?></option>
+										<option value="wait" <?php selected( $selected_group_format, 'wait' ); ?>><?php esc_html_e( 'Laisser en attente', 'ufsc-licence-competition' ); ?></option>
+									</select>
+								</label>
 						</li>
 					<?php endforeach; ?>
 				</ul>
+					<?php submit_button( __( 'Enregistrer les choix de format par groupe', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+				</form>
 			</div>
 			<?php endif; ?>
 
