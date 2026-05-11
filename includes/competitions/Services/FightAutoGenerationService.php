@@ -809,12 +809,16 @@ class FightAutoGenerationService {
 		$next_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 		$attempted = 0;
 		$inserted = 0;
+		$group_diagnostics = array();
 		foreach ( $groups as $group_key => $group_entries ) {
 			usort( $group_entries, static function ( $a, $b ) { return (int) $a->id <=> (int) $b->id; } );
 			$count = count( $group_entries );
 			$group_format = sanitize_key( (string) ( $settings['group_generation_options'][ $group_key ]['format'] ?? 'auto' ) );
+			$diag = array( 'group_key' => $group_key, 'format_chosen' => $group_format, 'entries' => $count, 'created' => 0, 'bye_slots' => 0, 'warnings' => array() );
 			if ( 'wait' === $group_format || 'none' === $group_format ) {
 				$lone[] = $group_key . ':wait';
+				$diag['warnings'][] = 'left_waiting_by_admin';
+				$group_diagnostics[] = $diag;
 				continue;
 			}
 			if ( $count < 2 ) {
@@ -830,10 +834,41 @@ class FightAutoGenerationService {
 							'red_entry_id' => (int) $group_entries[ $i ]->id, 'blue_entry_id' => (int) $group_entries[ $j ]->id, 'status' => 'scheduled',
 							'timing_profile_id' => null, 'round_duration' => 120, 'rounds' => 1, 'break_duration' => 60, 'fight_pause' => 60, 'fight_duration' => 180,
 						) );
-						if ( $id > 0 ) { $inserted++; }
+						if ( $id > 0 ) { $inserted++; $diag['created']++; }
 					}
 				}
+				$group_diagnostics[] = $diag;
 				continue;
+			}
+			if ( 'bracket' === $group_format && $count >= 4 ) {
+				$pairs = array( array( 0, 1 ), array( 2, 3 ) );
+				foreach ( $pairs as $pair ) {
+					$attempted++;
+					$id = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 1, 'fight_no' => $next_no++, 'red_entry_id' => (int) $group_entries[ $pair[0] ]->id, 'blue_entry_id' => (int) $group_entries[ $pair[1] ]->id, 'status' => 'scheduled', 'timing_profile_id' => null, 'round_duration' => 120, 'rounds' => 1, 'break_duration' => 60, 'fight_pause' => 60, 'fight_duration' => 180 ) );
+					if ( $id > 0 ) { $inserted++; $diag['created']++; }
+				}
+				$attempted++;
+				$pid = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 2, 'fight_no' => $next_no++, 'red_entry_id' => null, 'blue_entry_id' => null, 'status' => 'placeholder' ) );
+				if ( $pid > 0 ) { $inserted++; $diag['created']++; }
+				$group_diagnostics[] = $diag;
+				continue;
+			}
+			if ( 'bracket_bye' === $group_format && $count >= 5 ) {
+				$bracket_size = 1;
+				while ( $bracket_size < $count ) { $bracket_size *= 2; }
+				$bye = max( 0, $bracket_size - $count );
+				$diag['bye_slots'] = $bye;
+				$fighters_for_round = array_slice( $group_entries, $bye );
+				for ( $i = 0; $i + 1 < count( $fighters_for_round ); $i += 2 ) {
+					$attempted++;
+					$id = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 1, 'fight_no' => $next_no++, 'red_entry_id' => (int) $fighters_for_round[ $i ]->id, 'blue_entry_id' => (int) $fighters_for_round[ $i + 1 ]->id, 'status' => 'scheduled', 'timing_profile_id' => null, 'round_duration' => 120, 'rounds' => 1, 'break_duration' => 60, 'fight_pause' => 60, 'fight_duration' => 180 ) );
+					if ( $id > 0 ) { $inserted++; $diag['created']++; }
+				}
+				$group_diagnostics[] = $diag;
+				continue;
+			}
+			if ( 'repechage' === $group_format ) {
+				$diag['warnings'][] = 'repechage_not_supported';
 			}
 			for ( $i = 0; $i + 1 < $count; $i += 2 ) {
 				$attempted++;
@@ -851,14 +886,16 @@ class FightAutoGenerationService {
 					'fight_pause'      => 60,
 					'fight_duration'   => 180,
 				) );
-				if ( $id > 0 ) {
-					$inserted++;
+					if ( $id > 0 ) {
+						$inserted++; $diag['created']++;
+					}
 				}
-			}
-			if ( $count % 2 === 1 ) {
-				$lone[] = $group_key;
-			}
+				if ( $count % 2 === 1 ) {
+					$lone[] = $group_key;
+				}
+				$group_diagnostics[] = $diag;
 		}
+		update_option( 'ufsc_competition_last_group_generation_' . $competition_id, $group_diagnostics, false );
 		return array(
 			'ok' => $inserted > 0,
 			'attempted_inserts' => $attempted,

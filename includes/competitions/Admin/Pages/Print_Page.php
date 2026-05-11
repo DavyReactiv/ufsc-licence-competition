@@ -375,7 +375,7 @@ class Print_Page {
 				$red_label = $this->format_fighter_label( $red );
 				$blue_label = $this->format_fighter_label( $blue );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
-				$phase_label = FightDisplayService::format_phase_label( $fight, $category_fights );
+				$phase_label = $this->resolve_print_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
 				$category_weight = $this->format_fight_category_weight( $fight, $category_name );
 				$red_no = $this->format_competitor_number( $red );
@@ -726,6 +726,31 @@ class Print_Page {
 			__( '%s — Qualifié automatiquement', 'ufsc-licence-competition' ),
 			$status_label
 		);
+	}
+
+	private function resolve_print_phase_label( $fight, array $category_fights ): string {
+		if ( 'bye' === (string) ( $fight->status ?? '' ) ) {
+			return 'BYE';
+		}
+		if ( 'placeholder' === (string) ( $fight->status ?? '' ) ) {
+			return 'Combat à venir';
+		}
+		$round_no = (int) ( $fight->round_no ?? 0 );
+		$count = count( $category_fights );
+		if ( $round_no > 1 && $count >= 3 ) {
+			return 'Finale';
+		}
+		if ( 4 === $count && 1 === $round_no ) {
+			return 'Demi-finale';
+		}
+		if ( $count >= 8 && 1 === $round_no ) {
+			return 'Quart de finale';
+		}
+		$label = FightDisplayService::format_phase_label( $fight, $category_fights );
+		if ( '' === trim( (string) $label ) || false !== stripos( (string) $label, 'Finale' ) ) {
+			return 'Combat';
+		}
+		return $label;
 	}
 
 }
