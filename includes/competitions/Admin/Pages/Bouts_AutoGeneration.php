@@ -743,7 +743,6 @@ class Bouts_AutoGeneration {
 						<?php submit_button( __( 'Attribuer les numéros combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 					</form>
 				</div>
-			</div>
 
 		</div>
 		<?php
