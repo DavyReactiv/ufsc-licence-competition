@@ -458,6 +458,9 @@ class Bouts_AutoGeneration {
 							<p class="description"><?php esc_html_e( 'Par défaut, ce point est un avertissement non bloquant pour la génération sportive.', 'ufsc-licence-competition' ); ?></p>
 							<label><input name="use_level_split" type="checkbox" value="1" <?php checked( $settings['use_level_split'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Utiliser le niveau comme critère de séparation', 'ufsc-licence-competition' ); ?></label>
 							<p class="description"><?php esc_html_e( 'Par défaut, le niveau non défini ne bloque pas et ne segmente pas les groupes.', 'ufsc-licence-competition' ); ?></p>
+							<label><input name="include_submitted_club" type="checkbox" value="1" <?php checked( $settings['include_submitted_club'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Inclure les inscriptions soumises club dans la génération', 'ufsc-licence-competition' ); ?></label>
+							<br>
+							<label><input name="include_draft_test" type="checkbox" value="1" <?php checked( $settings['include_draft_test'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Inclure les brouillons (mode test uniquement)', 'ufsc-licence-competition' ); ?></label>
 						</td>
 					</tr>
 					<tr>
@@ -693,11 +696,22 @@ class Bouts_AutoGeneration {
 		if ( function_exists( 'ufsc_competition_save_surfaces' ) ) {
 			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ?? array() ) );
 		}
+		$surface_notice = '';
+		if ( function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			$surfaces = (array) ufsc_competition_get_surfaces( $competition_id );
+			$active   = 0;
+			foreach ( $surfaces as $surface ) {
+				if ( ! empty( $surface['active'] ) ) {
+					$active++;
+				}
+			}
+			$surface_notice = sprintf( 'Surfaces sauvegardées : %1$d surfaces, %2$d actives.', count( $surfaces ), $active );
+		}
 		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
 		if ( empty( $result['ok'] ) ) {
 			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
 		}
-		self::redirect( $competition_id, 'settings_saved' );
+		self::redirect( $competition_id, 'settings_saved', $surface_notice );
 	}
 
 	public static function handle_generate_draft(): void {

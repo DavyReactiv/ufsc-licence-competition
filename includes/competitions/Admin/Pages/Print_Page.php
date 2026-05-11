@@ -297,8 +297,19 @@ class Print_Page {
 		echo '<h2>' . esc_html__( 'Répartition des combats par surface / tatami / ring / aire', 'ufsc-licence-competition' ) . '</h2>';
 		if ( ! $groups ) {
 			$last_diag = get_option( 'ufsc_competition_last_generation_diagnostic_' . $competition_id, array() );
+			$statuses = array();
+			foreach ( $entries as $entry ) {
+				$status = sanitize_key( (string) ( $entry->status ?? '' ) );
+				$statuses[ $status ] = (int) ( $statuses[ $status ] ?? 0 ) + 1;
+			}
+			$accepted_statuses = function_exists( 'ufsc_competition_get_generation_entry_statuses' )
+				? ufsc_competition_get_generation_entry_statuses()
+				: array( 'approved' );
 			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Aucun combat planifié pour cette compétition.', 'ufsc-licence-competition' ) . '</p>';
 			echo '<p>' . esc_html( sprintf( 'competition_id: %d', $competition_id ) ) . '</p>';
+			echo '<p>' . esc_html( sprintf( 'inscriptions_liées: %d', count( $entries ) ) ) . '</p>';
+			echo '<p>' . esc_html( 'statuts_présents: ' . wp_json_encode( $statuses ) ) . '</p>';
+			echo '<p>' . esc_html( 'statuts_acceptés: ' . wp_json_encode( $accepted_statuses ) ) . '</p>';
 			if ( ! empty( $last_diag ) ) {
 				echo '<p><code>' . esc_html( wp_json_encode( $last_diag ) ) . '</code></p>';
 			}
