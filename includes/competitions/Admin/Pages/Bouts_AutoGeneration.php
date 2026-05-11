@@ -36,6 +36,7 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_test_fixture_open150', array( __CLASS__, 'handle_test_fixture_open150' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_open150_generate', array( __CLASS__, 'handle_test_fixture_open150_generate' ) );
 		add_action( 'admin_post_ufsc_competitions_assign_fighter_numbers', array( __CLASS__, 'handle_assign_fighter_numbers' ) );
+		add_action( 'admin_post_ufsc_competitions_record_fight_result', array( __CLASS__, 'handle_record_fight_result' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -1035,6 +1036,46 @@ class Bouts_AutoGeneration {
 		$duplicates = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM (SELECT fighter_number, COUNT(*) c FROM {$entries_table} WHERE competition_id=%d AND fighter_number IS NOT NULL AND fighter_number<>'' GROUP BY fighter_number HAVING c>1) t", $competition_id ) );
 		$msg = sprintf( 'Numéros combattants: total=%1$d, attribués=%2$d, conservés=%3$d, doublons=%4$d, combats_existants=%5$d', count( (array) $entries ), $assigned, $kept, $duplicates, $fights_count );
 		self::redirect( $competition_id, 'settings_saved', $msg );
+	}
+
+	public static function handle_record_fight_result(): void {
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
+		self::guard_action( 'ufsc_competitions_record_fight_result', $competition_id );
+		$fight_id = absint( $_POST['fight_id'] ?? 0 );
+		if ( $fight_id <= 0 ) {
+			self::redirect( $competition_id, 'action_error', 'Combat invalide.' );
+		}
+		global $wpdb;
+		$table = Db::fights_table();
+		$fight = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", $fight_id ) );
+		if ( ! $fight ) {
+			self::redirect( $competition_id, 'action_error', 'Combat introuvable.' );
+		}
+		$status = sanitize_key( (string) ( $fight->status ?? '' ) );
+		if ( in_array( $status, array( 'running', 'locked' ), true ) ) {
+			self::redirect( $competition_id, 'action_error', 'Combat verrouillé/en cours: utilisez Actions sensibles.' );
+		}
+		if ( 'completed' === $status && empty( $_POST['force_sensitive'] ) ) {
+			self::redirect( $competition_id, 'action_error', 'Résultat déjà saisi: correction via Actions sensibles.' );
+		}
+		$result_type = sanitize_key( (string) ( $_POST['result_type'] ?? '' ) );
+		$winner_slot = sanitize_key( (string) ( $_POST['winner_slot'] ?? '' ) );
+		$winner_entry_id = 0;
+		if ( 'red' === $winner_slot ) {
+			$winner_entry_id = (int) ( $fight->red_entry_id ?? 0 );
+		} elseif ( 'blue' === $winner_slot ) {
+			$winner_entry_id = (int) ( $fight->blue_entry_id ?? 0 );
+		}
+		$result_note = sanitize_text_field( (string) ( $_POST['result_note'] ?? '' ) );
+		$result_text = strtoupper( $winner_slot ?: 'nc' ) . '|' . strtoupper( $result_type ?: 'decision' ) . ( $result_note ? '|' . $result_note : '' );
+		$update = array( 'status' => 'completed', 'result' => $result_text, 'updated_at' => current_time( 'mysql' ) );
+		$formats = array( '%s', '%s', '%s' );
+		foreach ( array( 'winner_entry_id' => $winner_entry_id ?: null, 'result_type' => $result_type ?: null, 'result_note' => $result_note ?: null, 'completed_at' => current_time( 'mysql' ) ) as $col => $value ) {
+			$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $col ) );
+			if ( $exists ) { $update[ $col ] = $value; $formats[] = is_int( $value ) ? '%d' : '%s'; }
+		}
+		$wpdb->update( $table, $update, array( 'id' => $fight_id ), $formats, array( '%d' ) );
+		self::redirect( $competition_id, 'settings_saved', sprintf( 'Résultat enregistré pour combat #%d', (int) ( $fight->fight_no ?? $fight_id ) ) );
 	}
 
 	private static function create_test_fixture(): array {

@@ -534,6 +534,10 @@ class Db {
 			'surface_type'      => "ALTER TABLE {$table} ADD COLUMN surface_type varchar(40) NULL",
 			'scheduled_order'   => "ALTER TABLE {$table} ADD COLUMN scheduled_order int NULL",
 			'scheduled_time'    => "ALTER TABLE {$table} ADD COLUMN scheduled_time datetime NULL",
+			'winner_entry_id'   => "ALTER TABLE {$table} ADD COLUMN winner_entry_id bigint(20) unsigned NULL",
+			'result_type'       => "ALTER TABLE {$table} ADD COLUMN result_type varchar(50) NULL",
+			'result_note'       => "ALTER TABLE {$table} ADD COLUMN result_note text NULL",
+			'completed_at'      => "ALTER TABLE {$table} ADD COLUMN completed_at datetime NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {

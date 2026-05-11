@@ -528,15 +528,18 @@ class Print_Page {
 		$map = array();
 		foreach ( $entries as $e ) { $map[ (int) $e->id ] = $e; }
 		echo '<h2>' . esc_html( $only_entered ? __( 'Résultats saisis', 'ufsc-licence-competition' ) : __( 'Feuille de résultats', 'ufsc-licence-competition' ) ) . '</h2>';
-		echo '<table class="widefat striped"><thead><tr><th>N°</th><th>Rouge</th><th>Bleu</th><th>Résultat</th><th>Observation</th><th>Signature</th></tr></thead><tbody>';
+		echo '<table class="widefat striped"><thead><tr><th>N°</th><th>Rouge</th><th>Bleu</th><th>Vainqueur</th><th>Type</th><th>Résultat</th><th>Observation</th><th>Signature</th></tr></thead><tbody>';
 		$count = 0;
 		foreach ( $fights as $fight ) {
 			$result = trim( (string) ( $fight->result ?? '' ) );
 			if ( $only_entered && '' === $result && 'completed' !== (string) ( $fight->status ?? '' ) ) { continue; }
 			$count++;
-			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
+			$winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
+			$winner_label = $winner_entry_id > 0 ? $this->format_fighter_label( $map[ $winner_entry_id ] ?? null ) : '—';
+			$result_type = (string) ( $fight->result_type ?? '' );
+			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $winner_label ) . '</td><td>' . esc_html( $result_type ?: '—' ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
 		}
-		if ( 0 === $count ) { echo '<tr><td colspan="6">' . esc_html__( 'Aucun résultat saisi pour cette compétition.', 'ufsc-licence-competition' ) . '</td></tr>'; }
+		if ( 0 === $count ) { echo '<tr><td colspan="8">' . esc_html__( 'Aucun résultat saisi pour cette compétition.', 'ufsc-licence-competition' ) . '</td></tr>'; }
 		echo '</tbody></table>';
 	}
 
