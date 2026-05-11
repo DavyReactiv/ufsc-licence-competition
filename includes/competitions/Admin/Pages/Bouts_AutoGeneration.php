@@ -72,7 +72,6 @@ class Bouts_AutoGeneration {
 		$locked = ! empty( $settings['auto_lock'] );
 		$manual_mode = 'manual' === ( $settings['mode'] ?? 'auto' );
 		$can_generate = $competition_id && ! $locked && ! $manual_mode;
-		$can_generate_now = $can_generate && $estimated_fights > 0 && ! empty( $preview['can_generate'] );
 		$has_draft = ! empty( $draft['fights'] );
 		$counters = $competition_id ? FightAutoGenerationService::get_generation_counters( $competition_id, $settings ) : array(
 			'total_entries' => 0,
@@ -82,6 +81,7 @@ class Bouts_AutoGeneration {
 		);
 		$preview = $competition_id ? FightAutoGenerationService::get_generation_preview( $competition_id, $settings ) : array();
 		$estimated_fights = (int) ( $preview['estimated_fights'] ?? 0 );
+		$can_generate_now = $can_generate && $estimated_fights > 0 && ! empty( $preview['can_generate'] );
 		$estimated_total_seconds = (int) ( $preview['estimated_total_seconds'] ?? 0 );
 		$diagnostics = isset( $preview['rejection_diagnostics'] ) && is_array( $preview['rejection_diagnostics'] )
 			? $preview['rejection_diagnostics']
@@ -92,6 +92,7 @@ class Bouts_AutoGeneration {
 		$competition = $competition_id ? $competition_repo->get( $competition_id, true ) : null;
 		$competition_name = $competition ? sanitize_text_field( (string) ( $competition->name ?? '' ) ) : '';
 		$competition_label = $competition_name ? $competition_name : $competition_label;
+		$competition_options = $competition_repo->list( array(), 100, 0 );
 		$entries = $competition_id ? $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 ) : array();
 		$approved_count = 0;
 		$detected_disciplines = array();
@@ -119,6 +120,7 @@ class Bouts_AutoGeneration {
 		$last_saved = ! empty( $settings['settings_saved_at'] ) ? sanitize_text_field( (string) $settings['settings_saved_at'] ) : __( 'Non enregistré', 'ufsc-licence-competition' );
 		?>
 		<div class="ufsc-competitions-box">
+			<?php self::render_competition_selector_block( $competition_id, $competition, $competition_options ); ?>
 			<div class="ufsc-fightgen-header">
 				<div>
 					<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
@@ -289,8 +291,8 @@ class Bouts_AutoGeneration {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_surface_count"><?php esc_html_e( 'Nombre de surfaces', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="surface_count" type="number" min="1" max="32" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
-									<p class="description"><?php esc_html_e( 'Valeur recommandée : 1 à 12 surfaces (max 32).', 'ufsc-licence-competition' ); ?></p></td>
+						<td><input name="surface_count" type="number" min="1" id="ufsc_surface_count" value="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+									<p class="description"><?php esc_html_e( 'Ajoutez autant de surfaces que nécessaire pour votre compétition. Une limite technique de sécurité peut être appliquée côté serveur.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Surfaces de combat', 'ufsc-licence-competition' ); ?></h3></th>
@@ -298,17 +300,17 @@ class Bouts_AutoGeneration {
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Surfaces', 'ufsc-licence-competition' ); ?></th>
 						<td>
-							<div class="ufsc-competitions-surfaces" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
+							<div class="ufsc-competitions-surfaces ufsc-surfaces-manager" data-surface-count="<?php echo esc_attr( $settings['surface_count'] ); ?>">
 								<?php
-								$surface_details = isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] )
-									? $settings['surface_details']
-									: array();
-								for ( $i = 0; $i < $settings['surface_count']; $i++ ) :
-									$detail = $surface_details[ $i ] ?? array();
+								$surface_details = function_exists( 'ufsc_competition_get_surfaces' )
+									? ufsc_competition_get_surfaces( $competition_id, array( 'fallback_count' => (int) $settings['surface_count'] ) )
+									: ( isset( $settings['surface_details'] ) && is_array( $settings['surface_details'] ) ? $settings['surface_details'] : array() );
+								$surface_types = function_exists( 'ufsc_competition_get_surface_types' ) ? ufsc_competition_get_surface_types() : array( 'tatami' => 'Tatami', 'ring' => 'Ring', 'aire' => 'Aire', 'cage' => 'Cage', 'zone' => 'Zone', 'autre' => 'Autre' );
+								foreach ( $surface_details as $i => $detail ) :
 									$surface_name = (string) ( $detail['name'] ?? '' );
 									$surface_type = (string) ( $detail['type'] ?? 'tatami' );
 									?>
-									<div class="ufsc-competitions-surface-row">
+									<div class="ufsc-competitions-surface-row ufsc-surface-row">
 										<label>
 											<?php echo esc_html( sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $i + 1 ) ); ?>
 											<input name="surface_details[<?php echo esc_attr( $i ); ?>][name]" type="text" class="regular-text" value="<?php echo esc_attr( $surface_name ); ?>" placeholder="<?php echo esc_attr( (string) ( $i + 1 ) ); ?>">
@@ -316,15 +318,22 @@ class Bouts_AutoGeneration {
 										<label>
 											<?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?>
 											<select name="surface_details[<?php echo esc_attr( $i ); ?>][type]" required>
-												<option value="tatami" <?php selected( $surface_type, 'tatami' ); ?>><?php esc_html_e( 'Tatami', 'ufsc-licence-competition' ); ?></option>
-												<option value="ring" <?php selected( $surface_type, 'ring' ); ?>><?php esc_html_e( 'Ring', 'ufsc-licence-competition' ); ?></option>
-												<option value="aire" <?php selected( $surface_type, 'aire' ); ?>><?php esc_html_e( 'Aire', 'ufsc-licence-competition' ); ?></option>
+												<?php foreach ( $surface_types as $surface_type_key => $surface_type_label ) : ?>
+													<option value="<?php echo esc_attr( (string) $surface_type_key ); ?>" <?php selected( $surface_type, (string) $surface_type_key ); ?>><?php echo esc_html( (string) $surface_type_label ); ?></option>
+												<?php endforeach; ?>
 											</select>
 										</label>
+										<label><?php esc_html_e( 'Code court', 'ufsc-licence-competition' ); ?><input name="surface_details[<?php echo esc_attr( $i ); ?>][short_label]" type="text" value="<?php echo esc_attr( (string) ( $detail['short_label'] ?? '' ) ); ?>" class="small-text"></label>
+										<label><input type="checkbox" name="surface_details[<?php echo esc_attr( $i ); ?>][active]" value="1" <?php checked( ! empty( $detail['active'] ) ); ?>> <?php esc_html_e( 'Active', 'ufsc-licence-competition' ); ?></label>
+										<button type="button" class="button ufsc-duplicate-surface"><?php esc_html_e( 'Dupliquer', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-remove-surface"><?php esc_html_e( 'Supprimer', 'ufsc-licence-competition' ); ?></button>
+										<button type="button" class="button ufsc-move-surface-up">↑</button>
+										<button type="button" class="button ufsc-move-surface-down">↓</button>
 									</div>
-								<?php endfor; ?>
+								<?php endforeach; ?>
 							</div>
-							<p class="description"><?php esc_html_e( 'Le nombre de surfaces génère automatiquement les blocs ci-dessus.', 'ufsc-licence-competition' ); ?></p>
+							<p><button type="button" class="button ufsc-add-surface"><?php esc_html_e( 'Ajouter une surface', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-add-five-surfaces"><?php esc_html_e( 'Ajouter 5 surfaces', 'ufsc-licence-competition' ); ?></button> <button type="button" class="button ufsc-duplicate-last-surface"><?php esc_html_e( 'Dupliquer la dernière', 'ufsc-licence-competition' ); ?></button></p>
+							<p class="description"><?php esc_html_e( 'Ajoutez autant de surfaces que nécessaire pour votre compétition.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 					<tr><th colspan="2"><h3 class="ufsc-fightgen-section-title"><?php esc_html_e( 'Timing', 'ufsc-licence-competition' ); ?></h3></th></tr>
@@ -625,6 +634,7 @@ class Bouts_AutoGeneration {
 					<?php submit_button( __( 'Réordonner', 'ufsc-licence-competition' ), 'secondary', '', false, $has_draft ? array() : array( 'disabled' => 'disabled' ) ); ?>
 				</form>
 			<?php endif; ?>
+			<?php self::render_competition_selector_block( $competition_id, $competition, $competition_options ); ?>
 
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Mode test / Sandbox génération', 'ufsc-licence-competition' ); ?></h3>
@@ -721,6 +731,9 @@ class Bouts_AutoGeneration {
 	public static function handle_save_settings(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_save_fight_settings', $competition_id );
+		if ( function_exists( 'ufsc_competition_save_surfaces' ) ) {
+			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ?? array() ) );
+		}
 		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
 		if ( empty( $result['ok'] ) ) {
 			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
@@ -812,8 +825,19 @@ class Bouts_AutoGeneration {
 	public static function handle_recalc_schedule(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_recalc_fight_schedule', $competition_id );
+		if ( function_exists( 'ufsc_competition_save_surfaces' ) && isset( $_POST['surface_details'] ) ) {
+			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ) );
+		}
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$result = FightAutoGenerationService::recalc_schedule( $competition_id, $settings );
+		if ( function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
+			$assignment = ufsc_competition_assign_surfaces_and_times( $competition_id, array(), $settings );
+			$msg = sprintf( __( '%1$d combats analysés, %2$d assignés, %3$d surfaces utilisées, %4$d sensibles ignorés.', 'ufsc-licence-competition' ), (int) ( $assignment['modifiable_fights'] ?? 0 ), (int) ( $assignment['assigned_fights'] ?? 0 ), (int) ( $assignment['surfaces_used'] ?? 0 ), (int) ( $assignment['skipped_sensitive'] ?? 0 ) );
+			if ( ! empty( $assignment['last_sql_error'] ) ) {
+				$msg .= ' SQL: ' . sanitize_text_field( (string) $assignment['last_sql_error'] );
+			}
+			self::redirect( $competition_id, ! empty( $assignment['success'] ) ? 'schedule_recalc' : 'action_error', $msg );
+		}
 		self::redirect( $competition_id, $result['ok'] ? 'schedule_recalc' : 'action_error', $result['message'] ?? '' );
 	}
 
@@ -990,9 +1014,11 @@ class Bouts_AutoGeneration {
 
 	private static function resolve_competition_id( int $fallback = 0 ): int {
 		$candidates = array(
+			isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0,
+			isset( $_GET['ufsc_competition_id'] ) ? absint( wp_unslash( $_GET['ufsc_competition_id'] ) ) : 0,
+			isset( $_POST['competition_id'] ) ? absint( wp_unslash( $_POST['competition_id'] ) ) : 0,
+			isset( $_POST['ufsc_competition_id'] ) ? absint( wp_unslash( $_POST['ufsc_competition_id'] ) ) : 0,
 			$fallback,
-			isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
-			isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
 		);
 
 		$repo = new CompetitionRepository();
@@ -1007,7 +1033,37 @@ class Bouts_AutoGeneration {
 			}
 		}
 
+		$competitions = $repo->list( array( 'status' => 'open' ), 2, 0 );
+		if ( 1 === count( $competitions ) ) {
+			return absint( $competitions[0]->id ?? 0 );
+		}
+
 		return 0;
+	}
+
+	private static function render_competition_selector_block( int $competition_id, $competition, array $competition_options ): void {
+		$current_url = remove_query_arg( array( 'competition_id', 'ufsc_competition_id' ) );
+		?>
+		<div class="notice notice-info inline">
+			<p><strong><?php esc_html_e( 'Compétition active', 'ufsc-licence-competition' ); ?></strong></p>
+			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>">
+				<select name="competition_id" required>
+					<option value=""><?php esc_html_e( 'Sélectionner une compétition', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $competition_options as $item ) : ?>
+						<option value="<?php echo esc_attr( (string) (int) $item->id ); ?>" <?php selected( $competition_id, (int) $item->id ); ?>>
+							<?php echo esc_html( sprintf( '[%d] %s — %s — %s', (int) $item->id, (string) $item->name, (string) ( $item->discipline ?? '—' ), (string) ( $item->season ?? '—' ) ) ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+				<?php submit_button( __( 'Charger la compétition', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+				<?php if ( $competition_id > 0 ) : ?>
+					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . Menu::PAGE_PRINT . '&competition_id=' . $competition_id . '&print_type=fights' ) ); ?>"><?php esc_html_e( 'Voir l’impression', 'ufsc-licence-competition' ); ?></a>
+				<?php endif; ?>
+			</form>
+			<p><span class="ufsc-badge ufsc-badge--info"><?php echo esc_html( $competition ? (string) ( $competition->name ?? __( 'Compétition sélectionnée', 'ufsc-licence-competition' ) ) : __( 'Aucune compétition sélectionnée', 'ufsc-licence-competition' ) ); ?></span></p>
+		</div>
+		<?php
 	}
 
 	private static function guard_action( string $nonce_action, int $competition_id ): void {
