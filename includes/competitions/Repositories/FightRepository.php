@@ -25,6 +25,7 @@ class FightRepository {
 	public const STATUS_TRASHED     = 'trashed';
 
 	private $logger;
+	private static $table_columns_cache = null;
 
 	public function __construct() {
 		$this->logger = new LogService();
@@ -368,13 +369,77 @@ class FightRepository {
 		$prepared['updated_at'] = current_time( 'mysql' );
 		$prepared['created_by'] = get_current_user_id() ?: null;
 		$prepared['updated_by'] = get_current_user_id() ?: null;
-
-		$wpdb->insert( Db::fights_table(), $prepared, $this->get_insert_format() );
+		$prepared = $this->filter_existing_columns( $prepared );
+		$formats  = $this->get_insert_format_for_data( $prepared );
+		$wpdb->insert( Db::fights_table(), $prepared, $formats );
 		$id = (int) $wpdb->insert_id;
 
 		$this->logger->log( 'create', 'fight', $id, 'Fight created.', array( 'data' => $prepared ) );
 
 		return $id;
+	}
+
+	private function filter_existing_columns( array $data ): array {
+		$columns = $this->get_table_columns_map();
+		$filtered = array();
+		foreach ( $data as $key => $value ) {
+			if ( isset( $columns[ $key ] ) ) {
+				$filtered[ $key ] = $value;
+			}
+		}
+		return $filtered;
+	}
+
+	private function get_table_columns_map(): array {
+		if ( is_array( self::$table_columns_cache ) ) {
+			return self::$table_columns_cache;
+		}
+		global $wpdb;
+		$table = Db::fights_table();
+		$rows  = $wpdb->get_results( "SHOW COLUMNS FROM {$table}" );
+		$map   = array();
+		foreach ( (array) $rows as $row ) {
+			$field = isset( $row->Field ) ? (string) $row->Field : '';
+			if ( '' !== $field ) {
+				$map[ $field ] = true;
+			}
+		}
+		self::$table_columns_cache = $map;
+		return $map;
+	}
+
+	private function get_insert_format_for_data( array $prepared ): array {
+		$format_map = array(
+			'competition_id'   => '%d',
+			'category_id'      => '%d',
+			'fight_no'         => '%d',
+			'ring'             => '%s',
+			'round_no'         => '%d',
+			'red_entry_id'     => '%d',
+			'blue_entry_id'    => '%d',
+			'winner_entry_id'  => '%d',
+			'status'           => '%s',
+			'result_method'    => '%s',
+			'score_red'        => '%s',
+			'score_blue'       => '%s',
+			'scheduled_at'     => '%s',
+			'timing_profile_id'=> '%d',
+			'round_duration'   => '%d',
+			'rounds'           => '%d',
+			'break_duration'   => '%d',
+			'fight_pause'      => '%d',
+			'fight_duration'   => '%d',
+			'created_at'       => '%s',
+			'updated_at'       => '%s',
+			'created_by'       => '%d',
+			'updated_by'       => '%d',
+			'deleted_at'       => '%s',
+		);
+		$formats = array();
+		foreach ( array_keys( $prepared ) as $key ) {
+			$formats[] = $format_map[ $key ] ?? '%s';
+		}
+		return $formats;
 	}
 
 	public function update( $id, array $data ) {
