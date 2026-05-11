@@ -890,14 +890,25 @@ class Bouts_AutoGeneration {
 		FightAutoGenerationService::save_settings( $competition_id, array( 'surface_count' => 2, 'fight_duration' => 2, 'break_duration' => 1 ) );
 		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
 		$rows = array(
-			array('M','70kg','A','approved',true,'light_contact'),array('M','70kg','A','approved',true,'light_contact'),
-			array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),array('F','60kg','A','approved',true,'light_contact'),
-			array('M','80kg','A','approved',true,'light_contact'),
-			array('M','75kg','A','approved',false,'light_contact'),array('M','75kg','A','approved',false,'light_contact'),
-			array('M','55kg','Cadet','approved',true,'kickboxing'),array('M','55kg','Cadet','approved',true,'kickboxing')
+			array('M','70kg','A','approved',true,'light_contact','Club Test Nord'),
+			array('M','70kg','A','approved',true,'light_contact','Club Test Nord'),
+			array('F','60kg','A','approved',true,'light_contact','Club Test Sud'),
+			array('F','60kg','A','approved',true,'light_contact','Club Test Sud'),
+			array('F','60kg','A','approved',true,'light_contact','Club Test Est'),
+			array('F','60kg','A','approved',true,'light_contact','Club Test Ouest'),
+			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
+			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
+			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
+			array('M','75kg','A','approved',true,'light_contact','Club Test Nord'),
+			array('M','75kg','A','approved',true,'light_contact','Club Test Sud'),
+			array('M','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
+			array('M','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
+			array('F','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
+			array('M','90kg','Junior','approved',true,'light_contact','Club Performance'),
+			array('F','90kg','Junior','approved',true,'light_contact','Club Performance')
 		);
 		$i=1; foreach($rows as $r){
-			$eid=(int)$entry_repo->insert(array('competition_id'=>$competition_id,'status'=>$r[3],'first_name'=>'Test'.$i,'last_name'=>'Athlete','sex'=>$r[0],'category'=>$r[2],'weight_class'=>$r[1],'discipline'=>$r[5],'participant_type'=>'external','notes'=>'[TEST_GENERATION]'));
+			$eid=(int)$entry_repo->insert(array('competition_id'=>$competition_id,'status'=>$r[3],'first_name'=>'Test'.$i,'last_name'=>'Athlete','sex'=>$r[0],'category'=>$r[2],'weight_class'=>$r[1],'discipline'=>$r[5],'participant_type'=>'external','club_name'=>$r[6],'level'=>'non_defini','license_number'=>'TEST-LIC-'.$competition_id.'-'.$i,'birthdate'=>'2000-01-'.str_pad((string) (($i%28)+1),2,'0',STR_PAD_LEFT),'notes'=>'[TEST_GENERATION]'));
 			if($eid>0){$ids['entries'][]=$eid; if($r[4]){self::insert_test_weighin($competition_id,$eid);}} $i++;
 		}
 		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );

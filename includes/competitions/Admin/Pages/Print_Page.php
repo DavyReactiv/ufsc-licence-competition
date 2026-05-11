@@ -82,6 +82,17 @@ class Print_Page {
 				<?php submit_button( __( 'Afficher', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 				<?php submit_button( __( 'Imprimer', 'ufsc-licence-competition' ), 'primary', 'ufsc_print_now', false, array( 'onclick' => 'window.print();return false;' ) ); ?>
 			</form>
+			<p class="description">
+				<?php
+				$desc = array(
+					'fights_by_surface' => __( 'Ce document affiche le plateau opérationnel : ordre des combats, surfaces, horaires estimés, coins rouge/bleu et observations.', 'ufsc-licence-competition' ),
+					'surface_overview' => __( 'Ce document sert aux officiels et à l’organisation : résumé des surfaces, volumes de combats, catégories ouvertes, alertes et besoins humains par surface.', 'ufsc-licence-competition' ),
+					'categories' => __( 'Ce document liste les catégories réellement détectées dans les inscriptions ou dans les combats générés.', 'ufsc-licence-competition' ),
+					'entries' => __( 'Ce document permet de contrôler les engagés, les données manquantes et les informations administratives avant génération.', 'ufsc-licence-competition' ),
+				);
+				echo esc_html( $desc[ $type ] ?? $desc['entries'] );
+				?>
+			</p>
 
 			<?php if ( $competition_id ) : ?>
 				<?php
