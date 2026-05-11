@@ -34,6 +34,7 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_test_fixture_delete', array( __CLASS__, 'handle_test_fixture_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_run', array( __CLASS__, 'handle_test_fixture_run' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_open150', array( __CLASS__, 'handle_test_fixture_open150' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_open150_generate', array( __CLASS__, 'handle_test_fixture_open150_generate' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -684,13 +685,18 @@ class Bouts_AutoGeneration {
 						<label><input type="checkbox" name="auto_validate" value="1"> <?php esc_html_e( 'Valider automatiquement les combats test après création du brouillon', 'ufsc-licence-competition' ); ?></label>
 						<?php submit_button( __( 'Lancer un test complet', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
 					</form>
-					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150' ); ?>
-						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
-						<?php submit_button( __( 'Créer test Open 150 participants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
-					</form>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150' ); ?>
+							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
+							<?php submit_button( __( 'Créer test Open 150 participants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						</form>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150_generate' ); ?>
+							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150_generate">
+							<?php submit_button( __( 'Créer + générer test Open 150', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
+						</form>
+					</div>
 				</div>
-			</div>
 
 		</div>
 		<?php
@@ -926,6 +932,38 @@ class Bouts_AutoGeneration {
 		self::guard_action( 'ufsc_competitions_test_fixture_open150', 0 );
 		$result = self::create_test_fixture_open150();
 		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+	}
+
+	public static function handle_test_fixture_open150_generate(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_open150_generate', 0 );
+		$fixture = self::create_test_fixture_open150();
+		if ( empty( $fixture['ok'] ) ) {
+			self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) );
+		}
+		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
+		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
+		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
+		$apply = ! empty( $draft['ok'] ) ? FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' ) : array( 'ok' => false );
+		if ( empty( $apply['ok'] ) || (int) ( $apply['stats']['inserts_success'] ?? 0 ) <= 0 ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			$msg = sprintf(
+				'[OPEN150] fallback inserts=%1$d/%2$d groups=%3$d fights_est=%4$d',
+				(int) ( $fallback['successful_inserts'] ?? 0 ),
+				(int) ( $fallback['attempted_inserts'] ?? 0 ),
+				(int) ( $preview['estimated_categories'] ?? 0 ),
+				(int) ( $preview['estimated_fights'] ?? 0 )
+			);
+			self::redirect( $competition_id, ! empty( $fallback['ok'] ) ? 'draft_validated' : 'action_error', $msg );
+		}
+		$msg = sprintf(
+			'[OPEN150] draft/apply inserts=%1$d/%2$d groups=%3$d fights_est=%4$d',
+			(int) ( $apply['stats']['inserts_success'] ?? 0 ),
+			(int) ( $apply['stats']['inserts_attempted'] ?? 0 ),
+			(int) ( $preview['estimated_categories'] ?? 0 ),
+			(int) ( $preview['estimated_fights'] ?? 0 )
+		);
+		self::redirect( $competition_id, 'draft_validated', $msg );
 	}
 
 	private static function create_test_fixture(): array {
