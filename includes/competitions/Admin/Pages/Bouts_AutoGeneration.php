@@ -1014,6 +1014,13 @@ class Bouts_AutoGeneration {
 		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
 		$categories = array( 'Educatif', 'Minime', 'Cadet', 'Junior', 'Senior', 'Veteran' );
 		$weights = array( '45kg', '50kg', '55kg', '60kg', '65kg', '70kg', '75kg', '80kg', '85kg' );
+		$first_names = array( 'Lucas', 'Emma', 'Hugo', 'Lina', 'Nathan', 'Maelys', 'Yanis', 'Lea', 'Noe', 'Chloe', 'Louis', 'Camille', 'Gabriel', 'Jade', 'Arthur' );
+		$last_names = array( 'Martin', 'Dubois', 'Bernard', 'Moreau', 'Petit', 'Robert', 'Richard', 'Durand', 'Garcia', 'Faure', 'Andre', 'Roux', 'Mercier', 'Blanc', 'Guerin' );
+		$clubs = array(
+			'[TEST] MFC Montluçon','[TEST] Savate Club du Born','[TEST] Boxing Academy Lyon','[TEST] Team Combat Sud','[TEST] Fight School Paris',
+			'[TEST] Ring Auvergne','[TEST] Impact Fight Club','[TEST] Kick Boxing Limoges','[TEST] Elite Combat Bordeaux','[TEST] Team Occitanie Fight',
+			'[TEST] Boxing Club Marseille','[TEST] Full Contact Nice','[TEST] K1 Academy Lille','[TEST] Fight Spirit Toulouse','[TEST] Club Combat Atlantique'
+		);
 		$statuses = array_merge( array_fill( 0, 120, 'approved' ), array_fill( 0, 15, 'submitted' ), array_fill( 0, 8, 'draft' ), array_fill( 0, 7, 'rejected' ) );
 		shuffle( $statuses );
 		for ( $i = 1; $i <= 150; $i++ ) {
@@ -1022,20 +1029,23 @@ class Bouts_AutoGeneration {
 			$sex = ( $i % 3 === 0 ) ? 'F' : 'M';
 			$status = $statuses[ $i - 1 ] ?? 'approved';
 			$is_external = $i > 120;
+			$first_name = $first_names[ ( $i - 1 ) % count( $first_names ) ];
+			$last_name = strtoupper( $last_names[ ( $i - 1 ) % count( $last_names ) ] );
 			$entry_id = (int) $entry_repo->insert( array(
 				'competition_id' => $competition_id,
 				'status' => $status,
-				'first_name' => 'Open' . $i,
-				'last_name' => 'Fighter',
-				'participant_name' => 'Open Fighter #' . $i,
+				'first_name' => $first_name,
+				'last_name' => $last_name,
+				'participant_name' => $last_name . ' ' . $first_name,
 				'sex' => $sex,
 				'category' => $category,
 				'category_name' => $category,
 				'weight_class' => $weight,
 				'discipline' => 'light_contact',
 				'participant_type' => $is_external ? 'external_non_licensed' : 'licensed_ufsc',
-				'club_name' => 'Club Test ' . ( ( $i % 15 ) + 1 ),
+				'club_name' => $clubs[ ( $i - 1 ) % count( $clubs ) ],
 				'level' => ( 'Senior' === $category ) ? 'classe_d' : 'non_defini',
+				'fighter_number' => str_pad( (string) $i, 3, '0', STR_PAD_LEFT ),
 				'license_number' => $is_external ? '' : 'OPEN150-' . $competition_id . '-' . $i,
 				'birthdate' => '2000-01-' . str_pad( (string) ( ( $i % 28 ) + 1 ), 2, '0', STR_PAD_LEFT ),
 				'notes' => '[TEST_GENERATION_OPEN150]',
