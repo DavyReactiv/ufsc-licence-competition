@@ -1787,7 +1787,7 @@ class FightAutoGenerationService {
 			}
 			$name = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
 			$type = sanitize_key( (string) ( $detail['type'] ?? 'tatami' ) );
-			$type = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+			$type = in_array( $type, array( 'tatami', 'ring', 'aire' ), true ) ? $type : 'tatami';
 
 			$details[] = array(
 				'name' => $name,
@@ -1819,7 +1819,7 @@ class FightAutoGenerationService {
 			$detail = $details[ $i ] ?? array();
 			$name   = sanitize_text_field( (string) ( $detail['name'] ?? '' ) );
 			$type   = sanitize_key( (string) ( $detail['type'] ?? 'tatami' ) );
-			$type   = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+			$type   = in_array( $type, array( 'tatami', 'ring', 'aire' ), true ) ? $type : 'tatami';
 			if ( '' === $name ) {
 				$name = (string) ( $i + 1 );
 			}
@@ -1848,7 +1848,7 @@ class FightAutoGenerationService {
 				$details[ $i ]['name'] = (string) ( $i + 1 );
 			}
 			$type = sanitize_key( (string) ( $details[ $i ]['type'] ?? 'tatami' ) );
-			$details[ $i ]['type'] = in_array( $type, array( 'tatami', 'ring' ), true ) ? $type : 'tatami';
+			$details[ $i ]['type'] = in_array( $type, array( 'tatami', 'ring', 'aire' ), true ) ? $type : 'tatami';
 		}
 
 		return $details;
@@ -1872,7 +1872,7 @@ class FightAutoGenerationService {
 
 		foreach ( $details as $detail ) {
 			$type = sanitize_key( (string) ( $detail['type'] ?? '' ) );
-			if ( in_array( $type, array( 'tatami', 'ring' ), true ) ) {
+			if ( in_array( $type, array( 'tatami', 'ring', 'aire' ), true ) ) {
 				$types[] = $type;
 			}
 		}
