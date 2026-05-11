@@ -1186,11 +1186,44 @@ class FightAutoGenerationService {
 				'entries_count'     => $count,
 				'estimated_fights'  => self::estimate_fights_for_group_size( $count ),
 				'status'            => $status,
+				'format'            => self::recommend_group_format( $count, $settings ),
+				'bye_slots'         => self::estimate_bye_slots( $count ),
+				'lone_fighter'      => 1 === $count,
 				'use_level_split'   => ! empty( $settings['use_level_split'] ),
 				'athletes'          => $athletes,
 			);
 		}
 		return $rows;
+	}
+
+	private static function estimate_bye_slots( int $count ): int {
+		if ( $count <= 1 ) {
+			return 0;
+		}
+		$pow2 = 1;
+		while ( $pow2 < $count ) {
+			$pow2 *= 2;
+		}
+		return max( 0, $pow2 - $count );
+	}
+
+	private static function recommend_group_format( int $count, array $settings ): string {
+		if ( $count <= 1 ) {
+			return 'combattant_seul';
+		}
+		if ( 2 === $count ) {
+			return 'combat_direct';
+		}
+		if ( 3 === $count ) {
+			return ! empty( $settings['prefer_round_robin_for_3'] ) ? 'poule_complete' : 'tableau_avec_bye';
+		}
+		if ( 4 === $count ) {
+			return 'demi_finales_finale';
+		}
+		if ( $count <= 8 ) {
+			return 'tableau_avec_bye';
+		}
+		return 'tableau_par_tours';
 	}
 
 

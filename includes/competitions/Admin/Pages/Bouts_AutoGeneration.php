@@ -256,7 +256,12 @@ class Bouts_AutoGeneration {
 						<li>
 							<strong><?php echo esc_html( (string) ( $group_row['group_key'] ?? '—' ) ); ?></strong>
 							— <?php echo esc_html( sprintf( __( '%1$d athlètes, %2$d combats estimés', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? 0 ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?>
+							— <?php echo esc_html( sprintf( __( 'Format conseillé : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? 'tableau' ) ) ); ?>
+							— <?php echo esc_html( sprintf( __( 'BYE estimés : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?>
 							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
+							<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
+								— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
+							<?php endif; ?>
 						</li>
 					<?php endforeach; ?>
 				</ul>
