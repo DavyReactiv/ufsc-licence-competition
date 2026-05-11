@@ -72,7 +72,6 @@ class Bouts_AutoGeneration {
 		$locked = ! empty( $settings['auto_lock'] );
 		$manual_mode = 'manual' === ( $settings['mode'] ?? 'auto' );
 		$can_generate = $competition_id && ! $locked && ! $manual_mode;
-		$can_generate_now = $can_generate && $estimated_fights > 0 && ! empty( $preview['can_generate'] );
 		$has_draft = ! empty( $draft['fights'] );
 		$counters = $competition_id ? FightAutoGenerationService::get_generation_counters( $competition_id, $settings ) : array(
 			'total_entries' => 0,
@@ -82,6 +81,7 @@ class Bouts_AutoGeneration {
 		);
 		$preview = $competition_id ? FightAutoGenerationService::get_generation_preview( $competition_id, $settings ) : array();
 		$estimated_fights = (int) ( $preview['estimated_fights'] ?? 0 );
+		$can_generate_now = $can_generate && $estimated_fights > 0 && ! empty( $preview['can_generate'] );
 		$estimated_total_seconds = (int) ( $preview['estimated_total_seconds'] ?? 0 );
 		$diagnostics = isset( $preview['rejection_diagnostics'] ) && is_array( $preview['rejection_diagnostics'] )
 			? $preview['rejection_diagnostics']
@@ -92,6 +92,7 @@ class Bouts_AutoGeneration {
 		$competition = $competition_id ? $competition_repo->get( $competition_id, true ) : null;
 		$competition_name = $competition ? sanitize_text_field( (string) ( $competition->name ?? '' ) ) : '';
 		$competition_label = $competition_name ? $competition_name : $competition_label;
+		$competition_options = $competition_repo->list( array(), 100, 0 );
 		$entries = $competition_id ? $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 2000, 0 ) : array();
 		$approved_count = 0;
 		$detected_disciplines = array();
@@ -119,6 +120,7 @@ class Bouts_AutoGeneration {
 		$last_saved = ! empty( $settings['settings_saved_at'] ) ? sanitize_text_field( (string) $settings['settings_saved_at'] ) : __( 'Non enregistré', 'ufsc-licence-competition' );
 		?>
 		<div class="ufsc-competitions-box">
+			<?php self::render_competition_selector_block( $competition_id, $competition, $competition_options ); ?>
 			<div class="ufsc-fightgen-header">
 				<div>
 					<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
@@ -625,6 +627,7 @@ class Bouts_AutoGeneration {
 					<?php submit_button( __( 'Réordonner', 'ufsc-licence-competition' ), 'secondary', '', false, $has_draft ? array() : array( 'disabled' => 'disabled' ) ); ?>
 				</form>
 			<?php endif; ?>
+			<?php self::render_competition_selector_block( $competition_id, $competition, $competition_options ); ?>
 
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Mode test / Sandbox génération', 'ufsc-licence-competition' ); ?></h3>
@@ -990,9 +993,11 @@ class Bouts_AutoGeneration {
 
 	private static function resolve_competition_id( int $fallback = 0 ): int {
 		$candidates = array(
+			isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0,
+			isset( $_GET['ufsc_competition_id'] ) ? absint( wp_unslash( $_GET['ufsc_competition_id'] ) ) : 0,
+			isset( $_POST['competition_id'] ) ? absint( wp_unslash( $_POST['competition_id'] ) ) : 0,
+			isset( $_POST['ufsc_competition_id'] ) ? absint( wp_unslash( $_POST['ufsc_competition_id'] ) ) : 0,
 			$fallback,
-			isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
-			isset( $_REQUEST['competition_id'] ) ? absint( $_REQUEST['competition_id'] ) : 0,
 		);
 
 		$repo = new CompetitionRepository();
@@ -1007,7 +1012,37 @@ class Bouts_AutoGeneration {
 			}
 		}
 
+		$competitions = $repo->list( array( 'status' => 'open' ), 2, 0 );
+		if ( 1 === count( $competitions ) ) {
+			return absint( $competitions[0]->id ?? 0 );
+		}
+
 		return 0;
+	}
+
+	private static function render_competition_selector_block( int $competition_id, $competition, array $competition_options ): void {
+		$current_url = remove_query_arg( array( 'competition_id', 'ufsc_competition_id' ) );
+		?>
+		<div class="notice notice-info inline">
+			<p><strong><?php esc_html_e( 'Compétition active', 'ufsc-licence-competition' ); ?></strong></p>
+			<form method="get" action="<?php echo esc_url( admin_url( 'admin.php' ) ); ?>">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>">
+				<select name="competition_id" required>
+					<option value=""><?php esc_html_e( 'Sélectionner une compétition', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $competition_options as $item ) : ?>
+						<option value="<?php echo esc_attr( (string) (int) $item->id ); ?>" <?php selected( $competition_id, (int) $item->id ); ?>>
+							<?php echo esc_html( sprintf( '[%d] %s — %s — %s', (int) $item->id, (string) $item->name, (string) ( $item->discipline ?? '—' ), (string) ( $item->season ?? '—' ) ) ); ?>
+						</option>
+					<?php endforeach; ?>
+				</select>
+				<?php submit_button( __( 'Charger la compétition', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+				<?php if ( $competition_id > 0 ) : ?>
+					<a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=' . Menu::PAGE_PRINT . '&competition_id=' . $competition_id . '&print_type=fights' ) ); ?>"><?php esc_html_e( 'Voir l’impression', 'ufsc-licence-competition' ); ?></a>
+				<?php endif; ?>
+			</form>
+			<p><span class="ufsc-badge ufsc-badge--info"><?php echo esc_html( $competition ? (string) ( $competition->name ?? __( 'Compétition sélectionnée', 'ufsc-licence-competition' ) ) : __( 'Aucune compétition sélectionnée', 'ufsc-licence-competition' ) ); ?></span></p>
+		</div>
+		<?php
 	}
 
 	private static function guard_action( string $nonce_action, int $competition_id ): void {
