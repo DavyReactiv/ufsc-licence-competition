@@ -341,12 +341,58 @@
 		});
 	}
 
+	function bindSurfacesManager() {
+		document.querySelectorAll('.ufsc-surfaces-manager').forEach(function(manager) {
+			var parent = manager.parentElement || manager;
+			var addBtn = parent.querySelector('.ufsc-add-surface');
+			var addFiveBtn = parent.querySelector('.ufsc-add-five-surfaces');
+			var dupLastBtn = parent.querySelector('.ufsc-duplicate-last-surface');
+			var countInput = document.getElementById('ufsc_surface_count');
+			function getRows() { return Array.prototype.slice.call(manager.querySelectorAll('.ufsc-surface-row')); }
+			function sync() {
+				getRows().forEach(function(row, idx) {
+					row.querySelectorAll('input,select').forEach(function(field) {
+						field.name = field.name.replace(/surface_details\[\d+\]/, 'surface_details[' + idx + ']');
+					});
+				});
+				if (countInput) { countInput.value = String(Math.max(1, getRows().length)); }
+			}
+			function addRow(source) {
+				var base = source || getRows()[0];
+				if (!base) { return; }
+				var clone = base.cloneNode(true);
+				var idx = getRows().length + 1;
+				clone.querySelectorAll('input').forEach(function(input) {
+					if (input.type === 'checkbox') { input.checked = true; return; }
+					input.value = '';
+				});
+				var nameInput = clone.querySelector('input[name*="[name]"]');
+				if (nameInput) { nameInput.value = 'Surface ' + idx; }
+				manager.appendChild(clone);
+				sync();
+			}
+			manager.addEventListener('click', function(event) {
+				var row = event.target.closest('.ufsc-surface-row');
+				if (!row) { return; }
+				if (event.target.classList.contains('ufsc-duplicate-surface')) { event.preventDefault(); addRow(row); }
+				if (event.target.classList.contains('ufsc-remove-surface')) { event.preventDefault(); if (getRows().length > 1) { row.remove(); sync(); } }
+				if (event.target.classList.contains('ufsc-move-surface-up')) { event.preventDefault(); if (row.previousElementSibling) { manager.insertBefore(row, row.previousElementSibling); sync(); } }
+				if (event.target.classList.contains('ufsc-move-surface-down')) { event.preventDefault(); if (row.nextElementSibling) { manager.insertBefore(row.nextElementSibling, row); sync(); } }
+			});
+			if (addBtn) { addBtn.addEventListener('click', function(e) { e.preventDefault(); addRow(); }); }
+			if (addFiveBtn) { addFiveBtn.addEventListener('click', function(e) { e.preventDefault(); for (var i = 0; i < 5; i++) { addRow(); } }); }
+			if (dupLastBtn) { dupLastBtn.addEventListener('click', function(e) { e.preventDefault(); var rows = getRows(); if (rows.length) { addRow(rows[rows.length - 1]); } }); }
+			sync();
+		});
+	}
+
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', bindPreviewActions);
 		document.addEventListener('DOMContentLoaded', initReviewClubSelects);
 		document.addEventListener('DOMContentLoaded', updateReviewSelectionCount);
 		document.addEventListener('DOMContentLoaded', bindConfirmActions);
 		document.addEventListener('DOMContentLoaded', bindLicenceResults);
+		document.addEventListener('DOMContentLoaded', bindSurfacesManager);
 		document.addEventListener('DOMContentLoaded', function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
@@ -372,6 +418,7 @@
 		updateReviewSelectionCount();
 		bindConfirmActions();
 		bindLicenceResults();
+		bindSurfacesManager();
 		(function() {
 			var pinnedSelect = document.getElementById('ufsc-lc-pinned-club');
 			var pinnedApply = document.querySelector('input[name="ufsc_asptt_pinned_apply"]');
