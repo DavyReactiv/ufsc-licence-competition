@@ -774,6 +774,73 @@ class FightAutoGenerationService {
 		);
 	}
 
+	public static function generate_simple_pairing_fights( int $competition_id, array $settings = array() ): array {
+		$entry_repo = new EntryRepository();
+		$fight_repo = new FightRepository();
+		$entries = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
+		$groups = array();
+		$lone  = array();
+		foreach ( $entries as $entry ) {
+			if ( ! empty( $entry->deleted_at ) ) {
+				continue;
+			}
+			$evaluation = function_exists( 'ufsc_competition_evaluate_entry_eligibility' )
+				? ufsc_competition_evaluate_entry_eligibility( $entry, array( 'is_test' => true ), array( 'status' => (string) ( $entry->status ?? 'approved' ) ) )
+				: array( 'eligible' => true, 'normalized' => array() );
+			if ( empty( $evaluation['eligible'] ) ) {
+				continue;
+			}
+			$n = (array) ( $evaluation['normalized'] ?? array() );
+			$group_key = sprintf(
+				'%s|%s|%s',
+				sanitize_key( (string) ( $n['discipline'] ?? $entry->discipline ?? 'light_contact' ) ),
+				sanitize_text_field( (string) ( $n['age_category'] ?? $entry->category ?? $entry->category_name ?? 'nc' ) ),
+				sanitize_text_field( (string) ( $n['weight_category'] ?? $entry->weight_class ?? 'nc' ) )
+			);
+			$groups[ $group_key ][] = $entry;
+		}
+		$next_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+		$attempted = 0;
+		$inserted = 0;
+		foreach ( $groups as $group_key => $group_entries ) {
+			usort( $group_entries, static function ( $a, $b ) { return (int) $a->id <=> (int) $b->id; } );
+			$count = count( $group_entries );
+			if ( $count < 2 ) {
+				$lone[] = $group_key;
+				continue;
+			}
+			for ( $i = 0; $i + 1 < $count; $i += 2 ) {
+				$attempted++;
+				$id = $fight_repo->insert( array(
+					'competition_id'   => $competition_id,
+					'round_no'         => 1,
+					'fight_no'         => $next_no++,
+					'red_entry_id'     => (int) $group_entries[ $i ]->id,
+					'blue_entry_id'    => (int) $group_entries[ $i + 1 ]->id,
+					'status'           => 'scheduled',
+					'timing_profile_id'=> null,
+					'round_duration'   => 120,
+					'rounds'           => 1,
+					'break_duration'   => 60,
+					'fight_pause'      => 60,
+					'fight_duration'   => 180,
+				) );
+				if ( $id > 0 ) {
+					$inserted++;
+				}
+			}
+			if ( $count % 2 === 1 ) {
+				$lone[] = $group_key;
+			}
+		}
+		return array(
+			'ok' => $inserted > 0,
+			'attempted_inserts' => $attempted,
+			'successful_inserts' => $inserted,
+			'lone_groups' => $lone,
+		);
+	}
+
 	public static function recalc_schedule( int $competition_id, array $settings ): array {
 		if ( ! self::is_enabled() ) {
 			return array(

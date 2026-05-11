@@ -144,6 +144,9 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 					array(),
 					array(
 						'status' => $result['status'],
+						'is_test_mode' => ( ! empty( $entry->competition_name ) && false !== stripos( (string) $entry->competition_name, '[TEST]' ) ),
+						'include_submitted_club' => ! empty( $context['include_submitted_club'] ),
+						'include_draft_test' => ! empty( $context['include_draft_test'] ),
 					)
 				);
 				$eligible = ! empty( $evaluation['eligible'] );
@@ -335,6 +338,19 @@ if ( ! function_exists( 'ufsc_lc_format_datetime' ) ) {
 }
 
 if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
+	function ufsc_competition_get_generation_entry_statuses( array $context = array() ): array {
+		$is_test_mode = ! empty( $context['is_test_mode'] );
+		$allowed = array( 'approved', 'engaged', 'validated', 'valide', 'validee' );
+		if ( $is_test_mode || ! empty( $context['include_submitted_club'] ) ) {
+			$allowed = array_merge( $allowed, array( 'submitted', 'soumise_club', 'pending' ) );
+		}
+		if ( $is_test_mode && ! empty( $context['include_draft_test'] ) ) {
+			$allowed[] = 'draft';
+		}
+
+		return array_values( array_unique( array_map( 'sanitize_key', $allowed ) ) );
+	}
+
 	/**
 	 * Evaluate entry eligibility for fight generation with explicit blocking reasons + warnings.
 	 */
@@ -385,7 +401,14 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 
 		$blocking = array();
 		$warnings = array();
-		if ( 'approved' !== $status ) {
+		$accepted_statuses = ufsc_competition_get_generation_entry_statuses(
+			array(
+				'is_test_mode' => $is_test_mode,
+				'include_submitted_club' => ! empty( $context['include_submitted_club'] ),
+				'include_draft_test' => ! empty( $context['include_draft_test'] ),
+			)
+		);
+		if ( ! in_array( $status, $accepted_statuses, true ) ) {
 			$blocking[] = 'status_not_approved';
 		}
 		if ( ( null === $weight_value || $weight_value <= 0 ) && '' === $weight_category ) {
