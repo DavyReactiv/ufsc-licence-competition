@@ -59,12 +59,14 @@ class CompetitionDetailsShortcode {
 
 		ob_start();
 
-		$info_rows  = array();
-		$photo_html = '';
-		$photo_id   = absint( $competition->photo_evenement_id ?? 0 );
+		$info_rows   = array();
+		$photo_html  = '';
+		$photo_url   = '';
+		$photo_id    = absint( $competition->photo_evenement_id ?? 0 );
 
 		if ( $photo_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_id ) ) {
 			$photo_html = wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'ufsc-competition-photo' ) );
+			$photo_url  = (string) wp_get_attachment_image_url( $photo_id, 'full' );
 		}
 
 		if ( ! empty( $competition->lieu_name ) ) {
@@ -139,16 +141,24 @@ class CompetitionDetailsShortcode {
 		$note_format      = ! empty( $competition->notes_club_format ) ? (string) $competition->notes_club_format : 'auto';
 		$club_notes_html  = function_exists( 'ufsc_render_club_note' ) ? ufsc_render_club_note( $club_notes, $note_format ) : '';
 		?>
-		<div class="ufsc-competition-details">
-			<section class="ufsc-competition-hero">
-				<?php if ( $photo_html ) : ?>
-					<div class="ufsc-competition-photo-wrapper">
-						<?php echo wp_kses_post( $photo_html ); ?>
-					</div>
-				<?php endif; ?>
-				<div class="ufsc-competition-hero__content">
-					<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
-					<div class="ufsc-competition-main">
+		<div class="ufsc-competition-page">
+			<div class="ufsc-competition-container">
+				<div class="ufsc-competition-details">
+					<section class="ufsc-competition-hero">
+						<div class="ufsc-competition-hero__media">
+							<?php if ( $photo_html ) : ?>
+								<?php echo wp_kses_post( $photo_html ); ?>
+							<?php endif; ?>
+						</div>
+						<div class="ufsc-competition-hero__content">
+							<span class="ufsc-badge"><?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></span>
+							<h1><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h1>
+							<p>
+								<?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?>
+								• <?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?>
+								<?php if ( ! empty( $competition->lieu_name ) ) : ?>• <?php echo esc_html( (string) $competition->lieu_name ); ?><?php endif; ?>
+							</p>
+							<div class="ufsc-competition-main">
 						<span class="ufsc-pill"><?php echo esc_html( CompetitionFilters::get_discipline_label( (string) ( $competition->discipline ?? '' ) ) ); ?></span>
 						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( CompetitionFilters::get_type_label( (string) ( $competition->type ?? '' ) ) ); ?></span>
 						<span class="ufsc-pill ufsc-pill--soft"><?php echo esc_html( (string) ( $competition->season ?? '' ) ); ?></span>
@@ -159,6 +169,25 @@ class CompetitionDetailsShortcode {
 				</div>
 			</section>
 
+
+
+			<?php if ( $photo_url ) : ?>
+				<section class="ufsc-event-poster-card">
+					<div class="ufsc-event-poster-card__image">
+						<img src="<?php echo esc_url( $photo_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Affiche officielle - %s', 'ufsc-licence-competition' ), (string) ( $competition->name ?? '' ) ) ); ?>" loading="lazy" />
+					</div>
+					<div class="ufsc-event-poster-card__content">
+						<span class="ufsc-event-poster-card__badge"><?php echo esc_html__( 'Affiche officielle', 'ufsc-licence-competition' ); ?></span>
+						<h2><?php echo esc_html__( 'Affiche de l’événement', 'ufsc-licence-competition' ); ?></h2>
+						<p><?php echo esc_html__( 'Consultez ou téléchargez l’affiche officielle de cette compétition.', 'ufsc-licence-competition' ); ?></p>
+						<div class="ufsc-event-poster-card__actions">
+							<a class="ufsc-event-poster-card__btn" href="<?php echo esc_url( $photo_url ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Voir l’affiche', 'ufsc-licence-competition' ); ?></a>
+							<a class="ufsc-event-poster-card__btn ufsc-event-poster-card__btn--secondary" href="<?php echo esc_url( $photo_url ); ?>" download><?php echo esc_html__( 'Télécharger l’affiche', 'ufsc-licence-competition' ); ?></a>
+						</div>
+					</div>
+				</section>
+			<?php endif; ?>
+
 			<?php if ( $registration_deadline ) : ?>
 				<p class="ufsc-competition-deadline" style="color:#b32d2e;font-weight:600;">
 					<?php echo esc_html__( '⚠️ Date limite d’inscription :', 'ufsc-licence-competition' ); ?>
@@ -167,24 +196,23 @@ class CompetitionDetailsShortcode {
 			<?php endif; ?>
 
 			<?php if ( $info_rows ) : ?>
-				<div class="ufsc-competition-practical ufsc-panel">
-					<h3><?php echo esc_html__( 'Infos pratiques', 'ufsc-licence-competition' ); ?></h3>
-					<ul>
+				<section class="ufsc-competition-section ufsc-competition-practical">
+					<h2><?php echo esc_html__( 'Infos pratiques', 'ufsc-licence-competition' ); ?></h2>
+					<div class="ufsc-practical-grid">
 						<?php foreach ( $info_rows as $label => $value ) : ?>
-							<li><strong><?php echo esc_html( $label ); ?>:</strong> <?php echo esc_html( $value ); ?></li>
+							<div class="ufsc-practical-item"><strong><?php echo esc_html( $label ); ?></strong><span><?php echo esc_html( $value ); ?></span></div>
 						<?php endforeach; ?>
-					</ul>
-				</div>
+					</div>
+				</section>
 			<?php endif; ?>
 
 			<?php if ( '' !== $club_notes_html ) : ?>
-				<div class="ufsc-competition-notes ufsc-panel">
+				<section class="ufsc-competition-section ufsc-competition-section--notes">
 					<?php echo wp_kses_post( $club_notes_html ); ?>
-				</div>
+				</section>
 			<?php endif; ?>
 
-			<div class="ufsc-competition-regulations ufsc-panel">
-				<div class="ufsc-info-cards">
+			<div class="ufsc-competition-grid ufsc-competition-grid--two">
 					<section class="ufsc-info-card">
 						<h3><?php echo esc_html__( 'Règlement & obligations', 'ufsc-licence-competition' ); ?></h3>
 						<ul>
@@ -215,12 +243,11 @@ class CompetitionDetailsShortcode {
 							</li>
 						</ul>
 					</section>
-				</div>
 			</div>
 
 			<?php do_action( 'ufsc_competitions_front_after_details', $competition ); ?>
 
-			<div class="ufsc-competition-registration ufsc-panel">
+			<section class="ufsc-competition-section ufsc-competition-registration">
 				<h3><?php echo esc_html__( 'Inscrire votre club', 'ufsc-licence-competition' ); ?></h3>
 				<p><?php echo esc_html__( 'Inscriptions clubs UFSC.', 'ufsc-licence-competition' ); ?></p>
 				<p>
@@ -239,6 +266,8 @@ class CompetitionDetailsShortcode {
 						<?php echo wp_kses_post( $this->render_restricted_notice( $register_result ) ); ?>
 					</div>
 				<?php endif; ?>
+			</section>
+				</div>
 			</div>
 		</div>
 		<?php
