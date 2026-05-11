@@ -291,12 +291,9 @@ class Entries_Page {
 		$weight_kg        = $this->sanitize_weight( $weight_kg_raw );
 		$weight_class     = sanitize_text_field( (string) $weight_class_raw );
 
-		$selected_licensee_id = isset( $_POST['selected_licensee_id'] ) ? absint( $_POST['selected_licensee_id'] ) : 0;
-		if ( ! $selected_licensee_id && isset( $_POST['selected_license'] ) ) {
-			$selected_licensee_id = absint( $_POST['selected_license'] );
-		}
-		if ( ! $data['licensee_id'] && $selected_licensee_id ) {
-			$data['licensee_id'] = $selected_licensee_id;
+		$requested_licensee_id = $this->get_requested_licensee_id_from_post();
+		if ( $requested_licensee_id > 0 ) {
+			$data['licensee_id'] = $requested_licensee_id;
 		}
 
 		$is_external = ParticipantTypes::is_external( $participant_type );
@@ -318,6 +315,14 @@ class Entries_Page {
 		$existing_entry = null;
 		if ( ! $is_external && ! $id ) {
 			$existing_entry = $this->find_existing_entry( $data['competition_id'], $data['licensee_id'] );
+				if ( $existing_entry ) {
+					if ( (int) ( $existing_entry->licensee_id ?? 0 ) !== (int) $data['licensee_id'] ) {
+						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+							error_log( 'UFSC Entries duplicate_mismatch ' . wp_json_encode( array( 'requested_licensee_id' => (int) $data['licensee_id'], 'found_licensee_id' => (int) ( $existing_entry->licensee_id ?? 0 ), 'entry_id' => (int) ( $existing_entry->id ?? 0 ) ) ) );
+						}
+						$existing_entry = null;
+					}
+				}
 				if ( $existing_entry ) {
 					$entry_link = add_query_arg(
 						array(
@@ -1333,20 +1338,33 @@ class Entries_Page {
 	}
 
 	private function find_existing_entry( int $competition_id, int $licensee_id ) {
+		global $wpdb;
 		if ( $competition_id <= 0 || $licensee_id <= 0 ) {
 			return null;
 		}
-		$rows = $this->repository->list(
-			array(
-				'competition_id' => $competition_id,
-				'licensee_id' => $licensee_id,
-				'include_deleted' => true,
-				'view' => 'all',
-			),
-			5,
-			0
+		$table = Db::entries_table();
+		$row = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} WHERE competition_id = %d AND licensee_id = %d AND (deleted_at IS NULL) AND status NOT IN ('trash','deleted','cancelled') ORDER BY id DESC LIMIT 1",
+				$competition_id,
+				$licensee_id
+			)
 		);
-		return ! empty( $rows ) ? $rows[0] : null;
+		return $row ?: null;
+	}
+
+	private function get_requested_licensee_id_from_post(): int {
+		$candidates = array(
+			isset( $_POST['selected_licensee_id'] ) ? absint( $_POST['selected_licensee_id'] ) : 0,
+			isset( $_POST['licensee_id'] ) ? absint( $_POST['licensee_id'] ) : 0,
+			isset( $_POST['selected_license'] ) ? absint( $_POST['selected_license'] ) : 0,
+		);
+		foreach ( $candidates as $candidate ) {
+			if ( $candidate > 0 ) {
+				return $candidate;
+			}
+		}
+		return 0;
 	}
 
 	private function render_helper_notice( $message ) {
