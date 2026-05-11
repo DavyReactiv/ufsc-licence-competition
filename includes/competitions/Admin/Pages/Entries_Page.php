@@ -304,16 +304,27 @@ class Entries_Page {
 		$existing_entry = null;
 		if ( ! $is_external && ! $id ) {
 			$existing_entry = $this->find_existing_entry( $data['competition_id'], $data['licensee_id'] );
-			if ( $existing_entry ) {
-				$dup_message = sprintf(
-					/* translators: 1: entry id, 2: status, 3: visibility reason */
-					__( 'Ce licencié est déjà inscrit (entrée #%1$d, statut: %2$s). %3$s', 'ufsc-licence-competition' ),
-					(int) ( $existing_entry->id ?? 0 ),
-					(string) ( $existing_entry->status ?? 'draft' ),
-					! empty( $existing_entry->deleted_at ) ? __( 'Inscription actuellement en corbeille.', 'ufsc-licence-competition' ) : __( 'Inscription déjà active pour cette compétition.', 'ufsc-licence-competition' )
-				);
-				$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id, $dup_message );
-			}
+				if ( $existing_entry ) {
+					$entry_link = add_query_arg(
+						array(
+							'page' => Menu::PAGE_ENTRIES,
+							'ufsc_competition_id' => (int) $data['competition_id'],
+							'entry_id' => (int) ( $existing_entry->id ?? 0 ),
+							'highlight_entry' => (int) ( $existing_entry->id ?? 0 ),
+							'ufsc_view' => ! empty( $existing_entry->deleted_at ) ? 'trash' : 'all',
+						),
+						admin_url( 'admin.php' )
+					);
+					$dup_message = sprintf(
+						/* translators: 1: entry id, 2: status, 3: visibility reason */
+						__( 'Ce licencié est déjà inscrit (entrée #%1$d, statut: %2$s). %3$s <a href="%4$s">Voir l’inscription existante</a>.', 'ufsc-licence-competition' ),
+						(int) ( $existing_entry->id ?? 0 ),
+						(string) ( $existing_entry->status ?? 'draft' ),
+						! empty( $existing_entry->deleted_at ) ? __( 'Inscription actuellement en corbeille.', 'ufsc-licence-competition' ) : __( 'Inscription déjà active pour cette compétition.', 'ufsc-licence-competition' ),
+						esc_url( $entry_link )
+					);
+					$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'duplicate', $id, $dup_message );
+				}
 		}
 
 		$external_payload = $this->build_external_payload_from_request();
@@ -1303,8 +1314,8 @@ class Entries_Page {
 		}
 
 		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required', 'db_error' ), true ) ? 'error' : 'success';
-		$custom_message = isset( $_GET['ufsc_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_message'] ) ) : '';
-		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( '' !== $custom_message ? $custom_message : $messages[ $notice ] ) );
+		$custom_message = isset( $_GET['ufsc_message'] ) ? wp_kses_post( wp_unslash( $_GET['ufsc_message'] ) ) : '';
+		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), '' !== $custom_message ? wp_kses_post( $custom_message ) : esc_html( $messages[ $notice ] ) );
 	}
 
 	private function find_existing_entry( int $competition_id, int $licensee_id ) {

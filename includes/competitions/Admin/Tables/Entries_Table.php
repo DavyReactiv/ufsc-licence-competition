@@ -63,6 +63,7 @@ class Entries_Table extends \WP_List_Table {
 			'group_label'    => isset( $_REQUEST['ufsc_group_label'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_group_label'] ) ) : '',
 			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
+			'entry_id'       => isset( $_REQUEST['entry_id'] ) ? absint( wp_unslash( $_REQUEST['entry_id'] ) ) : 0,
 		);
 		$competition_source = (string) $competition_context['source'];
 
@@ -210,7 +211,9 @@ class Entries_Table extends \WP_List_Table {
 			admin_url( 'admin.php' )
 		);
 
-		return sprintf( '<strong><a href="%s">%s</a></strong>', esc_url( $edit_url ), esc_html( $name ) );
+		$highlight_entry = isset( $_REQUEST['highlight_entry'] ) ? absint( wp_unslash( $_REQUEST['highlight_entry'] ) ) : 0;
+		$badge = ( $highlight_entry > 0 && $highlight_entry === $entry_id ) ? ' <span class="ufsc-badge ufsc-badge--warning">' . esc_html__( 'Doublon détecté', 'ufsc-licence-competition' ) . '</span>' : '';
+		return sprintf( '<strong><a href="%s">%s</a></strong>%s', esc_url( $edit_url ), esc_html( $name ), $badge );
 	}
 
 	protected function column_actions( $item ) {
