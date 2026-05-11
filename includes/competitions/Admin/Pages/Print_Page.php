@@ -587,6 +587,10 @@ class Print_Page {
 		if ( $source_fight_id <= 0 ) {
 			return $label;
 		}
+		$phase = mb_strtolower( (string) ( $fight->phase ?? '' ) );
+		if ( false !== strpos( $phase, 'petite finale' ) ) {
+			return sprintf( 'Perdant combat %d', $source_fight_id );
+		}
 		return sprintf( 'Vainqueur combat %d', $source_fight_id );
 	}
 

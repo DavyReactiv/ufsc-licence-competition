@@ -841,6 +841,32 @@ class FightAutoGenerationService {
 				continue;
 			}
 			if ( 'bracket' === $group_format && $count >= 4 ) {
+				if ( $count >= 8 ) {
+					$quarter_ids = array();
+					for ( $q = 0; $q < 4; $q++ ) {
+						$attempted++;
+						$quarter_id = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 1, 'fight_no' => $next_no++, 'red_entry_id' => (int) $group_entries[ $q * 2 ]->id, 'blue_entry_id' => (int) $group_entries[ ( $q * 2 ) + 1 ]->id, 'status' => 'scheduled', 'phase' => 'Quart de finale', 'group_key' => (string) $group_key ) );
+						if ( $quarter_id > 0 ) { $inserted++; $diag['created']++; $quarter_ids[] = (int) $quarter_id; }
+					}
+					$semi_ids = array();
+					for ( $s = 0; $s < 2; $s++ ) {
+						$attempted++;
+						$semi_id = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 2, 'fight_no' => $next_no++, 'red_entry_id' => null, 'blue_entry_id' => null, 'status' => 'placeholder', 'phase' => 'Demi-finale', 'group_key' => (string) $group_key, 'source_red_fight_id' => (int) ( $quarter_ids[ $s * 2 ] ?? 0 ), 'source_blue_fight_id' => (int) ( $quarter_ids[ ( $s * 2 ) + 1 ] ?? 0 ) ) );
+						if ( $semi_id > 0 ) { $inserted++; $diag['created']++; $semi_ids[] = (int) $semi_id; }
+					}
+					$attempted++;
+					$final_id = $fight_repo->insert( array( 'competition_id' => $competition_id, 'round_no' => 3, 'fight_no' => $next_no++, 'red_entry_id' => null, 'blue_entry_id' => null, 'status' => 'placeholder', 'phase' => 'Finale', 'group_key' => (string) $group_key, 'source_red_fight_id' => (int) ( $semi_ids[0] ?? 0 ), 'source_blue_fight_id' => (int) ( $semi_ids[1] ?? 0 ) ) );
+					if ( $final_id > 0 ) { $inserted++; $diag['created']++; }
+					foreach ( $quarter_ids as $quarter_index => $quarter_id ) {
+						$target_semi = $semi_ids[ (int) floor( $quarter_index / 2 ) ] ?? 0;
+						if ( $target_semi > 0 ) { $fight_repo->update( $quarter_id, array( 'next_fight_id' => $target_semi, 'next_slot' => 0 === ( $quarter_index % 2 ) ? 'red' : 'blue' ) ); }
+					}
+					foreach ( $semi_ids as $semi_index => $semi_id ) {
+						if ( $final_id > 0 ) { $fight_repo->update( $semi_id, array( 'next_fight_id' => (int) $final_id, 'next_slot' => 0 === (int) $semi_index ? 'red' : 'blue' ) ); }
+					}
+					$group_diagnostics[] = $diag;
+					continue;
+				}
 				$semi_ids = array();
 				$pairs = array( array( 0, 1 ), array( 2, 3 ) );
 				foreach ( $pairs as $pair_index => $pair ) {

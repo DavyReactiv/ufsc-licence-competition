@@ -1058,6 +1058,10 @@ class Bouts_AutoGeneration {
 		if ( 'completed' === $status && empty( $_POST['force_sensitive'] ) ) {
 			self::redirect( $competition_id, 'action_error', 'Résultat déjà saisi: correction via Actions sensibles.' );
 		}
+		$admin_reason = sanitize_text_field( (string) ( $_POST['correction_reason'] ?? '' ) );
+		if ( 'completed' === $status && '' === $admin_reason ) {
+			self::redirect( $competition_id, 'action_error', 'Motif obligatoire pour corriger un résultat terminé.' );
+		}
 		$result_type = sanitize_key( (string) ( $_POST['result_type'] ?? '' ) );
 		$winner_slot = sanitize_key( (string) ( $_POST['winner_slot'] ?? '' ) );
 		$winner_entry_id = 0;
@@ -1075,7 +1079,10 @@ class Bouts_AutoGeneration {
 			if ( $exists ) { $update[ $col ] = $value; $formats[] = is_int( $value ) ? '%d' : '%s'; }
 		}
 		$wpdb->update( $table, $update, array( 'id' => $fight_id ), $formats, array( '%d' ) );
-		$propagation = self::maybe_propagate_winner( $fight, $winner_entry_id );
+		$old_winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
+		$old_result = (string) ( $fight->result ?? '' );
+		$propagation = self::maybe_propagate_winner( $fight, $winner_entry_id, $old_winner_entry_id );
+		self::log_result_correction_event( $competition_id, (int) $fight_id, $old_result, $result_text, $old_winner_entry_id, $winner_entry_id, $propagation, $admin_reason );
 		$diag = sprintf(
 			'Résultat combat #%1$d | winner=%2$d | next=%3$d | slot=%4$s | propagation=%5$s (%6$s)',
 			(int) ( $fight->fight_no ?? $fight_id ),
@@ -1088,9 +1095,9 @@ class Bouts_AutoGeneration {
 		self::redirect( $competition_id, 'settings_saved', $diag );
 	}
 
-	private static function maybe_propagate_winner( $fight, int $winner_entry_id ): array {
+	private static function maybe_propagate_winner( $fight, int $winner_entry_id, int $old_winner_entry_id = 0 ): array {
 		global $wpdb;
-		$result = array( 'propagated' => false, 'next_fight_id' => (int) ( $fight->next_fight_id ?? 0 ), 'next_slot' => (string) ( $fight->next_slot ?? '' ), 'reason' => 'no_winner' );
+		$result = array( 'propagated' => false, 'next_fight_id' => (int) ( $fight->next_fight_id ?? 0 ), 'next_slot' => (string) ( $fight->next_slot ?? '' ), 'reason' => 'no_winner', 'old_slot_occupant' => 0 );
 		if ( $winner_entry_id <= 0 ) { return $result; }
 		$next_fight_id = (int) ( $fight->next_fight_id ?? 0 );
 		$next_slot = sanitize_key( (string) ( $fight->next_slot ?? '' ) );
@@ -1103,12 +1110,35 @@ class Bouts_AutoGeneration {
 		if ( in_array( $next_status, array( 'running', 'completed', 'locked' ), true ) ) { $result['reason'] = 'next_fight_protected'; return $result; }
 		$slot_column = 'red' === $next_slot ? 'red_entry_id' : 'blue_entry_id';
 		$current_value = (int) ( $next_fight->{$slot_column} ?? 0 );
+		$result['old_slot_occupant'] = $current_value;
+		if ( $old_winner_entry_id > 0 && $current_value > 0 && $current_value !== $old_winner_entry_id && $current_value !== $winner_entry_id ) { $result['reason'] = 'slot_not_from_source_fight'; return $result; }
 		if ( $current_value > 0 && $current_value !== $winner_entry_id ) { $result['reason'] = 'slot_already_occupied'; return $result; }
 		$updated = $wpdb->update( $table, array( $slot_column => $winner_entry_id, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $next_fight_id ), array( '%d', '%s' ), array( '%d' ) );
 		if ( false === $updated ) { $result['reason'] = 'db_update_failed'; return $result; }
 		$result['propagated'] = true;
 		$result['reason'] = 'propagated';
 		return $result;
+	}
+
+	private static function log_result_correction_event( int $competition_id, int $fight_id, string $old_result, string $new_result, int $old_winner_entry_id, int $new_winner_entry_id, array $propagation, string $admin_reason ): void {
+		$payload = array(
+			'user_id' => get_current_user_id(),
+			'competition_id' => $competition_id,
+			'fight_id' => $fight_id,
+			'old_result' => $old_result,
+			'new_result' => $new_result,
+			'old_winner_entry_id' => $old_winner_entry_id,
+			'new_winner_entry_id' => $new_winner_entry_id,
+			'next_fight_id' => (int) ( $propagation['next_fight_id'] ?? 0 ),
+			'next_slot' => (string) ( $propagation['next_slot'] ?? '' ),
+			'propagated' => ! empty( $propagation['propagated'] ) ? 1 : 0,
+			'reason' => (string) ( $propagation['reason'] ?? '' ),
+			'admin_reason' => $admin_reason,
+			'timestamp' => current_time( 'mysql' ),
+		);
+		if ( function_exists( 'error_log' ) ) {
+			error_log( 'UFSC result correction audit: ' . wp_json_encode( $payload ) );
+		}
 	}
 
 	private static function create_test_fixture(): array {
