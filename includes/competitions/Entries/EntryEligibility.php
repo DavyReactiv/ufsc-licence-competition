@@ -139,22 +139,18 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 				}
 				break;
 			case 'fights':
-				if ( 'approved' !== $result['status'] ) {
-					$eligible  = false;
-					$reasons[] = 'status_not_approved';
-				}
-				if ( null === $weight || $weight <= 0 ) {
-					$eligible  = false;
-					$reasons[] = 'weight_missing';
-				}
-				if ( '' === $weight_class ) {
-					$eligible  = false;
-					$reasons[] = 'weight_class_missing';
-				}
-				if ( 'licensed_ufsc' === $participant_type && ! $has_license ) {
-					$eligible  = false;
-					$reasons[] = 'license_missing';
-				}
+				$evaluation = ufsc_competition_evaluate_entry_eligibility(
+					$entry,
+					array(),
+					array(
+						'status' => $result['status'],
+					)
+				);
+				$eligible = ! empty( $evaluation['eligible'] );
+				$reasons  = array_merge(
+					(array) ( $evaluation['blocking_reasons'] ?? array() ),
+					(array) ( $evaluation['warnings'] ?? array() )
+				);
 				if ( 'external_non_licensed' === $participant_type ) {
 					if ( class_exists( '\\UFSC\\Competitions\\Services\\ExternalParticipantEligibility' ) ) {
 						$pick_external_value = static function ( $entry_obj, array $keys ): string {
@@ -335,5 +331,82 @@ if ( ! function_exists( 'ufsc_lc_format_datetime' ) ) {
 		}
 
 		return date_i18n( 'l d/m/Y \\à H:i', $timestamp );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
+	/**
+	 * Evaluate entry eligibility for fight generation with explicit blocking reasons + warnings.
+	 */
+	function ufsc_competition_evaluate_entry_eligibility( $entry, array $competition = array(), array $context = array() ): array {
+		$status = sanitize_key( (string) ( $context['status'] ?? $entry->status ?? '' ) );
+		$status = '' !== $status ? $status : 'draft';
+		$is_test_mode = ! empty( $context['is_test_mode'] ) || ! empty( $competition['is_test'] );
+		$license_required = isset( $context['license_required'] ) ? (bool) $context['license_required'] : ! $is_test_mode;
+
+		$weight_value = null;
+		foreach ( array( 'weight', 'weight_kg', 'poids' ) as $key ) {
+			if ( isset( $entry->{$key} ) && '' !== trim( (string) $entry->{$key} ) ) {
+				$weight_value = (float) str_replace( ',', '.', (string) $entry->{$key} );
+				break;
+			}
+		}
+
+		$weight_category = '';
+		foreach ( array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' ) as $key ) {
+			if ( isset( $entry->{$key} ) && '' !== trim( (string) $entry->{$key} ) ) {
+				$weight_category = sanitize_text_field( (string) $entry->{$key} );
+				break;
+			}
+		}
+		if ( ( null === $weight_value || $weight_value <= 0 ) && '' !== $weight_category && preg_match( '/(\d+(?:[.,]\d+)?)/', $weight_category, $m ) ) {
+			$weight_value = (float) str_replace( ',', '.', $m[1] );
+		}
+
+		$level = sanitize_key( (string) ( $entry->level ?? $entry->class ?? $entry->niveau ?? '' ) );
+		if ( '' === $level ) {
+			$level = 'non_defini';
+		}
+
+		$license_id = absint( $entry->licensee_id ?? $entry->licence_id ?? 0 );
+		$license_number = sanitize_text_field( (string) ( $entry->license_number ?? $entry->licence_number ?? '' ) );
+		$has_license = $license_id > 0 || '' !== $license_number;
+
+		$blocking = array();
+		$warnings = array();
+		if ( 'approved' !== $status ) {
+			$blocking[] = 'status_not_approved';
+		}
+		if ( null === $weight_value || $weight_value <= 0 ) {
+			$blocking[] = 'weight_missing';
+		}
+		if ( '' === $weight_category ) {
+			$blocking[] = 'weight_class_missing';
+		}
+		if ( 'non_defini' === $level ) {
+			$warnings[] = 'level_non_defini';
+		}
+		if ( ! $has_license ) {
+			if ( $is_test_mode || ! $license_required ) {
+				$warnings[] = 'license_missing';
+			} else {
+				$blocking[] = 'license_missing';
+			}
+		}
+
+		return array(
+			'eligible'         => empty( $blocking ),
+			'blocking_reasons' => array_values( array_unique( $blocking ) ),
+			'warnings'         => array_values( array_unique( $warnings ) ),
+			'normalized'       => array(
+				'discipline'      => sanitize_key( (string) ( $entry->discipline ?? '' ) ),
+				'age_category'    => sanitize_key( (string) ( $entry->category ?? $entry->category_name ?? '' ) ),
+				'weight_category' => $weight_category,
+				'weight_value'    => $weight_value,
+				'sex'             => sanitize_key( (string) ( $entry->sex ?? $entry->sexe ?? $entry->gender ?? 'unknown' ) ),
+				'level'           => $level,
+				'license_id'      => $has_license ? $license_id : null,
+			),
+		);
 	}
 }

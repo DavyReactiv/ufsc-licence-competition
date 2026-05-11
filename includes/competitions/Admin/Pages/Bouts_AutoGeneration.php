@@ -318,6 +318,7 @@ class Bouts_AutoGeneration {
 											<select name="surface_details[<?php echo esc_attr( $i ); ?>][type]" required>
 												<option value="tatami" <?php selected( $surface_type, 'tatami' ); ?>><?php esc_html_e( 'Tatami', 'ufsc-licence-competition' ); ?></option>
 												<option value="ring" <?php selected( $surface_type, 'ring' ); ?>><?php esc_html_e( 'Ring', 'ufsc-licence-competition' ); ?></option>
+												<option value="aire" <?php selected( $surface_type, 'aire' ); ?>><?php esc_html_e( 'Aire', 'ufsc-licence-competition' ); ?></option>
 											</select>
 										</label>
 									</div>
@@ -684,10 +685,12 @@ class Bouts_AutoGeneration {
 					const select = document.createElement('select');
 					select.name = `surface_details[${index}][type]`;
 					select.required = true;
-					const tatami = new Option('<?php echo esc_js( __( 'Tatami', 'ufsc-licence-competition' ) ); ?>', 'tatami');
-					const ring = new Option('<?php echo esc_js( __( 'Ring', 'ufsc-licence-competition' ) ); ?>', 'ring');
-					select.appendChild(tatami);
-					select.appendChild(ring);
+						const tatami = new Option('<?php echo esc_js( __( 'Tatami', 'ufsc-licence-competition' ) ); ?>', 'tatami');
+						const ring = new Option('<?php echo esc_js( __( 'Ring', 'ufsc-licence-competition' ) ); ?>', 'ring');
+						const aire = new Option('<?php echo esc_js( __( 'Aire', 'ufsc-licence-competition' ) ); ?>', 'aire');
+						select.appendChild(tatami);
+						select.appendChild(ring);
+						select.appendChild(aire);
 					typeLabel.appendChild(select);
 
 					row.appendChild(label);
