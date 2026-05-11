@@ -682,6 +682,12 @@ class FightRepository {
 			'break_duration' => isset( $data['break_duration'] ) ? absint( $data['break_duration'] ) : null,
 			'fight_pause' => isset( $data['fight_pause'] ) ? absint( $data['fight_pause'] ) : null,
 			'fight_duration' => isset( $data['fight_duration'] ) ? absint( $data['fight_duration'] ) : null,
+			'next_fight_id' => isset( $data['next_fight_id'] ) ? absint( $data['next_fight_id'] ) : null,
+			'next_slot' => isset( $data['next_slot'] ) ? sanitize_key( (string) $data['next_slot'] ) : null,
+			'source_red_fight_id' => isset( $data['source_red_fight_id'] ) ? absint( $data['source_red_fight_id'] ) : null,
+			'source_blue_fight_id' => isset( $data['source_blue_fight_id'] ) ? absint( $data['source_blue_fight_id'] ) : null,
+			'phase' => isset( $data['phase'] ) ? sanitize_text_field( (string) $data['phase'] ) : null,
+			'group_key' => isset( $data['group_key'] ) ? sanitize_text_field( (string) $data['group_key'] ) : null,
 		);
 	}
 

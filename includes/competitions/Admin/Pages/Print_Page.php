@@ -373,8 +373,8 @@ class Print_Page {
 				$blue = $entry_map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null;
 				$category_key = $this->get_category_key( (int) ( $fight->competition_id ?? 0 ), (int) ( $fight->category_id ?? 0 ) );
 				$category_fights = $fights_by_category[ $category_key ] ?? array();
-				$red_label = $this->format_fighter_label( $red );
-				$blue_label = $this->format_fighter_label( $blue );
+				$red_label = $this->format_fighter_or_placeholder( $fight, 'red', $red );
+				$blue_label = $this->format_fighter_or_placeholder( $fight, 'blue', $blue );
 				$category_name = $category_map[ (int) ( $fight->category_id ?? 0 ) ] ?? '—';
 				$phase_label = $this->resolve_print_phase_label( $fight, $category_fights );
 				$scheduled_at = $this->format_datetime( (string) ( $fight->scheduled_at ?? '' ) );
@@ -537,7 +537,9 @@ class Print_Page {
 			$winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
 			$winner_label = $winner_entry_id > 0 ? $this->format_fighter_label( $map[ $winner_entry_id ] ?? null ) : '—';
 			$result_type = (string) ( $fight->result_type ?? '' );
-			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $this->format_fighter_label( $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null ) ) . '</td><td>' . esc_html( $winner_label ) . '</td><td>' . esc_html( $result_type ?: '—' ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
+			$red_label = $this->format_fighter_or_placeholder( $fight, 'red', $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null );
+			$blue_label = $this->format_fighter_or_placeholder( $fight, 'blue', $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null );
+			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $red_label ) . '</td><td>' . esc_html( $blue_label ) . '</td><td>' . esc_html( $winner_label ) . '</td><td>' . esc_html( $result_type ?: '—' ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
 		}
 		if ( 0 === $count ) { echo '<tr><td colspan="8">' . esc_html__( 'Aucun résultat saisi pour cette compétition.', 'ufsc-licence-competition' ) . '</td></tr>'; }
 		echo '</tbody></table>';
@@ -573,6 +575,19 @@ class Print_Page {
 
 		$date = date_create( $value );
 		return $date ? $date->format( 'Y-m-d H:i' ) : $value;
+	}
+
+	private function format_fighter_or_placeholder( $fight, string $slot, $entry ): string {
+		$label = $this->format_fighter_label( $entry );
+		if ( '—' !== $label ) {
+			return $label;
+		}
+		$source_column = 'red' === $slot ? 'source_red_fight_id' : 'source_blue_fight_id';
+		$source_fight_id = (int) ( $fight->{$source_column} ?? 0 );
+		if ( $source_fight_id <= 0 ) {
+			return $label;
+		}
+		return sprintf( 'Vainqueur combat %d', $source_fight_id );
 	}
 
 	private function format_date( string $value ): string {

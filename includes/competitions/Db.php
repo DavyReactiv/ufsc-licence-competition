@@ -538,6 +538,12 @@ class Db {
 			'result_type'       => "ALTER TABLE {$table} ADD COLUMN result_type varchar(50) NULL",
 			'result_note'       => "ALTER TABLE {$table} ADD COLUMN result_note text NULL",
 			'completed_at'      => "ALTER TABLE {$table} ADD COLUMN completed_at datetime NULL",
+			'next_fight_id'     => "ALTER TABLE {$table} ADD COLUMN next_fight_id bigint(20) unsigned NULL",
+			'next_slot'         => "ALTER TABLE {$table} ADD COLUMN next_slot varchar(20) NULL",
+			'source_red_fight_id' => "ALTER TABLE {$table} ADD COLUMN source_red_fight_id bigint(20) unsigned NULL",
+			'source_blue_fight_id' => "ALTER TABLE {$table} ADD COLUMN source_blue_fight_id bigint(20) unsigned NULL",
+			'phase'             => "ALTER TABLE {$table} ADD COLUMN phase varchar(50) NULL",
+			'group_key'         => "ALTER TABLE {$table} ADD COLUMN group_key varchar(191) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {

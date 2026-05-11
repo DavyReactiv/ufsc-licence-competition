@@ -1075,7 +1075,40 @@ class Bouts_AutoGeneration {
 			if ( $exists ) { $update[ $col ] = $value; $formats[] = is_int( $value ) ? '%d' : '%s'; }
 		}
 		$wpdb->update( $table, $update, array( 'id' => $fight_id ), $formats, array( '%d' ) );
-		self::redirect( $competition_id, 'settings_saved', sprintf( 'Résultat enregistré pour combat #%d', (int) ( $fight->fight_no ?? $fight_id ) ) );
+		$propagation = self::maybe_propagate_winner( $fight, $winner_entry_id );
+		$diag = sprintf(
+			'Résultat combat #%1$d | winner=%2$d | next=%3$d | slot=%4$s | propagation=%5$s (%6$s)',
+			(int) ( $fight->fight_no ?? $fight_id ),
+			(int) $winner_entry_id,
+			(int) ( $propagation['next_fight_id'] ?? 0 ),
+			(string) ( $propagation['next_slot'] ?? '-' ),
+			! empty( $propagation['propagated'] ) ? 'oui' : 'non',
+			(string) ( $propagation['reason'] ?? 'n/a' )
+		);
+		self::redirect( $competition_id, 'settings_saved', $diag );
+	}
+
+	private static function maybe_propagate_winner( $fight, int $winner_entry_id ): array {
+		global $wpdb;
+		$result = array( 'propagated' => false, 'next_fight_id' => (int) ( $fight->next_fight_id ?? 0 ), 'next_slot' => (string) ( $fight->next_slot ?? '' ), 'reason' => 'no_winner' );
+		if ( $winner_entry_id <= 0 ) { return $result; }
+		$next_fight_id = (int) ( $fight->next_fight_id ?? 0 );
+		$next_slot = sanitize_key( (string) ( $fight->next_slot ?? '' ) );
+		if ( $next_fight_id <= 0 ) { $result['reason'] = 'no_next_fight'; return $result; }
+		if ( ! in_array( $next_slot, array( 'red', 'blue' ), true ) ) { $result['reason'] = 'invalid_next_slot'; return $result; }
+		$table = Db::fights_table();
+		$next_fight = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", $next_fight_id ) );
+		if ( ! $next_fight ) { $result['reason'] = 'next_fight_not_found'; return $result; }
+		$next_status = sanitize_key( (string) ( $next_fight->status ?? '' ) );
+		if ( in_array( $next_status, array( 'running', 'completed', 'locked' ), true ) ) { $result['reason'] = 'next_fight_protected'; return $result; }
+		$slot_column = 'red' === $next_slot ? 'red_entry_id' : 'blue_entry_id';
+		$current_value = (int) ( $next_fight->{$slot_column} ?? 0 );
+		if ( $current_value > 0 && $current_value !== $winner_entry_id ) { $result['reason'] = 'slot_already_occupied'; return $result; }
+		$updated = $wpdb->update( $table, array( $slot_column => $winner_entry_id, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $next_fight_id ), array( '%d', '%s' ), array( '%d' ) );
+		if ( false === $updated ) { $result['reason'] = 'db_update_failed'; return $result; }
+		$result['propagated'] = true;
+		$result['reason'] = 'propagated';
+		return $result;
 	}
 
 	private static function create_test_fixture(): array {
