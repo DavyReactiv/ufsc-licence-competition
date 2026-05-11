@@ -33,6 +33,10 @@ class Bouts_AutoGeneration {
 		add_action( 'admin_post_ufsc_competitions_test_fixture_reset', array( __CLASS__, 'handle_test_fixture_reset' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_delete', array( __CLASS__, 'handle_test_fixture_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_test_fixture_run', array( __CLASS__, 'handle_test_fixture_run' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_open150', array( __CLASS__, 'handle_test_fixture_open150' ) );
+		add_action( 'admin_post_ufsc_competitions_test_fixture_open150_generate', array( __CLASS__, 'handle_test_fixture_open150_generate' ) );
+		add_action( 'admin_post_ufsc_competitions_assign_fighter_numbers', array( __CLASS__, 'handle_assign_fighter_numbers' ) );
+		add_action( 'admin_post_ufsc_competitions_record_fight_result', array( __CLASS__, 'handle_record_fight_result' ) );
 	}
 
 	public static function render_notice( string $notice, string $message = '' ): void {
@@ -160,6 +164,15 @@ class Bouts_AutoGeneration {
 				<div class="ufsc-fightgen-kpi"><span><?php esc_html_e( 'Durée totale estimée', 'ufsc-licence-competition' ); ?></span><strong><?php echo esc_html( self::format_duration_label( $estimated_total_seconds ) ); ?></strong></div>
 			</div>
 			<div class="notice notice-<?php echo $estimated_fights > 0 ? 'success' : 'warning'; ?> inline"><p><?php echo esc_html( $generation_summary_message ); ?></p></div>
+			<div class="ufsc-fightgen-precheck">
+				<h3><?php esc_html_e( 'Aide au choix du format sportif', 'ufsc-licence-competition' ); ?></h3>
+				<p><?php esc_html_e( 'Avant de générer les combats, vérifiez les formats proposés (combat direct, poule, tableau BYE, petite finale, repêchage). Ces choix influencent l’équité sportive et le timing total.', 'ufsc-licence-competition' ); ?></p>
+				<ul>
+					<li><?php esc_html_e( '2 combattants : combat direct recommandé.', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( '3 combattants : poule complète recommandée (plus équitable, plus long).', 'ufsc-licence-competition' ); ?></li>
+					<li><?php esc_html_e( '5+ combattants : tableau avec BYE recommandé (plus rapide, moins équilibré).', 'ufsc-licence-competition' ); ?></li>
+				</ul>
+			</div>
 
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Contrôles avant génération', 'ufsc-licence-competition' ); ?></h3>
@@ -249,15 +262,45 @@ class Bouts_AutoGeneration {
 			<?php if ( ! empty( $preview['groups_preview'] ) && is_array( $preview['groups_preview'] ) ) : ?>
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Groupes détectés avant génération', 'ufsc-licence-competition' ); ?></h3>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'ufsc_competitions_save_fight_settings' ); ?>
+					<input type="hidden" name="action" value="ufsc_competitions_save_fight_settings">
+					<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
 				<ul>
 					<?php foreach ( $preview['groups_preview'] as $group_row ) : ?>
 						<li>
 							<strong><?php echo esc_html( (string) ( $group_row['group_key'] ?? '—' ) ); ?></strong>
 							— <?php echo esc_html( sprintf( __( '%1$d athlètes, %2$d combats estimés', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? 0 ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?>
+								— <?php echo esc_html( sprintf( __( 'Format conseillé : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? 'tableau' ) ) ); ?>
+								— <?php echo esc_html( sprintf( __( 'BYE estimés : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?>
+								<?php if ( ! empty( $group_row['recommendation'] ) && is_array( $group_row['recommendation'] ) ) : ?>
+									— <?php echo esc_html( sprintf( __( 'Recommandation : %s', 'ufsc-licence-competition' ), (string) ( $group_row['recommendation']['label'] ?? '' ) ) ); ?>
+									— <?php echo esc_html( (string) ( $group_row['recommendation']['explanation'] ?? '' ) ); ?>
+								<?php endif; ?>
 							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
+								<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
+									— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<br>
+								<label>
+									<?php esc_html_e( 'Choix admin', 'ufsc-licence-competition' ); ?> :
+									<select name="group_generation_options[<?php echo esc_attr( (string) ( $group_row['group_key'] ?? '' ) ); ?>][format]">
+										<?php $selected_group_format = sanitize_key( (string) ( $settings['group_generation_options'][ (string) ( $group_row['group_key'] ?? '' ) ]['format'] ?? 'auto' ) ); ?>
+										<option value="auto" <?php selected( $selected_group_format, 'auto' ); ?>><?php esc_html_e( 'Auto / recommandation', 'ufsc-licence-competition' ); ?></option>
+										<option value="direct" <?php selected( $selected_group_format, 'direct' ); ?>><?php esc_html_e( 'Combat direct', 'ufsc-licence-competition' ); ?></option>
+										<option value="pool" <?php selected( $selected_group_format, 'pool' ); ?>><?php esc_html_e( 'Poule complète', 'ufsc-licence-competition' ); ?></option>
+										<option value="bracket" <?php selected( $selected_group_format, 'bracket' ); ?>><?php esc_html_e( 'Tableau', 'ufsc-licence-competition' ); ?></option>
+										<option value="bracket_bye" <?php selected( $selected_group_format, 'bracket_bye' ); ?>><?php esc_html_e( 'Tableau avec BYE', 'ufsc-licence-competition' ); ?></option>
+										<option value="small_final" <?php selected( $selected_group_format, 'small_final' ); ?>><?php esc_html_e( 'Petite finale', 'ufsc-licence-competition' ); ?></option>
+										<option value="repechage" <?php selected( $selected_group_format, 'repechage' ); ?>><?php esc_html_e( 'Repêchage', 'ufsc-licence-competition' ); ?></option>
+										<option value="wait" <?php selected( $selected_group_format, 'wait' ); ?>><?php esc_html_e( 'Laisser en attente', 'ufsc-licence-competition' ); ?></option>
+									</select>
+								</label>
 						</li>
 					<?php endforeach; ?>
 				</ul>
+					<?php submit_button( __( 'Enregistrer les choix de format par groupe', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+				</form>
 			</div>
 			<?php endif; ?>
 
@@ -458,6 +501,9 @@ class Bouts_AutoGeneration {
 							<p class="description"><?php esc_html_e( 'Par défaut, ce point est un avertissement non bloquant pour la génération sportive.', 'ufsc-licence-competition' ); ?></p>
 							<label><input name="use_level_split" type="checkbox" value="1" <?php checked( $settings['use_level_split'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Utiliser le niveau comme critère de séparation', 'ufsc-licence-competition' ); ?></label>
 							<p class="description"><?php esc_html_e( 'Par défaut, le niveau non défini ne bloque pas et ne segmente pas les groupes.', 'ufsc-licence-competition' ); ?></p>
+							<label><input name="include_submitted_club" type="checkbox" value="1" <?php checked( $settings['include_submitted_club'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Inclure les inscriptions soumises club dans la génération', 'ufsc-licence-competition' ); ?></label>
+							<br>
+							<label><input name="include_draft_test" type="checkbox" value="1" <?php checked( $settings['include_draft_test'] ?? 0, 1 ); ?>> <?php esc_html_e( 'Inclure les brouillons (mode test uniquement)', 'ufsc-licence-competition' ); ?></label>
 						</td>
 					</tr>
 					<tr>
@@ -680,6 +726,23 @@ class Bouts_AutoGeneration {
 						<label><input type="checkbox" name="auto_validate" value="1"> <?php esc_html_e( 'Valider automatiquement les combats test après création du brouillon', 'ufsc-licence-competition' ); ?></label>
 						<?php submit_button( __( 'Lancer un test complet', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
 					</form>
+						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+							<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150' ); ?>
+							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
+							<?php submit_button( __( 'Créer test Open 150 participants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150_generate' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150_generate">
+						<?php submit_button( __( 'Créer + générer test Open 150', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_assign_fighter_numbers' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_assign_fighter_numbers">
+						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>">
+						<label><input type="checkbox" name="force_reassign" value="1"> <?php esc_html_e( 'Réattribuer tous les numéros (action sensible)', 'ufsc-licence-competition' ); ?></label>
+						<?php submit_button( __( 'Attribuer les numéros combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
 				</div>
 			</div>
 
@@ -693,11 +756,22 @@ class Bouts_AutoGeneration {
 		if ( function_exists( 'ufsc_competition_save_surfaces' ) ) {
 			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ?? array() ) );
 		}
+		$surface_notice = '';
+		if ( function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			$surfaces = (array) ufsc_competition_get_surfaces( $competition_id );
+			$active   = 0;
+			foreach ( $surfaces as $surface ) {
+				if ( ! empty( $surface['active'] ) ) {
+					$active++;
+				}
+			}
+			$surface_notice = sprintf( 'Surfaces sauvegardées : %1$d surfaces, %2$d actives.', count( $surfaces ), $active );
+		}
 		$result = FightAutoGenerationService::save_settings_with_result( $competition_id, wp_unslash( $_POST ) );
 		if ( empty( $result['ok'] ) ) {
 			self::redirect( $competition_id, 'invalid_settings', (string) ( $result['message'] ?? '' ) );
 		}
-		self::redirect( $competition_id, 'settings_saved' );
+		self::redirect( $competition_id, 'settings_saved', $surface_notice );
 	}
 
 	public static function handle_generate_draft(): void {
@@ -756,9 +830,31 @@ class Bouts_AutoGeneration {
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft_result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		if ( empty( $draft_result['ok'] ) ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			if ( ! empty( $fallback['ok'] ) ) {
+				$message = sprintf(
+					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
+					(int) ( $fallback['attempted_inserts'] ?? 0 ),
+					(int) ( $fallback['successful_inserts'] ?? 0 ),
+					count( (array) ( $fallback['lone_groups'] ?? array() ) )
+				);
+				self::redirect( $competition_id, 'draft_validated', $message );
+			}
 			self::redirect( $competition_id, 'draft_error', (string) ( $draft_result['message'] ?? '' ) );
 		}
 		$apply_result = FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' );
+		if ( empty( $apply_result['ok'] ) || (int) ( $apply_result['stats']['inserts_success'] ?? 0 ) <= 0 ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			if ( ! empty( $fallback['ok'] ) ) {
+				$message = sprintf(
+					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
+					(int) ( $fallback['attempted_inserts'] ?? 0 ),
+					(int) ( $fallback['successful_inserts'] ?? 0 ),
+					count( (array) ( $fallback['lone_groups'] ?? array() ) )
+				);
+				self::redirect( $competition_id, 'draft_validated', $message );
+			}
+		}
 		$stats = (array) ( $apply_result['stats'] ?? array() );
 		$diag_message = sprintf(
 			'Action=direct | competition_id_received=%1$d | competition_id_used=%2$d | groups_generables=%3$d | combats_estimes=%4$d | inserts_tentes=%5$d | inserts_reussis=%6$d | draft=%7$s | result=%8$s',
@@ -880,6 +976,172 @@ class Bouts_AutoGeneration {
 		self::redirect( $competition_id, 'settings_saved', $msg );
 	}
 
+	public static function handle_test_fixture_open150(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_open150', 0 );
+		$result = self::create_test_fixture_open150();
+		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
+	}
+
+	public static function handle_test_fixture_open150_generate(): void {
+		self::guard_action( 'ufsc_competitions_test_fixture_open150_generate', 0 );
+		$fixture = self::create_test_fixture_open150();
+		if ( empty( $fixture['ok'] ) ) {
+			self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) );
+		}
+		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
+		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
+		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
+		$apply = ! empty( $draft['ok'] ) ? FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' ) : array( 'ok' => false );
+		if ( empty( $apply['ok'] ) || (int) ( $apply['stats']['inserts_success'] ?? 0 ) <= 0 ) {
+			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
+			$msg = sprintf(
+				'[OPEN150] fallback inserts=%1$d/%2$d groups=%3$d fights_est=%4$d',
+				(int) ( $fallback['successful_inserts'] ?? 0 ),
+				(int) ( $fallback['attempted_inserts'] ?? 0 ),
+				(int) ( $preview['estimated_categories'] ?? 0 ),
+				(int) ( $preview['estimated_fights'] ?? 0 )
+			);
+			self::redirect( $competition_id, ! empty( $fallback['ok'] ) ? 'draft_validated' : 'action_error', $msg );
+		}
+		$msg = sprintf(
+			'[OPEN150] draft/apply inserts=%1$d/%2$d groups=%3$d fights_est=%4$d',
+			(int) ( $apply['stats']['inserts_success'] ?? 0 ),
+			(int) ( $apply['stats']['inserts_attempted'] ?? 0 ),
+			(int) ( $preview['estimated_categories'] ?? 0 ),
+			(int) ( $preview['estimated_fights'] ?? 0 )
+		);
+		self::redirect( $competition_id, 'draft_validated', $msg );
+	}
+
+	public static function handle_assign_fighter_numbers(): void {
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
+		self::guard_action( 'ufsc_competitions_assign_fighter_numbers', $competition_id );
+		global $wpdb;
+		$entries_table = Db::entries_table();
+		$fights_table  = Db::fights_table();
+		$force = ! empty( $_POST['force_reassign'] );
+		$fights_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$fights_table} WHERE competition_id = %d", $competition_id ) );
+		if ( $fights_count > 0 && ! $force ) {
+			self::redirect( $competition_id, 'action_error', 'Numérotation bloquée: des combats existent déjà. Cochez la réattribution sensible si nécessaire.' );
+		}
+		$entries = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$entries_table} WHERE competition_id = %d AND (deleted_at IS NULL OR deleted_at='') ORDER BY category ASC, weight_class ASC, club_name ASC, last_name ASC, first_name ASC, id ASC", $competition_id ) );
+		$assigned = 0; $kept = 0; $i = 1;
+		foreach ( (array) $entries as $entry ) {
+			$current = function_exists( 'ufsc_competition_get_fighter_number' ) ? ufsc_competition_get_fighter_number( $entry ) : '';
+			if ( '' !== $current && ! $force ) { $kept++; continue; }
+			$number = str_pad( (string) $i, 3, '0', STR_PAD_LEFT );
+			$wpdb->update( $entries_table, array( 'fighter_number' => $number ), array( 'id' => (int) $entry->id ), array( '%s' ), array( '%d' ) );
+			$assigned++; $i++;
+		}
+		$duplicates = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM (SELECT fighter_number, COUNT(*) c FROM {$entries_table} WHERE competition_id=%d AND fighter_number IS NOT NULL AND fighter_number<>'' GROUP BY fighter_number HAVING c>1) t", $competition_id ) );
+		$msg = sprintf( 'Numéros combattants: total=%1$d, attribués=%2$d, conservés=%3$d, doublons=%4$d, combats_existants=%5$d', count( (array) $entries ), $assigned, $kept, $duplicates, $fights_count );
+		self::redirect( $competition_id, 'settings_saved', $msg );
+	}
+
+	public static function handle_record_fight_result(): void {
+		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
+		self::guard_action( 'ufsc_competitions_record_fight_result', $competition_id );
+		$fight_id = absint( $_POST['fight_id'] ?? 0 );
+		if ( $fight_id <= 0 ) {
+			self::redirect( $competition_id, 'action_error', 'Combat invalide.' );
+		}
+		global $wpdb;
+		$table = Db::fights_table();
+		$fight = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", $fight_id ) );
+		if ( ! $fight ) {
+			self::redirect( $competition_id, 'action_error', 'Combat introuvable.' );
+		}
+		$status = sanitize_key( (string) ( $fight->status ?? '' ) );
+		if ( in_array( $status, array( 'running', 'locked' ), true ) ) {
+			self::redirect( $competition_id, 'action_error', 'Combat verrouillé/en cours: utilisez Actions sensibles.' );
+		}
+		if ( 'completed' === $status && empty( $_POST['force_sensitive'] ) ) {
+			self::redirect( $competition_id, 'action_error', 'Résultat déjà saisi: correction via Actions sensibles.' );
+		}
+		$admin_reason = sanitize_text_field( (string) ( $_POST['correction_reason'] ?? '' ) );
+		if ( 'completed' === $status && '' === $admin_reason ) {
+			self::redirect( $competition_id, 'action_error', 'Motif obligatoire pour corriger un résultat terminé.' );
+		}
+		$result_type = sanitize_key( (string) ( $_POST['result_type'] ?? '' ) );
+		$winner_slot = sanitize_key( (string) ( $_POST['winner_slot'] ?? '' ) );
+		$winner_entry_id = 0;
+		if ( 'red' === $winner_slot ) {
+			$winner_entry_id = (int) ( $fight->red_entry_id ?? 0 );
+		} elseif ( 'blue' === $winner_slot ) {
+			$winner_entry_id = (int) ( $fight->blue_entry_id ?? 0 );
+		}
+		$result_note = sanitize_text_field( (string) ( $_POST['result_note'] ?? '' ) );
+		$result_text = strtoupper( $winner_slot ?: 'nc' ) . '|' . strtoupper( $result_type ?: 'decision' ) . ( $result_note ? '|' . $result_note : '' );
+		$update = array( 'status' => 'completed', 'result' => $result_text, 'updated_at' => current_time( 'mysql' ) );
+		$formats = array( '%s', '%s', '%s' );
+		foreach ( array( 'winner_entry_id' => $winner_entry_id ?: null, 'result_type' => $result_type ?: null, 'result_note' => $result_note ?: null, 'completed_at' => current_time( 'mysql' ) ) as $col => $value ) {
+			$exists = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $col ) );
+			if ( $exists ) { $update[ $col ] = $value; $formats[] = is_int( $value ) ? '%d' : '%s'; }
+		}
+		$wpdb->update( $table, $update, array( 'id' => $fight_id ), $formats, array( '%d' ) );
+		$old_winner_entry_id = (int) ( $fight->winner_entry_id ?? 0 );
+		$old_result = (string) ( $fight->result ?? '' );
+		$propagation = self::maybe_propagate_winner( $fight, $winner_entry_id, $old_winner_entry_id );
+		self::log_result_correction_event( $competition_id, (int) $fight_id, $old_result, $result_text, $old_winner_entry_id, $winner_entry_id, $propagation, $admin_reason );
+		$diag = sprintf(
+			'Résultat combat #%1$d | winner=%2$d | next=%3$d | slot=%4$s | propagation=%5$s (%6$s)',
+			(int) ( $fight->fight_no ?? $fight_id ),
+			(int) $winner_entry_id,
+			(int) ( $propagation['next_fight_id'] ?? 0 ),
+			(string) ( $propagation['next_slot'] ?? '-' ),
+			! empty( $propagation['propagated'] ) ? 'oui' : 'non',
+			(string) ( $propagation['reason'] ?? 'n/a' )
+		);
+		self::redirect( $competition_id, 'settings_saved', $diag );
+	}
+
+	private static function maybe_propagate_winner( $fight, int $winner_entry_id, int $old_winner_entry_id = 0 ): array {
+		global $wpdb;
+		$result = array( 'propagated' => false, 'next_fight_id' => (int) ( $fight->next_fight_id ?? 0 ), 'next_slot' => (string) ( $fight->next_slot ?? '' ), 'reason' => 'no_winner', 'old_slot_occupant' => 0 );
+		if ( $winner_entry_id <= 0 ) { return $result; }
+		$next_fight_id = (int) ( $fight->next_fight_id ?? 0 );
+		$next_slot = sanitize_key( (string) ( $fight->next_slot ?? '' ) );
+		if ( $next_fight_id <= 0 ) { $result['reason'] = 'no_next_fight'; return $result; }
+		if ( ! in_array( $next_slot, array( 'red', 'blue' ), true ) ) { $result['reason'] = 'invalid_next_slot'; return $result; }
+		$table = Db::fights_table();
+		$next_fight = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", $next_fight_id ) );
+		if ( ! $next_fight ) { $result['reason'] = 'next_fight_not_found'; return $result; }
+		$next_status = sanitize_key( (string) ( $next_fight->status ?? '' ) );
+		if ( in_array( $next_status, array( 'running', 'completed', 'locked' ), true ) ) { $result['reason'] = 'next_fight_protected'; return $result; }
+		$slot_column = 'red' === $next_slot ? 'red_entry_id' : 'blue_entry_id';
+		$current_value = (int) ( $next_fight->{$slot_column} ?? 0 );
+		$result['old_slot_occupant'] = $current_value;
+		if ( $old_winner_entry_id > 0 && $current_value > 0 && $current_value !== $old_winner_entry_id && $current_value !== $winner_entry_id ) { $result['reason'] = 'slot_not_from_source_fight'; return $result; }
+		if ( $current_value > 0 && $current_value !== $winner_entry_id ) { $result['reason'] = 'slot_already_occupied'; return $result; }
+		$updated = $wpdb->update( $table, array( $slot_column => $winner_entry_id, 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $next_fight_id ), array( '%d', '%s' ), array( '%d' ) );
+		if ( false === $updated ) { $result['reason'] = 'db_update_failed'; return $result; }
+		$result['propagated'] = true;
+		$result['reason'] = 'propagated';
+		return $result;
+	}
+
+	private static function log_result_correction_event( int $competition_id, int $fight_id, string $old_result, string $new_result, int $old_winner_entry_id, int $new_winner_entry_id, array $propagation, string $admin_reason ): void {
+		$payload = array(
+			'user_id' => get_current_user_id(),
+			'competition_id' => $competition_id,
+			'fight_id' => $fight_id,
+			'old_result' => $old_result,
+			'new_result' => $new_result,
+			'old_winner_entry_id' => $old_winner_entry_id,
+			'new_winner_entry_id' => $new_winner_entry_id,
+			'next_fight_id' => (int) ( $propagation['next_fight_id'] ?? 0 ),
+			'next_slot' => (string) ( $propagation['next_slot'] ?? '' ),
+			'propagated' => ! empty( $propagation['propagated'] ) ? 1 : 0,
+			'reason' => (string) ( $propagation['reason'] ?? '' ),
+			'admin_reason' => $admin_reason,
+			'timestamp' => current_time( 'mysql' ),
+		);
+		if ( function_exists( 'error_log' ) ) {
+			error_log( 'UFSC result correction audit: ' . wp_json_encode( $payload ) );
+		}
+	}
+
 	private static function create_test_fixture(): array {
 		self::delete_test_fixture();
 		$comp_repo = new CompetitionRepository();
@@ -913,6 +1175,66 @@ class Bouts_AutoGeneration {
 		}
 		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
 		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Compétition et données de test créées.', 'ufsc-licence-competition' ) );
+	}
+
+	private static function create_test_fixture_open150(): array {
+		self::delete_test_fixture();
+		$comp_repo = new CompetitionRepository();
+		$entry_repo = new EntryRepository();
+		$season = gmdate( 'Y' ) . '/' . (string) ( (int) gmdate( 'Y' ) + 1 );
+		$competition_id = (int) $comp_repo->save( array( 'name' => '[TEST] Open Light Contact 150 participants', 'discipline' => 'light_contact', 'type' => 'open', 'season' => $season, 'status' => 'open' ) );
+		if ( $competition_id <= 0 ) {
+			return array( 'ok' => false, 'message' => __( 'Impossible de créer la compétition Open 150.', 'ufsc-licence-competition' ) );
+		}
+		FightAutoGenerationService::save_settings( $competition_id, array( 'surface_count' => 6, 'fight_duration' => 2, 'break_duration' => 1, 'include_submitted_club' => 1 ) );
+		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
+		$categories = array( 'Educatif', 'Minime', 'Cadet', 'Junior', 'Senior', 'Veteran' );
+		$weights = array( '45kg', '50kg', '55kg', '60kg', '65kg', '70kg', '75kg', '80kg', '85kg' );
+		$first_names = array( 'Lucas', 'Emma', 'Hugo', 'Lina', 'Nathan', 'Maelys', 'Yanis', 'Lea', 'Noe', 'Chloe', 'Louis', 'Camille', 'Gabriel', 'Jade', 'Arthur' );
+		$last_names = array( 'Martin', 'Dubois', 'Bernard', 'Moreau', 'Petit', 'Robert', 'Richard', 'Durand', 'Garcia', 'Faure', 'Andre', 'Roux', 'Mercier', 'Blanc', 'Guerin' );
+		$clubs = array(
+			'[TEST] MFC Montluçon','[TEST] Savate Club du Born','[TEST] Boxing Academy Lyon','[TEST] Team Combat Sud','[TEST] Fight School Paris',
+			'[TEST] Ring Auvergne','[TEST] Impact Fight Club','[TEST] Kick Boxing Limoges','[TEST] Elite Combat Bordeaux','[TEST] Team Occitanie Fight',
+			'[TEST] Boxing Club Marseille','[TEST] Full Contact Nice','[TEST] K1 Academy Lille','[TEST] Fight Spirit Toulouse','[TEST] Club Combat Atlantique'
+		);
+		$statuses = array_merge( array_fill( 0, 120, 'approved' ), array_fill( 0, 15, 'submitted' ), array_fill( 0, 8, 'draft' ), array_fill( 0, 7, 'rejected' ) );
+		shuffle( $statuses );
+		for ( $i = 1; $i <= 150; $i++ ) {
+			$category = $categories[ ( $i - 1 ) % count( $categories ) ];
+			$weight = $weights[ ( $i - 1 ) % count( $weights ) ];
+			$sex = ( $i % 3 === 0 ) ? 'F' : 'M';
+			$status = $statuses[ $i - 1 ] ?? 'approved';
+			$is_external = $i > 120;
+			$first_name = $first_names[ ( $i - 1 ) % count( $first_names ) ];
+			$last_name = strtoupper( $last_names[ ( $i - 1 ) % count( $last_names ) ] );
+			$entry_id = (int) $entry_repo->insert( array(
+				'competition_id' => $competition_id,
+				'status' => $status,
+				'first_name' => $first_name,
+				'last_name' => $last_name,
+				'participant_name' => $last_name . ' ' . $first_name,
+				'sex' => $sex,
+				'category' => $category,
+				'category_name' => $category,
+				'weight_class' => $weight,
+				'discipline' => 'light_contact',
+				'participant_type' => $is_external ? 'external_non_licensed' : 'licensed_ufsc',
+				'club_name' => $clubs[ ( $i - 1 ) % count( $clubs ) ],
+				'level' => ( 'Senior' === $category ) ? 'classe_d' : 'non_defini',
+				'fighter_number' => str_pad( (string) $i, 3, '0', STR_PAD_LEFT ),
+				'license_number' => $is_external ? '' : 'OPEN150-' . $competition_id . '-' . $i,
+				'birthdate' => '2000-01-' . str_pad( (string) ( ( $i % 28 ) + 1 ), 2, '0', STR_PAD_LEFT ),
+				'notes' => '[TEST_GENERATION_OPEN150]',
+			) );
+			if ( $entry_id > 0 ) {
+				$ids['entries'][] = $entry_id;
+				if ( $status === 'approved' && $i % 10 !== 0 ) {
+					self::insert_test_weighin( $competition_id, $entry_id );
+				}
+			}
+		}
+		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
+		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Open 150 créé (inscriptions, pesées partielles, statuts mixtes).', 'ufsc-licence-competition' ) );
 	}
 
 	private static function insert_test_weighin( int $competition_id, int $entry_id ): void {
