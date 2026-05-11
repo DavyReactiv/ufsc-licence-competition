@@ -12,12 +12,7 @@ if ( ! function_exists( 'ufsc_render_club_note' ) ) {
 			return '';
 		}
 
-		$allowed_formats = array( 'auto', 'html', 'plain' );
-		$format          = sanitize_key( (string) $format );
-
-		if ( ! in_array( $format, $allowed_formats, true ) ) {
-			$format = 'auto';
-		}
+		$format = function_exists( 'ufsc_normalize_club_note_format' ) ? ufsc_normalize_club_note_format( $format ) : 'auto';
 
 		switch ( $format ) {
 			case 'html':
@@ -28,32 +23,6 @@ if ( ! function_exists( 'ufsc_render_club_note' ) ) {
 			default:
 				return ufsc_render_club_note_auto( $raw_note );
 		}
-	}
-}
-
-if ( ! function_exists( 'ufsc_allowed_note_html' ) ) {
-	function ufsc_allowed_note_html() {
-		return array(
-			'div'     => array( 'class' => true ),
-			'section' => array( 'class' => true ),
-			'p'       => array( 'class' => true ),
-			'br'      => array(),
-			'strong'  => array(),
-			'em'      => array(),
-			'ul'      => array( 'class' => true ),
-			'ol'      => array( 'class' => true ),
-			'li'      => array( 'class' => true ),
-			'h2'      => array( 'class' => true ),
-			'h3'      => array( 'class' => true ),
-			'h4'      => array( 'class' => true ),
-			'span'    => array( 'class' => true ),
-			'a'       => array(
-				'href'   => true,
-				'target' => true,
-				'rel'    => true,
-				'class'  => true,
-			),
-		);
 	}
 }
 

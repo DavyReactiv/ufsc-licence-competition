@@ -137,8 +137,16 @@ class CompetitionMeta {
 		if ( isset( $data['organizer_email'] ) ) {
 			$out['organizer_email'] = sanitize_email( (string) $data['organizer_email'] );
 		}
+		$format = isset( $data['notes_club_format'] ) ? (string) $data['notes_club_format'] : $out['notes_club_format'];
+		$format = function_exists( 'ufsc_normalize_club_note_format' ) ? ufsc_normalize_club_note_format( $format ) : 'auto';
+		$out['notes_club_format'] = $format;
+
 		if ( isset( $data['club_notes'] ) ) {
-			$out['club_notes'] = sanitize_textarea_field( (string) $data['club_notes'] );
+			if ( function_exists( 'ufsc_sanitize_club_note_for_storage' ) ) {
+				$out['club_notes'] = ufsc_sanitize_club_note_for_storage( $data['club_notes'], $format );
+			} else {
+				$out['club_notes'] = sanitize_textarea_field( (string) $data['club_notes'] );
+			}
 		}
 		if ( isset( $data['notes_club_format'] ) ) {
 			$format = sanitize_key( (string) $data['notes_club_format'] );

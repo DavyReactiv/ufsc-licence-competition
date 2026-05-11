@@ -41,6 +41,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Capabilities.php',
 		$base . '/Security/Scope.php',
 		$base . '/Helpers/Logger.php',
+		$base . '/Helpers/Notes.php',
 		$base . '/Access/AccessResult.php',
 		$base . '/Access/CompetitionAccess.php',
 		$base . '/Entries/EntriesWorkflow.php',
