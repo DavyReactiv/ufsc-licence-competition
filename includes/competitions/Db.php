@@ -420,6 +420,7 @@ class Db {
 			'imported_at'     => "ALTER TABLE {$table} ADD COLUMN imported_at datetime NULL",
 			'import_source'   => "ALTER TABLE {$table} ADD COLUMN import_source varchar(50) NULL",
 			'created_by_import' => "ALTER TABLE {$table} ADD COLUMN created_by_import tinyint(1) NOT NULL DEFAULT 0",
+			'fighter_number'   => "ALTER TABLE {$table} ADD COLUMN fighter_number varchar(20) NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
@@ -527,6 +528,16 @@ class Db {
 			'fight_duration'    => "ALTER TABLE {$table} ADD COLUMN fight_duration smallint(5) unsigned NULL",
 			'status'            => "ALTER TABLE {$table} ADD COLUMN status varchar(30) NOT NULL DEFAULT 'scheduled'",
 			'deleted_at'        => "ALTER TABLE {$table} ADD COLUMN deleted_at datetime NULL DEFAULT NULL",
+			'surface_index'     => "ALTER TABLE {$table} ADD COLUMN surface_index int NULL",
+			'surface_name'      => "ALTER TABLE {$table} ADD COLUMN surface_name varchar(120) NULL",
+			'surface_short_label' => "ALTER TABLE {$table} ADD COLUMN surface_short_label varchar(20) NULL",
+			'surface_type'      => "ALTER TABLE {$table} ADD COLUMN surface_type varchar(40) NULL",
+			'scheduled_order'   => "ALTER TABLE {$table} ADD COLUMN scheduled_order int NULL",
+			'scheduled_time'    => "ALTER TABLE {$table} ADD COLUMN scheduled_time datetime NULL",
+			'winner_entry_id'   => "ALTER TABLE {$table} ADD COLUMN winner_entry_id bigint(20) unsigned NULL",
+			'result_type'       => "ALTER TABLE {$table} ADD COLUMN result_type varchar(50) NULL",
+			'result_note'       => "ALTER TABLE {$table} ADD COLUMN result_note text NULL",
+			'completed_at'      => "ALTER TABLE {$table} ADD COLUMN completed_at datetime NULL",
 		);
 
 		foreach ( $desired as $column => $sql ) {
