@@ -59,12 +59,14 @@ class CompetitionDetailsShortcode {
 
 		ob_start();
 
-		$info_rows  = array();
-		$photo_html = '';
-		$photo_id   = absint( $competition->photo_evenement_id ?? 0 );
+		$info_rows   = array();
+		$photo_html  = '';
+		$photo_url   = '';
+		$photo_id    = absint( $competition->photo_evenement_id ?? 0 );
 
 		if ( $photo_id && function_exists( 'wp_attachment_is_image' ) && wp_attachment_is_image( $photo_id ) ) {
 			$photo_html = wp_get_attachment_image( $photo_id, 'large', false, array( 'class' => 'ufsc-competition-photo' ) );
+			$photo_url  = (string) wp_get_attachment_image_url( $photo_id, 'full' );
 		}
 
 		if ( ! empty( $competition->lieu_name ) ) {
@@ -166,6 +168,25 @@ class CompetitionDetailsShortcode {
 					</div>
 				</div>
 			</section>
+
+
+
+			<?php if ( $photo_url ) : ?>
+				<section class="ufsc-event-poster-card">
+					<div class="ufsc-event-poster-card__image">
+						<img src="<?php echo esc_url( $photo_url ); ?>" alt="<?php echo esc_attr( sprintf( __( 'Affiche officielle - %s', 'ufsc-licence-competition' ), (string) ( $competition->name ?? '' ) ) ); ?>" loading="lazy" />
+					</div>
+					<div class="ufsc-event-poster-card__content">
+						<span class="ufsc-event-poster-card__badge"><?php echo esc_html__( 'Affiche officielle', 'ufsc-licence-competition' ); ?></span>
+						<h2><?php echo esc_html__( 'Affiche de l’événement', 'ufsc-licence-competition' ); ?></h2>
+						<p><?php echo esc_html__( 'Consultez ou téléchargez l’affiche officielle de cette compétition.', 'ufsc-licence-competition' ); ?></p>
+						<div class="ufsc-event-poster-card__actions">
+							<a class="ufsc-event-poster-card__btn" href="<?php echo esc_url( $photo_url ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Voir l’affiche', 'ufsc-licence-competition' ); ?></a>
+							<a class="ufsc-event-poster-card__btn ufsc-event-poster-card__btn--secondary" href="<?php echo esc_url( $photo_url ); ?>" download><?php echo esc_html__( 'Télécharger l’affiche', 'ufsc-licence-competition' ); ?></a>
+						</div>
+					</div>
+				</section>
+			<?php endif; ?>
 
 			<?php if ( $registration_deadline ) : ?>
 				<p class="ufsc-competition-deadline" style="color:#b32d2e;font-weight:600;">
