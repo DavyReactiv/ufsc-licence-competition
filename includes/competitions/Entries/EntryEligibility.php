@@ -144,6 +144,9 @@ if ( ! function_exists( 'ufsc_lc_is_entry_eligible_from_entry' ) ) {
 					array(),
 					array(
 						'status' => $result['status'],
+						'is_test_mode' => ( ! empty( $entry->competition_name ) && false !== stripos( (string) $entry->competition_name, '[TEST]' ) ),
+						'include_submitted_club' => ! empty( $context['include_submitted_club'] ),
+						'include_draft_test' => ! empty( $context['include_draft_test'] ),
 					)
 				);
 				$eligible = ! empty( $evaluation['eligible'] );
@@ -335,6 +338,19 @@ if ( ! function_exists( 'ufsc_lc_format_datetime' ) ) {
 }
 
 if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
+	function ufsc_competition_get_generation_entry_statuses( array $context = array() ): array {
+		$is_test_mode = ! empty( $context['is_test_mode'] );
+		$allowed = array( 'approved', 'engaged', 'validated', 'valide', 'validee' );
+		if ( $is_test_mode || ! empty( $context['include_submitted_club'] ) ) {
+			$allowed = array_merge( $allowed, array( 'submitted', 'soumise_club', 'pending' ) );
+		}
+		if ( $is_test_mode && ! empty( $context['include_draft_test'] ) ) {
+			$allowed[] = 'draft';
+		}
+
+		return array_values( array_unique( array_map( 'sanitize_key', $allowed ) ) );
+	}
+
 	/**
 	 * Evaluate entry eligibility for fight generation with explicit blocking reasons + warnings.
 	 */
@@ -385,7 +401,14 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 
 		$blocking = array();
 		$warnings = array();
-		if ( 'approved' !== $status ) {
+		$accepted_statuses = ufsc_competition_get_generation_entry_statuses(
+			array(
+				'is_test_mode' => $is_test_mode,
+				'include_submitted_club' => ! empty( $context['include_submitted_club'] ),
+				'include_draft_test' => ! empty( $context['include_draft_test'] ),
+			)
+		);
+		if ( ! in_array( $status, $accepted_statuses, true ) ) {
 			$blocking[] = 'status_not_approved';
 		}
 		if ( ( null === $weight_value || $weight_value <= 0 ) && '' === $weight_category ) {
@@ -431,5 +454,54 @@ if ( ! function_exists( 'ufsc_competition_evaluate_entry_eligibility' ) ) {
 				'license_id'      => $has_license ? $license_id : null,
 			),
 		);
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_recommend_group_format' ) ) {
+	function ufsc_competition_recommend_group_format( array $group, string $competition_type, array $options = array() ): array {
+		$count = (int) ( $group['entries_count'] ?? 0 );
+		$competition_type = sanitize_key( $competition_type );
+		if ( 'gala' === $competition_type ) {
+			return array(
+				'recommended_format' => 'gala',
+				'label' => 'Opposition gala',
+				'explanation' => 'En gala, seules des oppositions directes sont recommandées.',
+				'estimated_fights' => max( 0, (int) floor( $count / 2 ) ),
+				'warnings' => array(),
+				'risks' => array(),
+				'admin_choices' => array( 'direct', 'none' ),
+			);
+		}
+		if ( $count <= 1 ) {
+			return array( 'recommended_format' => 'none', 'label' => 'Combattant seul', 'explanation' => 'Un seul combattant est présent.', 'estimated_fights' => 0, 'warnings' => array( 'Aucun combat automatique possible.' ), 'risks' => array(), 'admin_choices' => array( 'none', 'declare_winner', 'wait' ) );
+		}
+		if ( 2 === $count ) {
+			return array( 'recommended_format' => 'direct', 'label' => 'Combat direct recommandé', 'explanation' => 'Deux combattants disponibles.', 'estimated_fights' => 1, 'warnings' => array(), 'risks' => array(), 'admin_choices' => array( 'direct' ) );
+		}
+		if ( 3 === $count ) {
+			return array( 'recommended_format' => 'pool', 'label' => 'Poule complète recommandée', 'explanation' => 'Trois combattants : chacun rencontre les deux autres.', 'estimated_fights' => 3, 'warnings' => array( 'Tableau avec BYE plus rapide mais moins équilibré.' ), 'risks' => array( 'timing_increase' ), 'admin_choices' => array( 'pool', 'bracket_bye' ) );
+		}
+		if ( 4 === $count ) {
+			return array( 'recommended_format' => 'bracket', 'label' => 'Tableau 4 combattants recommandé', 'explanation' => 'Demi-finales puis finale.', 'estimated_fights' => 3, 'warnings' => array( 'Petite finale optionnelle (+1 combat).' ), 'risks' => array(), 'admin_choices' => array( 'bracket', 'bracket_small_final' ) );
+		}
+		return array( 'recommended_format' => 'bracket_bye', 'label' => 'Tableau avec BYE recommandé', 'explanation' => 'Le tableau nécessite des BYE pour compléter la puissance de 2.', 'estimated_fights' => max( 1, $count - 1 ), 'warnings' => array( 'Certains combattants passeront un tour sans combattre.' ), 'risks' => array( 'bye_equity' ), 'admin_choices' => array( 'bracket_bye', 'pool' ) );
+	}
+}
+
+if ( ! function_exists( 'ufsc_competition_get_fighter_number' ) ) {
+	function ufsc_competition_get_fighter_number( $entry, bool $allow_generated = false, int $fallback_index = 0 ): string {
+		if ( ! is_object( $entry ) ) {
+			return '';
+		}
+		foreach ( array( 'fighter_number', 'combatant_number', 'contestant_number', 'numero_combattant' ) as $field ) {
+			$value = trim( (string) ( $entry->{$field} ?? '' ) );
+			if ( '' !== $value ) {
+				return is_numeric( $value ) ? str_pad( (string) absint( $value ), 3, '0', STR_PAD_LEFT ) : $value;
+			}
+		}
+		if ( $allow_generated && $fallback_index > 0 ) {
+			return str_pad( (string) $fallback_index, 3, '0', STR_PAD_LEFT );
+		}
+		return '';
 	}
 }
