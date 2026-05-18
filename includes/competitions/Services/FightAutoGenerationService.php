@@ -608,8 +608,10 @@ class FightAutoGenerationService {
 				'warnings'       => $warnings,
 				'fights'         => $fights,
 			);
+			$draft['draft_hash'] = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::hash_draft( $draft ) : hash( 'sha256', wp_json_encode( $draft ) ?: '' );
 
 			self::save_draft( $competition_id, $draft );
+			( new LogService() )->audit( 'generation_preview_created', $competition_id, 'competition', $competition_id, array( 'draft_hash' => $draft['draft_hash'], 'stats' => $stats ) );
 
 			$message = __( 'Pré-génération terminée. Validez pour enregistrer définitivement.', 'ufsc-licence-competition' );
 			if ( 0 === count( $fights ) ) {
@@ -679,16 +681,41 @@ class FightAutoGenerationService {
 		$diagnostic['estimated_fights'] = is_array( $draft['fights'] ?? null ) ? count( $draft['fights'] ) : 0;
 		$diagnostic['warnings_count'] = is_array( $draft['warnings'] ?? null ) ? count( $draft['warnings'] ) : 0;
 		if ( empty( $draft['fights'] ) || ! is_array( $draft['fights'] ) ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'missing_draft' ) );
 			return array(
 				'ok'      => false,
-				'message' => __( 'Aucun brouillon disponible.', 'ufsc-licence-competition' ),
+				'message' => __( 'Aucun brouillon disponible : générez et vérifiez une prévisualisation avant validation.', 'ufsc-licence-competition' ),
+			);
+		}
+
+		$settings = self::get_settings( $competition_id );
+		$readiness = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::check( $competition_id, $settings, $draft ) : array( 'blocking' => false, 'errors' => array(), 'warnings' => array(), 'summary' => array() );
+		if ( ! empty( $readiness['blocking'] ) ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'readiness_diagnostic', 'diagnostic' => $readiness ) );
+			return array(
+				'ok'      => false,
+				'message' => self::format_readiness_errors( $readiness ),
+				'diagnostic' => $diagnostic,
+				'readiness' => $readiness,
 			);
 		}
 
 		$validation = self::validate_draft( $draft );
 		if ( ! $validation['ok'] ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'draft_validation_failed', 'validation' => $validation ) );
 			return $validation;
 		}
+
+		$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $competition_id, 'before_generation_apply', array( 'draft_hash' => (string) ( $draft['draft_hash'] ?? '' ) ) ) : '';
+		if ( '' === $snapshot_id ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'snapshot_failed' ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Génération bloquée : impossible de créer le snapshot de sécurité.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+		( new LogService() )->audit( 'generation_draft_validated', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'draft_hash' => (string) ( $draft['draft_hash'] ?? '' ) ) );
 
 		$fight_repo    = new FightRepository();
 		$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
@@ -703,6 +730,7 @@ class FightAutoGenerationService {
 
 		$attempted = count( $prepared_fights );
 		$inserted  = 0;
+		$inserted_ids = array();
 		$table     = Db::fights_table();
 		$diagnostic['attempted_inserts'] = $attempted;
 
@@ -715,12 +743,14 @@ class FightAutoGenerationService {
 				$diagnostic['failed_inserts'] = max( 1, $attempted - $inserted );
 				$diagnostic['errors'][] = $last_error ?: 'sql_insert_failed';
 				$columns = implode( ', ', array_keys( $fight ) );
+				$rolled_back = self::rollback_inserted_fights( $inserted_ids, $competition_id, $snapshot_id );
+				( new LogService() )->audit( 'generation_failed', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'error' => $last_error, 'inserted_ids' => $inserted_ids, 'rolled_back' => $rolled_back ) );
 
 				return array(
 					'ok'      => false,
 					'message' => sprintf(
 						/* translators: 1: table name, 2: SQL error, 3: competition id, 4: attempted inserts, 5: successful inserts, 6: columns */
-						__( 'Échec insertion SQL. Table: %1$s | SQL: %2$s | competition_id: %3$d | inserts tentés: %4$d | inserts réussis: %5$d | colonnes: %6$s', 'ufsc-licence-competition' ),
+						__( 'Échec insertion SQL. Rollback ciblé exécuté. Table: %1$s | SQL: %2$s | competition_id: %3$d | inserts tentés: %4$d | inserts réussis: %5$d | colonnes: %6$s', 'ufsc-licence-competition' ),
 						$table,
 						$last_error ?: 'n/a',
 						$competition_id,
@@ -733,6 +763,7 @@ class FightAutoGenerationService {
 			}
 
 			$inserted++;
+			$inserted_ids[] = $insert_id;
 		}
 		$diagnostic['successful_inserts'] = $inserted;
 		$diagnostic['failed_inserts'] = max( 0, $attempted - $inserted );
@@ -741,7 +772,6 @@ class FightAutoGenerationService {
 			$diagnostic['success'] = false;
 			$diagnostic['errors'][] = 'estimated_but_not_inserted';
 		}
-		$settings = self::get_settings( $competition_id );
 		if ( function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 			$assignment = ufsc_competition_assign_surfaces_and_times( $competition_id, array(), $settings );
 			$diagnostic['assigned_fights'] = (int) ( $assignment['assigned_fights'] ?? 0 );
@@ -765,6 +795,10 @@ class FightAutoGenerationService {
 		), false );
 
 		self::clear_draft( $competition_id );
+		if ( class_exists( GenerationLockService::class ) ) {
+			GenerationLockService::lock_after_generation( $competition_id, array( 'snapshot_id' => $snapshot_id, 'inserted' => $inserted ) );
+		}
+		( new LogService() )->audit( 'generation_applied', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'inserted_ids' => $inserted_ids, 'inserted' => $inserted ) );
 
 		return array(
 			'ok'      => true,
@@ -781,7 +815,47 @@ class FightAutoGenerationService {
 		);
 	}
 
+
+	private static function format_readiness_errors( array $readiness ): string {
+		$messages = array();
+		foreach ( (array) ( $readiness['errors'] ?? array() ) as $error ) {
+			if ( is_array( $error ) && ! empty( $error['message'] ) ) {
+				$messages[] = sanitize_text_field( (string) $error['message'] );
+			}
+		}
+		if ( empty( $messages ) ) {
+			return __( 'Génération bloquée par le diagnostic de sécurité.', 'ufsc-licence-competition' );
+		}
+		return __( 'Génération bloquée :', 'ufsc-licence-competition' ) . ' ' . implode( ' | ', $messages );
+	}
+
+	private static function rollback_inserted_fights( array $inserted_ids, int $competition_id, string $snapshot_id = '' ): int {
+		$fight_repo = new FightRepository();
+		$rolled_back = 0;
+		foreach ( array_filter( array_map( 'absint', $inserted_ids ) ) as $fight_id ) {
+			$fight = $fight_repo->get( $fight_id, true );
+			if ( ! $fight || (int) ( $fight->competition_id ?? 0 ) !== absint( $competition_id ) ) {
+				continue;
+			}
+			$deleted = $fight_repo->delete( $fight_id );
+			if ( false !== $deleted ) {
+				$rolled_back++;
+			}
+		}
+		if ( $rolled_back > 0 ) {
+			( new LogService() )->audit( 'generation_rolled_back', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'rolled_back_ids' => $inserted_ids, 'rolled_back_count' => $rolled_back ) );
+		}
+		return $rolled_back;
+	}
+
 	public static function generate_simple_pairing_fights( int $competition_id, array $settings = array() ): array {
+		if ( empty( $settings['sandbox_generation'] ) && ! apply_filters( 'ufsc_competitions_allow_direct_generation_fallback', false, $competition_id, $settings ) ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'direct_fallback_disabled' ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Génération directe désactivée : utilisez la prévisualisation puis validez le brouillon.', 'ufsc-licence-competition' ),
+			);
+		}
 		$fight_repo = new FightRepository();
 		$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
 		$existing_fights = self::get_existing_generation_blockers( $competition_id );
