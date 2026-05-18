@@ -238,7 +238,7 @@ class Print_Page {
 		}
 
 		foreach ( $entries as $entry ) {
-			$birthdate = (string) ( $entry->birth_date ?? $entry->birthdate ?? $entry->licensee_birthdate ?? '' );
+			$birthdate = function_exists( 'ufsc_comp_get_entry_birth_date' ) ? ufsc_comp_get_entry_birth_date( $entry ) : (string) ( $entry->birth_date ?? $entry->birthdate ?? $entry->licensee_birthdate ?? '' );
 			$category_label = (string) ( $entry->category ?? $entry->category_name ?? '' );
 			if ( '' === $category_label ) {
 				$category_id = absint( $entry->category_id ?? 0 );
@@ -255,8 +255,8 @@ class Print_Page {
 				. '<td>' . esc_html( $fighter_last_name ) . '</td>'
 				. '<td>' . esc_html( $fighter_first_name ) . '</td>'
 				. '<td>' . esc_html( (string) ( $entry->licensee_sex ?? $entry->sex ?? $entry->gender ?? '—' ) ) . '</td>'
-				. '<td>' . esc_html( $this->format_date( $birthdate ) ) . '</td>'
-				. '<td>' . esc_html( $this->compute_age_label( $birthdate, $reference_ts ) ) . '</td>'
+				. '<td>' . esc_html( function_exists( 'ufsc_comp_format_birth_date' ) ? ufsc_comp_format_birth_date( $birthdate ) : $this->format_date( (string) $birthdate ) ) . '</td>'
+				. '<td>' . esc_html( function_exists( 'ufsc_comp_calculate_age' ) ? ufsc_comp_calculate_age( $birthdate, $reference_date ) : $this->compute_age_label( (string) $birthdate, $reference_ts ) ) . '</td>'
 				. '<td>' . esc_html( $club_name ) . '</td>'
 				. '<td>' . esc_html( $category_label ) . '</td>'
 				. '<td>' . esc_html( $this->format_weight( $entry->weight_kg ?? $entry->weight ?? '' ) ) . '</td>'
@@ -600,11 +600,17 @@ class Print_Page {
 			return '—';
 		}
 
+		if ( function_exists( 'ufsc_comp_format_birth_date' ) ) {
+			return ufsc_comp_format_birth_date( $value );
+		}
 		$date = date_create( $value );
-		return $date ? $date->format( 'd/m/Y' ) : $value;
+		return $date ? $date->format( 'd/m/Y' ) : '—';
 	}
 
 	private function compute_age_label( string $birthdate, int $reference_ts ): string {
+		if ( function_exists( 'ufsc_comp_calculate_age' ) ) {
+			return ufsc_comp_calculate_age( $birthdate, gmdate( 'Y-m-d H:i:s', $reference_ts ) );
+		}
 		$birthdate = trim( $birthdate );
 		if ( '' === $birthdate ) {
 			return '—';

@@ -830,3 +830,43 @@
 		flex-direction: column;
 	}
 }
+
+.ufsc-comp-dashboard {
+	margin: 16px 0;
+	padding: 16px;
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 8px;
+}
+.ufsc-comp-dashboard__header {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	align-items: flex-start;
+	margin-bottom: 12px;
+}
+.ufsc-comp-dashboard__header h3 { margin: 0 0 4px; }
+.ufsc-comp-dashboard__header p { margin: 0; color: #646970; }
+.ufsc-comp-kpis {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	gap: 10px;
+	margin: 12px 0;
+}
+.ufsc-comp-kpi {
+	border: 1px solid #dcdcde;
+	border-left: 4px solid #2271b1;
+	border-radius: 6px;
+	padding: 10px 12px;
+	background: #f6f7f7;
+}
+.ufsc-comp-kpi span { display: block; color: #646970; font-size: 12px; }
+.ufsc-comp-kpi strong { display: block; margin-top: 4px; font-size: 24px; line-height: 1.1; }
+.ufsc-comp-dashboard__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 10px 0 14px;
+}
+.ufsc-category-diagnostics th,
+.ufsc-category-diagnostics td { vertical-align: middle; }
