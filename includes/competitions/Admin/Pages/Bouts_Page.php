@@ -7,6 +7,7 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Admin\Tables\Fights_Table;
 use UFSC\Competitions\Services\LogService;
 
@@ -18,12 +19,14 @@ class Bouts_Page {
 	private $repository;
 	private $competitions;
 	private $categories;
+	private $entries;
 	private $logger;
 
 	public function __construct() {
 		$this->repository = new FightRepository();
 		$this->competitions = new CompetitionRepository();
 		$this->categories = new CategoryRepository();
+		$this->entries = new EntryRepository();
 		$this->logger = new LogService();
 	}
 
@@ -145,6 +148,13 @@ class Bouts_Page {
 			'score_blue'      => isset( $_POST['score_blue'] ) ? sanitize_text_field( wp_unslash( $_POST['score_blue'] ) ) : '',
 			'scheduled_at'    => isset( $_POST['scheduled_at'] ) ? sanitize_text_field( wp_unslash( $_POST['scheduled_at'] ) ) : '',
 		);
+
+		if ( empty( $data['red_entry_id'] ) && isset( $_POST['red_entry_id_manual'] ) ) {
+			$data['red_entry_id'] = absint( $_POST['red_entry_id_manual'] );
+		}
+		if ( empty( $data['blue_entry_id'] ) && isset( $_POST['blue_entry_id_manual'] ) ) {
+			$data['blue_entry_id'] = absint( $_POST['blue_entry_id_manual'] );
+		}
 
 		if ( ! $data['competition_id'] || ! $data['fight_no'] ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'error_required', $id );
@@ -268,7 +278,16 @@ class Bouts_Page {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $this->competitions->list( $competition_filters, 200, 0 );
-		$categories = $this->categories->list( array( 'view' => 'all' ), 500, 0 );
+		$selected_competition_id = absint( $values['competition_id'] ?: $this->resolve_competition_context_id() );
+		if ( $selected_competition_id && ! $values['competition_id'] ) {
+			$values['competition_id'] = $selected_competition_id;
+		}
+		$categories = $this->categories->list( $selected_competition_id ? array( 'view' => 'all', 'competition_id' => $selected_competition_id ) : array( 'view' => 'all' ), 500, 0 );
+		$entry_options = $selected_competition_id ? $this->entries->list_with_details( array( 'view' => 'all', 'competition_id' => $selected_competition_id ), 1000, 0 ) : array();
+		$surface_options = array( 'Ring 1', 'Ring 2', 'Tatami 1', 'Tatami 2', 'Surface 1', 'Surface 2', 'Surface 3', 'Surface 4' );
+		if ( '' !== (string) $values['ring'] && ! in_array( (string) $values['ring'], $surface_options, true ) ) {
+			array_unshift( $surface_options, (string) $values['ring'] );
+		}
 		$action_label = $values['id'] ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer le combat', 'ufsc-licence-competition' );
 		?>
 		<div class="wrap ufsc-competitions-admin">
@@ -279,6 +298,7 @@ class Bouts_Page {
 					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Renseignez les paramètres clés du combat sans altérer les flux de planification et de résultats.', 'ufsc-licence-competition' ); ?></p>
 				</div>
 			</header>
+			<?php if ( function_exists( 'ufsc_comp_render_admin_back_button' ) ) { ufsc_comp_render_admin_back_button( 'bouts', $selected_competition_id ? array( 'competition_id' => $selected_competition_id ) : array() ); } ?>
 			<div class="notice notice-info ufsc-competitions-helper"><p><?php esc_html_e( 'Planifier les combats, assigner les combattants, suivre les résultats. Modifier un résultat peut impacter les combats suivants.', 'ufsc-licence-competition' ); ?></p></div>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_fight' ); ?>
@@ -289,7 +309,7 @@ class Bouts_Page {
 					<tr>
 						<th scope="row"><label for="ufsc_fight_competition"><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<select name="competition_id" id="ufsc_fight_competition" class="regular-text" required>
+							<select name="competition_id" id="ufsc_fight_competition" class="regular-text" required onchange="if(this.value){window.location.href='<?php echo esc_js( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => $values['id'] ? 'edit' : 'add', 'id' => $values['id'] ), admin_url( 'admin.php' ) ) ); ?>&competition_id='+encodeURIComponent(this.value)}">
 								<option value="0"><?php esc_html_e( 'Sélectionner', 'ufsc-licence-competition' ); ?></option>
 								<?php foreach ( $competitions as $competition ) : ?>
 									<option value="<?php echo esc_attr( $competition->id ); ?>" <?php selected( $values['competition_id'], $competition->id ); ?>><?php echo esc_html( $competition->name ); ?></option>
@@ -317,19 +337,23 @@ class Bouts_Page {
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_ring"><?php esc_html_e( 'Ring/Tatami', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="ring" type="text" id="ufsc_fight_ring" value="<?php echo esc_attr( $values['ring'] ); ?>"></td>
+						<td><select name="ring" id="ufsc_fight_ring" class="regular-text">
+							<?php foreach ( $surface_options as $surface_option ) : ?>
+								<option value="<?php echo esc_attr( $surface_option ); ?>" <?php selected( $values['ring'], $surface_option ); ?>><?php echo esc_html( $surface_option ); ?></option>
+							<?php endforeach; ?>
+						</select><p class="description"><?php esc_html_e( 'Ancien champ Ring/Tatami conservé : les valeurs existantes restent compatibles.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_round"><?php esc_html_e( 'Round', 'ufsc-licence-competition' ); ?></label></th>
 						<td><input name="round_no" type="number" id="ufsc_fight_round" value="<?php echo esc_attr( $values['round_no'] ); ?>"></td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="ufsc_fight_red"><?php esc_html_e( 'Entrée rouge (ID)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="red_entry_id" type="number" id="ufsc_fight_red" value="<?php echo esc_attr( $values['red_entry_id'] ); ?>"></td>
+						<th scope="row"><label for="ufsc_fight_red"><?php esc_html_e( 'Combattant rouge', 'ufsc-licence-competition' ); ?></label></th>
+						<td><?php $this->render_entry_select( 'red_entry_id', 'ufsc_fight_red', (int) $values['red_entry_id'], $entry_options ); ?><p class="description"><?php esc_html_e( 'Sélection par liste si une compétition est choisie ; l’ID reste enregistré en fallback.', 'ufsc-licence-competition' ); ?></p></td>
 					</tr>
 					<tr>
-						<th scope="row"><label for="ufsc_fight_blue"><?php esc_html_e( 'Entrée bleue (ID)', 'ufsc-licence-competition' ); ?></label></th>
-						<td><input name="blue_entry_id" type="number" id="ufsc_fight_blue" value="<?php echo esc_attr( $values['blue_entry_id'] ); ?>"></td>
+						<th scope="row"><label for="ufsc_fight_blue"><?php esc_html_e( 'Combattant bleu', 'ufsc-licence-competition' ); ?></label></th>
+						<td><?php $this->render_entry_select( 'blue_entry_id', 'ufsc_fight_blue', (int) $values['blue_entry_id'], $entry_options ); ?></td>
 					</tr>
 					<tr>
 						<th scope="row"><label for="ufsc_fight_winner"><?php esc_html_e( 'Vainqueur (ID)', 'ufsc-licence-competition' ); ?></label></th>
@@ -367,6 +391,29 @@ class Bouts_Page {
 			</form>
 		</div>
 		<?php
+	}
+
+	private function render_entry_select( string $name, string $id, int $selected, array $entries ): void {
+		echo '<select name="' . esc_attr( $name ) . '" id="' . esc_attr( $id ) . '" class="regular-text">';
+		echo '<option value="0">' . esc_html__( 'Sélectionner un combattant', 'ufsc-licence-competition' ) . '</option>';
+		foreach ( $entries as $entry ) {
+			$entry_id = (int) ( $entry->id ?? 0 );
+			$label = sprintf(
+				'#%1$d — %2$s %3$s — %4$s — %5$s — %6$s',
+				$entry_id,
+				(string) ( $entry->last_name ?? $entry->licensee_last_name ?? '—' ),
+				(string) ( $entry->first_name ?? $entry->licensee_first_name ?? '—' ),
+				(string) ( $entry->club_name ?? $entry->club_nom ?? '—' ),
+				(string) ( $entry->category ?? $entry->category_name ?? '—' ),
+				(string) ( $entry->weight_class ?? $entry->weight_kg ?? '—' )
+			);
+			echo '<option value="' . esc_attr( (string) $entry_id ) . '" ' . selected( $selected, $entry_id, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select>';
+		echo '<p><label>' . esc_html__( 'ID manuel fallback', 'ufsc-licence-competition' ) . ' <input name="' . esc_attr( $name . '_manual' ) . '" type="number" value="' . esc_attr( (string) $selected ) . '"></label></p>';
+		if ( empty( $entries ) ) {
+			echo '<p class="description">' . esc_html__( 'Aucun combattant chargé : utilisez le champ ID manuel.', 'ufsc-licence-competition' ) . '</p>';
+		}
 	}
 
 	private function resolve_competition_context_id(): int {
