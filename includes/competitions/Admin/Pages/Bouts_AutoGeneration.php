@@ -125,6 +125,7 @@ class Bouts_AutoGeneration {
 		?>
 		<div class="ufsc-competitions-box">
 			<?php self::render_competition_selector_block( $competition_id, $competition, $competition_options ); ?>
+			<?php self::render_competition_quick_dashboard( $competition_id ); ?>
 			<div class="ufsc-fightgen-header">
 				<div>
 					<h2><?php esc_html_e( 'Génération avancée des combats', 'ufsc-licence-competition' ); ?></h2>
@@ -708,7 +709,21 @@ class Bouts_AutoGeneration {
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
-						<?php submit_button( __( 'Créer une compétition de test', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<input type="hidden" name="scenario" value="simple">
+						<?php submit_button( __( 'Créer test 4 catégories x 4 combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
+
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
+						<input type="hidden" name="scenario" value="pools">
+						<?php submit_button( __( 'Créer test poules 3/4/5/6 combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+					</form>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
+						<input type="hidden" name="scenario" value="anomalies">
+						<?php submit_button( __( 'Créer test anomalies', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Confirmer la réinitialisation du jeu de test ?', 'ufsc-licence-competition' ) ); ?>');">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_reset' ); ?>
@@ -917,7 +932,8 @@ class Bouts_AutoGeneration {
 
 	public static function handle_test_fixture_create(): void {
 		self::guard_action( 'ufsc_competitions_test_fixture_create', 0 );
-		$result = self::create_test_fixture();
+		$scenario = isset( $_POST['scenario'] ) ? sanitize_key( wp_unslash( $_POST['scenario'] ) ) : 'simple';
+		$result = self::create_test_fixture( $scenario );
 		$competition_id = (int) ( $result['competition_id'] ?? 0 );
 		$message = (string) ( $result['message'] ?? '' );
 		if ( $competition_id > 0 ) {
@@ -929,7 +945,7 @@ class Bouts_AutoGeneration {
 	public static function handle_test_fixture_reset(): void {
 		self::guard_action( 'ufsc_competitions_test_fixture_reset', 0 );
 		self::delete_test_fixture();
-		$result = self::create_test_fixture();
+		$result = self::create_test_fixture( 'simple' );
 		self::redirect( (int) ( $result['competition_id'] ?? 0 ), empty( $result['ok'] ) ? 'action_error' : 'settings_saved', (string) ( $result['message'] ?? '' ) );
 	}
 
@@ -941,7 +957,7 @@ class Bouts_AutoGeneration {
 
 	public static function handle_test_fixture_run(): void {
 		self::guard_action( 'ufsc_competitions_test_fixture_run', 0 );
-		$fixture = self::create_test_fixture();
+		$fixture = self::create_test_fixture( 'simple' );
 		if ( empty( $fixture['ok'] ) ) { self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) ); }
 		$competition_id = (int) $fixture['competition_id'];
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
@@ -1141,7 +1157,7 @@ class Bouts_AutoGeneration {
 		}
 	}
 
-	private static function create_test_fixture(): array {
+	private static function create_test_fixture( string $scenario = 'simple' ): array {
 		self::delete_test_fixture();
 		$comp_repo = new CompetitionRepository();
 		$entry_repo = new EntryRepository();
@@ -1150,27 +1166,29 @@ class Bouts_AutoGeneration {
 		if ( $competition_id <= 0 ) { return array( 'ok' => false, 'message' => __( 'Impossible de créer la compétition test.', 'ufsc-licence-competition' ) ); }
 		FightAutoGenerationService::save_settings( $competition_id, array( 'surface_count' => 2, 'fight_duration' => 2, 'break_duration' => 1 ) );
 		$ids = array( 'competition_id' => $competition_id, 'entries' => array(), 'weighins' => array() );
-		$rows = array(
-			array('M','70kg','A','approved',true,'light_contact','Club Test Nord'),
-			array('M','70kg','A','approved',true,'light_contact','Club Test Nord'),
-			array('F','60kg','A','approved',true,'light_contact','Club Test Sud'),
-			array('F','60kg','A','approved',true,'light_contact','Club Test Sud'),
-			array('F','60kg','A','approved',true,'light_contact','Club Test Est'),
-			array('F','60kg','A','approved',true,'light_contact','Club Test Ouest'),
-			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
-			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
-			array('M','80kg','A','approved',true,'light_contact','Club Test Centre'),
-			array('M','75kg','A','approved',true,'light_contact','Club Test Nord'),
-			array('M','75kg','A','approved',true,'light_contact','Club Test Sud'),
-			array('M','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
-			array('M','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
-			array('F','55kg','Cadet','approved',true,'light_contact','Club Jeunes'),
-			array('M','90kg','Junior','approved',true,'light_contact','Club Performance'),
-			array('F','90kg','Junior','approved',true,'light_contact','Club Performance')
-		);
+		$scenario = in_array( $scenario, array( 'simple', 'pools', 'anomalies' ), true ) ? $scenario : 'simple';
+		if ( 'pools' === $scenario ) {
+			$rows = array();
+			foreach ( array( array( 'Cadet', 'M', '60kg', 3 ), array( 'Junior', 'F', '55kg', 4 ), array( 'Senior', 'M', '70kg', 5 ), array( 'Senior', 'F', '65kg', 6 ) ) as $group ) {
+				for ( $n = 1; $n <= $group[3]; $n++ ) { $rows[] = array( $group[1], $group[2], $group[0], 'approved', true, 'light_contact', 'Club Test Poule ' . $n ); }
+			}
+		} elseif ( 'anomalies' === $scenario ) {
+			$rows = array(
+				array('M','70kg','Senior','approved',true,'light_contact','Club Test Nord'),
+				array('M','','Senior','approved',true,'light_contact','Club Test Sans Poids'),
+				array('F','55kg','Junior','approved',true,'light_contact',''),
+				array('F','55kg','Junior','draft',false,'light_contact','Club Non Eligible'),
+				array('M','90kg','Veteran','approved',true,'light_contact','Club Seul'),
+			);
+		} else {
+			$rows = array();
+			foreach ( array( array( 'Senior', 'M', '70kg' ), array( 'Senior', 'M', '80kg' ), array( 'Junior', 'F', '55kg' ), array( 'Minime', 'M', '45kg' ) ) as $group ) {
+				for ( $n = 1; $n <= 4; $n++ ) { $rows[] = array( $group[1], $group[2], $group[0], 'approved', true, 'light_contact', 'Club Test ' . $n ); }
+			}
+		}
 		$i=1; foreach($rows as $r){
-			$eid=(int)$entry_repo->insert(array('competition_id'=>$competition_id,'status'=>$r[3],'first_name'=>'Test'.$i,'last_name'=>'Athlete','sex'=>$r[0],'category'=>$r[2],'weight_class'=>$r[1],'discipline'=>$r[5],'participant_type'=>'external','club_name'=>$r[6],'level'=>'non_defini','license_number'=>'TEST-LIC-'.$competition_id.'-'.$i,'birthdate'=>'2000-01-'.str_pad((string) (($i%28)+1),2,'0',STR_PAD_LEFT),'notes'=>'[TEST_GENERATION]'));
-			if($eid>0){$ids['entries'][]=$eid; if($r[4]){self::insert_test_weighin($competition_id,$eid);}} $i++;
+			$eid=(int)$entry_repo->insert(array('competition_id'=>$competition_id,'status'=>$r[3],'first_name'=>'Test'.$i,'last_name'=>'Athlete','sex'=>$r[0],'category'=>$r[2],'weight_class'=>$r[1],'discipline'=>$r[5],'participant_type'=>'external','club_name'=>$r[6],'level'=>'non_defini','license_number'=>'TEST-LIC-'.$competition_id.'-'.$i,'birthdate'=>( 'anomalies' === $scenario && 3 === $i ? '' : '2000-01-'.str_pad((string) (($i%28)+1),2,'0',STR_PAD_LEFT)),'notes'=>'[TEST_GENERATION] scenario=' . $scenario));
+			if($eid>0){$ids['entries'][]=$eid; if($r[4]){self::insert_test_weighin($competition_id,$eid, ( 'anomalies' === $scenario && 2 === $i ) ? 'over' : 'ok' );}} $i++;
 		}
 		update_option( 'ufsc_generation_test_fixture_ids', $ids, false );
 		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Compétition et données de test créées.', 'ufsc-licence-competition' ) );
@@ -1236,9 +1254,9 @@ class Bouts_AutoGeneration {
 		return array( 'ok' => true, 'competition_id' => $competition_id, 'message' => __( 'Open 150 créé (inscriptions, pesées partielles, statuts mixtes).', 'ufsc-licence-competition' ) );
 	}
 
-	private static function insert_test_weighin( int $competition_id, int $entry_id ): void {
+	private static function insert_test_weighin( int $competition_id, int $entry_id, string $status = 'ok' ): void {
 		global $wpdb; $table = Db::weighins_table(); if ( ! Db::table_exists( $table ) ) { return; }
-		$data = array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => 'ok', 'notes' => wp_json_encode( array( 'marker' => '[TEST_GENERATION]' ) ) );
+		$data = array( 'competition_id' => $competition_id, 'entry_id' => $entry_id, 'status' => sanitize_key( $status ), 'notes' => wp_json_encode( array( 'marker' => '[TEST_GENERATION]' ) ) );
 		$formats = array( '%d', '%d', '%s', '%s' );
 		$wpdb->insert( $table, $data, $formats );
 	}
@@ -1249,24 +1267,100 @@ class Bouts_AutoGeneration {
 		$count = 0;
 		$entry_ids = array_map( 'absint', (array) ( $ids['entries'] ?? array() ) );
 		$competition_id = absint( $ids['competition_id'] ?? 0 );
-		if ( $entry_ids ) {
+		$is_test_competition = self::is_tracked_test_competition( $competition_id );
+
+		if ( $entry_ids && $is_test_competition ) {
 			foreach ( $entry_ids as $entry_id ) {
-				if ( $entry_id <= 0 ) {
+				if ( $entry_id <= 0 || ! self::is_tracked_test_entry( $entry_id, $competition_id ) ) {
 					continue;
 				}
 				$wpdb->delete( Db::weighins_table(), array( 'entry_id' => $entry_id ), array( '%d' ) );
 				$count += (int) $wpdb->rows_affected;
-				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id ), array( '%d' ) );
+				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id, 'competition_id' => $competition_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
 			}
 		}
-		if ( $competition_id > 0 ) {
+		if ( $competition_id > 0 && $is_test_competition ) {
 			$wpdb->delete( Db::fights_table(), array( 'competition_id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
 			$wpdb->delete( Db::competitions_table(), array( 'id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
 			delete_option( 'ufsc_competitions_fight_generation_draft_' . $competition_id );
 		}
 		delete_option( 'ufsc_generation_test_fixture_ids' );
 		return $count;
+	}
+
+	private static function is_tracked_test_competition( int $competition_id ): bool {
+		global $wpdb;
+		if ( $competition_id <= 0 || ! Db::table_exists( Db::competitions_table() ) ) {
+			return false;
+		}
+		$name = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT name FROM ' . Db::competitions_table() . ' WHERE id = %d LIMIT 1', $competition_id ) );
+		return 0 === strpos( $name, '[TEST]' );
+	}
+
+	private static function is_tracked_test_entry( int $entry_id, int $competition_id ): bool {
+		global $wpdb;
+		if ( $entry_id <= 0 || $competition_id <= 0 || ! Db::table_exists( Db::entries_table() ) ) {
+			return false;
+		}
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id, competition_id FROM ' . Db::entries_table() . ' WHERE id = %d LIMIT 1', $entry_id ) );
+		return $row && (int) ( $row->competition_id ?? 0 ) === $competition_id;
+	}
+
+	private static function render_competition_quick_dashboard( int $competition_id ): void {
+		if ( ! $competition_id || ! function_exists( 'ufsc_comp_get_competition_summary' ) ) {
+			return;
+		}
+		$summary = ufsc_comp_get_competition_summary( $competition_id );
+		$competition = $summary['competition'] ?? null;
+		$diagnostics = is_array( $summary['diagnostics'] ?? null ) ? $summary['diagnostics'] : array();
+		$kpis = array(
+			__( 'Total inscrits', 'ufsc-licence-competition' ) => (int) ( $summary['total_entries'] ?? 0 ),
+			__( 'Éligibles', 'ufsc-licence-competition' ) => (int) ( $summary['eligible'] ?? 0 ),
+			__( 'Pesées OK', 'ufsc-licence-competition' ) => (int) ( $summary['weighins']['ok'] ?? 0 ),
+			__( 'À contrôler', 'ufsc-licence-competition' ) => (int) ( $summary['non_eligible'] ?? 0 ) + (int) ( $summary['weighins']['todo'] ?? 0 ) + (int) ( $summary['weighins']['over'] ?? 0 ),
+			__( 'Catégories prêtes', 'ufsc-licence-competition' ) => (int) ( $summary['ready'] ?? 0 ),
+			__( 'Sans opposant', 'ufsc-licence-competition' ) => (int) ( $summary['lone'] ?? 0 ),
+			__( 'Combats générés', 'ufsc-licence-competition' ) => (int) ( $summary['fights']['total'] ?? 0 ),
+			__( 'Combats terminés', 'ufsc-licence-competition' ) => (int) ( $summary['fights']['completed'] ?? 0 ),
+		);
+		?>
+		<section class="ufsc-comp-dashboard ufsc-admin-surface">
+			<div class="ufsc-comp-dashboard__header">
+				<div>
+					<h3><?php esc_html_e( 'Vue rapide compétition', 'ufsc-licence-competition' ); ?></h3>
+					<p><?php echo esc_html( sprintf( '%1$s — %2$s — %3$s — %4$s', (string) ( $competition->name ?? __( 'Compétition', 'ufsc-licence-competition' ) ), (string) ( $competition->event_start_datetime ?? $competition->registration_deadline ?? '—' ), (string) ( $competition->discipline ?? '—' ), (string) ( $competition->venue_city ?? $competition->location ?? '—' ) ) ); ?></p>
+				</div>
+				<span class="ufsc-badge ufsc-badge--info"><?php echo esc_html( sprintf( __( '%d catégories détectées', 'ufsc-licence-competition' ), count( $diagnostics ) ) ); ?></span>
+			</div>
+			<div class="ufsc-comp-kpis">
+				<?php foreach ( $kpis as $label => $value ) : ?>
+					<article class="ufsc-comp-kpi"><span><?php echo esc_html( $label ); ?></span><strong><?php echo esc_html( number_format_i18n( $value ) ); ?></strong></article>
+				<?php endforeach; ?>
+			</div>
+			<div class="ufsc-comp-dashboard__meta">
+				<?php foreach ( (array) ( $summary['statuses'] ?? array() ) as $status => $count ) : ?>
+					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( '%s : %d', $status, (int) $count ) ); ?></span>
+				<?php endforeach; ?>
+				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Pesées à faire : %d', 'ufsc-licence-competition' ), (int) ( $summary['weighins']['todo'] ?? 0 ) ) ); ?></span>
+				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Hors limite : %d', 'ufsc-licence-competition' ), (int) ( $summary['weighins']['over'] ?? 0 ) ) ); ?></span>
+				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Planifiés : %d', 'ufsc-licence-competition' ), (int) ( $summary['fights']['scheduled'] ?? 0 ) ) ); ?></span>
+				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Verrouillés : %d', 'ufsc-licence-competition' ), (int) ( $summary['fights']['locked'] ?? 0 ) ) ); ?></span>
+			</div>
+			<?php if ( (int) ( $summary['fights']['total'] ?? 0 ) > 0 ) : ?>
+				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Des combats existent déjà pour cette compétition. Générez uniquement les catégories sans combat ou travaillez sur des données test pour éviter les doublons.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
+			<?php if ( $diagnostics ) : ?>
+				<h4><?php esc_html_e( 'État des catégories', 'ufsc-licence-competition' ); ?></h4>
+				<table class="widefat striped ufsc-category-diagnostics"><thead><tr><th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Sexe', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Inscrits', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Éligibles', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Recommandation', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Action possible', 'ufsc-licence-competition' ); ?></th></tr></thead><tbody>
+				<?php foreach ( $diagnostics as $row ) : ?>
+					<?php $badge = in_array( $row['status'], array( 'ready', 'pool', 'bracket' ), true ) ? 'ok' : ( 'lone' === $row['status'] ? 'warn' : 'muted' ); ?>
+					<tr><td><?php echo esc_html( (string) ( $row['category'] ?: '—' ) ); ?></td><td><?php echo esc_html( (string) ( $row['sex'] ?: '—' ) ); ?></td><td><?php echo esc_html( (string) ( $row['weight'] ?: '—' ) ); ?></td><td><?php echo esc_html( (string) (int) $row['total'] ); ?></td><td><?php echo esc_html( (string) (int) $row['eligible'] ); ?></td><td><span class="<?php echo esc_attr( self::status_badge_class( $badge ) ); ?>"><?php echo esc_html( (string) $row['label'] ); ?></span></td><td><?php echo esc_html( (string) $row['recommendation'] ); ?></td><td><?php echo esc_html( (int) $row['eligible'] >= 2 ? __( 'Générer', 'ufsc-licence-competition' ) : __( 'Contrôler', 'ufsc-licence-competition' ) ); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody></table>
+			<?php endif; ?>
+		</section>
+		<?php
 	}
 
 	private static function status_badge_class( string $status ): string {

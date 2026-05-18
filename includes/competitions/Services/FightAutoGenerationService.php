@@ -782,8 +782,18 @@ class FightAutoGenerationService {
 	}
 
 	public static function generate_simple_pairing_fights( int $competition_id, array $settings = array() ): array {
-		$entry_repo = new EntryRepository();
 		$fight_repo = new FightRepository();
+		$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
+		$existing_fights = self::get_existing_generation_blockers( $competition_id );
+		if ( empty( $regeneration_scope['allowed'] ) || (int) ( $existing_fights['total'] ?? 0 ) > 0 ) {
+			return array(
+				'ok'      => false,
+				'message' => __( 'Fallback simple pairing bloqué : des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
+				'existing_fights' => (int) ( $existing_fights['total'] ?? 0 ),
+			);
+		}
+
+		$entry_repo = new EntryRepository();
 		$entries = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
 		$groups = array();
 		$lone  = array();
