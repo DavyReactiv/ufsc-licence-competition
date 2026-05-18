@@ -1267,24 +1267,44 @@ class Bouts_AutoGeneration {
 		$count = 0;
 		$entry_ids = array_map( 'absint', (array) ( $ids['entries'] ?? array() ) );
 		$competition_id = absint( $ids['competition_id'] ?? 0 );
-		if ( $entry_ids ) {
+		$is_test_competition = self::is_tracked_test_competition( $competition_id );
+
+		if ( $entry_ids && $is_test_competition ) {
 			foreach ( $entry_ids as $entry_id ) {
-				if ( $entry_id <= 0 ) {
+				if ( $entry_id <= 0 || ! self::is_tracked_test_entry( $entry_id, $competition_id ) ) {
 					continue;
 				}
 				$wpdb->delete( Db::weighins_table(), array( 'entry_id' => $entry_id ), array( '%d' ) );
 				$count += (int) $wpdb->rows_affected;
-				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id ), array( '%d' ) );
+				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id, 'competition_id' => $competition_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
 			}
 		}
-		if ( $competition_id > 0 ) {
+		if ( $competition_id > 0 && $is_test_competition ) {
 			$wpdb->delete( Db::fights_table(), array( 'competition_id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
 			$wpdb->delete( Db::competitions_table(), array( 'id' => $competition_id ), array( '%d' ) ); $count += (int) $wpdb->rows_affected;
 			delete_option( 'ufsc_competitions_fight_generation_draft_' . $competition_id );
 		}
 		delete_option( 'ufsc_generation_test_fixture_ids' );
 		return $count;
+	}
+
+	private static function is_tracked_test_competition( int $competition_id ): bool {
+		global $wpdb;
+		if ( $competition_id <= 0 || ! Db::table_exists( Db::competitions_table() ) ) {
+			return false;
+		}
+		$name = (string) $wpdb->get_var( $wpdb->prepare( 'SELECT name FROM ' . Db::competitions_table() . ' WHERE id = %d LIMIT 1', $competition_id ) );
+		return 0 === strpos( $name, '[TEST]' );
+	}
+
+	private static function is_tracked_test_entry( int $entry_id, int $competition_id ): bool {
+		global $wpdb;
+		if ( $entry_id <= 0 || $competition_id <= 0 || ! Db::table_exists( Db::entries_table() ) ) {
+			return false;
+		}
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT id, competition_id FROM ' . Db::entries_table() . ' WHERE id = %d LIMIT 1', $entry_id ) );
+		return $row && (int) ( $row->competition_id ?? 0 ) === $competition_id;
 	}
 
 	private static function render_competition_quick_dashboard( int $competition_id ): void {

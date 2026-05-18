@@ -160,6 +160,10 @@ class Bouts_Page {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'error_required', $id );
 		}
 
+		if ( $data['red_entry_id'] > 0 && $data['red_entry_id'] === $data['blue_entry_id'] ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'same_fighter', $id );
+		}
+
 		if ( $id ) {
 			$existing = $this->repository->get( $id, true );
 			if ( $existing && $this->repository->is_fight_sensitive( $existing ) ) {
@@ -799,6 +803,7 @@ class Bouts_Page {
 				'correction_invalid' => __( 'Correction invalide : vainqueur et motif obligatoires.', 'ufsc-licence-competition' ),
 				'correction_supervisor_required' => __( 'Validation superviseur obligatoire : des combats suivants sont déjà joués.', 'ufsc-licence-competition' ),
 				'status_invalid' => __( 'Statut invalide.', 'ufsc-licence-competition' ),
+				'same_fighter' => __( 'Le même combattant ne peut pas être sélectionné en rouge et en bleu.', 'ufsc-licence-competition' ),
 				'status_transition_blocked' => __( 'Transition de statut refusée.', 'ufsc-licence-competition' ),
 				);
 

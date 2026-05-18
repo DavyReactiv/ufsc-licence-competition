@@ -63,10 +63,44 @@ function ufsc_comp_get_entry_birth_date( $entry ) {
 	if ( '' !== trim( (string) $json_value ) ) {
 		$decoded = json_decode( (string) $json_value, true );
 		if ( is_array( $decoded ) ) {
-			return ufsc_comp_get_object_value( $decoded, $keys );
+			$value = ufsc_comp_get_object_value( $decoded, $keys );
+			if ( '' !== trim( (string) $value ) ) {
+				return $value;
+			}
 		}
 	}
-	return '';
+
+	return ufsc_comp_get_linked_license_birth_date( $entry, $keys );
+}
+
+function ufsc_comp_get_linked_license_birth_date( $entry, array $keys ) {
+	global $wpdb;
+
+	$licensee_id = absint( ufsc_comp_get_object_value( $entry, array( 'licensee_id', 'licence_id', 'license_id' ) ) );
+	if ( ! $licensee_id || ! class_exists( '\UFSC\Competitions\Db' ) ) {
+		return '';
+	}
+
+	$table = $wpdb->prefix . 'ufsc_licences';
+	if ( ! Db::table_exists( $table ) ) {
+		return '';
+	}
+
+	$columns = Db::get_table_columns( $table );
+	$available_date_columns = array_values( array_intersect( $keys, $columns ) );
+	if ( empty( $available_date_columns ) ) {
+		return '';
+	}
+
+	$select_parts = array_map(
+		static function ( string $column ): string {
+			return "NULLIF(CAST(`" . esc_sql( $column ) . "` AS CHAR), '')";
+		},
+		$available_date_columns
+	);
+	$expression = 'COALESCE(' . implode( ',', $select_parts ) . ')';
+
+	return (string) $wpdb->get_var( $wpdb->prepare( "SELECT {$expression} FROM {$table} WHERE id = %d LIMIT 1", $licensee_id ) );
 }
 
 function ufsc_comp_format_birth_date( $value ): string {
@@ -96,11 +130,11 @@ function ufsc_comp_group_entries_by_category( array $entries ): array {
 	$groups = array();
 	foreach ( $entries as $entry ) {
 		$parts = array(
-			sanitize_text_field( (string) ( $entry->discipline ?? '' ) ),
-			sanitize_text_field( (string) ( $entry->sex ?? $entry->licensee_sex ?? $entry->gender ?? '' ) ),
-			sanitize_text_field( (string) ( $entry->category ?? $entry->category_name ?? '' ) ),
-			sanitize_text_field( (string) ( $entry->weight_class ?? '' ) ),
-			sanitize_text_field( (string) ( $entry->level ?? '' ) ),
+			sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'discipline' ) ) ),
+			sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'sex', 'sexe', 'licensee_sex', 'gender' ) ) ),
+			sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'age_category', 'age_group', 'categorie_age', 'category', 'category_name' ) ) ),
+			sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ) ),
+			sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'level', 'classe', 'class', 'niveau' ) ) ),
 		);
 		$key = implode( ' | ', array_map( static function ( $part ) { return '' !== $part ? $part : '—'; }, $parts ) );
 		if ( ! isset( $groups[ $key ] ) ) {
