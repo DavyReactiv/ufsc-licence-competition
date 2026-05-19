@@ -8,6 +8,8 @@ use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Admin\Tables\Categories_Table;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\GenerationLockService;
+use UFSC\Competitions\Services\LogService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -103,6 +105,11 @@ class Categories_Page {
 			'level'          => isset( $_POST['level'] ) ? sanitize_text_field( wp_unslash( $_POST['level'] ) ) : '',
 			'format'         => isset( $_POST['format'] ) ? sanitize_text_field( wp_unslash( $_POST['format'] ) ) : '',
 		);
+
+		if ( $data['competition_id'] && class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( (int) $data['competition_id'] ) && ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY, (int) $data['competition_id'] ) ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', (int) $data['competition_id'], 'category', $id, array( 'reason' => 'categories_locked_after_generation' ) );
+			$this->redirect_with_notice( Menu::PAGE_CATEGORIES, 'locked_after_generation', $id );
+		}
 
 		if ( $data['competition_id'] ) {
 			$competition = $this->competition_repository->get( $data['competition_id'], true );
@@ -309,13 +316,14 @@ class Categories_Page {
 			'deleted'       => __( 'Catégorie supprimée définitivement.', 'ufsc-licence-competition' ),
 			'error_required'=> __( 'Veuillez renseigner le nom et la discipline de la catégorie.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Catégorie introuvable.', 'ufsc-licence-competition' ),
+			'locked_after_generation' => __( 'Catégories verrouillées après génération : action sensible requise.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = 'error_required' === $notice || 'not_found' === $notice ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'locked_after_generation' ), true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
 
