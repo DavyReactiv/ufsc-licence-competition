@@ -1939,42 +1939,21 @@ class FightAutoGenerationService {
 			$next_no++;
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2 );
 			$next_no++;
-		} elseif ( $count >= 3 && $count <= 8 && 'tableau_bye' === $format ) {
-			$bracket = new BracketGenerator();
-			$plan    = $bracket->generate( $entries, self::determine_bracket_size( $count ) );
-			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				if ( ! empty( $match['is_bye'] ) ) {
-					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				} else {
-					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				}
-					$next_no++;
-				}
-			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
-		} elseif ( $count >= 9 && $count <= 16 && 'tableau_bye' === $format ) {
-			$bracket = new BracketGenerator();
-			$plan    = $bracket->generate( $entries, self::determine_bracket_size( $count ) );
-			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				if ( ! empty( $match['is_bye'] ) ) {
-					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				} else {
-					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				}
+		} elseif ( 'tableau_bye' === $format || 'tableau' === $format ) {
+			$bracket_preview = self::build_bracket_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
+			foreach ( (array) ( $bracket_preview['fights'] ?? array() ) as $bfight ) {
+				$bfight['competition_id'] = $competition_id;
+				$bfight['category_id'] = $category_id;
+				$bfight['fight_no'] = $next_no;
+				$bfight['round_no'] = (int) ( $bfight['round_no'] ?? $bfight['round'] ?? 1 );
+				$bfight['status'] = (string) ( $bfight['status'] ?? 'scheduled' );
+				$fights[] = $bfight;
 				$next_no++;
 			}
-			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
-		} elseif ( $count >= 17 && $count <= 32 && 'tableau_bye' === $format ) {
-			$bracket = new BracketGenerator();
-			$plan    = $bracket->generate( $entries, self::determine_bracket_size( $count ) );
-			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
-				if ( ! empty( $match['is_bye'] ) ) {
-					$fights[] = self::build_bye_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				} else {
-					$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $match['red'] ?? null, $match['blue'] ?? null, 1 );
-				}
-				$next_no++;
+			$bye_slots += (int) ( $bracket_preview['bye_count'] ?? 0 );
+			if ( ! empty( $bracket_preview['warnings'] ) ) {
+				$warnings = array_merge( $warnings, (array) $bracket_preview['warnings'] );
 			}
-			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
 		} elseif ( 'unsupported' === $format ) {
 			$warnings[] = sprintf( 'Catégorie #%d : format non supporté (%s).', $category_id, $format_label );
 		}
@@ -2017,6 +1996,71 @@ class FightAutoGenerationService {
 		if ( $fighter_count <= 16 ) { return 16; }
 		if ( $fighter_count <= 32 ) { return 32; }
 		return 0;
+	}
+
+	private static function build_bracket_preview( array $entries, array $group, array $settings ): array {
+		$count = count( $entries );
+		$size = self::determine_bracket_size( $count );
+		$out = array( 'fights' => array(), 'bye_count' => 0, 'placeholder_count' => 0, 'warnings' => array(), 'bracket_size' => $size, 'rounds' => array() );
+		if ( $size <= 0 || $size > 32 ) {
+			$out['warnings'][] = 'Tableau supérieur à 32 non supporté dans ce lot.';
+			return $out;
+		}
+		$round_labels = array( 2 => array( 1 => 'Finale' ), 4 => array( 1 => 'Demi-finales', 2 => 'Finale' ), 8 => array( 1 => 'Quarts', 2 => 'Demi-finales', 3 => 'Finale' ), 16 => array( 1 => 'Huitièmes', 2 => 'Quarts', 3 => 'Demi-finales', 4 => 'Finale' ), 32 => array( 1 => 'Seizièmes', 2 => 'Huitièmes', 3 => 'Quarts', 4 => 'Demi-finales', 5 => 'Finale' ) );
+		$bracket = new BracketGenerator();
+		$plan = $bracket->generate( $entries, $size );
+		$r1 = array();
+		foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
+			$is_bye = ! empty( $match['is_bye'] );
+			$r1[] = array(
+				'phase' => $round_labels[ $size ][1] ?? 'Tour 1',
+				'round' => 1,
+				'round_no' => 1,
+				'round_label' => $round_labels[ $size ][1] ?? 'Tour 1',
+				'type' => $is_bye ? 'bye' : 'fight',
+				'status' => $is_bye ? 'bye' : 'scheduled',
+				'red_entry_id' => (int) ( $match['red']->id ?? 0 ),
+				'blue_entry_id' => (int) ( $match['blue']->id ?? 0 ),
+				'red_label' => self::entry_label( $match['red'] ?? null ),
+				'blue_label' => $is_bye ? 'BYE — Qualifié automatiquement' : self::entry_label( $match['blue'] ?? null ),
+			);
+			if ( $is_bye ) { $out['bye_count']++; }
+		}
+		$out['fights'] = array_merge( $out['fights'], $r1 );
+		$prev_count = count( $r1 );
+		$round_no = 2;
+		while ( $prev_count > 1 ) {
+			$current = (int) floor( $prev_count / 2 );
+			for ( $i = 0; $i < $current; $i++ ) {
+				$src_a = ( ( $i * 2 ) + 1 );
+				$src_b = ( ( $i * 2 ) + 2 );
+				$out['fights'][] = array(
+					'phase' => $round_labels[ $size ][ $round_no ] ?? ( 'Tour ' . $round_no ),
+					'round' => $round_no,
+					'round_no' => $round_no,
+					'round_label' => $round_labels[ $size ][ $round_no ] ?? ( 'Tour ' . $round_no ),
+					'type' => 'placeholder',
+					'status' => 'placeholder',
+					'red_label' => 'Vainqueur combat ' . $src_a,
+					'blue_label' => 'Vainqueur combat ' . $src_b,
+					'source_red_fight_no' => $src_a,
+					'source_blue_fight_no' => $src_b,
+				);
+				$out['placeholder_count']++;
+			}
+			$prev_count = $current;
+			$round_no++;
+		}
+		$out['warnings'][] = 'Propagation complète du tableau à finaliser dans un lot suivant.';
+		return $out;
+	}
+
+	private static function entry_label( $entry ): string {
+		if ( ! is_object( $entry ) ) { return 'TBD'; }
+		$ln = sanitize_text_field( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '' ) );
+		$fn = sanitize_text_field( (string) ( $entry->licensee_first_name ?? $entry->first_name ?? '' ) );
+		$label = trim( $ln . ' ' . $fn );
+		return '' === $label ? ( 'Entrée #' . (int) ( $entry->id ?? 0 ) ) : $label;
 	}
 
 	private static function normalize_preview_fights( array $fights ): array {
