@@ -33,6 +33,10 @@ class UFSC_LC_Licences_Admin {
 		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
+		if ( isset( $_GET['ufsc_lc_reset'] ) ) {
+			wp_safe_redirect( admin_url( 'admin.php?page=ufsc-lc-licences' ) );
+			exit;
+		}
 
 		if ( $this->is_edit_asptt_action() ) {
 			$this->render_asptt_edit_page();
