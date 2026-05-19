@@ -100,6 +100,36 @@ Le module est conçu pour rester compatible avec des schémas UFSC historiques (
 - Soft delete sur entités concernées.
 - Supervision explicite pour correction de résultat avec impacts aval déjà joués.
 
+## Module Compétitions — Génération sécurisée
+
+- Diagnostic avant génération (bloquants + warnings).
+- Preview / brouillon obligatoire avant création réelle.
+- Snapshot avant application réelle du brouillon.
+- Rollback ciblé tenté en cas d’échec SQL partiel.
+- Verrou post-génération pour éviter des modifications dangereuses.
+- BYE et placeholders lisibles en preview (ex: « Vainqueur combat X »).
+- Poules round-robin simples (3 à 6 combattants) avec warnings métier.
+- Warnings même club (best effort, non bloquant).
+- Warnings repos athlète quand des combats sont rapprochés.
+- Sandbox de test maintenue pour scénarios de génération.
+- Aucune génération directe non prévisualisée.
+
+## Formats actuellement pris en charge
+
+- Combat simple.
+- Tableau avec BYE.
+- Tableau multi-tours avec placeholders.
+- Poule round-robin simple.
+- Formats supérieurs/avancés signalés par warning si non supportés.
+
+## Sécurité des données
+
+- Les combats réels sont créés uniquement après validation d’un brouillon.
+- Un snapshot est créé avant application.
+- Un rollback ciblé est tenté en cas d’erreur.
+- Les suppressions définitives sont protégées par capability + confirmation.
+- Les pesées validées et résultats terminés sont protégés par des garde-fous dédiés.
+
 ## 7) Notes de mise en production
 
 ### Prérequis

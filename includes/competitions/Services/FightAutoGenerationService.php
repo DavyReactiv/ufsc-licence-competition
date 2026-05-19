@@ -1922,9 +1922,19 @@ class FightAutoGenerationService {
 			}
 			$next_no++;
 		} elseif ( 'poule' === $format ) {
-			foreach ( self::round_robin_pairs( $entries ) as $pair ) {
-				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $pair['red'], $pair['blue'], 1 );
+			$pool_preview = self::build_pool_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
+			foreach ( (array) ( $pool_preview['fights'] ?? array() ) as $pfight ) {
+				$pfight['competition_id'] = $competition_id;
+				$pfight['category_id'] = $category_id;
+				$pfight['fight_no'] = $next_no;
+				$pfight['round_no'] = 1;
+				$pfight['phase'] = (string) ( $pfight['phase'] ?? 'Poule' );
+				$pfight['status'] = 'scheduled';
+				$fights[] = $pfight;
 				$next_no++;
+			}
+			if ( ! empty( $pool_preview['warnings'] ) ) {
+				$warnings = array_merge( $warnings, (array) $pool_preview['warnings'] );
 			}
 		} elseif ( 4 === $count && 'tableau' === $format ) {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[3], 1 );
@@ -2057,6 +2067,91 @@ class FightAutoGenerationService {
 		return $out;
 	}
 
+	private static function build_pool_preview( array $entries, array $group, array $settings ): array {
+		$pool_size = count( $entries );
+		$pairs = self::round_robin_pairs( $entries );
+		$pairs = self::order_round_robin_pairs( $pairs );
+		$fights = array();
+		$warnings = array();
+		$seen = array();
+		$last_entry = 0;
+		foreach ( $pairs as $idx => $pair ) {
+			$red_id = (int) ( $pair['red']->id ?? 0 );
+			$blue_id = (int) ( $pair['blue']->id ?? 0 );
+			if ( $red_id <= 0 || $blue_id <= 0 || $red_id === $blue_id ) {
+				continue;
+			}
+			$key = $red_id < $blue_id ? ( $red_id . '-' . $blue_id ) : ( $blue_id . '-' . $red_id );
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
+			$seen[ $key ] = true;
+			if ( $last_entry > 0 && ( $red_id === $last_entry || $blue_id === $last_entry ) ) {
+				$warnings[] = 'Repos athlète à contrôler : certains combattants ont deux combats rapprochés.';
+			}
+			$fights[] = array(
+				'phase' => 'Poule',
+				'round' => 1,
+				'round_label' => 'Poule',
+				'type' => 'fight',
+				'status' => 'scheduled',
+				'red_entry_id' => $red_id,
+				'blue_entry_id' => $blue_id,
+				'red_label' => self::entry_label( $pair['red'] ?? null ),
+				'blue_label' => self::entry_label( $pair['blue'] ?? null ),
+			);
+			$last_entry = $blue_id;
+		}
+		if ( self::pool_has_same_club( $entries ) ) {
+			$warnings[] = 'Attention : plusieurs combattants du même club sont présents dans cette poule.';
+		}
+		$warnings = array_values( array_unique( $warnings ) );
+		return array(
+			'fights' => $fights,
+			'fight_count' => count( $fights ),
+			'warnings' => $warnings,
+			'pool_size' => $pool_size,
+			'rounds' => array( 'Poule' ),
+		);
+	}
+
+	private static function order_round_robin_pairs( array $pairs ): array {
+		$ordered = array();
+		$remaining = array_values( $pairs );
+		$last_entry = 0;
+		while ( ! empty( $remaining ) ) {
+			$pick = 0;
+			foreach ( $remaining as $i => $pair ) {
+				$red_id = (int) ( $pair['red']->id ?? 0 );
+				$blue_id = (int) ( $pair['blue']->id ?? 0 );
+				if ( $last_entry > 0 && $red_id !== $last_entry && $blue_id !== $last_entry ) {
+					$pick = $i;
+					break;
+				}
+			}
+			$chosen = $remaining[ $pick ];
+			$ordered[] = $chosen;
+			$last_entry = (int) ( $chosen['blue']->id ?? 0 );
+			array_splice( $remaining, $pick, 1 );
+		}
+		return $ordered;
+	}
+
+	private static function pool_has_same_club( array $entries ): bool {
+		$clubs = array();
+		foreach ( $entries as $entry ) {
+			$key = (int) ( $entry->club_id ?? 0 );
+			if ( $key <= 0 ) {
+				$key = crc32( strtolower( sanitize_text_field( (string) ( $entry->club_name ?? '' ) ) ) );
+			}
+			if ( isset( $clubs[ $key ] ) ) {
+				return true;
+			}
+			$clubs[ $key ] = true;
+		}
+		return false;
+	}
+
 	private static function entry_label( $entry ): string {
 		if ( ! is_object( $entry ) ) { return 'TBD'; }
 		$ln = sanitize_text_field( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '' ) );
@@ -2101,11 +2196,15 @@ class FightAutoGenerationService {
 			}
 			if ( '' === $key ) { continue; }
 			if ( ! isset( $by_group[ $key ] ) ) {
-				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0 );
+				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0, 'round_labels' => array() );
 			}
 			$by_group[ $key ]['fight_count']++;
 			if ( 'bye' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['bye_count']++; }
 			if ( 'placeholder' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['placeholder_count']++; }
+			$round_label = sanitize_text_field( (string) ( $fight['round_label'] ?? '' ) );
+			if ( '' !== $round_label ) {
+				$by_group[ $key ]['round_labels'][ $round_label ] = true;
+			}
 		}
 		foreach ( $groups as $i => $group ) {
 			$group = is_array( $group ) ? $group : array();
@@ -2119,6 +2218,13 @@ class FightAutoGenerationService {
 			$group['placeholder_count'] = (int) ( $stats['placeholder_count'] ?? 0 );
 			$group['warnings'] = isset( $group['warnings'] ) && is_array( $group['warnings'] ) ? $group['warnings'] : array();
 			$group['fighters'] = isset( $group['athletes'] ) && is_array( $group['athletes'] ) ? $group['athletes'] : array();
+			if ( 'poule' === (string) ( $group['format'] ?? '' ) ) {
+				$group['pool_size'] = (int) $group['fighter_count'];
+				$group['pool_fight_count'] = (int) $group['fight_count'];
+				$group['pool_rounds'] = array_keys( (array) ( $stats['round_labels'] ?? array() ) );
+				$group['bye_count'] = 0;
+				$group['placeholder_count'] = 0;
+			}
 			$groups[ $i ] = $group;
 		}
 		return $groups;
