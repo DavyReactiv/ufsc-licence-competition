@@ -12,6 +12,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\WeightCategoryResolver;
+use UFSC\Competitions\Services\LogService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -31,7 +32,7 @@ class WeighIns_Page {
 	}
 
 	public function render(): void {
-		if ( ! Capabilities::user_can_manage_entries() ) {
+		if ( ! Capabilities::user_can_manage_weighins() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -346,7 +347,7 @@ class WeighIns_Page {
 			return null;
 		}
 
-		if ( ! Capabilities::user_can_manage_entries() ) {
+		if ( ! Capabilities::user_can_manage_weighins() ) {
 			return array( 'type' => 'error', 'message' => __( 'Permissions insuffisantes.', 'ufsc-licence-competition' ) );
 		}
 
@@ -381,6 +382,12 @@ class WeighIns_Page {
 		}
 
 		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );
+		$existing_status = $existing ? sanitize_key( (string) ( $existing->status ?? '' ) ) : '';
+		$fights_count = $this->count_existing_fights( $competition_id );
+		if ( $existing && in_array( $existing_status, array( 'ok', 'weighed', 'validated', 'reclassified' ), true ) && $fights_count > 0 && ! Capabilities::user_can_override_weighins() ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'weighin', (int) ( $existing->id ?? 0 ), array( 'reason' => 'validated_weighin_locked_by_existing_fights', 'entry_id' => $entry_id, 'old_payload' => $existing ) );
+			return array( 'type' => 'error', 'message' => __( 'Pesée protégée : des combats existent déjà. Droit de correction pesée requis.', 'ufsc-licence-competition' ) );
+		}
 		$existing_meta = $this->extract_meta( $existing ? (string) ( $existing->notes ?? '' ) : '' );
 		$existing_fighter_number = absint( $existing_meta['fighter_number'] ?? 0 );
 		if ( $existing_fighter_number <= 0 ) {
@@ -479,6 +486,10 @@ class WeighIns_Page {
 		if ( false === $result ) {
 			return array( 'type' => 'error', 'message' => __( 'Enregistrement de pesée impossible.', 'ufsc-licence-competition' ) );
 		}
+
+		$new_weighin = $this->weighins->get_for_entry( $competition_id, $entry_id );
+		$action = ( $existing && in_array( $existing_status, array( 'ok', 'weighed', 'validated', 'reclassified' ), true ) ) ? 'weighin_override' : 'weighin_updated';
+		( new LogService() )->audit( $action, $competition_id, 'weighin', (int) ( $new_weighin->id ?? $entry_id ), array( 'entry_id' => $entry_id, 'old_payload' => $existing, 'new_payload' => $new_weighin, 'fights_count' => $fights_count ) );
 
 		$message = __( 'Pesée mise à jour.', 'ufsc-licence-competition' );
 		if ( $fighter_number_reassigned ) {

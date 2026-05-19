@@ -7,6 +7,8 @@ use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\FightAutoGenerationService;
+use UFSC\Competitions\Services\GenerationLockService;
+use UFSC\Competitions\Services\LogService;
 use UFSC\Competitions\Db;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -51,6 +53,7 @@ class Bouts_AutoGeneration {
 			'reorder_ok' => __( 'Combats réordonnés.', 'ufsc-licence-competition' ),
 			'action_error' => __( 'Action impossible.', 'ufsc-licence-competition' ),
 			'invalid_settings' => __( 'Paramètres invalides : vérifiez les surfaces et les champs timing (minutes/secondes).', 'ufsc-licence-competition' ),
+			'action_protected' => __( 'Action sensible protégée.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! isset( $messages[ $notice ] ) ) {
@@ -68,6 +71,10 @@ class Bouts_AutoGeneration {
 			return;
 		}
 		$competition_id = self::resolve_competition_id( $competition_id );
+		if ( $competition_id && class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
+			$lock = GenerationLockService::get_lock( $competition_id );
+			echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__( 'Génération verrouillée', 'ufsc-licence-competition' ) . '</strong> — ' . esc_html__( 'Les inscriptions et catégories sont protégées depuis la génération validée.', 'ufsc-licence-competition' ) . ' ' . esc_html( (string) ( $lock['generation_locked_at'] ?? '' ) ) . '</p></div>';
+		}
 
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$draft = $competition_id ? FightAutoGenerationService::get_draft( $competition_id ) : array();
@@ -819,6 +826,10 @@ class Bouts_AutoGeneration {
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
 		}
+		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) && ! Capabilities::user_can_regenerate_fights() ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'generation_locked' ) );
+			self::redirect( $competition_id, 'action_protected', __( 'Régénération protégée : action sensible requise.', 'ufsc-licence-competition' ) );
+		}
 
 		FightAutoGenerationService::clear_draft( $competition_id );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
@@ -840,48 +851,17 @@ class Bouts_AutoGeneration {
 	public static function handle_generate_direct(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( self::nonce_action( 'ufsc_competitions_generate_fight_direct', $competition_id ), $competition_id );
+		if ( ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY, $competition_id ) || empty( $_POST['confirm_direct_generation_preview'] ) ) {
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'direct_generation_disabled' ) );
+			self::redirect( $competition_id, 'action_protected', __( 'La génération directe est désactivée : générez un brouillon, vérifiez la prévisualisation puis validez.', 'ufsc-licence-competition' ) );
+		}
+
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
-		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft_result = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		if ( empty( $draft_result['ok'] ) ) {
-			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
-			if ( ! empty( $fallback['ok'] ) ) {
-				$message = sprintf(
-					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
-					(int) ( $fallback['attempted_inserts'] ?? 0 ),
-					(int) ( $fallback['successful_inserts'] ?? 0 ),
-					count( (array) ( $fallback['lone_groups'] ?? array() ) )
-				);
-				self::redirect( $competition_id, 'draft_validated', $message );
-			}
 			self::redirect( $competition_id, 'draft_error', (string) ( $draft_result['message'] ?? '' ) );
 		}
-		$apply_result = FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' );
-		if ( empty( $apply_result['ok'] ) || (int) ( $apply_result['stats']['inserts_success'] ?? 0 ) <= 0 ) {
-			$fallback = FightAutoGenerationService::generate_simple_pairing_fights( $competition_id, $settings );
-			if ( ! empty( $fallback['ok'] ) ) {
-				$message = sprintf(
-					'Fallback simple pairing exécuté | inserts_tentes=%1$d | inserts_reussis=%2$d | groupes_solo=%3$d',
-					(int) ( $fallback['attempted_inserts'] ?? 0 ),
-					(int) ( $fallback['successful_inserts'] ?? 0 ),
-					count( (array) ( $fallback['lone_groups'] ?? array() ) )
-				);
-				self::redirect( $competition_id, 'draft_validated', $message );
-			}
-		}
-		$stats = (array) ( $apply_result['stats'] ?? array() );
-		$diag_message = sprintf(
-			'Action=direct | competition_id_received=%1$d | competition_id_used=%2$d | groups_generables=%3$d | combats_estimes=%4$d | inserts_tentes=%5$d | inserts_reussis=%6$d | draft=%7$s | result=%8$s',
-			$competition_id,
-			$competition_id,
-			(int) ( $preview['estimated_categories'] ?? 0 ),
-			(int) ( $preview['estimated_fights'] ?? 0 ),
-			(int) ( $stats['inserts_attempted'] ?? 0 ),
-			(int) ( $stats['inserts_success'] ?? 0 ),
-			! empty( $draft_result['ok'] ) ? 'yes' : 'no',
-			(string) ( $apply_result['message'] ?? '' )
-		);
-		self::redirect( $competition_id, ! empty( $apply_result['ok'] ) ? 'draft_validated' : 'action_error', $diag_message );
+		self::redirect( $competition_id, 'draft_ready', __( 'Brouillon créé. Validation manuelle requise avant enregistrement.', 'ufsc-licence-competition' ) );
 	}
 
 	public static function handle_discard_draft(): void {
@@ -952,6 +932,7 @@ class Bouts_AutoGeneration {
 	public static function handle_test_fixture_delete(): void {
 		self::guard_action( 'ufsc_competitions_test_fixture_delete', 0 );
 		$deleted = self::delete_test_fixture();
+		( new LogService() )->audit( 'sandbox_deleted', 0, 'sandbox', 0, array( 'deleted_count' => (int) $deleted ) );
 		self::redirect( 0, 'settings_saved', sprintf( __( 'Données de test supprimées: %d éléments.', 'ufsc-licence-competition' ), $deleted ) );
 	}
 
@@ -961,6 +942,8 @@ class Bouts_AutoGeneration {
 		if ( empty( $fixture['ok'] ) ) { self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) ); }
 		$competition_id = (int) $fixture['competition_id'];
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$settings['sandbox_generation'] = 1;
+		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		$fixture_ids = get_option( 'ufsc_generation_test_fixture_ids', array() );
@@ -1005,6 +988,8 @@ class Bouts_AutoGeneration {
 		}
 		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$settings['sandbox_generation'] = 1;
+		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		$apply = ! empty( $draft['ok'] ) ? FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' ) : array( 'ok' => false );
@@ -1057,6 +1042,10 @@ class Bouts_AutoGeneration {
 	public static function handle_record_fight_result(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_record_fight_result', $competition_id );
+		if ( ! Capabilities::user_can_record_results() ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'missing_result_record_capability' ) );
+			self::redirect( $competition_id, 'action_protected', __( 'Droit saisie résultat requis.', 'ufsc-licence-competition' ) );
+		}
 		$fight_id = absint( $_POST['fight_id'] ?? 0 );
 		if ( $fight_id <= 0 ) {
 			self::redirect( $competition_id, 'action_error', 'Combat invalide.' );
@@ -1071,8 +1060,9 @@ class Bouts_AutoGeneration {
 		if ( in_array( $status, array( 'running', 'locked' ), true ) ) {
 			self::redirect( $competition_id, 'action_error', 'Combat verrouillé/en cours: utilisez Actions sensibles.' );
 		}
-		if ( 'completed' === $status && empty( $_POST['force_sensitive'] ) ) {
-			self::redirect( $competition_id, 'action_error', 'Résultat déjà saisi: correction via Actions sensibles.' );
+		if ( 'completed' === $status && ( empty( $_POST['force_sensitive'] ) || ! Capabilities::user_can_correct_results() ) ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'fight', $fight_id, array( 'reason' => 'result_correction_requires_capability', 'old_payload' => $fight ) );
+			self::redirect( $competition_id, 'action_error', 'Résultat déjà saisi: correction via Actions sensibles avec droit de correction.' );
 		}
 		$admin_reason = sanitize_text_field( (string) ( $_POST['correction_reason'] ?? '' ) );
 		if ( 'completed' === $status && '' === $admin_reason ) {
@@ -1099,6 +1089,7 @@ class Bouts_AutoGeneration {
 		$old_result = (string) ( $fight->result ?? '' );
 		$propagation = self::maybe_propagate_winner( $fight, $winner_entry_id, $old_winner_entry_id );
 		self::log_result_correction_event( $competition_id, (int) $fight_id, $old_result, $result_text, $old_winner_entry_id, $winner_entry_id, $propagation, $admin_reason );
+		( new LogService() )->audit( 'completed' === $status ? 'result_corrected' : 'result_recorded', $competition_id, 'fight', (int) $fight_id, array( 'old_payload' => $fight, 'new_payload' => $update, 'reason' => $admin_reason, 'propagation' => $propagation ) );
 		$diag = sprintf(
 			'Résultat combat #%1$d | winner=%2$d | next=%3$d | slot=%4$s | propagation=%5$s (%6$s)',
 			(int) ( $fight->fight_no ?? $fight_id ),
@@ -1457,6 +1448,10 @@ class Bouts_AutoGeneration {
 		}
 
 		self::ensure_manage_access();
+		if ( ( false !== strpos( $nonce_action, 'generate' ) || false !== strpos( $nonce_action, 'validate_fight_draft' ) ) && ! Capabilities::user_can_generate_fights() ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'missing_fight_generate_capability', 'nonce_action' => $nonce_action ) );
+			self::redirect( $competition_id, 'action_protected', __( 'Droit génération combats requis.', 'ufsc-licence-competition' ) );
+		}
 		check_admin_referer( $nonce_action );
 	}
 
