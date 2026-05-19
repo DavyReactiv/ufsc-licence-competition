@@ -28,12 +28,7 @@ class GenerationReadinessDiagnostic {
 			'errors'   => array(),
 			'warnings' => array(),
 			'infos'    => array(),
-			'summary'  => array(
-				'competition_id' => $competition_id,
-				'status'         => 'blocked',
-				'status_label'   => __( 'Bloquée', 'ufsc-licence-competition' ),
-				'score'          => 0,
-			),
+			'summary'  => self::default_summary( $competition_id ),
 			'sections' => array(),
 			'actions'  => array(),
 		);
@@ -67,7 +62,7 @@ class GenerationReadinessDiagnostic {
 
 		self::build_competition_section( $result, $competition_id, $competition, $settings, $draft, $fight_state, $surfaces );
 		self::build_entries_section( $result, $competition_id, $analysis );
-		self::build_weighins_section( $result, $competition_id, $weighins, ! empty( $settings['allow_unweighed'] ) );
+		self::build_weighins_section( $result, $competition_id, $weighins, self::weighins_required( $settings ) );
 		self::build_categories_section( $result, $competition_id, $categories, ! empty( $settings['strict_lone_categories'] ) || ! empty( $settings['block_categories_without_opponents'] ) );
 		self::build_surfaces_section( $result, $competition_id, $surfaces );
 		self::build_fights_section( $result, $competition_id, $fight_state );
@@ -93,7 +88,7 @@ class GenerationReadinessDiagnostic {
 				'entries_approved'     => (int) $analysis['summary']['approved'],
 				'entries_generable'    => (int) $analysis['summary']['generable'],
 				'entries_to_correct'   => (int) $analysis['summary']['to_correct'],
-				'weighins_required'    => empty( $settings['allow_unweighed'] ),
+				'weighins_required'    => self::weighins_required( $settings ),
 				'weighins_valid'       => (int) $weighins['summary']['valid'],
 				'weighins_missing'     => (int) $weighins['summary']['missing'],
 				'categories_total'     => (int) $categories['summary']['groups'],
@@ -108,6 +103,43 @@ class GenerationReadinessDiagnostic {
 		);
 
 		return self::finalize( $result );
+	}
+
+
+	private static function default_summary( int $competition_id ): array {
+		return array(
+			'competition_id' => $competition_id,
+			'status' => 'blocked',
+			'status_label' => __( 'Bloquée', 'ufsc-licence-competition' ),
+			'score' => 0,
+			'entries_total' => 0,
+			'entries_approved' => 0,
+			'entries_generable' => 0,
+			'entries_to_correct' => 0,
+			'weighins_required' => true,
+			'weighins_valid' => 0,
+			'weighins_missing' => 0,
+			'categories_total' => 0,
+			'categories_ready' => 0,
+			'categories_lone' => 0,
+			'estimated_fights' => 0,
+			'surface_count' => 0,
+			'surfaces_active' => 0,
+			'fights_existing' => 0,
+			'fights_sensitive' => 0,
+		);
+	}
+
+	private static function weighins_required( array $settings ): bool {
+		if ( ! empty( $settings['allow_unweighed'] ) || ! empty( $settings['sandbox_generation'] ) ) {
+			return false;
+		}
+		foreach ( array( 'weighins_required', 'require_weighins', 'require_weighin' ) as $key ) {
+			if ( array_key_exists( $key, $settings ) && ! (bool) $settings[ $key ] ) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public static function hash_draft( array $draft ): string {
@@ -130,7 +162,7 @@ class GenerationReadinessDiagnostic {
 		}
 		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
 			$status = 'locked';
-			self::add_warning( $result, 'competition_generation_locked', __( 'Une génération a déjà été validée : les modifications sensibles doivent être encadrées.', 'ufsc-licence-competition' ) );
+			self::add_error( $result, 'competition_generation_locked', __( 'Une génération a déjà été validée : la génération réelle est verrouillée pour éviter les doublons.', 'ufsc-licence-competition' ) );
 			self::add_action( $result, __( 'Consulter les combats existants avant toute régénération', 'ufsc-licence-competition' ), 'high', 'fights', self::admin_url( self::PAGE_BOUTS, $competition_id ) );
 		}
 		if ( empty( $competition->event_start_datetime ) && empty( $competition->date ) && empty( $competition->competition_date ) ) {
@@ -167,7 +199,7 @@ class GenerationReadinessDiagnostic {
 	}
 
 	private static function analyse_entries( array $entries, array $settings ): array {
-		$summary = array_fill_keys( array( 'total', 'approved', 'draft', 'pending', 'refused', 'cancelled', 'generable', 'to_correct', 'non_generable' ), 0 );
+		$summary = array_fill_keys( array( 'total', 'approved', 'draft', 'pending', 'refused', 'cancelled', 'generable', 'blocking', 'to_correct', 'non_generable' ), 0 );
 		$issues = array();
 		$approved = array();
 		$name_keys = array();
@@ -193,7 +225,8 @@ class GenerationReadinessDiagnostic {
 			$summary['approved']++;
 			$approved[] = $entry;
 			$entry_id = absint( $entry->id ?? 0 );
-			$entry_issues = array();
+			$blocking_issues = array();
+			$warning_issues = array();
 			$first = trim( (string) ( $entry->first_name ?? $entry->firstname ?? $entry->prenom ?? '' ) );
 			$last = trim( (string) ( $entry->last_name ?? $entry->lastname ?? $entry->nom ?? '' ) );
 			$birth = self::entry_birth( $entry );
@@ -202,15 +235,13 @@ class GenerationReadinessDiagnostic {
 			$weight = trim( (string) ( $entry->weight_kg ?? $entry->weight ?? '' ) );
 			$category = trim( (string) ( $entry->category_name ?? $entry->category ?? $entry->category_id ?? '' ) );
 
-			if ( '' === $first ) { $entry_issues[] = __( 'prénom manquant', 'ufsc-licence-competition' ); }
-			if ( '' === $last ) { $entry_issues[] = __( 'nom manquant', 'ufsc-licence-competition' ); }
-			if ( '' === $sex ) { $entry_issues[] = __( 'sexe manquant', 'ufsc-licence-competition' ); }
-			if ( '' === $birth ) { $entry_issues[] = __( 'date de naissance manquante', 'ufsc-licence-competition' ); }
-			if ( '' === $weight ) { $entry_issues[] = __( 'poids déclaré manquant', 'ufsc-licence-competition' ); }
-			if ( '' === $category ) { $entry_issues[] = __( 'catégorie manquante', 'ufsc-licence-competition' ); }
-			if ( '' === $club ) {
-				self::push_limited( $issues, self::item( 'missing_club', self::entry_label( $entry ) . ' — ' . __( 'club manquant', 'ufsc-licence-competition' ), 'warning' ) );
-			}
+			if ( '' === $first ) { $warning_issues[] = __( 'prénom manquant', 'ufsc-licence-competition' ); }
+			if ( '' === $last ) { $warning_issues[] = __( 'nom manquant', 'ufsc-licence-competition' ); }
+			if ( '' === $sex ) { $blocking_issues[] = __( 'sexe manquant', 'ufsc-licence-competition' ); }
+			if ( '' === $birth ) { $blocking_issues[] = __( 'date de naissance manquante', 'ufsc-licence-competition' ); }
+			if ( '' === $weight ) { $blocking_issues[] = __( 'poids déclaré manquant', 'ufsc-licence-competition' ); }
+			if ( '' === $category ) { $warning_issues[] = __( 'catégorie manquante', 'ufsc-licence-competition' ); }
+			if ( '' === $club ) { $warning_issues[] = __( 'club manquant', 'ufsc-licence-competition' ); }
 
 			$name_key = sanitize_key( remove_accents( strtolower( $last . '_' . $first . '_' . $birth ) ) );
 			if ( '' !== trim( $last . $first . $birth ) && isset( $name_keys[ $name_key ] ) ) {
@@ -224,7 +255,7 @@ class GenerationReadinessDiagnostic {
 				$key = sanitize_key( $license );
 				if ( isset( $license_keys[ $key ] ) ) {
 					$duplicate_license++;
-					$entry_issues[] = __( 'doublon licence', 'ufsc-licence-competition' );
+					$blocking_issues[] = __( 'doublon licence', 'ufsc-licence-competition' );
 				}
 				$license_keys[ $key ] = true;
 			}
@@ -233,16 +264,21 @@ class GenerationReadinessDiagnostic {
 			if ( $number > 0 ) {
 				if ( isset( $fighter_numbers[ $number ] ) ) {
 					$duplicate_numbers++;
-					$entry_issues[] = __( 'doublon numéro combattant', 'ufsc-licence-competition' );
+					$blocking_issues[] = __( 'doublon numéro combattant', 'ufsc-licence-competition' );
 				}
 				$fighter_numbers[ $number ] = $entry_id ?: true;
 			}
 
-			if ( ! empty( $entry_issues ) ) {
+			if ( ! empty( $blocking_issues ) ) {
+				$summary['blocking']++;
 				$summary['to_correct']++;
-				self::push_limited( $issues, self::item( 'approved_incomplete', self::entry_label( $entry ) . ' — ' . implode( ', ', $entry_issues ), 'blocked' ) );
+				self::push_limited( $issues, self::item( 'approved_incomplete_blocking', self::entry_label( $entry ) . ' — ' . implode( ', ', $blocking_issues ), 'blocked' ) );
 			} else {
 				$summary['generable']++;
+			}
+			if ( ! empty( $warning_issues ) ) {
+				$summary['to_correct']++;
+				self::push_limited( $issues, self::item( 'approved_incomplete_warning', self::entry_label( $entry ) . ' — ' . implode( ', ', $warning_issues ), 'warning' ) );
 			}
 		}
 
@@ -265,10 +301,13 @@ class GenerationReadinessDiagnostic {
 			self::add_error( $result, 'insufficient_approved_entries', __( 'Moins de deux inscriptions validées sont disponibles.', 'ufsc-licence-competition' ) );
 			self::add_action( $result, __( 'Valider les inscriptions exploitables', 'ufsc-licence-competition' ), 'high', 'entries', self::admin_url( self::PAGE_ENTRIES, $competition_id ) );
 		}
-		if ( (int) $summary['to_correct'] > 0 ) {
+		if ( (int) $summary['blocking'] > 0 ) {
 			$status = 'blocked';
-			self::add_error( $result, 'approved_entries_incomplete', sprintf( __( '%d inscription(s) validée(s) sont incomplètes.', 'ufsc-licence-competition' ), (int) $summary['to_correct'] ) );
-			self::add_action( $result, __( 'Corriger les inscriptions validées incomplètes', 'ufsc-licence-competition' ), 'high', 'entries', self::admin_url( self::PAGE_ENTRIES, $competition_id ) );
+			self::add_error( $result, 'approved_entries_incomplete', sprintf( __( '%d inscription(s) validée(s) ont des données indispensables manquantes.', 'ufsc-licence-competition' ), (int) $summary['blocking'] ) );
+			self::add_action( $result, __( 'Corriger les données indispensables des inscriptions validées', 'ufsc-licence-competition' ), 'high', 'entries', self::admin_url( self::PAGE_ENTRIES, $competition_id ) );
+		} elseif ( (int) $summary['to_correct'] > 0 ) {
+			$status = 'warning';
+			self::add_warning( $result, 'approved_entries_to_review', sprintf( __( '%d inscription(s) validée(s) ont des informations administratives à compléter.', 'ufsc-licence-competition' ), (int) $summary['to_correct'] ) );
 		}
 		if ( (int) $summary['pending'] > 0 || (int) $summary['draft'] > 0 ) {
 			self::add_warning( $result, 'entries_not_approved', sprintf( __( '%d inscription(s) non validée(s) ne seront pas utilisées.', 'ufsc-licence-competition' ), (int) $summary['pending'] + (int) $summary['draft'] ) );
@@ -296,6 +335,7 @@ class GenerationReadinessDiagnostic {
 				'total'       => (int) $summary['total'],
 				'generable'   => (int) $summary['generable'],
 				'approved'    => (int) $summary['approved'],
+				'blocking'    => (int) $summary['blocking'],
 				'to_correct'  => (int) $summary['to_correct'],
 				'pending'     => (int) $summary['pending'],
 				'draft'       => (int) $summary['draft'],
@@ -308,7 +348,7 @@ class GenerationReadinessDiagnostic {
 
 	private static function analyse_weighins( int $competition_id, $competition, array $approved, array $settings, WeighInRepository $repo ): array {
 		$summary = array_fill_keys( array( 'required', 'total', 'missing', 'valid', 'pending', 'out_of_limit', 'reclass_pending', 'absent', 'missing_official_weight', 'missing_fighter_number', 'duplicate_fighter_numbers', 'incoherent_entry' ), 0 );
-		$summary['required'] = empty( $settings['allow_unweighed'] ) ? 1 : 0;
+		$summary['required'] = self::weighins_required( $settings ) ? 1 : 0;
 		$issues = array();
 		$by_entry = array();
 		$numbers = array();
@@ -363,12 +403,12 @@ class GenerationReadinessDiagnostic {
 		return array( 'summary' => $summary, 'issues' => $issues, 'by_entry' => $by_entry );
 	}
 
-	private static function build_weighins_section( array &$result, int $competition_id, array $weighins, bool $allow_unweighed ): void {
+	private static function build_weighins_section( array &$result, int $competition_id, array $weighins, bool $weighins_required ): void {
 		$summary = $weighins['summary'];
 		$status = 'ready';
-		if ( $allow_unweighed ) {
+		if ( ! $weighins_required ) {
 			$status = 'warning';
-			self::add_info( $result, 'weighins_not_required', __( 'Les pesées ne sont pas bloquantes pour cette génération (override allow_unweighed).', 'ufsc-licence-competition' ) );
+			self::add_info( $result, 'weighins_not_required', __( 'Les pesées ne sont pas bloquantes pour cette génération (override ou réglage pesées non requises).', 'ufsc-licence-competition' ) );
 		} else {
 			foreach ( array( 'missing', 'pending', 'out_of_limit', 'reclass_pending', 'absent', 'duplicate_fighter_numbers' ) as $key ) {
 				if ( (int) $summary[ $key ] > 0 ) {
@@ -397,7 +437,7 @@ class GenerationReadinessDiagnostic {
 				self::entry_value( $entry, array( 'sex', 'sexe', 'licensee_sex' ), __( 'Sans sexe', 'ufsc-licence-competition' ) ),
 				self::entry_age_bucket( $entry ),
 				self::entry_value( $entry, array( 'category_name', 'category', 'category_id' ), __( 'Sans catégorie', 'ufsc-licence-competition' ) ),
-				self::entry_value( $entry, array( 'weight_category', 'weight_class', 'weight_kg', 'weight' ), __( 'Sans poids', 'ufsc-licence-competition' ) ),
+				self::entry_value( $entry, array( 'weight_category', 'weight_class', 'weight_cat', 'categorie_poids', 'category_weight' ), __( 'Catégorie poids non définie', 'ufsc-licence-competition' ) ),
 			);
 			if ( ! empty( $settings['use_level_split'] ) ) {
 				$key_parts[] = self::entry_value( $entry, array( 'level', 'niveau', 'class' ), __( 'Niveau non défini', 'ufsc-licence-competition' ) );
@@ -521,17 +561,19 @@ class GenerationReadinessDiagnostic {
 	}
 
 	private static function analyse_fights( int $competition_id, array $fights, FightRepository $repo ): array {
-		$summary = array_fill_keys( array( 'total', 'scheduled', 'running', 'completed', 'locked', 'bye', 'placeholder', 'trashed', 'cancelled', 'sensitive' ), 0 );
+		$summary = array_fill_keys( array( 'total', 'scheduled', 'running', 'completed', 'locked', 'bye', 'placeholder', 'trashed', 'cancelled', 'sensitive', 'generation_blocking' ), 0 );
 		$items = array();
+		$blocking_statuses = array( 'scheduled', 'running', 'completed', 'locked', 'bye', 'placeholder' );
 		foreach ( $fights as $fight ) {
 			$summary['total']++;
 			$status = $repo->get_effective_fight_status( $fight );
 			if ( isset( $summary[ $status ] ) ) {
 				$summary[ $status ]++;
 			}
-			if ( $repo->is_fight_sensitive( $fight ) || in_array( $status, array( 'locked' ), true ) ) {
+			if ( in_array( $status, $blocking_statuses, true ) || $repo->is_fight_sensitive( $fight ) ) {
 				$summary['sensitive']++;
-				self::push_limited( $items, self::item( 'sensitive_fight', sprintf( __( 'Combat #%1$d — statut %2$s', 'ufsc-licence-competition' ), (int) ( $fight->fight_no ?? $fight->id ?? 0 ), $status ), 'blocked' ) );
+				$summary['generation_blocking']++;
+				self::push_limited( $items, self::item( 'generation_blocking_fight', sprintf( __( 'Combat #%1$d — statut %2$s', 'ufsc-licence-competition' ), (int) ( $fight->fight_no ?? $fight->id ?? 0 ), $status ), 'blocked' ) );
 			}
 		}
 		return array( 'summary' => $summary, 'items' => $items );
@@ -540,9 +582,9 @@ class GenerationReadinessDiagnostic {
 	private static function build_fights_section( array &$result, int $competition_id, array $fight_state ): void {
 		$summary = $fight_state['summary'];
 		$status = 'ready';
-		if ( (int) $summary['sensitive'] > 0 ) {
+		if ( (int) $summary['generation_blocking'] > 0 ) {
 			$status = 'blocked';
-			self::add_error( $result, 'sensitive_fights_exist', __( 'Des combats en cours, terminés, verrouillés ou avec résultat existent déjà.', 'ufsc-licence-competition' ) );
+			self::add_error( $result, 'sensitive_fights_exist', __( 'Des combats actifs ou déjà générés existent déjà : scheduled/running/completed/locked/BYE/placeholder bloquent une nouvelle génération globale.', 'ufsc-licence-competition' ) );
 			self::add_action( $result, __( 'Consulter les combats existants', 'ufsc-licence-competition' ), 'high', 'fights', self::admin_url( self::PAGE_BOUTS, $competition_id ) );
 			self::add_action( $result, __( 'Utiliser Actions sensibles pour une régénération encadrée', 'ufsc-licence-competition' ), 'high', 'sensitive_ops', self::admin_url( self::PAGE_SENSITIVE_OPS, $competition_id ) );
 		} elseif ( (int) $summary['total'] > 0 ) {
