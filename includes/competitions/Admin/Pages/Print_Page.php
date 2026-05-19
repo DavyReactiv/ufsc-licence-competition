@@ -13,6 +13,7 @@ use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\FighterNumberService;
 use UFSC\Competitions\Services\FightDisplayService;
 use UFSC\Competitions\Services\PrintRenderer;
+use UFSC\Competitions\Services\ResultSummaryService;
 use UFSC\Competitions\Entries\EntriesWorkflow;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -26,6 +27,7 @@ class Print_Page {
 	private $fights;
 	private $renderer;
 	private $fighter_numbers_by_entry = array();
+	private $result_summary;
 
 	public function __construct() {
 		$this->competitions = new CompetitionRepository();
@@ -33,6 +35,7 @@ class Print_Page {
 		$this->entries = new EntryRepository();
 		$this->fights = new FightRepository();
 		$this->renderer = new PrintRenderer();
+		$this->result_summary = new ResultSummaryService();
 	}
 
 	public function render() {
@@ -76,6 +79,7 @@ class Print_Page {
 					<option value="results_sheet" <?php selected( $type, 'results_sheet' ); ?>><?php esc_html_e( 'Feuille de résultats', 'ufsc-licence-competition' ); ?></option>
 					<option value="results_entered" <?php selected( $type, 'results_entered' ); ?>><?php esc_html_e( 'Résultats saisis', 'ufsc-licence-competition' ); ?></option>
 					<option value="lone_fighters" <?php selected( $type, 'lone_fighters' ); ?>><?php esc_html_e( 'Combattants sans adversaire', 'ufsc-licence-competition' ); ?></option>
+					<option value="results_summary" <?php selected( $type, 'results_summary' ); ?>><?php esc_html_e( 'Synthèse résultats / podiums provisoires', 'ufsc-licence-competition' ); ?></option>
 				</select>
 				<label for="ufsc_print_format" class="screen-reader-text"><?php esc_html_e( 'Format', 'ufsc-licence-competition' ); ?></label>
 				<select name="print_format" id="ufsc_print_format">
@@ -140,6 +144,8 @@ class Print_Page {
 							$this->render_results_sheet( $competition_id, true );
 						} elseif ( 'lone_fighters' === $type ) {
 							$this->render_lone_fighters( $competition_id );
+						} elseif ( 'results_summary' === $type ) {
+							$this->render_results_summary( $competition_id );
 						} else {
 							$this->render_entries_table( $competition_id, $competition );
 						}
@@ -563,6 +569,39 @@ class Print_Page {
 		echo '</tbody></table>';
 	}
 
+
+
+	private function render_results_summary( int $competition_id ): void {
+		$summary = $this->result_summary->build_competition_summary( $competition_id );
+		echo '<h2>' . esc_html__( 'Synthèse résultats (provisoire)', 'ufsc-licence-competition' ) . '</h2>';
+		echo '<p><strong>' . esc_html__( 'Statut', 'ufsc-licence-competition' ) . ':</strong> ' . esc_html__( 'Provisoire / à vérifier manuellement', 'ufsc-licence-competition' ) . '</p>';
+		echo '<ul>';
+		echo '<li>' . esc_html( sprintf( __( 'Combats terminés: %d', 'ufsc-licence-competition' ), (int) ( $summary['completed_fights'] ?? 0 ) ) ) . '</li>';
+		echo '<li>' . esc_html( sprintf( __( 'Combats sans résultat fiable: %d', 'ufsc-licence-competition' ), (int) ( $summary['fights_without_result'] ?? 0 ) ) ) . '</li>';
+		echo '<li>' . esc_html( sprintf( __( 'Litiges: %d', 'ufsc-licence-competition' ), (int) ( $summary['litiges'] ?? 0 ) ) ) . '</li>';
+		echo '<li>' . esc_html( sprintf( __( 'Absences: %d', 'ufsc-licence-competition' ), (int) ( $summary['absents'] ?? 0 ) ) ) . '</li>';
+		echo '<li>' . esc_html( sprintf( __( 'Forfaits: %d', 'ufsc-licence-competition' ), (int) ( $summary['forfaits'] ?? 0 ) ) ) . '</li>';
+		echo '</ul>';
+		foreach ( (array) ( $summary['categories'] ?? array() ) as $category_id => $cat ) {
+			echo '<h3>' . esc_html( sprintf( __( 'Catégorie #%d', 'ufsc-licence-competition' ), (int) $category_id ) ) . '</h3>';
+			if ( ! empty( $cat['notes'] ) ) {
+				echo '<p><em>' . esc_html( implode( ' | ', array_map( 'strval', (array) $cat['notes'] ) ) ) . '</em></p>';
+			}
+			$podium = (array) ( $cat['podium']['top3'] ?? array() );
+			echo '<p><strong>' . esc_html__( 'Podium provisoire', 'ufsc-licence-competition' ) . ':</strong> ';
+			if ( empty( $podium ) ) { echo esc_html__( 'Données insuffisantes', 'ufsc-licence-competition' ); }
+			else { $labels=array(); foreach($podium as $idx=>$row){$labels[]=(($idx+1).'. '.(string)($row['label']??'N/A'));} echo esc_html( implode( ' — ', $labels ) ); }
+			echo '</p>';
+			$ranking = (array) ( $cat['pool_ranking']['rows'] ?? array() );
+			if ( ! empty( $ranking ) ) {
+				echo '<table class="widefat striped"><thead><tr><th>#</th><th>Nom</th><th>Club</th><th>J</th><th>V</th><th>D</th><th>PF</th><th>PC</th><th>Diff</th><th>F</th><th>Litiges</th><th>Statut</th></tr></thead><tbody>';
+				foreach ( $ranking as $i => $r ) {
+					echo '<tr><td>' . esc_html( (string) ( $i + 1 ) ) . '</td><td>' . esc_html( (string) ( $r['name'] ?? '' ) ) . '</td><td>' . esc_html( (string) ( $r['club'] ?? '' ) ) . '</td><td>' . esc_html( (string) ( $r['fights'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['wins'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['losses'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['points_for'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['points_against'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['diff'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['forfaits'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['litiges'] ?? 0 ) ) . '</td><td>' . esc_html( (string) ( $r['status'] ?? 'provisoire' ) ) . '</td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+		}
+	}
 	private function format_datetime( string $value ): string {
 		$value = trim( $value );
 		if ( '' === $value ) {
