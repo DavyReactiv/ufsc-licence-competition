@@ -2028,12 +2028,13 @@ class FightAutoGenerationService {
 		}
 		$out['fights'] = array_merge( $out['fights'], $r1 );
 		$prev_count = count( $r1 );
+		$round_start_no = 1;
 		$round_no = 2;
 		while ( $prev_count > 1 ) {
 			$current = (int) floor( $prev_count / 2 );
 			for ( $i = 0; $i < $current; $i++ ) {
-				$src_a = ( ( $i * 2 ) + 1 );
-				$src_b = ( ( $i * 2 ) + 2 );
+				$src_a = $round_start_no + ( $i * 2 );
+				$src_b = $round_start_no + ( $i * 2 ) + 1;
 				$out['fights'][] = array(
 					'phase' => $round_labels[ $size ][ $round_no ] ?? ( 'Tour ' . $round_no ),
 					'round' => $round_no,
@@ -2048,6 +2049,7 @@ class FightAutoGenerationService {
 				);
 				$out['placeholder_count']++;
 			}
+			$round_start_no += $prev_count;
 			$prev_count = $current;
 			$round_no++;
 		}
@@ -2068,7 +2070,10 @@ class FightAutoGenerationService {
 		$index = 1;
 		foreach ( $fights as $fight ) {
 			$fight = is_array( $fight ) ? $fight : array();
-			$type = ! empty( $fight['is_bye'] ) ? 'bye' : ( 'placeholder' === (string) ( $fight['status'] ?? '' ) ? 'placeholder' : 'fight' );
+			$type = sanitize_key( (string) ( $fight['type'] ?? '' ) );
+			if ( '' === $type ) {
+				$type = ! empty( $fight['is_bye'] ) ? 'bye' : ( 'placeholder' === (string) ( $fight['status'] ?? '' ) ? 'placeholder' : 'fight' );
+			}
 			$status = (string) ( $fight['status'] ?? ( 'bye' === $type ? 'bye' : ( 'placeholder' === $type ? 'placeholder' : 'scheduled' ) ) );
 			$fight['preview_number'] = (int) $index;
 			$fight['round'] = (int) ( $fight['round_no'] ?? 1 );
