@@ -159,13 +159,18 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 	public function no_items() {
 		esc_html_e( 'Aucune licence trouvée.', 'ufsc-licence-competition' );
+		$filters = $this->get_sanitized_filters();
+		$has_active_filters = $this->has_active_filters( $filters );
 		echo '<p class="description">';
-		esc_html_e( 'Aucune licence ne correspond aux filtres actuels. Vérifiez le club sélectionné, le statut, la saison, la catégorie, le filtre PDF ou la compétition.', 'ufsc-licence-competition' );
+		if ( $has_active_filters ) {
+			esc_html_e( 'Aucun résultat avec les filtres actuels. Cliquez sur Réinitialiser les filtres pour revenir à la liste complète.', 'ufsc-licence-competition' );
+		} else {
+			esc_html_e( 'Aucune licence disponible dans la source de données.', 'ufsc-licence-competition' );
+		}
 		echo '</p>';
 		echo '<p class="description">';
 		esc_html_e( 'Les licences peuvent exister dans UFSC Gestion mais être absentes ici si la table utilisée n’est pas synchronisée, si le format de saison diffère, ou si la liaison club est incomplète.', 'ufsc-licence-competition' );
 		echo '</p>';
-		$filters = $this->get_sanitized_filters();
 		if ( ! empty( $filters['club_id'] ) || '' !== $filters['club_search'] ) {
 			echo '<p class="description">';
 			esc_html_e( 'Le club sélectionné ne retourne aucune licence ici. Causes possibles : club_id absent/différent, liaison par nom incomplète, statut ou saison trop restrictifs.', 'ufsc-licence-competition' );
@@ -267,6 +272,10 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$reset = isset( $_REQUEST['ufsc_lc_reset'] ) ? absint( $_REQUEST['ufsc_lc_reset'] ) : 0;
 		if ( $reset ) {
+			$this->clear_persisted_filters();
+			$persisted = array();
+		}
+		if ( ! $reset && ! $this->has_explicit_filter_request() ) {
 			$this->clear_persisted_filters();
 			$persisted = array();
 		}
@@ -724,7 +733,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( '' !== $statut ) {
 			$this->add_status_filter_clause( $statut, $where, $params, 'l' );
 		}
-		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
 			$category_filter_sql = $this->get_category_filter_sql( 'l' );
@@ -988,7 +996,6 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		if ( '' !== $statut ) {
 			$this->add_status_filter_clause( $statut, $where, $params, 'l' );
 		}
-		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
 			$category_filter_sql = $this->get_category_filter_sql( 'l' );
@@ -1135,21 +1142,6 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 	}
 
-	private function add_default_valid_filter( $licences_table, $statut, array &$where, array &$params ) {
-		if ( '' !== $statut ) {
-			return;
-		}
-
-		unset( $licences_table );
-
-		$status_expr = $this->get_status_expression_sql( 'l' );
-		if ( '' === $status_expr ) {
-			return;
-		}
-
-		$this->add_status_filter_clause( 'valide', $where, $params, 'l' );
-	}
-
 	private function add_status_filter_clause( $raw_status, array &$where, array &$params, $alias = 'l' ) {
 		$status_expr = $this->get_status_expression_sql( $alias );
 		if ( '' === $status_expr ) {
@@ -1180,7 +1172,25 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	private function normalize_global_filter_value( $value ) {
 		$value = trim( (string) $value );
 		$key = strtolower( remove_accents( $value ) );
-		return in_array( $key, array( '', 'all', 'tous', 'toutes', '0', 'any', 'null', 'toutes les saisons', 'toutes les competitions', 'avec/sans pdf' ), true ) ? '' : $value;
+		return in_array(
+			$key,
+			array(
+				'',
+				'all',
+				'tous',
+				'toutes',
+				'any',
+				'0',
+				'null',
+				'tous les clubs',
+				'tous les statuts',
+				'toutes les categories',
+				'toutes les saisons',
+				'toutes les competitions',
+				'avec/sans pdf',
+			),
+			true
+		) ? '' : $value;
 	}
 
 	private function get_club_name_by_id( $club_id ) {
@@ -1885,6 +1895,46 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 		delete_user_meta( get_current_user_id(), self::FILTERS_USER_META );
+	}
+
+	private function has_explicit_filter_request() {
+		$keys = array(
+			's',
+			'club_id',
+			'club_search',
+			'statut',
+			'category',
+			'categorie',
+			'saison',
+			'season_end_year',
+			'competition',
+			'pdf_filter',
+			'orderby',
+			'order',
+			'per_page',
+			'ufsc_lc_tab',
+			'paged',
+		);
+
+		foreach ( $keys as $key ) {
+			if ( array_key_exists( $key, $_REQUEST ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function has_active_filters( array $filters ) {
+		return '' !== (string) $filters['search']
+			|| (int) $filters['club_id'] > 0
+			|| '' !== (string) $filters['club_search']
+			|| '' !== (string) $filters['statut']
+			|| '' !== (string) $filters['category']
+			|| '' !== (string) $filters['competition']
+			|| '' !== (string) $filters['saison']
+			|| '' !== (string) $filters['season_end_year']
+			|| '' !== (string) $filters['pdf_filter'];
 	}
 
 	private function get_documents_table() {
