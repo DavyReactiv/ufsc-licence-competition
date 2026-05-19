@@ -242,3 +242,13 @@ function ufsc_comp_assign_surfaces_to_fights( array $fights, array $surfaces = a
 	}
 	return $fights;
 }
+
+
+if ( ! function_exists( 'ufsc_comp_current_user_can' ) ) {
+	function ufsc_comp_current_user_can( string $capability, int $competition_id = 0 ): bool {
+		if ( class_exists( '\UFSC\Competitions\Capabilities' ) && method_exists( '\UFSC\Competitions\Capabilities', 'current_user_can' ) ) {
+			return \UFSC\Competitions\Capabilities::current_user_can( $capability, $competition_id );
+		}
+		return current_user_can( sanitize_key( $capability ) );
+	}
+}
