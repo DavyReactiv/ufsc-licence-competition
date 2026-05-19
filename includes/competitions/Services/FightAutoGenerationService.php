@@ -580,6 +580,9 @@ class FightAutoGenerationService {
 				$fights    = array_merge( $fights, $generated['fights'] );
 				$next_fight_no = $generated['next_no'];
 				$total_bye_slots += (int) ( $generated['bye_slots'] ?? 0 );
+				if ( ! empty( $generated['warnings'] ) && is_array( $generated['warnings'] ) ) {
+					$warnings = array_merge( $warnings, $generated['warnings'] );
+				}
 				if ( count( $group_entries ) < 2 ) {
 					$ignored_groups++;
 				}
@@ -1840,6 +1843,8 @@ class FightAutoGenerationService {
 		$count      = count( $entries );
 		$next_no    = $start_no;
 		$bye_slots  = 0;
+		$warnings   = array();
+		$format     = self::determine_generation_format( $entries, self::get_settings( $competition_id ), array( 'category_id' => $category_id ) );
 
 		if ( class_exists( FightGenerationPremiumPlanner::class ) ) {
 				$premium_plan = FightGenerationPremiumPlanner::plan(
@@ -1905,22 +1910,31 @@ class FightAutoGenerationService {
 			}
 		}
 
-		if ( 2 === $count ) {
+		if ( 'combat_simple' === $format ) {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[1], 1 );
+			if ( self::same_club( $entries[0], $entries[1] ) ) {
+				$warnings[] = sprintf( 'Catégorie #%d : premier tour même club (best effort).', $category_id );
+			}
 			$next_no++;
-		} elseif ( 3 === $count ) {
+		} elseif ( 'poule' === $format ) {
 			foreach ( self::round_robin_pairs( $entries ) as $pair ) {
 				$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $pair['red'], $pair['blue'], 1 );
 				$next_no++;
 			}
-		} elseif ( 4 === $count ) {
+		} elseif ( 4 === $count && 'tableau' === $format ) {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[3], 1 );
+			if ( self::same_club( $entries[0], $entries[3] ) ) {
+				$warnings[] = sprintf( 'Catégorie #%d : quart/demi même club détecté.', $category_id );
+			}
 			$next_no++;
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[1], $entries[2], 1 );
+			if ( self::same_club( $entries[1], $entries[2] ) ) {
+				$warnings[] = sprintf( 'Catégorie #%d : quart/demi même club détecté.', $category_id );
+			}
 			$next_no++;
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2 );
 			$next_no++;
-		} elseif ( $count >= 5 && $count <= 8 ) {
+		} elseif ( $count >= 3 && $count <= 8 && 'tableau_bye' === $format ) {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 8 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
@@ -1932,7 +1946,7 @@ class FightAutoGenerationService {
 					$next_no++;
 				}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
-		} elseif ( $count >= 9 && $count <= 16 ) {
+		} elseif ( $count >= 9 && $count <= 16 && 'tableau_bye' === $format ) {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries, 16 );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
@@ -1944,7 +1958,7 @@ class FightAutoGenerationService {
 				$next_no++;
 			}
 			$bye_slots += (int) ( $plan['bye_slots'] ?? 0 );
-		} elseif ( $count > 10 ) {
+		} elseif ( $count >= 17 && 'tableau_bye' === $format ) {
 			$bracket = new BracketGenerator();
 			$plan    = $bracket->generate( $entries );
 			foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
@@ -1962,7 +1976,30 @@ class FightAutoGenerationService {
 			'fights'   => $fights,
 			'next_no'  => $next_no,
 			'bye_slots' => $bye_slots,
+			'warnings' => $warnings,
 		);
+	}
+
+	private static function determine_generation_format( array $entries, array $settings, array $group = array() ): string {
+		$count = count( $entries );
+		$allow_pool = ! empty( $settings['prefer_round_robin_for_3'] ) || ! empty( $settings['prefer_pool_for_4_6'] );
+		if ( $count <= 1 ) { return 'single'; }
+		if ( 2 === $count ) { return 'combat_simple'; }
+		if ( $count >= 3 && $count <= 6 && $allow_pool ) { return 'poule'; }
+		if ( 4 === $count || 8 === $count ) { return 'tableau'; }
+		if ( $count >= 3 && $count <= 32 ) { return 'tableau_bye'; }
+		return 'unsupported';
+	}
+
+	private static function same_club( $entry_a, $entry_b ): bool {
+		$club_a = (int) ( $entry_a->club_id ?? 0 );
+		$club_b = (int) ( $entry_b->club_id ?? 0 );
+		if ( $club_a > 0 && $club_b > 0 ) {
+			return $club_a === $club_b;
+		}
+		$name_a = sanitize_text_field( (string) ( $entry_a->club_name ?? '' ) );
+		$name_b = sanitize_text_field( (string) ( $entry_b->club_name ?? '' ) );
+		return '' !== $name_a && '' !== $name_b && 0 === strcasecmp( $name_a, $name_b );
 	}
 
 	private static function sort_groups_for_generation( array $groups, array $normalized_categories ): array {
