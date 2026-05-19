@@ -39,7 +39,7 @@ class Bouts_Page {
 	}
 
 	public function render() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -215,7 +215,7 @@ class Bouts_Page {
 	}
 
 	private function handle_simple_action( $action, $method, $page_slug ) {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -238,21 +238,29 @@ class Bouts_Page {
 					$this->redirect_with_notice( $page_slug, 'protected_delete' );
 				}
 				$this->repository->soft_delete( $id );
+				$this->logger->audit( 'fight_trashed', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'trashed' );
 				break;
 			case 'restore':
 				$this->repository->restore( $id );
+				$this->logger->audit( 'fight_restored', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'restored' );
 				break;
 			case 'delete':
-				if ( ! Capabilities::user_can_delete() ) {
+				if ( ! Capabilities::user_can_permanently_delete() ) {
+					$this->logger->audit( 'sensitive_action_blocked', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'reason' => 'missing_delete_permanent_capability' ) );
 					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+				}
+				if ( empty( $_GET['confirm_permanent_delete'] ) || '1' !== (string) wp_unslash( $_GET['confirm_permanent_delete'] ) ) {
+					$this->logger->audit( 'sensitive_action_blocked', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'reason' => 'missing_permanent_delete_confirmation' ) );
+					$this->redirect_with_notice( $page_slug, 'permanent_delete_confirmation_required' );
 				}
 				if ( ! $this->repository->can_delete_fight( $fight ) ) {
 					$this->logger->log( 'fight_delete_blocked_sensitive', 'fight', $id, 'Suppression définitive bloquée.', array( 'status' => (string) ( $fight->status ?? '' ) ) );
 					$this->redirect_with_notice( $page_slug, 'protected_delete' );
 				}
 				$this->repository->delete( $id );
+				$this->logger->audit( 'fight_deleted', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'deleted' );
 				break;
 		}
@@ -505,7 +513,7 @@ class Bouts_Page {
 	}
 
 	public function handle_correct_result() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_correct_results() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -577,12 +585,13 @@ class Bouts_Page {
 		);
 		$propagation = $this->propagate_winner_to_next_round( $fight, $old_winner, $winner_entry_id );
 
-		$this->logger->log(
-			'result_correction',
+		$this->logger->audit(
+			'result_corrected',
+			(int) ( $fight->competition_id ?? 0 ),
 			'fight',
 			$fight_id,
-			'Correction de résultat supervisée',
 			array(
+				'old_payload' => $fight,
 				'reason' => $reason,
 				'old_winner_entry_id' => $old_winner,
 				'new_winner_entry_id' => $winner_entry_id,
@@ -590,7 +599,8 @@ class Bouts_Page {
 				'impacted_pending_fights' => wp_list_pluck( $impacts['pending'], 'id' ),
 				'next_round_propagation' => $propagation,
 				'supervised' => $supervised ? 1 : 0,
-			)
+			),
+			'Correction de résultat supervisée'
 		);
 
 		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_done' );
@@ -797,6 +807,7 @@ class Bouts_Page {
 			'error_required'=> __( 'Veuillez renseigner la compétition et le numéro de combat.', 'ufsc-licence-competition' ),
 				'not_found'     => __( 'Combat introuvable.', 'ufsc-licence-competition' ),
 				'protected_delete' => __( 'Action bloquée : ce combat est protégé (en cours, terminé ou contient un résultat).', 'ufsc-licence-competition' ),
+				'permanent_delete_confirmation_required' => __( 'Suppression définitive protégée : confirmation forte requise.', 'ufsc-licence-competition' ),
 				'protected_edit' => __( 'Modification bloquée : utilisez le workflow de correction supervisée pour un combat sensible.', 'ufsc-licence-competition' ),
 				'bulk_partial' => __( 'Traitement partiel : certains combats ont été protégés.', 'ufsc-licence-competition' ),
 				'correction_done' => __( 'Correction de résultat enregistrée et auditée.', 'ufsc-licence-competition' ),
@@ -811,7 +822,7 @@ class Bouts_Page {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked', 'permanent_delete_confirmation_required' ), true ) ? 'error' : 'success';
 		$text = '' !== $custom_message ? $custom_message : $messages[ $notice ];
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $text ) );
 	}
@@ -838,7 +849,7 @@ class Bouts_Page {
 			return;
 		}
 
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -848,6 +859,17 @@ class Bouts_Page {
 		$ids = array_filter( $ids );
 		if ( ! $ids ) {
 			return;
+		}
+
+		if ( 'delete' === $action ) {
+			if ( ! Capabilities::user_can_permanently_delete() ) {
+				$this->logger->audit( 'sensitive_action_blocked', 0, 'fight_bulk', 0, array( 'reason' => 'missing_delete_permanent_capability', 'fight_ids' => $ids ) );
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
+			if ( empty( $_POST['confirm_permanent_delete'] ) || '1' !== (string) wp_unslash( $_POST['confirm_permanent_delete'] ) ) {
+				$this->logger->audit( 'sensitive_action_blocked', 0, 'fight_bulk', 0, array( 'reason' => 'missing_bulk_permanent_delete_confirmation', 'fight_ids' => $ids ) );
+				$this->redirect_with_notice( $page_slug, 'permanent_delete_confirmation_required' );
+			}
 		}
 
 		$processed = 0;
@@ -873,9 +895,6 @@ class Bouts_Page {
 						$processed++;
 						break;
 					case 'delete':
-						if ( ! Capabilities::user_can_delete() ) {
-							wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
-						}
 						if ( ! $this->repository->can_delete_fight( $fight ) ) {
 							$blocked++;
 							$this->logger->log( 'fight_bulk_delete_blocked_sensitive', 'fight', $id, 'Bulk suppression bloquée.', array( 'status' => (string) ( $fight->status ?? '' ) ) );
