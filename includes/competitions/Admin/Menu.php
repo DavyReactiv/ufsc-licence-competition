@@ -23,6 +23,7 @@ class Menu {
 	public const PAGE_ENTRIES_IMPORT = 'ufsc-competitions-entries-import';
 	public const PAGE_WEIGHINS = 'ufsc-competitions-weighins';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
+	public const PAGE_PLATEAU      = 'ufsc-competitions-plateau';
 	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
 	public const PAGE_PRINT        = 'ufsc-competitions-print';
@@ -100,6 +101,14 @@ class Menu {
 			__( 'Combats', 'ufsc-licence-competition' ),
 			__( 'Combats', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Bouts_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
+			self::PAGE_PLATEAU,
+			__( 'Plateau jour J', 'ufsc-licence-competition' ),
+			__( 'Plateau jour J', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Plateau_Page'
 		);
 
 		$this->add_submenu_safe(
@@ -229,7 +238,8 @@ class Menu {
 			'UFSC\\Competitions\\Admin\\Pages\\Competitions_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Import_Page',
-			'UFSC\\Competitions\\Admin\\Pages\\Bouts_Page',
+			'UFSC\Competitions\Admin\Pages\Bouts_Page',
+			'UFSC\Competitions\Admin\Pages\Plateau_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',
