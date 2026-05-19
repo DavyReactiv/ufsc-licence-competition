@@ -162,6 +162,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		echo '<p class="description">';
 		esc_html_e( 'Aucune licence ne correspond aux filtres actuels. Vérifiez le club sélectionné, le statut, la saison, la catégorie, le filtre PDF ou la compétition.', 'ufsc-licence-competition' );
 		echo '</p>';
+		echo '<p class="description">';
+		esc_html_e( 'Les licences peuvent exister dans UFSC Gestion mais être absentes ici si la table utilisée n’est pas synchronisée, si le format de saison diffère, ou si la liaison club est incomplète.', 'ufsc-licence-competition' );
+		echo '</p>';
 		$filters = $this->get_sanitized_filters();
 		if ( ! empty( $filters['club_id'] ) || '' !== $filters['club_search'] ) {
 			echo '<p class="description">';
@@ -741,8 +744,15 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
 			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
 			if ( "''" !== $season_filter_sql ) {
-				$where[] = "{$season_filter_sql} = %s";
-				$params[] = $season_filter_value;
+				$season_clauses = array( "{$season_filter_sql} = %s" );
+				$season_params  = array( $season_filter_value );
+				if ( preg_match( '/^\d{4}$/', (string) $season_filter_value ) ) {
+					$season_like = '%' . $wpdb->esc_like( (string) $season_filter_value ) . '%';
+					$season_clauses[] = "{$season_filter_sql} LIKE %s";
+					$season_params[]  = $season_like;
+				}
+				$where[] = '(' . implode( ' OR ', $season_clauses ) . ')';
+				$params  = array_merge( $params, $season_params );
 			}
 		}
 
@@ -997,8 +1007,15 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
 			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
 			if ( "''" !== $season_filter_sql ) {
-				$where[] = "{$season_filter_sql} = %s";
-				$params[] = $season_filter_value;
+				$season_clauses = array( "{$season_filter_sql} = %s" );
+				$season_params  = array( $season_filter_value );
+				if ( preg_match( '/^\d{4}$/', (string) $season_filter_value ) ) {
+					$season_like = '%' . $wpdb->esc_like( (string) $season_filter_value ) . '%';
+					$season_clauses[] = "{$season_filter_sql} LIKE %s";
+					$season_params[]  = $season_like;
+				}
+				$where[] = '(' . implode( ' OR ', $season_clauses ) . ')';
+				$params  = array_merge( $params, $season_params );
 			}
 		}
 
@@ -1149,14 +1166,15 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function normalize_licence_status_filter( $raw_status ) {
 		$normalized = $this->normalize_global_filter_value( $raw_status );
-		if ( '' === $normalized ) { return array(); }
-		if ( in_array( $normalized, array( 'valide', 'validé', 'validee', 'validée', 'validated', 'active', 'completed', 'engaged', 'accepted', 'valide_engage' ), true ) ) {
+		$normalized_key = strtolower( remove_accents( $normalized ) );
+		if ( '' === $normalized_key ) { return array(); }
+		if ( in_array( $normalized_key, array( 'valide', 'validee', 'validated', 'active', 'completed', 'engaged', 'accepted', 'valide_engage' ), true ) ) {
 			return array( 'valide', 'validé', 'validee', 'validée', 'validated', 'active', 'completed', 'engaged', 'accepted', 'valide_engage' );
 		}
-		if ( in_array( $normalized, array( 'brouillon', 'draft' ), true ) ) {
+		if ( in_array( $normalized_key, array( 'brouillon', 'draft' ), true ) ) {
 			return array( 'brouillon', 'draft', '' );
 		}
-		return array( $normalized );
+		return array( strtolower( $normalized ) );
 	}
 
 	private function normalize_global_filter_value( $value ) {
@@ -1179,6 +1197,17 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	private function render_admin_debug_block() {
 		$enabled = isset( $_GET['debug_licences'] ) ? absint( wp_unslash( $_GET['debug_licences'] ) ) : 0;
 		if ( ! $enabled || ! current_user_can( 'manage_options' ) ) { return; }
+		$this->last_query_debug['class'] = __CLASS__;
+		$this->last_query_debug['file']  = __FILE__;
+		if ( 0 === (int) ( $this->last_query_debug['result_count'] ?? 0 ) ) {
+			$this->last_query_debug['probable_causes'] = array(
+				'Table licences différente/non synchronisée avec UFSC Gestion',
+				'Filtre saison strict (format stocké différent: 2026 vs 2025-2026)',
+				'Statut non reconnu côté données historiques',
+				'Club lié par nom mais sans correspondance club_id',
+				'Filtre compétition/PDF actif de manière non attendue',
+			);
+		}
 		echo '<div class="notice notice-info"><p><strong>Diagnostic licences</strong></p><pre>';
 		echo esc_html( wp_json_encode( $this->last_query_debug, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE ) );
 		echo '</pre></div>';
