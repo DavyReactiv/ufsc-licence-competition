@@ -741,9 +741,12 @@ class Bouts_AutoGeneration {
 						<div class="ufsc-competitions-table-wrap">
 							<table class="widefat striped">
 								<thead>
-									<tr>
-										<th><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
-										<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
+										<tr>
+											<th><?php esc_html_e( 'Combat', 'ufsc-licence-competition' ); ?></th>
+											<th><?php esc_html_e( 'Phase', 'ufsc-licence-competition' ); ?></th>
+											<th><?php esc_html_e( 'Round', 'ufsc-licence-competition' ); ?></th>
+											<th><?php esc_html_e( 'Type', 'ufsc-licence-competition' ); ?></th>
+											<th><?php esc_html_e( 'Surface', 'ufsc-licence-competition' ); ?></th>
 										<th><?php esc_html_e( 'Horaire estimé', 'ufsc-licence-competition' ); ?></th>
 										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 										<th><?php esc_html_e( 'Coin rouge', 'ufsc-licence-competition' ); ?></th>
@@ -752,17 +755,20 @@ class Bouts_AutoGeneration {
 									</tr>
 								</thead>
 								<tbody>
-									<?php foreach ( array_slice( (array) $draft_fights_preview, 0, 100 ) as $fight_row ) : ?>
-										<tr>
-											<td><?php echo esc_html( (string) (int) ( $fight_row['fight_no'] ?? 0 ) ); ?></td>
-											<td><?php echo esc_html( (string) ( $fight_row['ring'] ?? '—' ) ); ?></td>
+										<?php foreach ( array_slice( (array) $draft_fights_preview, 0, 100 ) as $fight_row ) : ?>
+											<tr>
+												<td><?php echo esc_html( (string) (int) ( $fight_row['fight_no'] ?? 0 ) ); ?></td>
+												<td><?php echo esc_html( (string) ( $fight_row['phase'] ?? '—' ) ); ?></td>
+												<td><?php echo esc_html( (string) ( $fight_row['round_label'] ?? ( $fight_row['round_no'] ?? '—' ) ) ); ?></td>
+												<td><?php echo esc_html( (string) ( $fight_row['type'] ?? ( ! empty( $fight_row['is_bye'] ) ? 'bye' : 'fight' ) ) ); ?></td>
+												<td><?php echo esc_html( (string) ( $fight_row['ring'] ?? '—' ) ); ?></td>
 											<td><?php echo esc_html( (string) ( $fight_row['scheduled_at'] ?? '—' ) ); ?></td>
 											<td><?php echo esc_html( (string) ( $fight_row['category_label'] ?? $fight_row['category_id'] ?? '—' ) ); ?></td>
 											<td><?php echo esc_html( (string) ( $fight_row['red_label'] ?? $fight_row['red_entry_id'] ?? 'TBD' ) ); ?></td>
-											<td><?php echo esc_html( (string) ( $fight_row['blue_label'] ?? $fight_row['blue_entry_id'] ?? ( ! empty( $fight_row['is_bye'] ) ? 'BYE' : 'TBD' ) ) ); ?></td>
-											<td><?php echo esc_html( (string) ( $fight_row['status'] ?? ( ! empty( $fight_row['is_bye'] ) ? 'bye' : 'scheduled' ) ) ); ?></td>
-										</tr>
-									<?php endforeach; ?>
+												<td><?php echo esc_html( (string) ( $fight_row['blue_label'] ?? $fight_row['blue_entry_id'] ?? ( 'bye' === (string) ( $fight_row['type'] ?? '' ) ? 'BYE' : 'TBD' ) ) ); ?></td>
+												<td><?php echo esc_html( (string) ( $fight_row['status'] ?? ( 'bye' === (string) ( $fight_row['type'] ?? '' ) ? 'bye' : 'scheduled' ) ) ); ?></td>
+											</tr>
+										<?php endforeach; ?>
 								</tbody>
 							</table>
 						</div>
