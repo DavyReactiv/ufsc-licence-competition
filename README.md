@@ -138,6 +138,8 @@ La régénération globale reste protégée et ne doit pas être utilisée sans 
 
 En cas d’échec d’une tentative ciblée, le rollback tente de restaurer les anciens combats mis en corbeille pendant cette tentative et d’annuler les nouveaux combats éventuellement insérés. Les logs d’audit détaillent les IDs planifiés/trashed/restaurés/insérés, le motif, le snapshot et le scope utilisé (category_id, avec préparation group_key si disponible). Le scope applicatif reste category_id tant que group_key n’est pas fiable partout.
 
+La régénération ciblée complète insère désormais les nouveaux combats du scope après mise en corbeille des anciens combats candidats. Les IDs insérés sont trackés ; en cas d’échec, ces nouveaux combats sont annulés et les anciens combats de la tentative sont restaurés.
+
 ## 7) Notes de mise en production
 
 ### Prérequis
