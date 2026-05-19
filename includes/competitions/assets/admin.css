@@ -870,3 +870,46 @@
 }
 .ufsc-category-diagnostics th,
 .ufsc-category-diagnostics td { vertical-align: middle; }
+
+.ufsc-plateau-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 16px;
+	margin-top: 16px;
+}
+
+.ufsc-plateau-surface-card {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	border-radius: 6px;
+	padding: 12px;
+}
+
+.ufsc-plateau-fight-card {
+	border: 1px solid #e2e4e7;
+	border-radius: 6px;
+	padding: 10px;
+	margin-bottom: 10px;
+	background: #f9fafb;
+}
+
+.ufsc-plateau-fight-card header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.ufsc-plateau-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 8px 0;
+}
+
+.ufsc-plateau-actions form,
+.ufsc-plateau-surface-form {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}

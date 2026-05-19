@@ -177,3 +177,21 @@ La régénération ciblée complète insère désormais les nouveaux combats du 
 **Qu’est-ce qui est strict vs heuristique ?**
 - Strict : permissions, nonces, contrôle saisie, unicité numéro combattant.
 - Heuristique contrôlée : certaines dépendances bracket déduites par `round_no/fight_no`.
+
+## Plateau jour J
+
+Le module propose une vue admin dédiée au pilotage live des combats par surface. Les organisateurs peuvent suivre les combats prévus, appelés, en cours, terminés, retardés, absents ou en litige, puis déclencher des actions rapides (appel, lancement, clôture, retard, absence, litige, annulation, changement de surface).
+
+Toutes les actions passent par nonce + capability + contrôles de cohérence métier et sont journalisées dans l’audit. Les combats terminés/verrouillés/trashed, ainsi que les BYE et placeholders, sont protégés contre les transitions incohérentes.
+
+## Statuts plateau
+
+- `scheduled` : combat prévu ;
+- `called` : combat appelé ;
+- `running` : combat en cours ;
+- `completed` : combat terminé ;
+- `delayed` : combat retardé ;
+- `absent` : combattant absent ;
+- `disputed` : litige ;
+- `cancelled` : combat annulé ;
+- `locked` : combat verrouillé.

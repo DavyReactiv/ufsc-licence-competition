@@ -160,6 +160,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/WeighIns_Page.php',
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
+		$base . '/Admin/Pages/Plateau_Page.php',
 		$base . '/Admin/Pages/Bouts_AutoGeneration.php',
 		$base . '/Admin/Pages/Timing_Profiles_Page.php',
 		$base . '/Admin/Pages/Settings_Page.php',
