@@ -195,3 +195,15 @@ Toutes les actions passent par nonce + capability + contrôles de cohérence mé
 - `disputed` : litige ;
 - `cancelled` : combat annulé ;
 - `locked` : combat verrouillé.
+
+## Résultats sécurisés
+
+Le module propose une saisie de résultats encadrée et une correction supervisée. Les combats BYE, placeholders, supprimés (trashed) ou verrouillés sont protégés. Toute correction d’un combat terminé nécessite une capability dédiée, un motif et un log d’audit.
+
+Les actions de résultat sont traitées via un service central (`ResultService`) qui valide les payloads, enregistre/corrige les résultats, peut verrouiller un résultat terminé, et produit des traces d’audit structurées.
+
+## Podiums et documents
+
+Les podiums et documents officiels sont générés de manière prudente. Les sorties peuvent être marquées provisoires quand les données de bracket/poule nécessitent une vérification manuelle (propagation incomplète, litiges, absences).
+
+Les impressions existantes restent compatibles; la consolidation automatique avancée des podiums reste progressive par lots.

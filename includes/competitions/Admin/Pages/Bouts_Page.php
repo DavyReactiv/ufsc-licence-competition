@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Admin\Tables\Fights_Table;
 use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\ResultService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -21,6 +22,7 @@ class Bouts_Page {
 	private $categories;
 	private $entries;
 	private $logger;
+	private $result_service;
 
 	public function __construct() {
 		$this->repository = new FightRepository();
@@ -28,6 +30,7 @@ class Bouts_Page {
 		$this->categories = new CategoryRepository();
 		$this->entries = new EntryRepository();
 		$this->logger = new LogService();
+		$this->result_service = new ResultService();
 	}
 
 	public function register_actions() {
@@ -36,6 +39,8 @@ class Bouts_Page {
 		add_action( 'admin_post_ufsc_competitions_restore_fight', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_fight', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_correct_result', array( $this, 'handle_correct_result' ) );
+		add_action( 'admin_post_ufsc_competitions_record_result', array( $this, 'handle_record_result' ) );
+		add_action( 'admin_post_ufsc_competitions_lock_result', array( $this, 'handle_lock_result' ) );
 	}
 
 	public function render() {
@@ -565,24 +570,19 @@ class Bouts_Page {
 		}
 
 		$old_winner = (int) ( $fight->winner_entry_id ?? 0 );
-		$this->repository->update(
+		$res = $this->result_service->correct_result(
 			$fight_id,
 			array(
-				'competition_id'  => (int) $fight->competition_id,
-				'category_id'     => (int) $fight->category_id,
-				'fight_no'        => (int) $fight->fight_no,
-				'ring'            => (string) ( $fight->ring ?? '' ),
-				'round_no'        => (int) ( $fight->round_no ?? 0 ),
-				'red_entry_id'    => (int) ( $fight->red_entry_id ?? 0 ),
-				'blue_entry_id'   => (int) ( $fight->blue_entry_id ?? 0 ),
 				'winner_entry_id' => $winner_entry_id,
-				'status'          => 'completed',
-				'result_method'   => $result_method,
-				'score_red'       => (string) ( $fight->score_red ?? '' ),
-				'score_blue'      => (string) ( $fight->score_blue ?? '' ),
-				'scheduled_at'    => (string) ( $fight->scheduled_at ?? '' ),
+				'result_type' => $result_method,
+				'score_red' => (string) ( $fight->score_red ?? '' ),
+				'score_blue' => (string) ( $fight->score_blue ?? '' ),
+				'reason' => $reason,
 			)
 		);
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction bloquée: vérifiez statut, vainqueur et motif.', 'ufsc-licence-competition' ) );
+		}
 		$propagation = $this->propagate_winner_to_next_round( $fight, $old_winner, $winner_entry_id );
 
 		$this->logger->audit(
@@ -606,6 +606,42 @@ class Bouts_Page {
 		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_done' );
 	}
 
+
+
+	public function handle_record_result() {
+		if ( ! Capabilities::user_can_record_results() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_record_result_' . $fight_id );
+		$payload = array(
+			'winner_entry_id' => isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0,
+			'result_type' => isset( $_POST['result_type'] ) ? sanitize_key( wp_unslash( $_POST['result_type'] ) ) : '',
+			'score_red' => isset( $_POST['score_red'] ) ? sanitize_text_field( wp_unslash( $_POST['score_red'] ) ) : '',
+			'score_blue' => isset( $_POST['score_blue'] ) ? sanitize_text_field( wp_unslash( $_POST['score_blue'] ) ) : '',
+			'note' => isset( $_POST['result_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['result_note'] ) ) : '',
+			'reason' => isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '',
+		);
+		$res = $this->result_service->record_result( $fight_id, $payload );
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_record_blocked', 0, __( 'Saisie résultat bloquée: vérifiez le statut, le vainqueur et le motif.', 'ufsc-licence-competition' ) );
+		}
+		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_recorded' );
+	}
+
+	public function handle_lock_result() {
+		if ( ! Capabilities::user_can_correct_results() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_lock_result_' . $fight_id );
+		$reason = isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '';
+		$res = $this->result_service->lock_result( $fight_id, $reason );
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_lock_blocked' );
+		}
+		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_locked' );
+	}
 	private function get_impacted_fights( $fight ): array {
 		$filters = array(
 			'view' => 'all',
