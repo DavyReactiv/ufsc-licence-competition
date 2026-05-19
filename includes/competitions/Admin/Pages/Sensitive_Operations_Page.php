@@ -171,6 +171,7 @@ class Sensitive_Operations_Page {
 
 	private function handle_partial_regen_simulation( int $competition_id ): array {
 		$category_id = isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0;
+		$group_key = sanitize_key( (string) wp_unslash( $_POST['group_key'] ?? '' ) );
 		$reason = sanitize_textarea_field( (string) wp_unslash( $_POST['reason'] ?? '' ) );
 		$supervised = ! empty( $_POST['supervisor_confirm'] );
 		if ( ! $category_id || '' === $reason || ! $supervised ) {
@@ -224,6 +225,7 @@ class Sensitive_Operations_Page {
 		$this->partial_regen_preview = array(
 			'competition_id' => $competition_id,
 			'category_id' => $category_id,
+			'group_key' => $group_key,
 			'reason' => $reason,
 			'supervised' => $supervised ? 1 : 0,
 			'max_completed_fight_no' => (int) $plan['max_completed_fight_no'],
@@ -241,6 +243,7 @@ class Sensitive_Operations_Page {
 			return array( 'type' => 'error', 'message' => __( 'Accès refusé : capability de régénération manquante.', 'ufsc-licence-competition' ) );
 		}
 		$category_id = isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0;
+		$group_key = sanitize_key( (string) wp_unslash( $_POST['group_key'] ?? '' ) );
 		$reason = sanitize_textarea_field( (string) wp_unslash( $_POST['reason'] ?? '' ) );
 		$supervised = ! empty( $_POST['supervisor_confirm'] );
 		$final_confirm = ! empty( $_POST['final_confirm'] );
@@ -289,14 +292,85 @@ class Sensitive_Operations_Page {
 			}
 		}
 		$planned_ids = wp_list_pluck( $plan['candidates'], 'id' );
-		$deleted_ids = array();
-		foreach ( $plan['candidates'] as $fight ) {
-			$fight_id = (int) ( $fight->id ?? 0 );
-			if ( ! $fight_id ) {
-				continue;
+		$trashed_fight_ids = array();
+		$inserted_fight_ids = array();
+		$restored_fight_ids = array();
+		$rollback_errors = array();
+		$this->logger->log(
+			'partial_regeneration_started',
+			'fight',
+			$category_id,
+			'Régénération partielle démarrée',
+			array(
+				'competition_id' => $competition_id,
+				'category_id' => $category_id,
+				'group_key' => $group_key,
+				'reason' => $reason,
+				'snapshot_id' => $snapshot_id,
+				'planned_fight_ids' => $planned_ids,
+			)
+		);
+		try {
+			foreach ( $plan['candidates'] as $fight ) {
+				$fight_id = (int) ( $fight->id ?? 0 );
+				if ( ! $fight_id ) {
+					continue;
+				}
+				$ok = $this->fights->soft_delete( $fight_id );
+				if ( false === $ok ) {
+					throw new \RuntimeException( 'soft_delete_failed:' . $fight_id );
+				}
+				$trashed_fight_ids[] = $fight_id;
 			}
-			$this->fights->soft_delete( $fight_id );
-			$deleted_ids[] = $fight_id;
+		} catch ( \Throwable $e ) {
+			foreach ( $trashed_fight_ids as $trashed_id ) {
+				$restore_ok = $this->fights->restore( $trashed_id );
+				if ( false !== $restore_ok ) {
+					$restored_fight_ids[] = (int) $trashed_id;
+				} else {
+					$rollback_errors[] = 'restore_failed:' . (int) $trashed_id;
+				}
+			}
+			$this->logger->log(
+				'partial_regeneration_failed',
+				'fight',
+				$category_id,
+				'Échec régénération partielle',
+				array(
+					'competition_id' => $competition_id,
+					'category_id' => $category_id,
+					'group_key' => $group_key,
+					'reason' => $reason,
+					'snapshot_id' => $snapshot_id,
+					'planned_fight_ids' => $planned_ids,
+					'trashed_fight_ids' => $trashed_fight_ids,
+					'inserted_fight_ids' => $inserted_fight_ids,
+					'restored_fight_ids' => $restored_fight_ids,
+					'rollback_errors' => $rollback_errors,
+					'error' => $e->getMessage(),
+				)
+			);
+			$this->logger->log(
+				empty( $rollback_errors ) ? 'partial_regeneration_rolled_back' : 'partial_regeneration_rollback_failed',
+				'fight',
+				$category_id,
+				'Rollback régénération partielle',
+				array(
+					'competition_id' => $competition_id,
+					'category_id' => $category_id,
+					'group_key' => $group_key,
+					'restored_fight_ids' => $restored_fight_ids,
+					'rollback_errors' => $rollback_errors,
+				)
+			);
+			return array(
+				'type' => 'error',
+				'message' => sprintf(
+					__( 'La régénération ciblée a échoué. Un rollback ciblé a été tenté : %1$d nouveaux combats annulés, %2$d anciens combats restaurés.', 'ufsc-licence-competition' ),
+					count( $inserted_fight_ids ),
+					count( $restored_fight_ids )
+				),
+			);
 		}
 
 		$this->logger->log(
@@ -308,18 +382,21 @@ class Sensitive_Operations_Page {
 				'mode' => 'execution',
 				'competition_id' => $competition_id,
 				'category_id' => $category_id,
+				'group_key' => $group_key,
 				'reason' => $reason,
 				'max_completed_fight_no' => (int) $plan['max_completed_fight_no'],
 				'planned_fight_ids' => $planned_ids,
-				'processed_fight_ids' => $deleted_ids,
+				'processed_fight_ids' => $trashed_fight_ids,
 				'planned_count' => count( $planned_ids ),
-				'processed_count' => count( $deleted_ids ),
+				'processed_count' => count( $trashed_fight_ids ),
 				'supervised' => $supervised ? 1 : 0,
 				'snapshot_id' => $snapshot_id,
+				'inserted_fight_ids' => $inserted_fight_ids,
+				'restored_fight_ids' => $restored_fight_ids,
 			)
 		);
 
-		return array( 'type' => 'success', 'message' => sprintf( __( 'Régénération partielle exécutée : %d combats mis en corbeille.', 'ufsc-licence-competition' ), count( $deleted_ids ) ) );
+		return array( 'type' => 'success', 'message' => sprintf( __( 'Régénération partielle exécutée : %d combats mis en corbeille (scope category_id=%d%s).', 'ufsc-licence-competition' ), count( $trashed_fight_ids ), $category_id, $group_key ? ' / group_key=' . $group_key : '' ) );
 	}
 
 	private function build_partial_regen_plan( int $competition_id, int $category_id ): array {
@@ -408,8 +485,10 @@ class Sensitive_Operations_Page {
 				<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
 				<input type="hidden" name="ufsc_sensitive_action" value="partial_regen_execute" />
 				<input type="hidden" name="category_id" value="<?php echo esc_attr( (int) ( $preview['category_id'] ?? 0 ) ); ?>" />
+				<input type="hidden" name="group_key" value="<?php echo esc_attr( (string) ( $preview['group_key'] ?? '' ) ); ?>" />
 				<input type="hidden" name="reason" value="<?php echo esc_attr( (string) ( $preview['reason'] ?? '' ) ); ?>" />
 				<input type="hidden" name="supervisor_confirm" value="<?php echo esc_attr( ! empty( $preview['supervised'] ) ? '1' : '0' ); ?>" />
+				<p class="description"><?php esc_html_e( 'En cas d’échec, le système tentera de restaurer les combats retirés pendant cette tentative et d’annuler les nouveaux combats insérés.', 'ufsc-licence-competition' ); ?></p>
 				<p><label><input type="checkbox" name="final_confirm" value="1" required> <?php esc_html_e( 'Confirmation finale : exécuter la mise en corbeille des combats listés.', 'ufsc-licence-competition' ); ?></label></p>
 				<?php submit_button( __( 'Exécuter la régénération partielle', 'ufsc-licence-competition' ), 'delete', '', false ); ?>
 			</form>

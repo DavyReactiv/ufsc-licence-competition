@@ -136,6 +136,8 @@ Le module permet de préparer une régénération ciblée par catégorie ou grou
 
 La régénération globale reste protégée et ne doit pas être utilisée sans action sensible explicite.
 
+En cas d’échec d’une tentative ciblée, le rollback tente de restaurer les anciens combats mis en corbeille pendant cette tentative et d’annuler les nouveaux combats éventuellement insérés. Les logs d’audit détaillent les IDs planifiés/trashed/restaurés/insérés, le motif, le snapshot et le scope utilisé (category_id, avec préparation group_key si disponible). Le scope applicatif reste category_id tant que group_key n’est pas fiable partout.
+
 ## 7) Notes de mise en production
 
 ### Prérequis
