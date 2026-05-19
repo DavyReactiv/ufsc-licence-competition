@@ -207,3 +207,11 @@ Les actions de résultat sont traitées via un service central (`ResultService`)
 Les podiums et documents officiels sont générés de manière prudente. Les sorties peuvent être marquées provisoires quand les données de bracket/poule nécessitent une vérification manuelle (propagation incomplète, litiges, absences).
 
 Les impressions existantes restent compatibles; la consolidation automatique avancée des podiums reste progressive par lots.
+
+## Podiums provisoires et classements
+
+Le module peut produire des synthèses de résultats, classements de poules et podiums provisoires. Les données sont affichées avec prudence : en cas de résultat manquant, litige, égalité ou bracket incomplet, le document indique “à vérifier” ou “provisoire”. Les podiums ne doivent être considérés comme officiels qu’après validation manuelle.
+
+## Documents résultats
+
+Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.

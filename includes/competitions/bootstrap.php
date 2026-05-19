@@ -69,6 +69,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/Entries_Pdf_Renderer.php',
 		$base . '/Services/LogService.php',
 		$base . '/Services/ResultService.php',
+		$base . '/Services/ResultSummaryService.php',
 		$base . '/Services/TimingProfilePresetSeeder.php',
 		$base . '/Services/CompetitionScheduleEstimator.php',
 		$base . '/Services/AuditLogger.php',
