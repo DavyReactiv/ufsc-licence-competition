@@ -41,6 +41,17 @@ class UFSC_LC_Capabilities {
 			$role->add_cap( 'ufsc_competition_export' );
 			$role->add_cap( 'ufsc_competition_validate' );
 			$role->add_cap( 'ufsc_competition_delete' );
+			$role->add_cap( 'ufsc_competition_weighin_manage' );
+			$role->add_cap( 'ufsc_competition_weighin_override' );
+			$role->add_cap( 'ufsc_competition_fight_manage' );
+			$role->add_cap( 'ufsc_competition_fight_generate' );
+			$role->add_cap( 'ufsc_competition_fight_regenerate' );
+			$role->add_cap( 'ufsc_competition_plateau_manage' );
+			$role->add_cap( 'ufsc_competition_result_record' );
+			$role->add_cap( 'ufsc_competition_result_correct' );
+			$role->add_cap( 'ufsc_competition_audit_view' );
+			$role->add_cap( 'ufsc_competition_sensitive_ops' );
+			$role->add_cap( 'ufsc_competition_delete_permanent' );
 		}
 
 		if ( ! get_role( 'ufsc_responsable_ligue' ) ) {
@@ -60,6 +71,11 @@ class UFSC_LC_Capabilities {
 					'ufsc_competition_entries_manage' => true,
 					'ufsc_competition_export' => true,
 					'ufsc_competition_validate' => true,
+					'ufsc_competition_weighin_manage' => true,
+					'ufsc_competition_fight_manage' => true,
+					'ufsc_competition_fight_generate' => true,
+					'ufsc_competition_result_record' => true,
+					'ufsc_competition_export' => true,
 				)
 			);
 		}
@@ -88,6 +104,17 @@ class UFSC_LC_Capabilities {
 			$role->remove_cap( 'ufsc_competition_export' );
 			$role->remove_cap( 'ufsc_competition_validate' );
 			$role->remove_cap( 'ufsc_competition_delete' );
+			$role->remove_cap( 'ufsc_competition_weighin_manage' );
+			$role->remove_cap( 'ufsc_competition_weighin_override' );
+			$role->remove_cap( 'ufsc_competition_fight_manage' );
+			$role->remove_cap( 'ufsc_competition_fight_generate' );
+			$role->remove_cap( 'ufsc_competition_fight_regenerate' );
+			$role->remove_cap( 'ufsc_competition_plateau_manage' );
+			$role->remove_cap( 'ufsc_competition_result_record' );
+			$role->remove_cap( 'ufsc_competition_result_correct' );
+			$role->remove_cap( 'ufsc_competition_audit_view' );
+			$role->remove_cap( 'ufsc_competition_sensitive_ops' );
+			$role->remove_cap( 'ufsc_competition_delete_permanent' );
 		}
 	}
 
