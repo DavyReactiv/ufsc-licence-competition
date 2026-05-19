@@ -598,16 +598,42 @@ class FightAutoGenerationService {
 				'ignored_groups'    => $ignored_groups,
 				'reason_counts'      => $reason_counts,
 			);
+			$full_preview = self::get_generation_preview( $competition_id, $settings );
+			$excluded_entries = array();
+			if ( ! empty( $selection['rejected_entries'] ) && is_array( $selection['rejected_entries'] ) ) {
+				foreach ( $selection['rejected_entries'] as $rejected ) {
+					$reasons = array_values( array_filter( array_map( 'sanitize_key', (array) ( $rejected['reasons'] ?? array() ) ) ) );
+					$excluded_entries[] = array(
+						'entry_id'          => (int) ( $rejected['entry_id'] ?? 0 ),
+						'first_name'        => sanitize_text_field( (string) ( $rejected['first_name'] ?? '' ) ),
+						'last_name'         => sanitize_text_field( (string) ( $rejected['last_name'] ?? '' ) ),
+						'club_name'         => sanitize_text_field( (string) ( $rejected['club_name'] ?? '' ) ),
+						'category'          => sanitize_text_field( (string) ( $rejected['category'] ?? '' ) ),
+						'primary_reason'    => (string) ( $reasons[0] ?? 'other_reason' ),
+						'reasons'           => $reasons,
+						'recommended_action'=> self::recommended_action_for_rejection_reason( (string) ( $reasons[0] ?? '' ) ),
+					);
+				}
+			}
 
 			$draft = array(
+				'draft_id'        => 'draft_' . $competition_id . '_' . wp_generate_uuid4(),
 				'competition_id' => $competition_id,
 				'generated_at'   => current_time( 'mysql' ),
+				'created_at'     => current_time( 'mysql' ),
 				'generated_by'   => get_current_user_id() ?: null,
+				'created_by'     => get_current_user_id() ?: null,
 				'settings'       => $settings,
 				'stats'          => $stats,
+				'summary'        => $stats,
 				'warnings'       => $warnings,
+				'groups'         => isset( $full_preview['groups_preview'] ) && is_array( $full_preview['groups_preview'] ) ? $full_preview['groups_preview'] : array(),
+				'fights_preview' => $fights,
 				'fights'         => $fights,
+				'surfaces'       => self::normalize_surface_details( $settings ),
+				'excluded_entries' => $excluded_entries,
 			);
+			$draft['diagnostic_hash'] = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::hash_draft( $full_preview ) : hash( 'sha256', wp_json_encode( $full_preview ) ?: '' );
 			$draft['draft_hash'] = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::hash_draft( $draft ) : hash( 'sha256', wp_json_encode( $draft ) ?: '' );
 
 			self::save_draft( $competition_id, $draft );
@@ -625,6 +651,24 @@ class FightAutoGenerationService {
 			);
 		} finally {
 			delete_transient( $lock_key );
+		}
+	}
+
+	private static function recommended_action_for_rejection_reason( string $reason ): string {
+		switch ( sanitize_key( $reason ) ) {
+			case 'missing_weight':
+			case 'weight_missing':
+				return 'Corriger le poids déclaré ou valider la pesée.';
+			case 'missing_sex':
+				return 'Renseigner le sexe du combattant.';
+			case 'missing_birthdate':
+				return 'Renseigner la date de naissance.';
+			case 'weighin_missing':
+				return 'Saisir une pesée valide ou activer allow_unweighed en Sandbox.';
+			case 'duplicate_fighter_number':
+				return 'Résoudre le doublon de numéro combattant.';
+			default:
+				return 'Corriger les données de l’inscription puis régénérer le brouillon.';
 		}
 	}
 
