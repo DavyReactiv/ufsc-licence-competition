@@ -20,6 +20,10 @@ class FightRepository {
 	public const STATUS_COMPLETED   = 'completed';
 	public const STATUS_BYE         = 'bye';
 	public const STATUS_PLACEHOLDER = 'placeholder';
+	public const STATUS_CALLED      = 'called';
+	public const STATUS_DELAYED     = 'delayed';
+	public const STATUS_ABSENT      = 'absent';
+	public const STATUS_DISPUTED    = 'disputed';
 	public const STATUS_CANCELLED   = 'cancelled';
 	public const STATUS_LOCKED      = 'locked';
 	public const STATUS_TRASHED     = 'trashed';
@@ -82,6 +86,7 @@ class FightRepository {
 	public function get_allowed_statuses( bool $include_prepared = true ): array {
 		$active = array(
 			self::STATUS_SCHEDULED,
+			self::STATUS_CALLED,
 			self::STATUS_RUNNING,
 			self::STATUS_COMPLETED,
 		);
@@ -128,10 +133,14 @@ class FightRepository {
 		$status = $this->normalize_fight_status( $status );
 		$labels = array(
 			self::STATUS_SCHEDULED   => __( 'Prévu', 'ufsc-licence-competition' ),
+			self::STATUS_CALLED      => __( 'Appelé', 'ufsc-licence-competition' ),
 			self::STATUS_RUNNING     => __( 'En cours', 'ufsc-licence-competition' ),
 			self::STATUS_COMPLETED   => __( 'Terminé', 'ufsc-licence-competition' ),
 			self::STATUS_BYE         => __( 'BYE', 'ufsc-licence-competition' ),
 			self::STATUS_PLACEHOLDER => __( 'Placeholder', 'ufsc-licence-competition' ),
+			self::STATUS_DELAYED     => __( 'Retardé', 'ufsc-licence-competition' ),
+			self::STATUS_ABSENT      => __( 'Absent', 'ufsc-licence-competition' ),
+			self::STATUS_DISPUTED    => __( 'Litige', 'ufsc-licence-competition' ),
 			self::STATUS_CANCELLED   => __( 'Annulé', 'ufsc-licence-competition' ),
 			self::STATUS_LOCKED      => __( 'Verrouillé', 'ufsc-licence-competition' ),
 			self::STATUS_TRASHED     => __( 'Corbeille', 'ufsc-licence-competition' ),
@@ -147,7 +156,10 @@ class FightRepository {
 				return 'ufsc-badge--success';
 			case self::STATUS_RUNNING:
 				return 'ufsc-badge--warning';
+			case self::STATUS_CALLED:
+				return 'ufsc-badge--info';
 			case self::STATUS_CANCELLED:
+			case self::STATUS_DISPUTED:
 			case self::STATUS_LOCKED:
 				return 'ufsc-badge--danger';
 			case self::STATUS_BYE:
@@ -188,6 +200,10 @@ class FightRepository {
 			return self::STATUS_RUNNING;
 		}
 
+		if ( self::STATUS_CALLED === $status || self::STATUS_DELAYED === $status || self::STATUS_ABSENT === $status || self::STATUS_DISPUTED === $status ) {
+			return $status;
+		}
+
 		if ( ! $this->is_valid_fight_status( $status ) ) {
 			return self::STATUS_SCHEDULED;
 		}
@@ -215,6 +231,12 @@ class FightRepository {
 		if ( self::STATUS_RUNNING === $current && self::STATUS_COMPLETED === $new_status ) {
 			return $this->has_coherent_result_winner( $fight );
 		}
+		if ( self::STATUS_SCHEDULED === $current && self::STATUS_CALLED === $new_status ) {
+			return true;
+		}
+		if ( self::STATUS_CALLED === $current && self::STATUS_RUNNING === $new_status ) {
+			return true;
+		}
 		if ( self::STATUS_SCHEDULED === $current && self::STATUS_RUNNING === $new_status ) {
 			return true;
 		}
@@ -223,6 +245,9 @@ class FightRepository {
 		}
 		if ( self::STATUS_RUNNING === $current && self::STATUS_SCHEDULED === $new_status ) {
 			return ! $this->has_result_payload( $fight );
+		}
+		if ( in_array( $current, array( self::STATUS_SCHEDULED, self::STATUS_CALLED, self::STATUS_RUNNING ), true ) && in_array( $new_status, array( self::STATUS_DELAYED, self::STATUS_ABSENT, self::STATUS_DISPUTED, self::STATUS_CANCELLED ), true ) ) {
+			return true;
 		}
 		if ( self::STATUS_SCHEDULED === $current && self::STATUS_CANCELLED === $new_status ) {
 			return true;

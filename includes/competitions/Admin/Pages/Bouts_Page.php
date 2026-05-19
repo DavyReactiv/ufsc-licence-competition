@@ -10,6 +10,7 @@ use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Admin\Tables\Fights_Table;
 use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\ResultService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -21,6 +22,7 @@ class Bouts_Page {
 	private $categories;
 	private $entries;
 	private $logger;
+	private $result_service;
 
 	public function __construct() {
 		$this->repository = new FightRepository();
@@ -28,6 +30,7 @@ class Bouts_Page {
 		$this->categories = new CategoryRepository();
 		$this->entries = new EntryRepository();
 		$this->logger = new LogService();
+		$this->result_service = new ResultService();
 	}
 
 	public function register_actions() {
@@ -36,10 +39,12 @@ class Bouts_Page {
 		add_action( 'admin_post_ufsc_competitions_restore_fight', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_fight', array( $this, 'handle_delete' ) );
 		add_action( 'admin_post_ufsc_competitions_correct_result', array( $this, 'handle_correct_result' ) );
+		add_action( 'admin_post_ufsc_competitions_record_result', array( $this, 'handle_record_result' ) );
+		add_action( 'admin_post_ufsc_competitions_lock_result', array( $this, 'handle_lock_result' ) );
 	}
 
 	public function render() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -215,7 +220,7 @@ class Bouts_Page {
 	}
 
 	private function handle_simple_action( $action, $method, $page_slug ) {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -238,21 +243,29 @@ class Bouts_Page {
 					$this->redirect_with_notice( $page_slug, 'protected_delete' );
 				}
 				$this->repository->soft_delete( $id );
+				$this->logger->audit( 'fight_trashed', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'trashed' );
 				break;
 			case 'restore':
 				$this->repository->restore( $id );
+				$this->logger->audit( 'fight_restored', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'restored' );
 				break;
 			case 'delete':
-				if ( ! Capabilities::user_can_delete() ) {
+				if ( ! Capabilities::user_can_permanently_delete() ) {
+					$this->logger->audit( 'sensitive_action_blocked', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'reason' => 'missing_delete_permanent_capability' ) );
 					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+				}
+				if ( empty( $_GET['confirm_permanent_delete'] ) || '1' !== (string) wp_unslash( $_GET['confirm_permanent_delete'] ) ) {
+					$this->logger->audit( 'sensitive_action_blocked', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'reason' => 'missing_permanent_delete_confirmation' ) );
+					$this->redirect_with_notice( $page_slug, 'permanent_delete_confirmation_required' );
 				}
 				if ( ! $this->repository->can_delete_fight( $fight ) ) {
 					$this->logger->log( 'fight_delete_blocked_sensitive', 'fight', $id, 'Suppression définitive bloquée.', array( 'status' => (string) ( $fight->status ?? '' ) ) );
 					$this->redirect_with_notice( $page_slug, 'protected_delete' );
 				}
 				$this->repository->delete( $id );
+				$this->logger->audit( 'fight_deleted', (int) ( $fight->competition_id ?? 0 ), 'fight', $id, array( 'old_payload' => $fight ) );
 				$this->redirect_with_notice( $page_slug, 'deleted' );
 				break;
 		}
@@ -505,7 +518,7 @@ class Bouts_Page {
 	}
 
 	public function handle_correct_result() {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_correct_results() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -557,32 +570,28 @@ class Bouts_Page {
 		}
 
 		$old_winner = (int) ( $fight->winner_entry_id ?? 0 );
-		$this->repository->update(
+		$res = $this->result_service->correct_result(
 			$fight_id,
 			array(
-				'competition_id'  => (int) $fight->competition_id,
-				'category_id'     => (int) $fight->category_id,
-				'fight_no'        => (int) $fight->fight_no,
-				'ring'            => (string) ( $fight->ring ?? '' ),
-				'round_no'        => (int) ( $fight->round_no ?? 0 ),
-				'red_entry_id'    => (int) ( $fight->red_entry_id ?? 0 ),
-				'blue_entry_id'   => (int) ( $fight->blue_entry_id ?? 0 ),
 				'winner_entry_id' => $winner_entry_id,
-				'status'          => 'completed',
-				'result_method'   => $result_method,
-				'score_red'       => (string) ( $fight->score_red ?? '' ),
-				'score_blue'      => (string) ( $fight->score_blue ?? '' ),
-				'scheduled_at'    => (string) ( $fight->scheduled_at ?? '' ),
+				'result_type' => $result_method,
+				'score_red' => (string) ( $fight->score_red ?? '' ),
+				'score_blue' => (string) ( $fight->score_blue ?? '' ),
+				'reason' => $reason,
 			)
 		);
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction bloquée: vérifiez statut, vainqueur et motif.', 'ufsc-licence-competition' ) );
+		}
 		$propagation = $this->propagate_winner_to_next_round( $fight, $old_winner, $winner_entry_id );
 
-		$this->logger->log(
-			'result_correction',
+		$this->logger->audit(
+			'result_corrected',
+			(int) ( $fight->competition_id ?? 0 ),
 			'fight',
 			$fight_id,
-			'Correction de résultat supervisée',
 			array(
+				'old_payload' => $fight,
 				'reason' => $reason,
 				'old_winner_entry_id' => $old_winner,
 				'new_winner_entry_id' => $winner_entry_id,
@@ -590,12 +599,49 @@ class Bouts_Page {
 				'impacted_pending_fights' => wp_list_pluck( $impacts['pending'], 'id' ),
 				'next_round_propagation' => $propagation,
 				'supervised' => $supervised ? 1 : 0,
-			)
+			),
+			'Correction de résultat supervisée'
 		);
 
 		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_done' );
 	}
 
+
+
+	public function handle_record_result() {
+		if ( ! Capabilities::user_can_record_results() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_record_result_' . $fight_id );
+		$payload = array(
+			'winner_entry_id' => isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0,
+			'result_type' => isset( $_POST['result_type'] ) ? sanitize_key( wp_unslash( $_POST['result_type'] ) ) : '',
+			'score_red' => isset( $_POST['score_red'] ) ? sanitize_text_field( wp_unslash( $_POST['score_red'] ) ) : '',
+			'score_blue' => isset( $_POST['score_blue'] ) ? sanitize_text_field( wp_unslash( $_POST['score_blue'] ) ) : '',
+			'note' => isset( $_POST['result_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['result_note'] ) ) : '',
+			'reason' => isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '',
+		);
+		$res = $this->result_service->record_result( $fight_id, $payload );
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_record_blocked', 0, __( 'Saisie résultat bloquée: vérifiez le statut, le vainqueur et le motif.', 'ufsc-licence-competition' ) );
+		}
+		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_recorded' );
+	}
+
+	public function handle_lock_result() {
+		if ( ! Capabilities::user_can_correct_results() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
+		check_admin_referer( 'ufsc_competitions_lock_result_' . $fight_id );
+		$reason = isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '';
+		$res = $this->result_service->lock_result( $fight_id, $reason );
+		if ( empty( $res['ok'] ) ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_lock_blocked' );
+		}
+		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_locked' );
+	}
 	private function get_impacted_fights( $fight ): array {
 		$filters = array(
 			'view' => 'all',
@@ -797,6 +843,7 @@ class Bouts_Page {
 			'error_required'=> __( 'Veuillez renseigner la compétition et le numéro de combat.', 'ufsc-licence-competition' ),
 				'not_found'     => __( 'Combat introuvable.', 'ufsc-licence-competition' ),
 				'protected_delete' => __( 'Action bloquée : ce combat est protégé (en cours, terminé ou contient un résultat).', 'ufsc-licence-competition' ),
+				'permanent_delete_confirmation_required' => __( 'Suppression définitive protégée : confirmation forte requise.', 'ufsc-licence-competition' ),
 				'protected_edit' => __( 'Modification bloquée : utilisez le workflow de correction supervisée pour un combat sensible.', 'ufsc-licence-competition' ),
 				'bulk_partial' => __( 'Traitement partiel : certains combats ont été protégés.', 'ufsc-licence-competition' ),
 				'correction_done' => __( 'Correction de résultat enregistrée et auditée.', 'ufsc-licence-competition' ),
@@ -811,7 +858,7 @@ class Bouts_Page {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked', 'permanent_delete_confirmation_required' ), true ) ? 'error' : 'success';
 		$text = '' !== $custom_message ? $custom_message : $messages[ $notice ];
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $text ) );
 	}
@@ -838,7 +885,7 @@ class Bouts_Page {
 			return;
 		}
 
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_manage_fights() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
@@ -848,6 +895,17 @@ class Bouts_Page {
 		$ids = array_filter( $ids );
 		if ( ! $ids ) {
 			return;
+		}
+
+		if ( 'delete' === $action ) {
+			if ( ! Capabilities::user_can_permanently_delete() ) {
+				$this->logger->audit( 'sensitive_action_blocked', 0, 'fight_bulk', 0, array( 'reason' => 'missing_delete_permanent_capability', 'fight_ids' => $ids ) );
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
+			if ( empty( $_POST['confirm_permanent_delete'] ) || '1' !== (string) wp_unslash( $_POST['confirm_permanent_delete'] ) ) {
+				$this->logger->audit( 'sensitive_action_blocked', 0, 'fight_bulk', 0, array( 'reason' => 'missing_bulk_permanent_delete_confirmation', 'fight_ids' => $ids ) );
+				$this->redirect_with_notice( $page_slug, 'permanent_delete_confirmation_required' );
+			}
 		}
 
 		$processed = 0;
@@ -873,9 +931,6 @@ class Bouts_Page {
 						$processed++;
 						break;
 					case 'delete':
-						if ( ! Capabilities::user_can_delete() ) {
-							wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
-						}
 						if ( ! $this->repository->can_delete_fight( $fight ) ) {
 							$blocked++;
 							$this->logger->log( 'fight_bulk_delete_blocked_sensitive', 'fight', $id, 'Bulk suppression bloquée.', array( 'status' => (string) ( $fight->status ?? '' ) ) );
