@@ -7,6 +7,7 @@ use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Services\GenerationSnapshotService;
 use UFSC\Competitions\Services\LogService;
 use UFSC\Competitions\Services\FightDisplayService;
 
@@ -29,7 +30,7 @@ class Sensitive_Operations_Page {
 	}
 
 	public function render(): void {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -102,7 +103,7 @@ class Sensitive_Operations_Page {
 			return null;
 		}
 		$competition_id = $competition_id ?: ( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
-		if ( ! Capabilities::user_can_manage() || ! $competition_id ) {
+		if ( ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY, $competition_id ) || ! $competition_id ) {
 			return array( 'type' => 'error', 'message' => __( 'Action non autorisée.', 'ufsc-licence-competition' ) );
 		}
 
@@ -236,6 +237,9 @@ class Sensitive_Operations_Page {
 	}
 
 	private function handle_partial_regen_execution( int $competition_id ): array {
+		if ( ! Capabilities::user_can_regenerate_fights() ) {
+			return array( 'type' => 'error', 'message' => __( 'Accès refusé : capability de régénération manquante.', 'ufsc-licence-competition' ) );
+		}
 		$category_id = isset( $_POST['category_id'] ) ? absint( $_POST['category_id'] ) : 0;
 		$reason = sanitize_textarea_field( (string) wp_unslash( $_POST['reason'] ?? '' ) );
 		$supervised = ! empty( $_POST['supervisor_confirm'] );
@@ -266,6 +270,24 @@ class Sensitive_Operations_Page {
 		}
 
 		$plan = $this->build_partial_regen_plan( $competition_id, $category_id );
+		$snapshot_id = '';
+		if ( class_exists( GenerationSnapshotService::class ) ) {
+			$snapshot_id = (string) ( new GenerationSnapshotService() )->create_snapshot(
+				$competition_id,
+				'before_partial_regeneration',
+				array(
+					'scope' => array(
+						'competition_id' => $competition_id,
+						'category_id' => $category_id,
+					),
+					'reason' => $reason,
+					'planned_fight_ids' => wp_list_pluck( $plan['candidates'], 'id' ),
+				)
+			);
+			if ( '' === $snapshot_id ) {
+				return array( 'type' => 'error', 'message' => __( 'Régénération partielle bloquée : snapshot ciblé impossible.', 'ufsc-licence-competition' ) );
+			}
+		}
 		$planned_ids = wp_list_pluck( $plan['candidates'], 'id' );
 		$deleted_ids = array();
 		foreach ( $plan['candidates'] as $fight ) {
@@ -293,6 +315,7 @@ class Sensitive_Operations_Page {
 				'planned_count' => count( $planned_ids ),
 				'processed_count' => count( $deleted_ids ),
 				'supervised' => $supervised ? 1 : 0,
+				'snapshot_id' => $snapshot_id,
 			)
 		);
 
