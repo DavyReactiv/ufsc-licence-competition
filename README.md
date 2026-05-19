@@ -259,3 +259,41 @@ Des documents HTML imprimables peuvent être générés : résultats par catégo
 **Qu’est-ce qui est strict vs heuristique ?**
 - Strict : permissions, nonces, contrôle saisie, unicité numéro combattant.
 - Heuristique contrôlée : certaines dépendances bracket déduites par `round_no/fight_no`.
+
+## Plateau jour J
+
+Le module propose une vue admin dédiée au pilotage live des combats par surface. Les organisateurs peuvent suivre les combats prévus, appelés, en cours, terminés, retardés, absents ou en litige, puis déclencher des actions rapides (appel, lancement, clôture, retard, absence, litige, annulation, changement de surface).
+
+Toutes les actions passent par nonce + capability + contrôles de cohérence métier et sont journalisées dans l’audit. Les combats terminés/verrouillés/trashed, ainsi que les BYE et placeholders, sont protégés contre les transitions incohérentes.
+
+## Statuts plateau
+
+- `scheduled` : combat prévu ;
+- `called` : combat appelé ;
+- `running` : combat en cours ;
+- `completed` : combat terminé ;
+- `delayed` : combat retardé ;
+- `absent` : combattant absent ;
+- `disputed` : litige ;
+- `cancelled` : combat annulé ;
+- `locked` : combat verrouillé.
+
+## Résultats sécurisés
+
+Le module propose une saisie de résultats encadrée et une correction supervisée. Les combats BYE, placeholders, supprimés (trashed) ou verrouillés sont protégés. Toute correction d’un combat terminé nécessite une capability dédiée, un motif et un log d’audit.
+
+Les actions de résultat sont traitées via un service central (`ResultService`) qui valide les payloads, enregistre/corrige les résultats, peut verrouiller un résultat terminé, et produit des traces d’audit structurées.
+
+## Podiums et documents
+
+Les podiums et documents officiels sont générés de manière prudente. Les sorties peuvent être marquées provisoires quand les données de bracket/poule nécessitent une vérification manuelle (propagation incomplète, litiges, absences).
+
+Les impressions existantes restent compatibles; la consolidation automatique avancée des podiums reste progressive par lots.
+
+## Podiums provisoires et classements
+
+Le module peut produire des synthèses de résultats, classements de poules et podiums provisoires. Les données sont affichées avec prudence : en cas de résultat manquant, litige, égalité ou bracket incomplet, le document indique “à vérifier” ou “provisoire”. Les podiums ne doivent être considérés comme officiels qu’après validation manuelle.
+
+## Documents résultats
+
+Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.
