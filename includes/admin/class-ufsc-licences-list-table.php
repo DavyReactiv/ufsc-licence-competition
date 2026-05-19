@@ -724,7 +724,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( '' !== $statut ) {
 			$this->add_status_filter_clause( $statut, $where, $params, 'l' );
 		}
-		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
 			$category_filter_sql = $this->get_category_filter_sql( 'l' );
@@ -988,7 +987,6 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		if ( '' !== $statut ) {
 			$this->add_status_filter_clause( $statut, $where, $params, 'l' );
 		}
-		$this->add_default_valid_filter( $licences_table, $statut, $where, $params );
 
 		if ( '' !== $categorie ) {
 			$category_filter_sql = $this->get_category_filter_sql( 'l' );
@@ -1135,21 +1133,6 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 	}
 
-	private function add_default_valid_filter( $licences_table, $statut, array &$where, array &$params ) {
-		if ( '' !== $statut ) {
-			return;
-		}
-
-		unset( $licences_table );
-
-		$status_expr = $this->get_status_expression_sql( 'l' );
-		if ( '' === $status_expr ) {
-			return;
-		}
-
-		$this->add_status_filter_clause( 'valide', $where, $params, 'l' );
-	}
-
 	private function add_status_filter_clause( $raw_status, array &$where, array &$params, $alias = 'l' ) {
 		$status_expr = $this->get_status_expression_sql( $alias );
 		if ( '' === $status_expr ) {
@@ -1180,7 +1163,25 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	private function normalize_global_filter_value( $value ) {
 		$value = trim( (string) $value );
 		$key = strtolower( remove_accents( $value ) );
-		return in_array( $key, array( '', 'all', 'tous', 'toutes', '0', 'any', 'null', 'toutes les saisons', 'toutes les competitions', 'avec/sans pdf' ), true ) ? '' : $value;
+		return in_array(
+			$key,
+			array(
+				'',
+				'all',
+				'tous',
+				'toutes',
+				'any',
+				'0',
+				'null',
+				'tous les clubs',
+				'tous les statuts',
+				'toutes les categories',
+				'toutes les saisons',
+				'toutes les competitions',
+				'avec/sans pdf',
+			),
+			true
+		) ? '' : $value;
 	}
 
 	private function get_club_name_by_id( $club_id ) {
