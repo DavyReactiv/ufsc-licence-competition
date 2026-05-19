@@ -9,6 +9,8 @@ use UFSC\Competitions\Repositories\ClubRepository;
 use UFSC\Competitions\Services\CompetitionFilters;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\GenerationSnapshotService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -983,10 +985,12 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_trash_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'trash' ) ) {
+			$old_competition = $this->repository->get( $id, true );
 			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
 				$this->repository->assert_competition_in_scope( $id );
 			}
 			$this->repository->trash( $id );
+			( new LogService() )->audit( 'competition_trashed', $id, 'competition', $id, array( 'old_payload' => $old_competition ) );
 		}
 
 		$this->redirect_notice( 'saved' );
@@ -1001,10 +1005,12 @@ class Competitions_Page {
 		check_admin_referer( 'ufsc_competitions_restore_competition_' . $id );
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'restore' ) ) {
+			$old_competition = $this->repository->get( $id, true );
 			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
 				$this->repository->assert_competition_in_scope( $id );
 			}
 			$this->repository->restore( $id );
+			( new LogService() )->audit( 'competition_restored', $id, 'competition', $id, array( 'old_payload' => $old_competition ) );
 		}
 
 		wp_safe_redirect(
@@ -1021,18 +1027,25 @@ class Competitions_Page {
 	}
 
 	public function handle_delete() {
-		if ( ! \UFSC\Competitions\Capabilities::user_can_delete() ) {
+		if ( ! \UFSC\Competitions\Capabilities::user_can_permanently_delete() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 		check_admin_referer( 'ufsc_competitions_delete_competition_' . $id );
+		if ( empty( $_GET['confirm_permanent_delete'] ) || '1' !== (string) wp_unslash( $_GET['confirm_permanent_delete'] ) ) {
+			( new LogService() )->audit( 'sensitive_action_blocked', $id, 'competition', $id, array( 'reason' => 'missing_permanent_delete_confirmation' ) );
+			$this->redirect_notice( 'permanent_delete_confirmation_required' );
+		}
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'delete' ) ) {
+			$old_competition = $this->repository->get( $id, true );
+			$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $id, 'before_competition_permanent_delete', array() ) : '';
 			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
 				$this->repository->assert_competition_in_scope( $id );
 			}
 			$this->repository->delete( $id );
+			( new LogService() )->audit( 'competition_deleted_permanently', $id, 'competition', $id, array( 'old_payload' => $old_competition, 'snapshot_id' => $snapshot_id ) );
 		}
 
 		wp_safe_redirect(
@@ -1182,6 +1195,7 @@ class Competitions_Page {
 			'not_found' => array( 'error', __( 'Élément introuvable.', 'ufsc-licence-competition' ) ),
 			'pdf_no_entries' => array( 'warning', __( 'Aucune inscription approuvée à exporter pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'pdf_generation_failed' => array( 'error', __( 'Impossible de générer le PDF pour le moment. Utilisez la page “Impression” comme fallback immédiat.', 'ufsc-licence-competition' ) ),
+				'permanent_delete_confirmation_required' => array( 'error', __( 'Suppression définitive protégée : confirmation forte requise.', 'ufsc-licence-competition' ) ),
 		);
 
 		if ( ! isset( $map[ $notice ] ) ) {
