@@ -942,6 +942,8 @@ class Bouts_AutoGeneration {
 		if ( empty( $fixture['ok'] ) ) { self::redirect( 0, 'action_error', (string) ( $fixture['message'] ?? '' ) ); }
 		$competition_id = (int) $fixture['competition_id'];
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$settings['sandbox_generation'] = 1;
+		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		$fixture_ids = get_option( 'ufsc_generation_test_fixture_ids', array() );
@@ -986,6 +988,8 @@ class Bouts_AutoGeneration {
 		}
 		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
+		$settings['sandbox_generation'] = 1;
+		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
 		$apply = ! empty( $draft['ok'] ) ? FightAutoGenerationService::validate_and_apply_draft( $competition_id, 'append' ) : array( 'ok' => false );

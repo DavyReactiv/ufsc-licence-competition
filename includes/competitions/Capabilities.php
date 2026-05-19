@@ -81,9 +81,21 @@ class Capabilities {
 			return true;
 		}
 
-		// Backward compatibility: existing competition super-managers keep all new Lot 1 rights.
-		if ( current_user_can( self::MANAGE_ALL_CAPABILITY ) || self::user_can_manage() ) {
+		// Backward compatibility: WordPress administrators and legacy UFSC competition
+		// super-managers keep Lot 1 rights without granting sensitive operations to
+		// every regional/limited competition manager.
+		return self::user_is_legacy_super_manager();
+	}
+
+	private static function user_is_legacy_super_manager(): bool {
+		if ( current_user_can( 'manage_options' ) || current_user_can( self::MANAGE_ALL_CAPABILITY ) ) {
 			return true;
+		}
+
+		if ( class_exists( 'UFSC_LC_Capabilities' ) && defined( 'UFSC_LC_Capabilities::MANAGE_CAPABILITY' ) ) {
+			if ( current_user_can( \UFSC_LC_Capabilities::MANAGE_CAPABILITY ) ) {
+				return true;
+			}
 		}
 
 		return false;

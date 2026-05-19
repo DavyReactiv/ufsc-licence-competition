@@ -689,6 +689,9 @@ class FightAutoGenerationService {
 		}
 
 		$settings = self::get_settings( $competition_id );
+		if ( ! empty( $draft['settings'] ) && is_array( $draft['settings'] ) ) {
+			$settings = array_merge( $settings, $draft['settings'] );
+		}
 		$readiness = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::check( $competition_id, $settings, $draft ) : array( 'blocking' => false, 'errors' => array(), 'warnings' => array(), 'summary' => array() );
 		if ( ! empty( $readiness['blocking'] ) ) {
 			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'readiness_diagnostic', 'diagnostic' => $readiness ) );
