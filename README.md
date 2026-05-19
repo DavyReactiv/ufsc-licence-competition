@@ -130,6 +130,12 @@ Le module est conçu pour rester compatible avec des schémas UFSC historiques (
 - Les suppressions définitives sont protégées par capability + confirmation.
 - Les pesées validées et résultats terminés sont protégés par des garde-fous dédiés.
 
+## Régénération contrôlée
+
+Le module permet de préparer une régénération ciblée par catégorie ou groupe. Cette action est protégée par capability, preview obligatoire, snapshot ciblé, confirmation forte, motif obligatoire et rollback ciblé. Les combats terminés, en cours ou verrouillés bloquent la régénération.
+
+La régénération globale reste protégée et ne doit pas être utilisée sans action sensible explicite.
+
 ## 7) Notes de mise en production
 
 ### Prérequis
