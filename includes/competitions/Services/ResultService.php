@@ -53,6 +53,16 @@ class ResultService {
 			}
 		}
 
+		foreach ( array( 'score_red', 'score_blue' ) as $score_key ) {
+			$score = trim( (string) ( $payload[ $score_key ] ?? '' ) );
+			if ( '' === $score ) {
+				continue;
+			}
+			if ( ! preg_match( '/^-?[0-9]+([\.,][0-9]+)?$/', $score ) ) {
+				return array( 'ok' => false, 'error' => 'invalid_score_' . $score_key );
+			}
+		}
+
 		return array( 'ok' => true );
 	}
 
@@ -75,7 +85,10 @@ class ResultService {
 			return array( 'ok' => false, 'error' => 'missing_capability' );
 		}
 		$check = $this->validate_result_payload( $fight, $payload, true );
-		if ( ! $check['ok'] ) { return $check; }
+		if ( ! $check['ok'] ) {
+			$this->logger->audit( 'result_correction_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => (string) ( $check['error'] ?? 'validation_failed' ) ) );
+			return $check;
+		}
 		$new = $this->build_update_payload( $fight, $payload, true );
 		$this->fights->update( $fight_id, $new );
 		$this->logger->audit( 'result_corrected', (int) $fight->competition_id, 'fight', $fight_id, $this->build_result_audit_payload( $fight, (object) $new, $payload ) );
@@ -85,7 +98,11 @@ class ResultService {
 	public function lock_result( int $fight_id, string $reason = '' ): array {
 		$fight = $this->fights->get( $fight_id, true );
 		if ( ! $fight ) { return array( 'ok' => false, 'error' => 'fight_not_found' ); }
-		if ( FightRepository::STATUS_COMPLETED !== $this->fights->get_effective_fight_status( $fight ) ) {
+		$status = $this->fights->get_effective_fight_status( $fight );
+		if ( in_array( $status, array( FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER, FightRepository::STATUS_TRASHED ), true ) ) {
+			return array( 'ok' => false, 'error' => 'lock_unsupported_status' );
+		}
+		if ( FightRepository::STATUS_COMPLETED !== $status ) {
 			return array( 'ok' => false, 'error' => 'not_completed' );
 		}
 		$this->fights->update( $fight_id, array( 'status' => FightRepository::STATUS_LOCKED ) );
