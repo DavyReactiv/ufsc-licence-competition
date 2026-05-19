@@ -14,6 +14,17 @@ class Capabilities {
 	public const EXPORT_CAPABILITY = 'ufsc_competition_export';
 	public const VALIDATE_CAPABILITY = 'ufsc_competition_validate';
 	public const DELETE_CAPABILITY = 'ufsc_competition_delete';
+	public const WEIGHIN_MANAGE_CAPABILITY = 'ufsc_competition_weighin_manage';
+	public const WEIGHIN_OVERRIDE_CAPABILITY = 'ufsc_competition_weighin_override';
+	public const FIGHT_MANAGE_CAPABILITY = 'ufsc_competition_fight_manage';
+	public const FIGHT_GENERATE_CAPABILITY = 'ufsc_competition_fight_generate';
+	public const FIGHT_REGENERATE_CAPABILITY = 'ufsc_competition_fight_regenerate';
+	public const PLATEAU_MANAGE_CAPABILITY = 'ufsc_competition_plateau_manage';
+	public const RESULT_RECORD_CAPABILITY = 'ufsc_competition_result_record';
+	public const RESULT_CORRECT_CAPABILITY = 'ufsc_competition_result_correct';
+	public const AUDIT_VIEW_CAPABILITY = 'ufsc_competition_audit_view';
+	public const SENSITIVE_OPS_CAPABILITY = 'ufsc_competition_sensitive_ops';
+	public const DELETE_PERMANENT_CAPABILITY = 'ufsc_competition_delete_permanent';
 	public const MANAGE_ALL_CAPABILITY = 'ufsc_comp_manage_all';
 	public const MANAGE_REGION_CAPABILITY = 'ufsc_comp_manage_region';
 	public const VIEW_REGION_CAPABILITY = 'ufsc_comp_view_region';
@@ -57,7 +68,69 @@ class Capabilities {
 	}
 
 	public static function user_can_delete() {
-		return current_user_can( self::DELETE_CAPABILITY );
+		return current_user_can( self::DELETE_CAPABILITY ) || self::user_can_manage();
+	}
+
+	public static function current_user_can( string $capability, int $competition_id = 0 ): bool {
+		$capability = sanitize_key( $capability );
+		if ( '' === $capability ) {
+			return false;
+		}
+
+		if ( current_user_can( $capability ) ) {
+			return true;
+		}
+
+		// Backward compatibility: WordPress administrators and legacy UFSC competition
+		// super-managers keep Lot 1 rights without granting sensitive operations to
+		// every regional/limited competition manager.
+		return self::user_is_legacy_super_manager();
+	}
+
+	private static function user_is_legacy_super_manager(): bool {
+		if ( current_user_can( 'manage_options' ) || current_user_can( self::MANAGE_ALL_CAPABILITY ) ) {
+			return true;
+		}
+
+		if ( class_exists( 'UFSC_LC_Capabilities' ) && defined( 'UFSC_LC_Capabilities::MANAGE_CAPABILITY' ) ) {
+			if ( current_user_can( \UFSC_LC_Capabilities::MANAGE_CAPABILITY ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public static function user_can_manage_weighins(): bool {
+		return self::current_user_can( self::WEIGHIN_MANAGE_CAPABILITY ) || self::user_can_manage_entries();
+	}
+
+	public static function user_can_override_weighins(): bool {
+		return self::current_user_can( self::WEIGHIN_OVERRIDE_CAPABILITY ) || self::current_user_can( self::SENSITIVE_OPS_CAPABILITY );
+	}
+
+	public static function user_can_manage_fights(): bool {
+		return self::current_user_can( self::FIGHT_MANAGE_CAPABILITY ) || self::user_can_manage();
+	}
+
+	public static function user_can_generate_fights(): bool {
+		return self::current_user_can( self::FIGHT_GENERATE_CAPABILITY ) || self::user_can_manage();
+	}
+
+	public static function user_can_regenerate_fights(): bool {
+		return self::current_user_can( self::FIGHT_REGENERATE_CAPABILITY ) || self::current_user_can( self::SENSITIVE_OPS_CAPABILITY );
+	}
+
+	public static function user_can_record_results(): bool {
+		return self::current_user_can( self::RESULT_RECORD_CAPABILITY ) || self::user_can_manage();
+	}
+
+	public static function user_can_correct_results(): bool {
+		return self::current_user_can( self::RESULT_CORRECT_CAPABILITY ) || self::current_user_can( self::SENSITIVE_OPS_CAPABILITY );
+	}
+
+	public static function user_can_permanently_delete(): bool {
+		return self::current_user_can( self::DELETE_PERMANENT_CAPABILITY );
 	}
 
 	public static function get_read_capability(): string {
