@@ -675,6 +675,68 @@ class Bouts_AutoGeneration {
 						</ul>
 					<?php endif; ?>
 					<?php if ( $has_draft ) : ?>
+						<h4><?php esc_html_e( 'Groupes / catégories du brouillon', 'ufsc-licence-competition' ); ?></h4>
+						<?php if ( ! empty( $draft_groups ) ) : ?>
+							<div class="ufsc-competitions-table-wrap">
+								<?php foreach ( $draft_groups as $group_index => $group_row ) : ?>
+									<?php
+									$group_row = is_array( $group_row ) ? $group_row : array();
+									$group_label = (string) ( $group_row['group_key'] ?? sprintf( 'Groupe %d', (int) $group_index + 1 ) );
+									$group_status_raw = sanitize_key( (string) ( $group_row['status'] ?? '' ) );
+									$group_status_label = 'generable' === $group_status_raw ? __( 'Prêt', 'ufsc-licence-competition' ) : ( 'warning' === $group_status_raw ? __( 'Warning', 'ufsc-licence-competition' ) : __( 'À contrôler', 'ufsc-licence-competition' ) );
+									$group_status_badge = 'generable' === $group_status_raw ? 'ok' : ( 'warning' === $group_status_raw ? 'warn' : 'danger' );
+									$group_athletes = isset( $group_row['athletes'] ) && is_array( $group_row['athletes'] ) ? $group_row['athletes'] : array();
+									$group_athletes_total = count( $group_athletes );
+									$group_athletes_visible = array_slice( $group_athletes, 0, 20 );
+									?>
+									<details class="ufsc-fightgen-group-details" style="margin:8px 0;">
+										<summary>
+											<strong><?php echo esc_html( $group_label ); ?></strong>
+											<span class="<?php echo esc_attr( self::status_badge_class( $group_status_badge ) ); ?>"><?php echo esc_html( $group_status_label ); ?></span>
+											<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( '%d combattants', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? $group_athletes_total ) ) ); ?></span>
+											<span class="ufsc-badge ufsc-badge--info"><?php echo esc_html( sprintf( __( 'Format : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? '—' ) ) ); ?></span>
+											<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Combats : %d', 'ufsc-licence-competition' ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?></span>
+											<span class="ufsc-badge ufsc-badge--warn"><?php echo esc_html( sprintf( __( 'BYE : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?></span>
+										</summary>
+										<ul>
+											<li><?php echo esc_html( sprintf( __( 'Discipline : %s', 'ufsc-licence-competition' ), (string) ( $group_row['discipline'] ?? '—' ) ) ); ?></li>
+											<li><?php echo esc_html( sprintf( __( 'Sexe : %s', 'ufsc-licence-competition' ), (string) ( $group_row['sex'] ?? $group_row['gender'] ?? '—' ) ) ); ?></li>
+											<li><?php echo esc_html( sprintf( __( 'Âge : %s', 'ufsc-licence-competition' ), (string) ( $group_row['age_category'] ?? '—' ) ) ); ?></li>
+											<li><?php echo esc_html( sprintf( __( 'Catégorie de poids : %s', 'ufsc-licence-competition' ), (string) ( $group_row['weight_category'] ?? $group_row['weight_class'] ?? '—' ) ) ); ?></li>
+											<li><?php echo esc_html( sprintf( __( 'Niveau / classe : %s', 'ufsc-licence-competition' ), (string) ( $group_row['level'] ?? $group_row['class'] ?? '—' ) ) ); ?></li>
+											<li><?php echo esc_html( sprintf( __( 'Surface proposée : %s', 'ufsc-licence-competition' ), (string) ( $group_row['surface'] ?? '—' ) ) ); ?></li>
+										</ul>
+										<table class="widefat striped">
+											<thead><tr><th><?php esc_html_e( 'Nom', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Sexe', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Date naissance', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Âge', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids déclaré', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids officiel', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Cat. poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'N° combattant', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut inscription', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut pesée', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Bon pour combat', 'ufsc-licence-competition' ); ?></th></tr></thead>
+											<tbody>
+											<?php foreach ( $group_athletes_visible as $athlete ) : $athlete = is_array( $athlete ) ? $athlete : array(); ?>
+												<tr>
+													<td><?php echo esc_html( (string) ( $athlete['last_name'] ?? $athlete['nom'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['first_name'] ?? $athlete['prenom'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['club_name'] ?? $athlete['club'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['sex'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['birth_date'] ?? $athlete['date_naissance'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['age'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['weight_kg'] ?? $athlete['poids'] ?? $athlete['weight'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['official_weight'] ?? $athlete['measured_weight'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['weight_category'] ?? $athlete['weight_class'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['fighter_number'] ?? $athlete['numero_combattant'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['entry_status'] ?? $athlete['status'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( (string) ( $athlete['weighin_status'] ?? '—' ) ); ?></td>
+													<td><?php echo esc_html( ! empty( $athlete['fight_ready'] ) ? __( 'Bon pour combat', 'ufsc-licence-competition' ) : __( 'Pesée manquante', 'ufsc-licence-competition' ) ); ?></td>
+												</tr>
+											<?php endforeach; ?>
+											</tbody>
+										</table>
+										<?php if ( $group_athletes_total > 20 ) : ?>
+											<p class="description"><?php echo esc_html( sprintf( __( '... et %d autres combattants dans ce groupe.', 'ufsc-licence-competition' ), $group_athletes_total - 20 ) ); ?></p>
+										<?php endif; ?>
+									</details>
+								<?php endforeach; ?>
+							</div>
+						<?php else : ?>
+							<p class="description"><?php esc_html_e( 'Aucun groupe détaillé disponible dans ce brouillon. Régénérez le brouillon pour obtenir une preview enrichie.', 'ufsc-licence-competition' ); ?></p>
+						<?php endif; ?>
 						<h4><?php esc_html_e( 'Combats prévus', 'ufsc-licence-competition' ); ?></h4>
 						<div class="ufsc-competitions-table-wrap">
 							<table class="widefat striped">
