@@ -148,7 +148,13 @@ class Plateau_Page {
 		check_admin_referer( 'ufsc_plateau_change_surface_' . $fight_id );
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
 		$new_surface = isset( $_POST['new_surface'] ) ? sanitize_text_field( wp_unslash( $_POST['new_surface'] ) ) : '';
+		$new_surface = trim( $new_surface );
 		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
+
+		if ( '' === $new_surface ) {
+			$this->log_blocked( $competition_id, $fight_id, 'surface_change_invalid_target', '', '' );
+			$this->redirect( $competition_id, 'blocked', __( 'Surface cible invalide.', 'ufsc-licence-competition' ) );
+		}
 
 		$fight = $this->fights->get( $fight_id, true );
 		if ( ! $fight || (int) $fight->competition_id !== $competition_id ) {
@@ -204,6 +210,10 @@ class Plateau_Page {
 		if ( FightRepository::STATUS_COMPLETED === $current && ! Capabilities::user_can_correct_results() ) {
 			return false;
 		}
+		if ( FightRepository::STATUS_CANCELLED === $current && FightRepository::STATUS_COMPLETED === $new && ! Capabilities::user_can_correct_results() ) {
+			return false;
+		}
+
 		$allowed = array(
 			FightRepository::STATUS_CALLED,
 			FightRepository::STATUS_RUNNING,
@@ -214,7 +224,12 @@ class Plateau_Page {
 			FightRepository::STATUS_CANCELLED,
 			FightRepository::STATUS_SCHEDULED,
 		);
-		return in_array( $new, $allowed, true );
+		if ( ! in_array( $new, $allowed, true ) ) {
+			return false;
+		}
+
+		$fight->status = $current;
+		return $this->fights->can_transition_status( $fight, $new );
 	}
 
 	private function can_manage_plateau(): bool {
@@ -311,6 +326,7 @@ class Plateau_Page {
 					</form>
 				<?php endforeach; ?>
 			</div>
+			<p><a class="button button-link" href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => 'edit', 'id' => (int) $fight->id ), admin_url( 'admin.php' ) ) ); ?>"><?php esc_html_e( 'Voir détail', 'ufsc-licence-competition' ); ?></a></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-plateau-surface-form">
 				<input type="hidden" name="action" value="ufsc_competitions_plateau_change_surface" />
 				<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
