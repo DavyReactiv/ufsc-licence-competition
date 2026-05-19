@@ -100,6 +100,46 @@ Le module est conçu pour rester compatible avec des schémas UFSC historiques (
 - Soft delete sur entités concernées.
 - Supervision explicite pour correction de résultat avec impacts aval déjà joués.
 
+## Module Compétitions — Génération sécurisée
+
+- Diagnostic avant génération (bloquants + warnings).
+- Preview / brouillon obligatoire avant création réelle.
+- Snapshot avant application réelle du brouillon.
+- Rollback ciblé tenté en cas d’échec SQL partiel.
+- Verrou post-génération pour éviter des modifications dangereuses.
+- BYE et placeholders lisibles en preview (ex: « Vainqueur combat X »).
+- Poules round-robin simples (3 à 6 combattants) avec warnings métier.
+- Warnings même club (best effort, non bloquant).
+- Warnings repos athlète quand des combats sont rapprochés.
+- Sandbox de test maintenue pour scénarios de génération.
+- Aucune génération directe non prévisualisée.
+
+## Formats actuellement pris en charge
+
+- Combat simple.
+- Tableau avec BYE.
+- Tableau multi-tours avec placeholders.
+- Poule round-robin simple.
+- Formats supérieurs/avancés signalés par warning si non supportés.
+
+## Sécurité des données
+
+- Les combats réels sont créés uniquement après validation d’un brouillon.
+- Un snapshot est créé avant application.
+- Un rollback ciblé est tenté en cas d’erreur.
+- Les suppressions définitives sont protégées par capability + confirmation.
+- Les pesées validées et résultats terminés sont protégés par des garde-fous dédiés.
+
+## Régénération contrôlée
+
+Le module permet de préparer une régénération ciblée par catégorie ou groupe. Cette action est protégée par capability, preview obligatoire, snapshot ciblé, confirmation forte, motif obligatoire et rollback ciblé. Les combats terminés, en cours ou verrouillés bloquent la régénération.
+
+La régénération globale reste protégée et ne doit pas être utilisée sans action sensible explicite.
+
+En cas d’échec d’une tentative ciblée, le rollback tente de restaurer les anciens combats mis en corbeille pendant cette tentative et d’annuler les nouveaux combats éventuellement insérés. Les logs d’audit détaillent les IDs planifiés/trashed/restaurés/insérés, le motif, le snapshot et le scope utilisé (category_id, avec préparation group_key si disponible). Le scope applicatif reste category_id tant que group_key n’est pas fiable partout.
+
+La régénération ciblée complète insère désormais les nouveaux combats du scope après mise en corbeille des anciens combats candidats. Les IDs insérés sont trackés ; en cas d’échec, ces nouveaux combats sont annulés et les anciens combats de la tentative sont restaurés.
+
 ## 7) Notes de mise en production
 
 ### Prérequis
@@ -137,3 +177,33 @@ Le module est conçu pour rester compatible avec des schémas UFSC historiques (
 **Qu’est-ce qui est strict vs heuristique ?**
 - Strict : permissions, nonces, contrôle saisie, unicité numéro combattant.
 - Heuristique contrôlée : certaines dépendances bracket déduites par `round_no/fight_no`.
+
+## Plateau jour J
+
+Le module propose une vue admin dédiée au pilotage live des combats par surface. Les organisateurs peuvent suivre les combats prévus, appelés, en cours, terminés, retardés, absents ou en litige, puis déclencher des actions rapides (appel, lancement, clôture, retard, absence, litige, annulation, changement de surface).
+
+Toutes les actions passent par nonce + capability + contrôles de cohérence métier et sont journalisées dans l’audit. Les combats terminés/verrouillés/trashed, ainsi que les BYE et placeholders, sont protégés contre les transitions incohérentes.
+
+## Statuts plateau
+
+- `scheduled` : combat prévu ;
+- `called` : combat appelé ;
+- `running` : combat en cours ;
+- `completed` : combat terminé ;
+- `delayed` : combat retardé ;
+- `absent` : combattant absent ;
+- `disputed` : litige ;
+- `cancelled` : combat annulé ;
+- `locked` : combat verrouillé.
+
+## Résultats sécurisés
+
+Le module propose une saisie de résultats encadrée et une correction supervisée. Les combats BYE, placeholders, supprimés (trashed) ou verrouillés sont protégés. Toute correction d’un combat terminé nécessite une capability dédiée, un motif et un log d’audit.
+
+Les actions de résultat sont traitées via un service central (`ResultService`) qui valide les payloads, enregistre/corrige les résultats, peut verrouiller un résultat terminé, et produit des traces d’audit structurées.
+
+## Podiums et documents
+
+Les podiums et documents officiels sont générés de manière prudente. Les sorties peuvent être marquées provisoires quand les données de bracket/poule nécessitent une vérification manuelle (propagation incomplète, litiges, absences).
+
+Les impressions existantes restent compatibles; la consolidation automatique avancée des podiums reste progressive par lots.
