@@ -29,7 +29,7 @@ class Sensitive_Operations_Page {
 	}
 
 	public function render(): void {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
@@ -102,7 +102,7 @@ class Sensitive_Operations_Page {
 			return null;
 		}
 		$competition_id = $competition_id ?: ( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
-		if ( ! Capabilities::user_can_manage() || ! $competition_id ) {
+		if ( ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY, $competition_id ) || ! $competition_id ) {
 			return array( 'type' => 'error', 'message' => __( 'Action non autorisée.', 'ufsc-licence-competition' ) );
 		}
 
