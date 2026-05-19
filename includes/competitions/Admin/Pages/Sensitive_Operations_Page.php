@@ -487,6 +487,9 @@ class Sensitive_Operations_Page {
 
 		$candidates = array();
 		foreach ( $fights as $fight ) {
+			if ( ! empty( $fight->deleted_at ) ) {
+				continue;
+			}
 			if ( (int) ( $fight->fight_no ?? 0 ) <= $max_completed_no ) {
 				continue;
 			}
