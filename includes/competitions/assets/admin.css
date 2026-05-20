@@ -913,3 +913,23 @@
 	gap: 6px;
 	align-items: center;
 }
+
+@media print {
+  @page { margin: 8mm; }
+  .ufsc-print-table table, .ufsc-print-table, table.widefat {
+    width: 100% !important;
+    border-collapse: collapse;
+    table-layout: auto;
+    font-size: 9px;
+  }
+  .ufsc-print-table thead, thead { display: table-header-group; }
+  .ufsc-print-table tr, tr { page-break-inside: avoid; }
+  .ufsc-print-table th, .ufsc-print-table td, th, td {
+    word-break: normal;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+    padding: 4px;
+  }
+  .ufsc-print-table--entries, .ufsc-print-table--fights { font-size: 8px; }
+  .ufsc-print-fighter-cell { white-space: pre-line; }
+}

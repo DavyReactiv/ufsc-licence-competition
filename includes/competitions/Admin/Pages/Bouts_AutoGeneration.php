@@ -848,12 +848,22 @@ class Bouts_AutoGeneration {
 				<p class="description"><?php esc_html_e( 'Les scénarios “générables” créent des données complètes, pesées OK et catégories homogènes afin de tester toute la chaîne sans bloquant. Le scénario “anomalies” sert uniquement à tester le diagnostic d’erreurs.', 'ufsc-licence-competition' ); ?></p>
 				<p><span class="ufsc-badge ufsc-badge--info">TEST</span> <span class="ufsc-badge ufsc-badge--muted"><?php esc_html_e( 'Données isolées', 'ufsc-licence-competition' ); ?></span> <span class="ufsc-badge ufsc-badge--warn"><?php esc_html_e( 'Suppression sécurisée', 'ufsc-licence-competition' ); ?></span></p>
 				<p class="description"><?php esc_html_e( 'Réservé aux administrateurs. Les données créées sont marquées [TEST] et suivies pour suppression sécurisée.', 'ufsc-licence-competition' ); ?></p>
+				<details class="ufsc-fightgen-help-details"><summary><strong><?php esc_html_e( 'Comprendre le mode test', 'ufsc-licence-competition' ); ?></strong></summary>
+					<ul>
+						<li><?php esc_html_e( 'Sandbox : mode isolé qui crée de fausses compétitions, clubs et combattants.', 'ufsc-licence-competition' ); ?></li>
+						<li><?php esc_html_e( 'Scénarios générables : données complètes pour tester la génération sans bloquant.', 'ufsc-licence-competition' ); ?></li>
+						<li><?php esc_html_e( 'Scénario anomalies : crée volontairement des erreurs pour tester le diagnostic.', 'ufsc-licence-competition' ); ?></li>
+						<li><?php esc_html_e( 'BYE : passage automatique au tour suivant sans adversaire.', 'ufsc-licence-competition' ); ?></li>
+						<li><?php esc_html_e( 'Brouillon / preview : aucun combat écrit tant que le brouillon n’est pas validé.', 'ufsc-licence-competition' ); ?></li>
+					</ul>
+				</details>
 				<div class="ufsc-competitions-actions">
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
 						<input type="hidden" name="scenario" value="simple">
 						<?php submit_button( __( 'Créer test simple générable', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Crée quelques catégories simples avec 2 combattants par catégorie.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -861,6 +871,7 @@ class Bouts_AutoGeneration {
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
 						<input type="hidden" name="scenario" value="brackets">
 						<?php submit_button( __( 'Créer test tableaux/BYE', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Crée des catégories de 3 à 8 combattants pour vérifier tableaux et BYE.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -868,12 +879,14 @@ class Bouts_AutoGeneration {
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
 						<input type="hidden" name="scenario" value="pools">
 						<?php submit_button( __( 'Créer test poules', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Crée des poules de 3 à 6 combattants.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_create' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_create">
 						<input type="hidden" name="scenario" value="anomalies">
 						<?php submit_button( __( 'Créer test anomalies', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Crée volontairement des données incomplètes pour tester le diagnostic.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('<?php echo esc_js( __( 'Confirmer la réinitialisation du jeu de test ?', 'ufsc-licence-competition' ) ); ?>');">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_reset' ); ?>
@@ -884,6 +897,7 @@ class Bouts_AutoGeneration {
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_delete' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_delete">
 						<?php submit_button( __( 'Supprimer uniquement les données test', 'ufsc-licence-competition' ), 'delete', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Supprime uniquement les données marquées test / sandbox.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_run' ); ?>
@@ -894,7 +908,8 @@ class Bouts_AutoGeneration {
 						<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 							<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150' ); ?>
 							<input type="hidden" name="action" value="ufsc_competitions_test_fixture_open150">
-							<?php submit_button( __( 'Créer test complet OPEN150', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<?php submit_button( __( 'Créer test complet OPEN150', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Crée un volume important pour tester la performance.', 'ufsc-licence-competition' ); ?></p>
 						</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_open150_generate' ); ?>
@@ -905,6 +920,7 @@ class Bouts_AutoGeneration {
 						<?php wp_nonce_field( 'ufsc_competitions_test_fixture_add_results' ); ?>
 						<input type="hidden" name="action" value="ufsc_competitions_test_fixture_add_results">
 						<?php submit_button( __( 'Ajouter résultats fictifs au test', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
+						<p class="description"><?php esc_html_e( 'Ajoute des résultats sur une compétition test pour vérifier les podiums provisoires.', 'ufsc-licence-competition' ); ?></p>
 					</form>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<?php wp_nonce_field( 'ufsc_competitions_assign_fighter_numbers' ); ?>
@@ -914,6 +930,21 @@ class Bouts_AutoGeneration {
 						<?php submit_button( __( 'Attribuer les numéros combattants', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 					</form>
 				</div>
+				<?php if ( $competition_id > 0 ) : ?>
+					<p><strong><?php esc_html_e( 'Liens rapides test', 'ufsc-licence-competition' ); ?> :</strong>
+					<?php
+					$links = array(
+						'Diagnostic' => add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'competition_id' => $competition_id ), admin_url( 'admin.php' ) ),
+						'Preview' => add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'competition_id' => $competition_id ), admin_url( 'admin.php' ) ),
+						'Combats' => add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'competition_id' => $competition_id ), admin_url( 'admin.php' ) ),
+						'Impressions' => add_query_arg( array( 'page' => Menu::PAGE_PRINT, 'competition_id' => $competition_id ), admin_url( 'admin.php' ) ),
+						'Répartition surface' => add_query_arg( array( 'page' => Menu::PAGE_PRINT, 'competition_id' => $competition_id, 'print_type' => 'fights_by_surface' ), admin_url( 'admin.php' ) ),
+					);
+					$out = array();
+					foreach ( $links as $label => $url ) { $out[] = '<a href="' . esc_url( $url ) . '">' . esc_html( $label ) . '</a>'; }
+					echo wp_kses_post( implode( ' | ', $out ) );
+					?></p>
+				<?php endif; ?>
 
 		</div>
 		<?php
