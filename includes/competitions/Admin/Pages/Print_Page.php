@@ -28,6 +28,7 @@ class Print_Page {
 	private $renderer;
 	private $fighter_numbers_by_entry = array();
 	private $result_summary;
+	private $surface_map_cache = array();
 
 	public function __construct() {
 		$this->competitions = new CompetitionRepository();
@@ -765,7 +766,45 @@ class Print_Page {
 				return $value;
 			}
 		}
+		$surface_id = trim( (string) ( $fight->surface_id ?? '' ) );
+		if ( '' !== $surface_id ) {
+			$competition_id = absint( $fight->competition_id ?? 0 );
+			$surface_map = $this->get_surface_map( $competition_id );
+			if ( isset( $surface_map[ $surface_id ] ) && '' !== trim( (string) $surface_map[ $surface_id ] ) ) {
+				return (string) $surface_map[ $surface_id ];
+			}
+		}
 		return __( 'Surface non assignée', 'ufsc-licence-competition' );
+	}
+
+	private function get_surface_map( int $competition_id ): array {
+		if ( isset( $this->surface_map_cache[ $competition_id ] ) ) {
+			return $this->surface_map_cache[ $competition_id ];
+		}
+		$map = array();
+		if ( $competition_id > 0 && function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			$surfaces = (array) ufsc_competition_get_surfaces( $competition_id );
+			foreach ( $surfaces as $index => $surface ) {
+				$name = trim( (string) ( $surface['name'] ?? '' ) );
+				if ( '' === $name ) {
+					continue;
+				}
+				$keys = array(
+					(string) ( $surface['uuid'] ?? '' ),
+					(string) ( $surface['index'] ?? '' ),
+					(string) ( $surface['order'] ?? '' ),
+					(string) ( $index + 1 ),
+				);
+				foreach ( $keys as $key ) {
+					$key = trim( $key );
+					if ( '' !== $key && ! isset( $map[ $key ] ) ) {
+						$map[ $key ] = $name;
+					}
+				}
+			}
+		}
+		$this->surface_map_cache[ $competition_id ] = $map;
+		return $map;
 	}
 
 	private function format_fight_category_weight( $fight, string $category_name ): string {
