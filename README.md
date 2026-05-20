@@ -194,6 +194,23 @@ Le module peut produire des synthèses de résultats, classements de poules et p
 
 Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.
 
+## Mode test / Sandbox
+
+Le module inclut un mode Sandbox dédié aux tests end-to-end sans impacter les compétitions réelles.
+
+- Scénarios générables : test simple, test tableaux/BYE, test poules, test complet OPEN150.
+- Scénario anomalies : “Créer test anomalies” (volontairement incomplet pour tester le diagnostic).
+- Données fictives marquées `[TEST]`, `sandbox`, `fixture`, `created_by_sandbox`, `test_batch_id`.
+- Athlètes fictifs complets (identité, sexe, naissance, club, licence, poids, catégorie, discipline, statut, numéro combattant).
+- Pesées test injectées en statut OK pour les scénarios générables.
+- Surfaces configurées automatiquement pour permettre preview, génération, impressions et plateau.
+- Action “Créer + générer test complet” pour créer le brouillon puis lancer la génération test.
+- Liens et parcours compatibles avec les impressions test, plateau jour J, tableaux/poules/BYE.
+- Action optionnelle “Ajouter résultats fictifs au test” pour tester synthèse résultats, litiges/absences et podiums provisoires.
+- Réinitialisation et suppression sécurisées limitées aux données test suivies.
+
+Les scénarios Sandbox générables sont conçus pour produire un diagnostic sans bloquant. Les scénarios anomalies sont volontairement incomplets pour tester les alertes du diagnostic.
+
 ---
 
 ## Limites connues
