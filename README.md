@@ -314,3 +314,20 @@ Le module peut produire des synthèses de résultats, classements de poules et p
 ## Documents résultats
 
 Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.
+
+## Impressions et documents terrain
+
+- Les documents tabulaires larges (liste des inscrits, répartition des combats par surface, combattants sans adversaire) sont recommandés en **paysage**.
+- Les impressions surface exploitent désormais les informations combattant/club/département, numéro combattant et licence quand disponibles.
+- Les synthèses résultats / podiums restent **provisoires** tant que toutes les données officielles ne sont pas consolidées.
+- Les impressions terrain doivent être validées en préproduction (lisibilité A4/A3, sauts de page, entêtes de tableau).
+
+## Aide Sandbox
+
+- **Sandbox** : environnement isolé de fausses données (compétitions, clubs, combattants) sans impact sur les vraies données.
+- **BYE** : qualification automatique au tour suivant sans adversaire au tour courant.
+- **Brouillon / preview** : prévisualisation avant validation; aucun combat n’est écrit tant que la validation n’est pas faite.
+- **Surface** : ring, tatami ou aire d’affectation des combats.
+- **Régénération** : remplacement protégé des combats d’une catégorie (snapshot, motif, rollback).
+- **Scénarios générables** : jeux de test complets pour dérouler la génération sans blocage.
+- **Scénarios anomalies** : jeux de test volontairement incomplets pour vérifier le diagnostic.

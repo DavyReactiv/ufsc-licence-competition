@@ -28,6 +28,7 @@ class Print_Page {
 	private $renderer;
 	private $fighter_numbers_by_entry = array();
 	private $result_summary;
+	private $surface_map_cache = array();
 
 	public function __construct() {
 		$this->competitions = new CompetitionRepository();
@@ -101,6 +102,10 @@ class Print_Page {
 				echo esc_html( $desc[ $type ] ?? $desc['entries'] );
 				?>
 			</p>
+			<p class="description"><strong><?php esc_html_e( 'Format recommandé : paysage pour les tableaux larges.', 'ufsc-licence-competition' ); ?></strong></p>
+			<?php if ( 'a4' === $format && in_array( $type, array( 'entries', 'fights_by_surface', 'surface_sheet', 'lone_fighters', 'results_sheet' ), true ) ) : ?>
+				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Ce document contient beaucoup de colonnes. Le format paysage est recommandé.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
 
 			<?php if ( $competition_id ) : ?>
 				<?php
@@ -113,12 +118,7 @@ class Print_Page {
 					<?php
 					$competition_meta = class_exists( CompetitionMeta::class ) ? CompetitionMeta::get( (int) $competition->id ) : array();
 					$header_meta = $this->build_header_meta( $competition, $competition_meta );
-					$page_size = 'A4 portrait';
-					if ( 'a3' === $format ) {
-						$page_size = 'A3 landscape';
-					} elseif ( 'a2' === $format ) {
-						$page_size = 'A2 landscape';
-					}
+					$page_size = strtoupper( $format ) . ' ' . $this->get_print_orientation( $type, $format );
 					?>
 					<style media="print">@page { size: <?php echo esc_html( $page_size ); ?>; margin: 10mm; }</style>
 					<div class="ufsc-print-area ufsc-print--<?php echo esc_attr( $format ); ?>">
@@ -308,7 +308,7 @@ class Print_Page {
 		$groups = array();
 		$fights_by_category = array();
 		foreach ( $fights as $fight ) {
-			$surface = trim( (string) ( $fight->surface_name ?? $fight->ring ?? '' ) );
+			$surface = $this->resolve_surface_label( $fight );
 			$short = trim( (string) ( $fight->surface_short_label ?? '' ) );
 			if ( '' !== $short && '' !== $surface ) {
 				$surface .= ' — ' . $short;
@@ -325,6 +325,9 @@ class Print_Page {
 			$fights_by_category[ $category_key ][] = $fight;
 		}
 		ksort( $groups, SORT_NATURAL | SORT_FLAG_CASE );
+		if ( isset( $groups[ __( 'Surface non assignée', 'ufsc-licence-competition' ) ] ) && count( $groups ) > 1 ) {
+			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'Attention : surfaces configurées mais non assignées aux combats.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
 
 		echo '<h2>' . esc_html__( 'Répartition des combats par surface / tatami / ring / aire', 'ufsc-licence-competition' ) . '</h2>';
 		if ( ! $groups ) {
@@ -394,10 +397,10 @@ class Print_Page {
 					. '<td>#' . esc_html( (string) ( $fight->fight_no ?? '' ) ) . '</td>'
 					. '<td>' . esc_html( $phase_label ) . '</td>'
 					. '<td>' . esc_html( $red_no ) . '</td>'
-					. '<td>' . esc_html( $red_label ) . '</td>'
+					. '<td class="ufsc-print-fighter-cell">' . wp_kses_post( nl2br( esc_html( $red_label ) ) ) . '</td>'
 					. '<td>' . esc_html( $red_club ) . '</td>'
 					. '<td>' . esc_html( $blue_no ) . '</td>'
-					. '<td>' . esc_html( $blue_label ) . '</td>'
+					. '<td class="ufsc-print-fighter-cell">' . wp_kses_post( nl2br( esc_html( $blue_label ) ) ) . '</td>'
 					. '<td>' . esc_html( $blue_club ) . '</td>'
 					. '<td>' . esc_html( $category_weight ) . '</td>'
 					. '<td>' . esc_html( '' !== $scheduled_at ? $scheduled_at : '—' ) . '</td>'
@@ -545,7 +548,7 @@ class Print_Page {
 			$result_type = (string) ( $fight->result_type ?? '' );
 			$red_label = $this->format_fighter_or_placeholder( $fight, 'red', $map[ (int) ( $fight->red_entry_id ?? 0 ) ] ?? null );
 			$blue_label = $this->format_fighter_or_placeholder( $fight, 'blue', $map[ (int) ( $fight->blue_entry_id ?? 0 ) ] ?? null );
-			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td>' . esc_html( $red_label ) . '</td><td>' . esc_html( $blue_label ) . '</td><td>' . esc_html( $winner_label ) . '</td><td>' . esc_html( $result_type ?: '—' ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disq  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
+			echo '<tr><td>#' . esc_html( (string) ( $fight->fight_no ?? 0 ) ) . '</td><td class="ufsc-print-fighter-cell">' . wp_kses_post( nl2br( esc_html( $red_label ) ) ) . '</td><td class="ufsc-print-fighter-cell">' . wp_kses_post( nl2br( esc_html( $blue_label ) ) ) . '</td><td>' . esc_html( $winner_label ) . '</td><td>' . esc_html( $result_type ?: '—' ) . '</td><td>' . esc_html( '' !== $result ? $result : '□ Rouge  □ Bleu  □ Forfait  □ Disqualification  □ Arrêt' ) . '</td><td>________________</td><td>__________</td></tr>';
 		}
 		if ( 0 === $count ) { echo '<tr><td colspan="8">' . esc_html__( 'Aucun résultat saisi pour cette compétition.', 'ufsc-licence-competition' ) . '</td></tr>'; }
 		echo '</tbody></table>';
@@ -710,21 +713,10 @@ class Print_Page {
 	}
 
 	private function format_fighter_label( $entry ): string {
-		if ( ! $entry ) {
-			return '—';
+		if ( function_exists( 'ufsc_comp_format_fighter_print_label' ) ) {
+			return ufsc_comp_format_fighter_print_label( $entry );
 		}
-		$name = trim( (string) ( $entry->participant_name ?? '' ) );
-		if ( '' === $name ) {
-			$name = trim( (string) ( $entry->licensee_last_name ?? $entry->last_name ?? '' ) . ' ' . (string) ( $entry->licensee_first_name ?? $entry->first_name ?? '' ) );
-		}
-		if ( '' === $name ) {
-			$name = 'Combattant #' . (int) ( $entry->id ?? 0 );
-		}
-		$club = (string) ( $entry->club_name ?? '' );
-		$license = (string) ( $entry->license_number ?? '' );
-		$parts = array_filter( array( $name, $club, $license ) );
-
-		return implode( ' · ', $parts );
+		return '—';
 	}
 
 	private function format_competitor_number( $entry ): string {
@@ -757,7 +749,62 @@ class Print_Page {
 		}
 
 		$club = trim( (string) ( $entry->club_name ?? $entry->club_nom ?? '' ) );
-		return '' !== $club ? $club : '—';
+		$department = function_exists( 'ufsc_comp_get_club_department' ) ? ufsc_comp_get_club_department( $entry ) : '—';
+		$club = '' !== $club ? $club : '—';
+		return sprintf( '%s — Dept %s', $club, '' !== $department ? $department : '—' );
+	}
+
+	private function get_print_orientation( string $print_type, string $format ): string {
+		$landscape_types = array( 'entries', 'fights_by_surface', 'surface_sheet', 'lone_fighters', 'surface_overview' );
+		return in_array( $print_type, $landscape_types, true ) ? 'landscape' : 'portrait';
+	}
+
+	private function resolve_surface_label( $fight ): string {
+		foreach ( array( 'surface_name', 'surface', 'ring', 'tatami', 'area', 'surface_short_label', 'scheduled_surface' ) as $key ) {
+			$value = trim( (string) ( $fight->{$key} ?? '' ) );
+			if ( '' !== $value ) {
+				return $value;
+			}
+		}
+		$surface_id = trim( (string) ( $fight->surface_id ?? '' ) );
+		if ( '' !== $surface_id ) {
+			$competition_id = absint( $fight->competition_id ?? 0 );
+			$surface_map = $this->get_surface_map( $competition_id );
+			if ( isset( $surface_map[ $surface_id ] ) && '' !== trim( (string) $surface_map[ $surface_id ] ) ) {
+				return (string) $surface_map[ $surface_id ];
+			}
+		}
+		return __( 'Surface non assignée', 'ufsc-licence-competition' );
+	}
+
+	private function get_surface_map( int $competition_id ): array {
+		if ( isset( $this->surface_map_cache[ $competition_id ] ) ) {
+			return $this->surface_map_cache[ $competition_id ];
+		}
+		$map = array();
+		if ( $competition_id > 0 && function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			$surfaces = (array) ufsc_competition_get_surfaces( $competition_id );
+			foreach ( $surfaces as $index => $surface ) {
+				$name = trim( (string) ( $surface['name'] ?? '' ) );
+				if ( '' === $name ) {
+					continue;
+				}
+				$keys = array(
+					(string) ( $surface['uuid'] ?? '' ),
+					(string) ( $surface['index'] ?? '' ),
+					(string) ( $surface['order'] ?? '' ),
+					(string) ( $index + 1 ),
+				);
+				foreach ( $keys as $key ) {
+					$key = trim( $key );
+					if ( '' !== $key && ! isset( $map[ $key ] ) ) {
+						$map[ $key ] = $name;
+					}
+				}
+			}
+		}
+		$this->surface_map_cache[ $competition_id ] = $map;
+		return $map;
 	}
 
 	private function format_fight_category_weight( $fight, string $category_name ): string {

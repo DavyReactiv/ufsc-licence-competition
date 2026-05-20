@@ -73,6 +73,73 @@ function ufsc_comp_get_entry_birth_date( $entry ) {
 	return ufsc_comp_get_linked_license_birth_date( $entry, $keys );
 }
 
+function ufsc_comp_get_department_from_postal_code( $postal_code ): string {
+	$postal_code = strtoupper( preg_replace( '/[^0-9AB]/i', '', (string) $postal_code ) );
+	if ( '' === $postal_code ) {
+		return '—';
+	}
+	if ( preg_match( '/^(2A|2B)/', $postal_code, $matches ) ) {
+		return $matches[1];
+	}
+	if ( preg_match( '/^(97[1-6])/', $postal_code, $matches ) ) {
+		return $matches[1];
+	}
+	if ( preg_match( '/^20/', $postal_code ) ) {
+		return '20';
+	}
+	if ( preg_match( '/^(\d{2})/', $postal_code, $matches ) ) {
+		return $matches[1];
+	}
+	return '—';
+}
+
+function ufsc_comp_get_club_department( $club_or_entry ): string {
+	$postal_keys = array( 'club_postal_code', 'postal_code', 'postcode', 'zip', 'zip_code', 'code_postal', 'club_zip', 'club_cp', 'cp' );
+	$postal_code = ufsc_comp_get_object_value( $club_or_entry, $postal_keys );
+	if ( '' !== trim( (string) $postal_code ) ) {
+		return ufsc_comp_get_department_from_postal_code( (string) $postal_code );
+	}
+	$json_value = ufsc_comp_get_object_value( $club_or_entry, array( 'raw_data', 'import_data', 'payload', 'metadata', 'meta', 'notes' ) );
+	if ( '' !== trim( (string) $json_value ) ) {
+		$decoded = json_decode( (string) $json_value, true );
+		if ( is_array( $decoded ) ) {
+			$postal_code = ufsc_comp_get_object_value( $decoded, $postal_keys );
+			if ( '' !== trim( (string) $postal_code ) ) {
+				return ufsc_comp_get_department_from_postal_code( (string) $postal_code );
+			}
+		}
+	}
+	return '—';
+}
+
+function ufsc_comp_format_fighter_print_label( $entry, string $side = '' ): string {
+	if ( ! $entry ) {
+		return '—';
+	}
+	$first_name = trim( (string) ufsc_comp_get_object_value( $entry, array( 'first_name', 'prenom', 'licensee_first_name' ) ) );
+	$last_name = trim( (string) ufsc_comp_get_object_value( $entry, array( 'last_name', 'nom', 'licensee_last_name' ) ) );
+	$display_name = trim( (string) ufsc_comp_get_object_value( $entry, array( 'display_name', 'licensee_name', 'participant_name' ) ) );
+	$name = trim( $last_name . ' ' . $first_name );
+	if ( '' === $name ) {
+		$name = '' !== $display_name ? $display_name : 'Combattant #' . (int) ufsc_comp_get_object_value( $entry, array( 'entry_id', 'id' ) );
+	}
+	$club = trim( (string) ufsc_comp_get_object_value( $entry, array( 'club_name', 'club' ) ) );
+	$dept = trim( (string) ufsc_comp_get_object_value( $entry, array( 'club_department', 'department' ) ) );
+	if ( '' === $dept || '—' === $dept ) {
+		$dept = ufsc_comp_get_club_department( $entry );
+	}
+	$fighter_no = trim( (string) ufsc_comp_get_object_value( $entry, array( 'fighter_number', 'numero_combattant', 'competition_number', 'combatant_number' ) ) );
+	$licence = trim( (string) ufsc_comp_get_object_value( $entry, array( 'licence_number', 'license_number' ) ) );
+	$lines = array( $name, trim( ( '' !== $club ? $club : '—' ) . ' — Dept ' . ( '' !== $dept ? $dept : '—' ) ) );
+	if ( '' !== $fighter_no ) {
+		$lines[] = 'N° combattant : ' . $fighter_no;
+	}
+	if ( '' !== $licence ) {
+		$lines[] = 'Licence : ' . $licence;
+	}
+	return implode( "\n", array_map( 'esc_html', $lines ) );
+}
+
 function ufsc_comp_get_linked_license_birth_date( $entry, array $keys ) {
 	global $wpdb;
 
