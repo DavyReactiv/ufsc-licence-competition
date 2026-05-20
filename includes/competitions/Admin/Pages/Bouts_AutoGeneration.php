@@ -1363,6 +1363,16 @@ class Bouts_AutoGeneration {
 				$updated++;
 			}
 		}
+		( new LogService() )->audit(
+			'sandbox_fake_results_added',
+			$competition_id,
+			'sandbox',
+			$competition_id,
+			array(
+				'updated_fights' => $updated,
+				'source' => 'handle_test_fixture_add_results',
+			)
+		);
 		self::redirect( $competition_id, 'settings_saved', sprintf( __( 'Résultats fictifs ajoutés: %d combats complétés.', 'ufsc-licence-competition' ), $updated ) );
 	}
 
