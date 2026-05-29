@@ -430,7 +430,7 @@ class UFSC_LC_Licence_Documents {
 		$like  = '%' . $wpdb->esc_like( $search ) . '%';
 		$limit = $is_empty ? 50 : 20;
 
-		$scope = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
+		$allowed_regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
 		$repository = class_exists( 'UFSC_LC_Licence_Repository' ) ? new UFSC_LC_Licence_Repository() : null;
 		$region_column = $repository ? $repository->get_club_region_column() : '';
 
@@ -440,11 +440,13 @@ class UFSC_LC_Licence_Documents {
 			$where_parts[] = 'nom LIKE %s';
 			$params[] = $like;
 		}
-		if ( $scope && '' !== $region_column ) {
-			$where_parts[] = "{$region_column} = %s";
-			$params[] = $scope;
-		} elseif ( $scope ) {
-			wp_send_json_success( array() );
+		if ( is_array( $allowed_regions ) ) {
+			if ( empty( $allowed_regions ) || '' === $region_column ) {
+				wp_send_json_success( array() );
+			}
+			$placeholders = implode( ',', array_fill( 0, count( $allowed_regions ), '%s' ) );
+			$where_parts[] = "{$region_column} IN ({$placeholders})";
+			$params = array_merge( $params, $allowed_regions );
 		}
 
 		$where_sql = '';

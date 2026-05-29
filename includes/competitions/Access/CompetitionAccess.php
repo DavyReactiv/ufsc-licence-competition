@@ -424,7 +424,7 @@ class CompetitionAccess {
 			return true;
 		}
 
-		return user_can( $user_id, $required_capability );
+		return ufsc_lc_user_can( $required_capability, $user_id );
 	}
 
 	private function club_matches_region( $club, array $allowed_regions ): bool {

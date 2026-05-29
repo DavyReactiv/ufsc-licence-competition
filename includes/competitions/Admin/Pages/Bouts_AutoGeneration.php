@@ -1235,6 +1235,9 @@ class Bouts_AutoGeneration {
 		if ( ! $fight ) {
 			self::redirect( $competition_id, 'action_error', 'Combat introuvable.' );
 		}
+		if ( (int) ( $fight->competition_id ?? 0 ) !== $competition_id ) {
+			self::redirect( $competition_id, 'action_error', 'Combat hors compétition.' );
+		}
 		$status = sanitize_key( (string) ( $fight->status ?? '' ) );
 		if ( in_array( $status, array( 'running', 'locked' ), true ) ) {
 			self::redirect( $competition_id, 'action_error', 'Combat verrouillé/en cours: utilisez Actions sensibles.' );
@@ -1789,6 +1792,9 @@ class Bouts_AutoGeneration {
 		}
 
 		self::ensure_manage_access();
+		if ( $competition_id > 0 && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
+		}
 		if ( ( false !== strpos( $nonce_action, 'generate' ) || false !== strpos( $nonce_action, 'validate_fight_draft' ) ) && ! Capabilities::user_can_generate_fights() ) {
 			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'missing_fight_generate_capability', 'nonce_action' => $nonce_action ) );
 			self::redirect( $competition_id, 'action_protected', __( 'Droit génération combats requis.', 'ufsc-licence-competition' ) );

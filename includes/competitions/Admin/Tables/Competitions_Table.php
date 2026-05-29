@@ -139,6 +139,10 @@ class Competitions_Table extends \WP_List_Table {
 
 	public function column_cb( $item ) {
 		$id = isset( $item->id ) ? (int) $item->id : 0;
+		if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
+			return '';
+		}
+
 		return sprintf( '<input type="checkbox" name="ids[]" value="%d" />', $id );
 	}
 
@@ -164,7 +168,9 @@ class Competitions_Table extends \WP_List_Table {
 		$competition_status = sanitize_key( (string) ( $item->status ?? '' ) );
 		$can_generate = in_array( $competition_status, array( 'open', 'active' ), true ) && $total_entries > 0 && $approved_entries > 0;
 
-		if ( 'trash' === $view ) {
+		$can_manage = \UFSC\Competitions\Capabilities::user_can_edit();
+
+		if ( $can_manage && 'trash' === $view ) {
 			$restore_url = wp_nonce_url(
 				add_query_arg(
 					array(
@@ -197,7 +203,7 @@ class Competitions_Table extends \WP_List_Table {
 				esc_url( $delete_url ),
 				esc_html__( 'Supprimer définitivement', 'ufsc-licence-competition' )
 			);
-		} else {
+		} elseif ( $can_manage ) {
 			// Edit always available in non-trash views
 			$actions['edit'] = sprintf(
 				'<a href="%s">%s</a>',
@@ -281,9 +287,9 @@ class Competitions_Table extends \WP_List_Table {
 		);
 
 		$actions['view_entries'] = sprintf( '<a href="%s">%s</a>', esc_url( $entries_url ), esc_html__( 'Voir les inscriptions', 'ufsc-licence-competition' ) );
-		if ( $can_generate ) {
+		if ( $can_manage && $can_generate ) {
 			$actions['generate_fights'] = sprintf( '<a href="%s">%s</a>', esc_url( $generate_url ), esc_html__( 'Générer les combats', 'ufsc-licence-competition' ) );
-		} else {
+		} elseif ( $can_manage ) {
 			$actions['generate_fights'] = sprintf( '<span class="ufsc-row-action-muted">%s</span>', esc_html__( 'Aucune inscription générable', 'ufsc-licence-competition' ) );
 		}
 		$actions['view_fights'] = sprintf( '<a href="%s">%s</a>', esc_url( $fights_url ), esc_html__( 'Voir les combats', 'ufsc-licence-competition' ) );
@@ -473,7 +479,9 @@ class Competitions_Table extends \WP_List_Table {
 	public function get_bulk_actions() {
 		$view = isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all';
 
-		if ( 'trash' === $view ) {
+		$can_manage = \UFSC\Competitions\Capabilities::user_can_edit();
+
+		if ( $can_manage && 'trash' === $view ) {
 			return array(
 				'restore' => __( 'Restaurer', 'ufsc-licence-competition' ),
 				'delete'  => __( 'Supprimer définitivement', 'ufsc-licence-competition' ),

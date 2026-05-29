@@ -67,7 +67,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
-		if ( $required_capability && ! current_user_can( $required_capability ) ) {
+		if ( $required_capability && ! ufsc_lc_user_can( $required_capability ) ) {
 			return esc_html__( 'Accès réservé.', 'ufsc-licence-competition' );
 		}
 
@@ -1152,7 +1152,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_club_access_capability() : '';
-		return '' !== $required_capability && current_user_can( $required_capability );
+		return '' !== $required_capability && ufsc_lc_user_can( $required_capability );
 	}
 
 	private function log_anomaly( string $code, array $context = array() ): void {

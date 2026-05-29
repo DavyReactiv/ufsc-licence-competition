@@ -561,7 +561,7 @@ class UFSC_LC_ASPTT_Review_Page {
 
 	public function ajax_search_clubs() {
 		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ) );
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
 		check_ajax_referer( 'ufsc_lc_admin_nonce', 'nonce' );
@@ -677,9 +677,9 @@ class UFSC_LC_ASPTT_Review_Page {
 		$table         = $wpdb->prefix . 'ufsc_clubs';
 		$has_postal    = $wpdb->get_var( "SHOW COLUMNS FROM {$table} LIKE 'code_postal'" );
 		$select_fields = $has_postal ? 'id, nom, code_postal' : 'id, nom';
-		$scope         = class_exists( 'UFSC_LC_Scope' ) ? UFSC_LC_Scope::get_user_scope_region() : null;
-		$region_column = ( $scope && $this->column_exists( $table, 'region' ) ) ? 'region' : '';
-		if ( $scope && '' === $region_column ) {
+		$allowed_regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		$region_column   = ( is_array( $allowed_regions ) && $this->column_exists( $table, 'region' ) ) ? 'region' : '';
+		if ( is_array( $allowed_regions ) && ( empty( $allowed_regions ) || '' === $region_column ) ) {
 			return array();
 		}
 
@@ -696,9 +696,10 @@ class UFSC_LC_ASPTT_Review_Page {
 				$params[]      = $like;
 			}
 		}
-		if ( $scope && '' !== $region_column ) {
-			$where_parts[] = "{$region_column} = %s";
-			$params[]      = $scope;
+		if ( is_array( $allowed_regions ) && '' !== $region_column ) {
+			$placeholders = implode( ',', array_fill( 0, count( $allowed_regions ), '%s' ) );
+			$where_parts[] = "{$region_column} IN ({$placeholders})";
+			$params = array_merge( $params, $allowed_regions );
 		}
 
 		$where_sql = '';

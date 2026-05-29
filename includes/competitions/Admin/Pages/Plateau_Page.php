@@ -135,6 +135,9 @@ class Plateau_Page {
 		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
 		check_admin_referer( 'ufsc_plateau_update_status_' . $fight_id );
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
+		}
 		$new_status = isset( $_POST['new_status'] ) ? sanitize_key( wp_unslash( $_POST['new_status'] ) ) : '';
 		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
 		$this->process_status_transition( $competition_id, $fight_id, $new_status, $reason );
@@ -147,6 +150,9 @@ class Plateau_Page {
 		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
 		check_admin_referer( 'ufsc_plateau_change_surface_' . $fight_id );
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
+		}
 		$new_surface = isset( $_POST['new_surface'] ) ? sanitize_text_field( wp_unslash( $_POST['new_surface'] ) ) : '';
 		$new_surface = trim( $new_surface );
 		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';

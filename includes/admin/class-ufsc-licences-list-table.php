@@ -131,6 +131,10 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	}
 
 	public function column_cb( $item ) {
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
+			return '';
+		}
+
 		$item_id = is_array( $item ) ? ( $item['id'] ?? 0 ) : ( $item->id ?? 0 );
 		return sprintf(
 			'<input type="checkbox" name="%s[]" value="%d" />',

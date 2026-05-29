@@ -106,6 +106,16 @@ class Categories_Page {
 			'format'         => isset( $_POST['format'] ) ? sanitize_text_field( wp_unslash( $_POST['format'] ) ) : '',
 		);
 
+		if ( $id ) {
+			$existing_category = $this->repository->get( $id, true );
+			if ( $existing_category && ! empty( $existing_category->competition_id ) && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+				ufsc_lc_enforce_competition_access( (int) $existing_category->competition_id );
+			}
+		}
+		if ( $data['competition_id'] && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) $data['competition_id'] );
+		}
+
 		if ( $data['competition_id'] && class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( (int) $data['competition_id'] ) && ! Capabilities::current_user_can( Capabilities::SENSITIVE_OPS_CAPABILITY, (int) $data['competition_id'] ) ) {
 			( new LogService() )->audit( 'sensitive_action_blocked', (int) $data['competition_id'], 'category', $id, array( 'reason' => 'categories_locked_after_generation' ) );
 			$this->redirect_with_notice( Menu::PAGE_CATEGORIES, 'locked_after_generation', $id );
@@ -155,6 +165,13 @@ class Categories_Page {
 
 		if ( ! $id ) {
 			$this->redirect_with_notice( $page_slug, 'not_found' );
+		}
+		$category = $this->repository->get( $id, true );
+		if ( ! $category ) {
+			$this->redirect_with_notice( $page_slug, 'not_found' );
+		}
+		if ( ! empty( $category->competition_id ) && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) $category->competition_id );
 		}
 
 		switch ( $method ) {
@@ -353,6 +370,10 @@ class Categories_Page {
 		}
 
 		foreach ( $ids as $id ) {
+			$category = $this->repository->get( $id, true );
+			if ( $category && ! empty( $category->competition_id ) && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+				ufsc_lc_enforce_competition_access( (int) $category->competition_id );
+			}
 			switch ( $action ) {
 				case 'trash':
 					$this->repository->soft_delete( $id );

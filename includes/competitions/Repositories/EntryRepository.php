@@ -57,23 +57,18 @@ class EntryRepository {
 	}
 
 	public function assert_entry_in_scope( int $entry_id ): void {
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' === $scope_region ) {
-			return;
+		$entry = $this->get( $entry_id, true );
+		if ( ! $entry ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		$filters = array(
-			'entry_id' => $entry_id,
-			'view' => 'all',
-			'scope_region' => $scope_region,
-			'include_deleted' => true,
-		);
+		$competition_id = (int) ( $entry->competition_id ?? 0 );
+		if ( $competition_id && function_exists( 'ufsc_lc_current_user_can_access_competition' ) && ! ufsc_lc_current_user_can_access_competition( $competition_id ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
 
-		$rows = $this->list_with_details( $filters, 1, 0 );
-		if ( empty( $rows ) ) {
+		$club_id = (int) ( $entry->club_id ?? 0 );
+		if ( $club_id && function_exists( 'ufsc_lc_current_user_can_access_club' ) && ! ufsc_lc_current_user_can_access_club( $club_id ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
@@ -577,14 +572,17 @@ class EntryRepository {
 			}
 		}
 
-		if ( ! empty( $filters['scope_region'] ) ) {
-			$scope_region = sanitize_key( (string) $filters['scope_region'] );
+		if ( ! empty( $filters['scope_regions'] ) || ! empty( $filters['scope_region'] ) ) {
+			$scope_values = ! empty( $filters['scope_regions'] ) ? (array) $filters['scope_regions'] : array( $filters['scope_region'] );
+			$scope_regions = array_values( array_filter( array_unique( array_map( 'sanitize_key', array_map( 'strval', $scope_values ) ) ) ) );
+			$scope_region = isset( $scope_regions[0] ) ? $scope_regions[0] : '';
 			$clubs_table = $this->get_clubs_table();
 			$region_column = $this->get_club_region_column();
 			if ( '' !== $scope_region && $clubs_table && $region_column ) {
+				$placeholders = implode( ',', array_fill( 0, count( $scope_regions ), '%s' ) );
 				$where[] = $wpdb->prepare(
-					"club_id IN (SELECT id FROM {$clubs_table} WHERE {$region_column} = %s)",
-					$scope_region
+					"club_id IN (SELECT id FROM {$clubs_table} WHERE {$region_column} IN ({$placeholders}))",
+					$scope_regions
 				);
 			} elseif ( '' !== $scope_region ) {
 				$where[] = '1=0';
@@ -1112,7 +1110,9 @@ class EntryRepository {
 				$where[] = '(' . implode( ' OR ', $search_exprs ) . ')';
 			}
 
-		$scope_region = ! empty( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$scope_values = ! empty( $filters['scope_regions'] ) ? (array) $filters['scope_regions'] : ( ! empty( $filters['scope_region'] ) ? array( $filters['scope_region'] ) : array() );
+		$scope_regions = array_values( array_filter( array_unique( array_map( 'sanitize_key', array_map( 'strval', $scope_values ) ) ) ) );
+		$scope_region = isset( $scope_regions[0] ) ? $scope_regions[0] : '';
 		$region_column = $this->get_club_region_column();
 		$needs_club_join = ( $clubs_table && ( ! $count || '' !== $scope_region || ! empty( $filters['search'] ) ) );
 
@@ -1139,7 +1139,8 @@ class EntryRepository {
 
 		if ( '' !== $scope_region ) {
 			if ( $region_column ) {
-				$where[] = $wpdb->prepare( "c.{$region_column} = %s", $scope_region );
+				$placeholders = implode( ',', array_fill( 0, count( $scope_regions ), '%s' ) );
+				$where[] = $wpdb->prepare( "c.{$region_column} IN ({$placeholders})", $scope_regions );
 			} else {
 				$where[] = '1=0';
 			}

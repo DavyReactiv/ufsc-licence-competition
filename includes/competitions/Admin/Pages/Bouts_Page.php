@@ -164,6 +164,9 @@ class Bouts_Page {
 		if ( ! $data['competition_id'] || ! $data['fight_no'] ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'error_required', $id );
 		}
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) $data['competition_id'] );
+		}
 
 		if ( $data['red_entry_id'] > 0 && $data['red_entry_id'] === $data['blue_entry_id'] ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'same_fighter', $id );
@@ -171,6 +174,9 @@ class Bouts_Page {
 
 		if ( $id ) {
 			$existing = $this->repository->get( $id, true );
+			if ( $existing && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+				ufsc_lc_enforce_competition_access( (int) ( $existing->competition_id ?? 0 ) );
+			}
 			if ( $existing && $this->repository->is_fight_sensitive( $existing ) ) {
 				$this->logger->log(
 					'fight_update_blocked_sensitive',
@@ -232,6 +238,9 @@ class Bouts_Page {
 		}
 
 		$fight = $this->repository->get( $id, true );
+		if ( $fight && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
+		}
 		if ( ! $fight ) {
 			$this->redirect_with_notice( $page_slug, 'not_found' );
 		}
@@ -461,6 +470,9 @@ class Bouts_Page {
 		if ( ! $fight ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
 		}
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
+		}
 		if ( $this->repository->is_fight_bye( $fight ) ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction impossible : un BYE est une qualification automatique et ne se corrige pas comme un combat normal.', 'ufsc-licence-competition' ) );
 		}
@@ -528,6 +540,9 @@ class Bouts_Page {
 		$fight = $this->repository->get( $fight_id, true );
 		if ( ! $fight ) {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
 		}
 		if ( $this->repository->is_fight_bye( $fight ) ) {
 			$this->logger->log( 'result_correction_blocked_bye', 'fight', $fight_id, 'Correction bloquée : combat BYE.', array() );
@@ -614,6 +629,14 @@ class Bouts_Page {
 		}
 		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
 		check_admin_referer( 'ufsc_competitions_record_result_' . $fight_id );
+		$fight = $this->repository->get( $fight_id, true );
+		if ( ! $fight ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+		if ( $fight && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
+		}
+
 		$payload = array(
 			'winner_entry_id' => isset( $_POST['winner_entry_id'] ) ? absint( $_POST['winner_entry_id'] ) : 0,
 			'result_type' => isset( $_POST['result_type'] ) ? sanitize_key( wp_unslash( $_POST['result_type'] ) ) : '',
@@ -635,6 +658,14 @@ class Bouts_Page {
 		}
 		$fight_id = isset( $_POST['fight_id'] ) ? absint( $_POST['fight_id'] ) : 0;
 		check_admin_referer( 'ufsc_competitions_lock_result_' . $fight_id );
+		$fight = $this->repository->get( $fight_id, true );
+		if ( ! $fight ) {
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'not_found' );
+		}
+		if ( $fight && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
+		}
+
 		$reason = isset( $_POST['reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['reason'] ) ) : '';
 		$res = $this->result_service->lock_result( $fight_id, $reason );
 		if ( empty( $res['ok'] ) ) {
@@ -912,6 +943,9 @@ class Bouts_Page {
 		$blocked   = 0;
 		foreach ( $ids as $id ) {
 			$fight = $this->repository->get( $id, true );
+			if ( $fight && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+				ufsc_lc_enforce_competition_access( (int) ( $fight->competition_id ?? 0 ) );
+			}
 			if ( ! $fight ) {
 				$blocked++;
 				continue;

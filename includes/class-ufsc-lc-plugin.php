@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/ufsc-lc-helpers.php';
+require_once __DIR__ . '/permissions/ufsc-licences-permissions.php';
 require_once __DIR__ . '/class-ufsc-lc-capabilities.php';
 require_once __DIR__ . '/Security/Scope.php';
 require_once __DIR__ . '/class-ufsc-lc-categories.php';
@@ -64,22 +65,8 @@ class UFSC_LC_Plugin {
 
 	public function activate() {
 		UFSC_LC_Capabilities::add_caps();
-		$role = get_role( 'administrator' );
-		if ( $role && ! $role->has_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY ) ) {
-			$role->add_cap( UFSC_LC_Capabilities::IMPORT_CAPABILITY );
-		}
-		if ( $role ) {
-			$competition_caps = array(
-				'ufsc_manage_competitions',
-				'ufsc_manage_competition_results',
-				'ufsc_club_manage_entries',
-			);
-
-			foreach ( $competition_caps as $capability ) {
-				if ( ! $role->has_cap( $capability ) ) {
-					$role->add_cap( $capability );
-				}
-			}
+		if ( function_exists( 'ufsc_lc_add_fallback_admin_caps' ) ) {
+			ufsc_lc_add_fallback_admin_caps();
 		}
 		$this->create_tables_and_indexes();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );

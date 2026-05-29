@@ -79,6 +79,7 @@ class Competitions_Page {
 		$id     = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 
 		$this->render_notice( $notice );
+		$this->render_permission_notices();
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
@@ -105,6 +106,17 @@ class Competitions_Page {
 		}
 
 		$this->render_list();
+	}
+
+	private function render_permission_notices() {
+		if ( function_exists( 'ufsc_lc_is_readonly_context' ) && ufsc_lc_is_readonly_context( 'competitions' ) ) {
+			echo '<div class="notice notice-info"><p><span class="dashicons dashicons-lock" aria-hidden="true"></span> <strong>' . esc_html__( 'Lecture seule', 'ufsc-licence-competition' ) . '</strong> — ' . esc_html__( 'Votre compte dispose d’un accès en lecture seule aux compétitions.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
+
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( is_array( $regions ) && ! empty( $regions ) ) {
+			echo '<div class="notice notice-info"><p>' . esc_html__( 'Affichage limité aux régions autorisées pour votre compte.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
 	}
 
 	/**
@@ -140,11 +152,13 @@ class Competitions_Page {
 					<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
 					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Gérez les compétitions, leur statut, leur discipline et leur préparation opérationnelle.', 'ufsc-licence-competition' ); ?></p>
 				</div>
-				<div class="ufsc-admin-page-actions">
-					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary">
-						<?php esc_html_e( 'Ajouter une compétition', 'ufsc-licence-competition' ); ?>
-					</a>
-				</div>
+				<?php if ( \UFSC\Competitions\Capabilities::user_can_create() ) : ?>
+					<div class="ufsc-admin-page-actions">
+						<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary">
+							<?php esc_html_e( 'Ajouter une compétition', 'ufsc-licence-competition' ); ?>
+						</a>
+					</div>
+				<?php endif; ?>
 			</header>
 
 			<section class="ufsc-kpis ufsc-kpis--premium" aria-label="<?php esc_attr_e( 'Synthèse compétitions', 'ufsc-licence-competition' ); ?>">
@@ -852,15 +866,8 @@ class Competitions_Page {
 			wp_send_json_error( 'not_found', 404 );
 		}
 
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' !== $scope_region ) {
-			$club_region = isset( $club->region ) ? sanitize_key( (string) $club->region ) : '';
-			if ( '' === $club_region || $club_region !== $scope_region ) {
-				wp_send_json_error( 'forbidden', 403 );
-			}
+		if ( function_exists( 'ufsc_lc_current_user_can_access_club' ) && ! ufsc_lc_current_user_can_access_club( $club_id ) ) {
+			wp_send_json_error( 'forbidden', 403 );
 		}
 
 		wp_send_json_success(
@@ -918,12 +925,12 @@ class Competitions_Page {
 				}
 			}
 		}
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' !== $scope_region && ! empty( $allowed_regions_keys ) && ! in_array( $scope_region, $allowed_regions_keys, true ) ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		$current_allowed_regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( is_array( $current_allowed_regions ) && ! empty( $allowed_regions_keys ) ) {
+			$current_allowed_keys = array_map( 'ufsc_lc_normalize_permission_region', $current_allowed_regions );
+			if ( empty( array_intersect( $allowed_regions_keys, $current_allowed_keys ) ) ) {
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 		}
 
 		$allowed_formats   = array( 'auto', 'html', 'plain' );
