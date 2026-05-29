@@ -321,6 +321,9 @@ class Entries_Import_Page {
 		check_admin_referer( self::UNDO_ACTION );
 
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		if ( $competition_id && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
+		}
 		$last_import    = $competition_id ? $this->get_last_import_batch( $competition_id ) : null;
 		if ( ! $competition_id || ! is_array( $last_import ) ) {
 			$this->redirect_with_report(

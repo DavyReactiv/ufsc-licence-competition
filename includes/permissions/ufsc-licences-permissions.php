@@ -45,12 +45,12 @@ if ( ! function_exists( 'ufsc_lc_user_can' ) ) {
 			return false;
 		}
 
-		if ( function_exists( 'ufsc_user_can' ) ) {
-			return (bool) ufsc_user_can( $capability, $user_id );
-		}
-
 		if ( ufsc_lc_is_administrator( $user_id ) ) {
 			return true;
+		}
+
+		if ( function_exists( 'ufsc_user_can' ) ) {
+			return (bool) ufsc_user_can( $capability, $user_id );
 		}
 
 		return user_can( $user_id, $capability );
@@ -112,12 +112,12 @@ if ( ! function_exists( 'ufsc_lc_user_can_access_region' ) ) {
 			return false;
 		}
 
-		if ( function_exists( 'ufsc_user_can_access_region' ) ) {
-			return (bool) ufsc_user_can_access_region( $region, $user_id );
-		}
-
 		if ( ufsc_lc_is_administrator( $user_id ) || user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return true;
+		}
+
+		if ( function_exists( 'ufsc_user_can_access_region' ) ) {
+			return (bool) ufsc_user_can_access_region( $region, $user_id );
 		}
 
 		$target = ufsc_lc_normalize_permission_region( $region );
@@ -133,11 +133,6 @@ if ( ! function_exists( 'ufsc_lc_user_can_access_region' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_current_user_allowed_regions' ) ) {
 	function ufsc_lc_current_user_allowed_regions() {
-		if ( function_exists( 'ufsc_current_user_allowed_regions' ) ) {
-			$regions = ufsc_current_user_allowed_regions();
-			return null === $regions ? null : ufsc_lc_sanitize_regions_list( $regions );
-		}
-
 		$user_id = get_current_user_id();
 		if ( $user_id <= 0 ) {
 			return array();
@@ -146,6 +141,11 @@ if ( ! function_exists( 'ufsc_lc_current_user_allowed_regions' ) ) {
 		// null means unrestricted access for administrators / all-regions users.
 		if ( ufsc_lc_is_administrator( $user_id ) || user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return null;
+		}
+
+		if ( function_exists( 'ufsc_current_user_allowed_regions' ) ) {
+			$regions = ufsc_current_user_allowed_regions();
+			return null === $regions ? null : ufsc_lc_sanitize_regions_list( $regions );
 		}
 
 		return ufsc_lc_sanitize_regions_list( get_user_meta( $user_id, '_ufsc_allowed_regions', true ) );
@@ -190,6 +190,19 @@ if ( ! function_exists( 'ufsc_lc_get_competition_region' ) ) {
 		$competition_id = absint( $competition_id );
 		if ( ! $competition_id || ! class_exists( '\\UFSC\\Competitions\\Db' ) ) {
 			return null;
+		}
+
+		if ( class_exists( '\UFSC\Competitions\Services\CompetitionMeta' ) ) {
+			$meta = \UFSC\Competitions\Services\CompetitionMeta::get( $competition_id );
+			foreach ( array( 'allowed_regions_keys', 'allowed_regions' ) as $meta_key ) {
+				if ( ! empty( $meta[ $meta_key ] ) && is_array( $meta[ $meta_key ] ) ) {
+					$first = reset( $meta[ $meta_key ] );
+					$first = is_string( $first ) ? sanitize_text_field( $first ) : '';
+					if ( '' !== $first ) {
+						return $first;
+					}
+				}
+			}
 		}
 
 		$table = \UFSC\Competitions\Db::competitions_table();
@@ -241,12 +254,80 @@ if ( ! function_exists( 'ufsc_lc_current_user_can_access_competition' ) ) {
 			return true;
 		}
 
+		if ( class_exists( '\UFSC\Competitions\Services\CompetitionMeta' ) ) {
+			$meta = \UFSC\Competitions\Services\CompetitionMeta::get( absint( $competition_id ) );
+			$regions = array();
+			foreach ( array( 'allowed_regions_keys', 'allowed_regions' ) as $meta_key ) {
+				if ( ! empty( $meta[ $meta_key ] ) && is_array( $meta[ $meta_key ] ) ) {
+					$regions = array_merge( $regions, $meta[ $meta_key ] );
+				}
+			}
+			foreach ( ufsc_lc_sanitize_regions_list( $regions ) as $region ) {
+				if ( ufsc_lc_user_can_access_region( $region ) ) {
+					return true;
+				}
+			}
+			if ( ! empty( $regions ) ) {
+				return false;
+			}
+		}
+
 		$region = ufsc_lc_get_competition_region( $competition_id );
 		if ( null === $region ) {
 			return ufsc_lc_is_administrator();
 		}
 
 		return ufsc_lc_user_can_access_region( $region );
+	}
+}
+
+
+if ( ! function_exists( 'ufsc_lc_current_user_can_access_club' ) ) {
+	function ufsc_lc_current_user_can_access_club( $club_id ): bool {
+		$club_id = absint( $club_id );
+		if ( ! $club_id ) {
+			return false;
+		}
+
+		if ( ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
+			return true;
+		}
+
+		if ( ! class_exists( 'UFSC_LC_Licence_Repository' ) ) {
+			return ufsc_lc_is_administrator();
+		}
+
+		$repository = new UFSC_LC_Licence_Repository();
+		$region = method_exists( $repository, 'get_club_region' ) ? $repository->get_club_region( $club_id ) : null;
+		if ( null === $region ) {
+			return ufsc_lc_is_administrator();
+		}
+
+		return ufsc_lc_user_can_access_region( $region );
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_enforce_license_access' ) ) {
+	function ufsc_lc_enforce_license_access( $license_id ): void {
+		if ( ! ufsc_lc_current_user_can_access_license( $license_id ) ) {
+			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+	function ufsc_lc_enforce_competition_access( $competition_id ): void {
+		if ( ! ufsc_lc_current_user_can_access_competition( $competition_id ) ) {
+			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+	}
+}
+
+if ( ! function_exists( 'ufsc_lc_enforce_club_access' ) ) {
+	function ufsc_lc_enforce_club_access( $club_id ): void {
+		if ( ! ufsc_lc_current_user_can_access_club( $club_id ) ) {
+			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
 	}
 }
 

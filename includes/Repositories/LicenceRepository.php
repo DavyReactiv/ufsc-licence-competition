@@ -146,26 +146,20 @@ class UFSC_LC_Licence_Repository {
 	}
 
 	public function assert_licence_in_scope( int $licence_id ): void {
-		$scope = ufsc_lc_get_user_scope_region();
-		if ( null === $scope || '' === $scope ) {
+		if ( function_exists( 'ufsc_lc_current_user_can_access_license' ) ) {
+			if ( ! ufsc_lc_current_user_can_access_license( $licence_id ) ) {
+				wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 			return;
-		}
-
-		$region = $this->get_licence_region( $licence_id );
-		if ( null === $region || $region !== $scope ) {
-			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
 
 	public function assert_club_in_scope( int $club_id ): void {
-		$scope = ufsc_lc_get_user_scope_region();
-		if ( null === $scope || '' === $scope ) {
+		if ( function_exists( 'ufsc_lc_current_user_can_access_club' ) ) {
+			if ( ! ufsc_lc_current_user_can_access_club( $club_id ) ) {
+				wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 			return;
-		}
-
-		$region = $this->get_club_region( $club_id );
-		if ( null === $region || $region !== $scope ) {
-			wp_die( esc_html__( 'Accès refusé : hors de votre région.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
 

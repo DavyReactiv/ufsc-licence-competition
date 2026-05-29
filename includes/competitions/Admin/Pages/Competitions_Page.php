@@ -866,15 +866,8 @@ class Competitions_Page {
 			wp_send_json_error( 'not_found', 404 );
 		}
 
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' !== $scope_region ) {
-			$club_region = isset( $club->region ) ? sanitize_key( (string) $club->region ) : '';
-			if ( '' === $club_region || $club_region !== $scope_region ) {
-				wp_send_json_error( 'forbidden', 403 );
-			}
+		if ( function_exists( 'ufsc_lc_current_user_can_access_club' ) && ! ufsc_lc_current_user_can_access_club( $club_id ) ) {
+			wp_send_json_error( 'forbidden', 403 );
 		}
 
 		wp_send_json_success(
@@ -932,12 +925,12 @@ class Competitions_Page {
 				}
 			}
 		}
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' !== $scope_region && ! empty( $allowed_regions_keys ) && ! in_array( $scope_region, $allowed_regions_keys, true ) ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		$current_allowed_regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( is_array( $current_allowed_regions ) && ! empty( $allowed_regions_keys ) ) {
+			$current_allowed_keys = array_map( 'ufsc_lc_normalize_permission_region', $current_allowed_regions );
+			if ( empty( array_intersect( $allowed_regions_keys, $current_allowed_keys ) ) ) {
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 		}
 
 		$allowed_formats   = array( 'auto', 'html', 'plain' );

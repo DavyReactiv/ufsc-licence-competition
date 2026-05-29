@@ -119,6 +119,28 @@ if ( ! function_exists( 'ufsc_lc_apply_scope_to_sql' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_safe_enforce_object_scope' ) ) {
 	function ufsc_lc_safe_enforce_object_scope( int $object_id, string $object_type = 'licence' ): void {
+		$object_id = absint( $object_id );
+		switch ( sanitize_key( $object_type ) ) {
+			case 'licence':
+				if ( function_exists( 'ufsc_lc_enforce_license_access' ) ) {
+					ufsc_lc_enforce_license_access( $object_id );
+					return;
+				}
+				break;
+			case 'club':
+				if ( function_exists( 'ufsc_lc_enforce_club_access' ) ) {
+					ufsc_lc_enforce_club_access( $object_id );
+					return;
+				}
+				break;
+			case 'competition':
+				if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+					ufsc_lc_enforce_competition_access( $object_id );
+					return;
+				}
+				break;
+		}
+
 		if ( class_exists( 'UFSC_LC_Scope' ) ) {
 			if ( method_exists( 'UFSC_LC_Scope', 'enforce_object_scope' ) ) {
 				UFSC_LC_Scope::enforce_object_scope( $object_id, $object_type );

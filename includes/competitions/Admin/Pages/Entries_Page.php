@@ -454,6 +454,9 @@ class Entries_Page {
 		$licensee_id = isset( $_GET['licensee_id'] ) ? absint( $_GET['licensee_id'] ) : 0;
 		check_admin_referer( 'ufsc_competitions_restore_duplicate_entry_' . $id );
 		$row = $this->repository->get( $id, true );
+		if ( $row && method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
+			$this->repository->assert_entry_in_scope( $id );
+		}
 		if ( ! $row || (int) ( $row->competition_id ?? 0 ) !== $competition_id || (int) ( $row->licensee_id ?? 0 ) !== $licensee_id ) {
 			$this->redirect_with_notice( Menu::PAGE_ENTRIES, 'not_found' );
 		}

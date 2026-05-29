@@ -119,16 +119,11 @@ class CompetitionRepository {
 	}
 
 	public function assert_competition_in_scope( int $competition_id ): void {
-		$scope_region = function_exists( 'ufsc_lc_competitions_get_user_scope_region' )
-			? ufsc_lc_competitions_get_user_scope_region()
-			: '';
-		$scope_region = is_string( $scope_region ) ? sanitize_key( $scope_region ) : '';
-		if ( '' === $scope_region ) {
+		if ( function_exists( 'ufsc_lc_current_user_can_access_competition' ) ) {
+			if ( ! ufsc_lc_current_user_can_access_competition( $competition_id ) ) {
+				wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			}
 			return;
-		}
-
-		if ( ! $this->competition_matches_scope( $competition_id, $scope_region ) ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 	}
 
@@ -197,6 +192,10 @@ class CompetitionRepository {
 	private function competition_matches_scope( int $competition_id, string $scope_region ): bool {
 		if ( '' === $scope_region ) {
 			return true;
+		}
+
+		if ( function_exists( 'ufsc_lc_current_user_can_access_competition' ) ) {
+			return ufsc_lc_current_user_can_access_competition( $competition_id );
 		}
 
 		if ( ! class_exists( '\UFSC\Competitions\Services\CompetitionMeta' ) ) {
