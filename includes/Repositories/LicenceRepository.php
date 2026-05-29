@@ -67,8 +67,8 @@ class UFSC_LC_Licence_Repository {
 	}
 
 	public function apply_scope_filter( array &$where, array &$params, string $club_alias = 'c' ): void {
-		$scope = ufsc_lc_get_user_scope_region();
-		if ( null === $scope || '' === $scope ) {
+		$allowed_regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( null === $allowed_regions ) {
 			return;
 		}
 
@@ -78,8 +78,16 @@ class UFSC_LC_Licence_Repository {
 			return;
 		}
 
-		$where[] = "{$club_alias}.{$region_column} = %s";
-		$params[] = $scope;
+		if ( empty( $allowed_regions ) ) {
+			$where[] = '1=0';
+			return;
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $allowed_regions ), '%s' ) );
+		$where[] = "{$club_alias}.{$region_column} IN ({$placeholders})";
+		foreach ( $allowed_regions as $region ) {
+			$params[] = $region;
+		}
 	}
 
 	public function get_licence_region( int $licence_id ): ?string {

@@ -79,6 +79,7 @@ class Competitions_Page {
 		$id     = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 
 		$this->render_notice( $notice );
+		$this->render_permission_notices();
 
 		if ( in_array( $action, array( 'add', 'edit' ), true ) ) {
 			if ( ! \UFSC\Competitions\Capabilities::user_can_edit() ) {
@@ -105,6 +106,17 @@ class Competitions_Page {
 		}
 
 		$this->render_list();
+	}
+
+	private function render_permission_notices() {
+		if ( function_exists( 'ufsc_lc_is_readonly_context' ) && ufsc_lc_is_readonly_context( 'competitions' ) ) {
+			echo '<div class="notice notice-info"><p><span class="dashicons dashicons-lock" aria-hidden="true"></span> <strong>' . esc_html__( 'Lecture seule', 'ufsc-licence-competition' ) . '</strong> — ' . esc_html__( 'Votre compte dispose d’un accès en lecture seule aux compétitions.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
+
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( is_array( $regions ) && ! empty( $regions ) ) {
+			echo '<div class="notice notice-info"><p>' . esc_html__( 'Affichage limité aux régions autorisées pour votre compte.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
 	}
 
 	/**
@@ -140,11 +152,13 @@ class Competitions_Page {
 					<h1 class="wp-heading-inline"><?php esc_html_e( 'Compétitions', 'ufsc-licence-competition' ); ?></h1>
 					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Gérez les compétitions, leur statut, leur discipline et leur préparation opérationnelle.', 'ufsc-licence-competition' ); ?></p>
 				</div>
-				<div class="ufsc-admin-page-actions">
-					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary">
-						<?php esc_html_e( 'Ajouter une compétition', 'ufsc-licence-competition' ); ?>
-					</a>
-				</div>
+				<?php if ( \UFSC\Competitions\Capabilities::user_can_create() ) : ?>
+					<div class="ufsc-admin-page-actions">
+						<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::MENU_SLUG, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary">
+							<?php esc_html_e( 'Ajouter une compétition', 'ufsc-licence-competition' ); ?>
+						</a>
+					</div>
+				<?php endif; ?>
 			</header>
 
 			<section class="ufsc-kpis ufsc-kpis--premium" aria-label="<?php esc_attr_e( 'Synthèse compétitions', 'ufsc-licence-competition' ); ?>">

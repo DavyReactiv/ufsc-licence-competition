@@ -316,6 +316,6 @@ if ( ! function_exists( 'ufsc_comp_current_user_can' ) ) {
 		if ( class_exists( '\UFSC\Competitions\Capabilities' ) && method_exists( '\UFSC\Competitions\Capabilities', 'current_user_can' ) ) {
 			return \UFSC\Competitions\Capabilities::current_user_can( $capability, $competition_id );
 		}
-		return current_user_can( sanitize_key( $capability ) );
+		return function_exists( 'ufsc_lc_user_can' ) ? ufsc_lc_user_can( sanitize_key( $capability ) ) : current_user_can( sanitize_key( $capability ) );
 	}
 }

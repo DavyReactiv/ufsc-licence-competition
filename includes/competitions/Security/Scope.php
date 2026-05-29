@@ -16,12 +16,9 @@ if ( ! function_exists( 'ufsc_lc_competitions_user_has_all_regions' ) ) {
 			return false;
 		}
 
-		// Prefer master plugin helper if available.
-		if ( function_exists( 'ufsc_user_has_all_regions' ) ) {
-			return (bool) ufsc_user_has_all_regions( $user_id );
-		}
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : array();
 
-		return user_can( $user_id, \UFSC_LC_Capabilities::SCOPE_ALL_REGIONS_CAPABILITY );
+		return null === $regions;
 	}
 }
 
@@ -36,15 +33,13 @@ if ( ! function_exists( 'ufsc_lc_competitions_get_user_scope_region' ) ) {
 			return null;
 		}
 
-		// Keep compatibility with existing UFSC_LC_Scope implementation:
-		// - get_user_region() returns '' when no scope is set
-		// - we return null in that case (no regional restriction)
-		if ( class_exists( 'UFSC_LC_Scope' ) && method_exists( 'UFSC_LC_Scope', 'get_user_region' ) ) {
-			$scope = UFSC_LC_Scope::get_user_region( $user_id );
-			return '' !== $scope ? $scope : null;
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( null === $regions || empty( $regions ) ) {
+			return null;
 		}
 
-		return null;
+		$first_region = reset( $regions );
+		return is_string( $first_region ) && function_exists( 'ufsc_lc_normalize_permission_region' ) ? ufsc_lc_normalize_permission_region( $first_region ) : null;
 	}
 }
 
@@ -113,7 +108,12 @@ if ( ! function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			return $args;
 		}
 
-		$args['scope_region'] = $scope;
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : array( $scope );
+		if ( null === $regions ) {
+			return $args;
+		}
+		$args['scope_regions'] = is_array( $regions ) ? $regions : array( $scope );
+		$args['scope_region']  = $scope;
 
 		return $args;
 	}

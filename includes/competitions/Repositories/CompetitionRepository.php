@@ -62,7 +62,8 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$table  = Db::competitions_table();
-		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$scope_regions = $this->get_filter_scope_regions( $filters );
+		$scope_region = isset( $scope_regions[0] ) ? $scope_regions[0] : '';
 		$filters_no_scope = $filters;
 		unset( $filters_no_scope['scope_region'] );
 		$filters_no_scope['view'] = self::normalize_view( $filters_no_scope['view'] ?? 'all' );
@@ -72,10 +73,10 @@ class CompetitionRepository {
 
 		$order_by = $this->build_order_by( $filters_no_scope );
 
-		if ( '' !== $scope_region ) {
+		if ( ! empty( $scope_regions ) ) {
 			$sql = "SELECT * FROM {$table} {$where} ORDER BY {$order_by}";
 			$rows = $wpdb->get_results( $sql );
-			$rows = $this->filter_competitions_by_scope( $rows, $scope_region );
+			$rows = $this->filter_competitions_by_scope_regions( $rows, $scope_regions );
 			$rows = array_slice( $rows, $offset, $limit );
 		} else {
 			$sql = $wpdb->prepare(
@@ -95,16 +96,17 @@ class CompetitionRepository {
 		global $wpdb;
 
 		$table = Db::competitions_table();
-		$scope_region = isset( $filters['scope_region'] ) ? sanitize_key( (string) $filters['scope_region'] ) : '';
+		$scope_regions = $this->get_filter_scope_regions( $filters );
+		$scope_region = isset( $scope_regions[0] ) ? $scope_regions[0] : '';
 		$filters_no_scope = $filters;
 		unset( $filters_no_scope['scope_region'] );
 		$filters_no_scope['view'] = self::normalize_view( $filters_no_scope['view'] ?? 'all' );
 		$where = $this->build_where( $filters_no_scope );
 
-		if ( '' !== $scope_region ) {
+		if ( ! empty( $scope_regions ) ) {
 			$sql = "SELECT * FROM {$table} {$where}";
 			$rows = $wpdb->get_results( $sql );
-			$rows = $this->filter_competitions_by_scope( $rows, $scope_region );
+			$rows = $this->filter_competitions_by_scope_regions( $rows, $scope_regions );
 			$val = is_array( $rows ) ? count( $rows ) : 0;
 		} else {
 			$sql = "SELECT COUNT(1) FROM {$table} {$where}";
@@ -128,6 +130,48 @@ class CompetitionRepository {
 		if ( ! $this->competition_matches_scope( $competition_id, $scope_region ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
+	}
+
+	private function get_filter_scope_regions( array $filters ): array {
+		$scope = $filters['scope_regions'] ?? ( $filters['scope_region'] ?? array() );
+		if ( null === $scope || '' === $scope ) {
+			return array();
+		}
+
+		if ( ! is_array( $scope ) ) {
+			$scope = array( $scope );
+		}
+
+		$regions = array();
+		foreach ( $scope as $region ) {
+			$region = $this->normalize_region_key( (string) $region );
+			if ( '' !== $region ) {
+				$regions[] = $region;
+			}
+		}
+
+		return array_values( array_unique( $regions ) );
+	}
+
+	private function filter_competitions_by_scope_regions( $rows, array $scope_regions ): array {
+		if ( empty( $scope_regions ) ) {
+			return is_array( $rows ) ? $rows : array();
+		}
+
+		$filtered = array();
+		foreach ( $scope_regions as $scope_region ) {
+			$filtered = array_merge( $filtered, $this->filter_competitions_by_scope( $rows, $scope_region ) );
+		}
+
+		$unique = array();
+		foreach ( $filtered as $row ) {
+			$id = (int) ( $row->id ?? 0 );
+			if ( $id ) {
+				$unique[ $id ] = $row;
+			}
+		}
+
+		return array_values( $unique );
 	}
 
 	private function filter_competitions_by_scope( $rows, string $scope_region ): array {

@@ -31,7 +31,7 @@ class UFSC_LC_Licences_Admin {
 
 	public function render_page() {
 		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ) );
 		}
 		if ( isset( $_GET['ufsc_lc_reset'] ) ) {
 			wp_safe_redirect( admin_url( 'admin.php?page=ufsc-lc-licences' ) );
@@ -99,6 +99,8 @@ class UFSC_LC_Licences_Admin {
 			return;
 		}
 
+		$this->render_permission_notices();
+
 		$success = isset( $_GET['success'] ) ? sanitize_text_field( wp_unslash( $_GET['success'] ) ) : '';
 		$error   = isset( $_GET['error'] ) ? sanitize_text_field( wp_unslash( $_GET['error'] ) ) : '';
 		$warning = isset( $_GET['warning'] ) ? sanitize_text_field( wp_unslash( $_GET['warning'] ) ) : '';
@@ -148,9 +150,20 @@ class UFSC_LC_Licences_Admin {
 		}
 	}
 
+	private function render_permission_notices() {
+		if ( function_exists( 'ufsc_lc_is_readonly_context' ) && ufsc_lc_is_readonly_context( 'licences' ) ) {
+			echo '<div class="notice notice-info"><p><span class="dashicons dashicons-lock" aria-hidden="true"></span> <strong>' . esc_html__( 'Lecture seule', 'ufsc-licence-competition' ) . '</strong> — ' . esc_html__( 'Votre compte dispose d’un accès en lecture seule aux licences.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
+
+		$regions = function_exists( 'ufsc_lc_current_user_allowed_regions' ) ? ufsc_lc_current_user_allowed_regions() : null;
+		if ( is_array( $regions ) && ! empty( $regions ) ) {
+			echo '<div class="notice notice-info"><p>' . esc_html__( 'Affichage limité aux régions autorisées pour votre compte.', 'ufsc-licence-competition' ) . '</p></div>';
+		}
+	}
+
 	public function handle_export_csv() {
 		if ( ! UFSC_LC_Capabilities::user_can_export() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		if ( isset( $_POST['ufsc_lc_nonce'] ) ) {
@@ -178,7 +191,7 @@ class UFSC_LC_Licences_Admin {
 
 	public function handle_update_asptt_number() {
 		if ( ! $this->current_user_can_edit_asptt() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$nonce = isset( $_POST['ufsc_lc_asptt_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_asptt_nonce'] ) ) : '';
@@ -224,7 +237,7 @@ class UFSC_LC_Licences_Admin {
 	 */
 	public function handle_update_club_responsable() {
 		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$nonce = isset( $_POST['ufsc_lc_club_responsable_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_club_responsable_nonce'] ) ) : '';
@@ -309,7 +322,7 @@ class UFSC_LC_Licences_Admin {
 
 	private function render_asptt_edit_page() {
 		if ( ! $this->current_user_can_edit_asptt() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ) );
 		}
 
 		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;

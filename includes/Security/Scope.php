@@ -21,11 +21,11 @@ if ( ! function_exists( 'ufsc_lc_user_has_all_regions' ) ) {
 			return (bool) ufsc_user_has_all_regions( $user_id );
 		}
 
-		if ( user_can( $user_id, UFSC_LC_Capabilities::SCOPE_ALL_REGIONS_CAPABILITY ) ) {
+		if ( ufsc_lc_user_can( UFSC_LC_Capabilities::SCOPE_ALL_REGIONS_CAPABILITY, $user_id ) ) {
 			return true;
 		}
 
-		return user_can( $user_id, 'manage_options' );
+		return ufsc_lc_user_can( 'manage_options', $user_id );
 	}
 }
 

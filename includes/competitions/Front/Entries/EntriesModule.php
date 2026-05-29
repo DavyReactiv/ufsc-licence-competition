@@ -451,8 +451,8 @@ class EntriesModule {
 	}
 
 	public static function handle_compute_category(): void {
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		if ( ! is_user_logged_in() || ! \ufsc_lc_user_can( UFSC_LC_CAP_COMPETITIONS_READ ) ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé : droits insuffisants.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
 		check_ajax_referer( 'ufsc_competitions_compute_category', 'nonce' );
@@ -525,8 +525,8 @@ class EntriesModule {
 	}
 
 	public static function handle_license_search(): void {
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		if ( ! is_user_logged_in() || ! \ufsc_lc_user_can( UFSC_LC_CAP_COMPETITIONS_READ ) ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé : droits insuffisants.', 'ufsc-licence-competition' ) ), 403 );
 		}
 
 		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';

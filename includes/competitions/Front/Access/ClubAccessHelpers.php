@@ -458,7 +458,7 @@ if ( ! function_exists( 'ufsc_lc_register_debug_club_shortcode' ) ) {
 				$user_id = (int) get_current_user_id();
 
 				$capability = class_exists( 'UFSC_LC_Settings_Page' ) ? (string) UFSC_LC_Settings_Page::get_club_access_capability() : '';
-				$allowed    = current_user_can( 'manage_options' ) || ( '' !== $capability && user_can( $user_id, $capability ) );
+				$allowed    = ufsc_lc_user_can( 'manage_options', $user_id ) || ( '' !== $capability && ufsc_lc_user_can( $capability, $user_id ) );
 
 				if ( ! $allowed ) {
 					return '<p>' . esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) . '</p>';
@@ -587,7 +587,7 @@ if ( ! function_exists( 'ufsc_lc_current_club_context' ) ) {
 		if ( $user_id > 0 && $club_id > 0 ) {
 			$required_capability = class_exists( 'UFSC_LC_Settings_Page' ) ? (string) \UFSC_LC_Settings_Page::get_club_access_capability() : '';
 			$required_capability = apply_filters( 'ufsc_competitions_access_affiliation_capability', $required_capability, $club_id, $user_id );
-			$affiliated          = '' === $required_capability ? true : user_can( $user_id, $required_capability );
+			$affiliated          = '' === $required_capability ? true : ufsc_lc_user_can( $required_capability, $user_id );
 		}
 
 		return array(
