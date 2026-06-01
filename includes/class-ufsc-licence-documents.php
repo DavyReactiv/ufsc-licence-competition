@@ -83,11 +83,35 @@ class UFSC_LC_Licence_Documents {
 			__( 'UFSC Licences', 'ufsc-licence-competition' ),
 			UFSC_LC_Capabilities::get_manage_read_capability(),
 			UFSC_LC_Plugin::PARENT_SLUG,
-			array( $this, 'render_admin_page' ),
+			array( $this, 'render_licences_landing_page' ),
 			'dashicons-media-document',
 			30
 		);
 		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+
+		$documents_hook = add_submenu_page(
+			UFSC_LC_Plugin::PARENT_SLUG,
+			__( 'PDF licences', 'ufsc-licence-competition' ),
+			__( 'PDF licences', 'ufsc-licence-competition' ),
+			UFSC_LC_Capabilities::get_manage_capability(),
+			'ufsc-licence-documents',
+			array( $this, 'render_admin_page' )
+		);
+		UFSC_LC_Admin_Assets::register_page( $documents_hook );
+	}
+
+	public function render_licences_landing_page() {
+		if ( ! UFSC_LC_Capabilities::user_can_read() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( class_exists( 'UFSC_LC_Licences_Admin' ) ) {
+			$page = new UFSC_LC_Licences_Admin();
+			$page->render_page();
+			return;
+		}
+
+		echo '<div class="wrap"><h1>' . esc_html__( 'Licences', 'ufsc-licence-competition' ) . '</h1></div>';
 	}
 
 	public function render_admin_page() {

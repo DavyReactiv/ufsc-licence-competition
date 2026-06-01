@@ -387,16 +387,14 @@ class UFSC_LC_Settings_Page {
 	}
 
 	public function register_admin_menu() {
-		$parent_slug = UFSC_LC_Plugin::PARENT_SLUG;
-		if ( empty( $parent_slug ) ) {
-			$parent_slug = 'ufsc-licence-documents';
-		}
+		$parent_slug = $this->resolve_parent_slug();
+		$menu_title  = 'options.php' === $parent_slug ? null : __( 'Paramètres', 'ufsc-licence-competition' );
 
 		$hook_suffix = add_submenu_page(
 			$parent_slug,
 			__( 'Paramètres', 'ufsc-licence-competition' ),
-			__( 'Paramètres', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::get_manage_capability(),
+			$menu_title,
+			'manage_options',
 			self::PAGE_SLUG,
 			array( $this, 'render_settings_page' )
 		);
@@ -407,6 +405,35 @@ class UFSC_LC_Settings_Page {
 			$this->menu_missing = true;
 			add_action( 'admin_notices', array( $this, 'render_missing_menu_notice' ) );
 		}
+	}
+
+	private function resolve_parent_slug() {
+		$parent_slug = UFSC_LC_Plugin::PARENT_SLUG;
+		if ( $this->menu_slug_exists( $parent_slug ) ) {
+			return $parent_slug;
+		}
+
+		if ( $this->menu_slug_exists( 'ufsc-licence-documents' ) ) {
+			return 'ufsc-licence-documents';
+		}
+
+		return 'options.php';
+	}
+
+	private function menu_slug_exists( $slug ) {
+		global $menu;
+
+		if ( ! is_array( $menu ) || '' === (string) $slug ) {
+			return false;
+		}
+
+		foreach ( $menu as $menu_item ) {
+			if ( isset( $menu_item[2] ) && $menu_item[2] === $slug ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function register_settings() {
@@ -659,8 +686,8 @@ class UFSC_LC_Settings_Page {
 	}
 
 	public function render_settings_page() {
-		if ( ! UFSC_LC_Capabilities::user_can_manage() ) {
-			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
 		$tabs       = $this->get_tabs();
@@ -995,7 +1022,7 @@ class UFSC_LC_Settings_Page {
 	}
 
 	public function render_missing_menu_notice() {
-		if ( ! $this->menu_missing ) {
+		if ( ! $this->menu_missing || ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
 

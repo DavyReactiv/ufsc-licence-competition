@@ -26,7 +26,7 @@ class Access_Diagnostic_Page {
 	}
 
 	public static function handle_test(): void {
-		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_manage() : current_user_can( 'manage_options' );
+		$can_manage = current_user_can( 'manage_options' );
 		if ( ! $can_manage ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
@@ -155,7 +155,7 @@ class Access_Diagnostic_Page {
 	}
 
 	public function render(): void {
-		$can_manage = class_exists( Capabilities::class ) ? Capabilities::user_can_manage() : current_user_can( 'manage_options' );
+		$can_manage = current_user_can( 'manage_options' );
 		if ( ! $can_manage ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}

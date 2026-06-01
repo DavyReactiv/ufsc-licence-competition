@@ -36,7 +36,7 @@ class UFSC_LC_Plugin {
 	const DB_VERSION        = '1.5.2';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	// Must match add_menu_page slug.
-	const PARENT_SLUG       = 'ufsc-licence-documents';
+	const PARENT_SLUG       = 'ufsc-sql-licences';
 
 	private static $instance;
 	private $plugin_file;
