@@ -77,10 +77,61 @@ class Capabilities {
 			return true;
 		}
 
+		$canonical_capability = self::get_canonical_capability_for( $capability );
+		if ( $canonical_capability && $canonical_capability !== $capability && \ufsc_lc_user_can( $canonical_capability ) ) {
+			return true;
+		}
+
 		// Backward compatibility: WordPress administrators and legacy UFSC competition
-		// super-managers keep Lot 1 rights without granting sensitive operations to
-		// every regional/limited competition manager.
+		// super-managers keep Lot 1 rights. Canonical mapping above also keeps
+		// limited competition managers working when UFSC Gestion only exposes the
+		// ufsc_competitions_* capabilities.
 		return self::user_is_legacy_super_manager();
+	}
+
+	private static function get_canonical_capability_for( string $capability ): string {
+		$read_caps = array(
+			'ufsc_competition_read',
+			self::AUDIT_VIEW_CAPABILITY,
+			self::VIEW_REGION_CAPABILITY,
+		);
+
+		if ( in_array( $capability, $read_caps, true ) ) {
+			return self::READ_CAPABILITY;
+		}
+
+		$manage_caps = array(
+			'ufsc_competition_create',
+			'ufsc_competition_edit',
+			self::ENTRIES_MANAGE_CAPABILITY,
+			self::EXPORT_CAPABILITY,
+			self::VALIDATE_CAPABILITY,
+			self::DELETE_CAPABILITY,
+			self::WEIGHIN_MANAGE_CAPABILITY,
+			self::WEIGHIN_OVERRIDE_CAPABILITY,
+			self::FIGHT_MANAGE_CAPABILITY,
+			self::FIGHT_GENERATE_CAPABILITY,
+			self::FIGHT_REGENERATE_CAPABILITY,
+			self::PLATEAU_MANAGE_CAPABILITY,
+			self::RESULT_RECORD_CAPABILITY,
+			self::RESULT_CORRECT_CAPABILITY,
+			self::SENSITIVE_OPS_CAPABILITY,
+			self::DELETE_PERMANENT_CAPABILITY,
+			self::MANAGE_ALL_CAPABILITY,
+			self::MANAGE_REGION_CAPABILITY,
+		);
+
+		if ( in_array( $capability, $manage_caps, true ) ) {
+			return self::EDIT_CAPABILITY;
+		}
+
+		if ( class_exists( 'UFSC_LC_Capabilities' ) && defined( 'UFSC_LC_Capabilities::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY' ) ) {
+			if ( $capability === \UFSC_LC_Capabilities::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY ) {
+				return self::EDIT_CAPABILITY;
+			}
+		}
+
+		return '';
 	}
 
 	private static function user_is_legacy_super_manager(): bool {
@@ -150,11 +201,7 @@ class Capabilities {
 	}
 
 	public static function get_validate_entries_capability(): string {
-		if ( class_exists( 'UFSC_LC_Capabilities' ) && defined( 'UFSC_LC_Capabilities::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY' ) ) {
-			return \UFSC_LC_Capabilities::COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY;
-		}
-
-		return self::VALIDATE_CAPABILITY;
+		return self::EDIT_CAPABILITY;
 	}
 
 	public static function user_can_validate_entries(): bool {

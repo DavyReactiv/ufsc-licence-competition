@@ -19,7 +19,7 @@ class Officials_Page {
 	}
 
 	public function render(): void {
-		if ( ! Capabilities::user_can_manage() ) {
+		if ( ! Capabilities::user_can_read() ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
