@@ -103,6 +103,8 @@ class Capabilities {
 		$manage_caps = array(
 			'ufsc_competition_create',
 			'ufsc_competition_edit',
+			'ufsc_competition_manage',
+			'ufsc_manage_competitions',
 			self::ENTRIES_MANAGE_CAPABILITY,
 			self::EXPORT_CAPABILITY,
 			self::VALIDATE_CAPABILITY,

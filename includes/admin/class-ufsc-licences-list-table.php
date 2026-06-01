@@ -23,6 +23,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_documents_meta_table = false;
 	private $has_competition = false;
 	private $has_email = false;
+	private $has_club_region = false;
 	private $has_legacy_category = false;
 	private $has_legacy_category_column = false;
 	private $has_nom = false;
@@ -66,6 +67,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_documents_meta_table  = $this->table_exists( $this->get_documents_meta_table() );
 		$this->has_competition           = $this->has_column( $this->get_licences_table(), 'competition' );
 		$this->has_email                 = $this->has_column( $this->get_licences_table(), 'email' );
+		$this->has_club_region           = $this->has_column( $this->get_clubs_table(), 'region' );
 		$this->has_legacy_category       = $this->has_column( $this->get_licences_table(), 'categorie' );
 		$this->has_legacy_category_column = $this->has_column( $this->get_licences_table(), 'legacy_category' );
 		$this->has_nom                   = $this->has_column( $this->get_licences_table(), 'nom' );
@@ -95,11 +97,14 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			'asptt_number'    => __( 'N° ASPTT', 'ufsc-licence-competition' ),
 			'nom_licence'     => __( 'Nom', 'ufsc-licence-competition' ),
 			'prenom'          => __( 'Prénom', 'ufsc-licence-competition' ),
+			'date'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
 			'club_name'       => __( 'Club', 'ufsc-licence-competition' ),
+			'region'          => __( 'Région', 'ufsc-licence-competition' ),
 			'statut'          => __( 'Statut', 'ufsc-licence-competition' ),
 			'season_end_year' => $season_label,
 			'category'        => __( 'Catégorie', 'ufsc-licence-competition' ),
-			'date'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
+			'created_at'      => __( 'Date de création', 'ufsc-licence-competition' ),
+			'actions'         => __( 'Action', 'ufsc-licence-competition' ),
 		);
 	}
 
@@ -193,6 +198,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 					: esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'club_name':
+			case 'region':
 			case 'nom_licence':
 			case 'prenom':
 			case 'statut':
@@ -224,6 +230,17 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				return '' !== $category
 					? esc_html( $category )
 					: esc_html__( '—', 'ufsc-licence-competition' );
+
+			case 'created_at':
+				$created_at_raw = is_array( $item ) ? ( $item['created_at'] ?? '' ) : ( $item->created_at ?? '' );
+				if ( empty( $created_at_raw ) ) {
+					return esc_html__( '—', 'ufsc-licence-competition' );
+				}
+				$created_at = date_i18n( get_option( 'date_format' ), strtotime( (string) $created_at_raw ) );
+				return $created_at ? esc_html( $created_at ) : esc_html__( '—', 'ufsc-licence-competition' );
+
+			case 'actions':
+				return esc_html__( 'Consulter', 'ufsc-licence-competition' );
 
 			case 'date':
 				$birthdate_raw = is_array( $item ) ? ( $item['date_naissance'] ?? '' ) : ( $item->date_naissance ?? '' );
@@ -435,7 +452,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->persist_filters( $filters );
 
 		$args = array(
-			'page'            => 'ufsc-lc-licences',
+			'page'            => UFSC_LC_Licences_Admin::PAGE_SLUG,
 			's'               => $filters['search'],
 			'club_id'         => $filters['club_id'],
 			'club_search'     => $filters['club_search'],
@@ -617,7 +634,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', 'filter_action', false );
 		printf(
 			'<a class="button button-secondary" href="%s">%s</a>',
-			esc_url( add_query_arg( 'ufsc_lc_reset', 1, admin_url( 'admin.php?page=ufsc-lc-licences' ) ) ),
+			esc_url( add_query_arg( 'ufsc_lc_reset', 1, admin_url( 'admin.php?page=' . UFSC_LC_Licences_Admin::PAGE_SLUG ) ) ),
 			esc_html__( 'Réinitialiser filtres', 'ufsc-licence-competition' )
 		);
 		echo '</div>';
@@ -814,7 +831,9 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
 		$birthdate_column   = $this->has_column( $licences_table, 'date_naissance' ) ? 'l.date_naissance' : 'NULL AS date_naissance';
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, l.{$this->date_column} AS date_value";
+		$region_column      = $this->has_club_region ? 'c.region' : 'NULL';
+		$created_at_column  = $this->has_created_at ? 'l.created_at' : 'NULL';
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -1073,7 +1092,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$age_ref_column    = $this->has_column( $licences_table, 'age_ref' ) ? 'l.age_ref' : 'NULL AS age_ref';
 
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
-		$select_columns = "c.nom AS club_name, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
+		$region_column      = $this->has_club_region ? 'c.region' : 'NULL';
+		$created_at_column  = $this->has_created_at ? 'l.created_at' : 'NULL';
+		$select_columns = "c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -2113,7 +2134,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 	private function get_edit_asptt_url( $licence_id ) {
 		return add_query_arg(
 			array(
-				'page'       => 'ufsc-lc-licences',
+				'page'       => UFSC_LC_Licences_Admin::PAGE_SLUG,
 				'action'     => 'edit_asptt',
 				'licence_id' => (int) $licence_id,
 			),

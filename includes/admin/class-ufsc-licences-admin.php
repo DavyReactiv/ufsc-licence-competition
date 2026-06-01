@@ -7,6 +7,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once __DIR__ . '/class-ufsc-licences-list-table.php';
 
 class UFSC_LC_Licences_Admin {
+	const PAGE_SLUG = 'ufsc-sql-licences';
+	const LEGACY_PAGE_SLUGS = array( 'ufsc-lc-licences', 'ufsc-licences', 'ufsc_lc_licences' );
 	public function register() {
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
 		add_action( 'admin_notices', array( $this, 'render_notices' ) );
@@ -22,10 +24,22 @@ class UFSC_LC_Licences_Admin {
 			__( 'Licences', 'ufsc-licence-competition' ),
 			__( 'Licences', 'ufsc-licence-competition' ),
 			UFSC_LC_Capabilities::get_read_capability(),
-			'ufsc-lc-licences',
+			self::PAGE_SLUG,
 			array( $this, 'render_page' )
 		);
 		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+
+		foreach ( self::LEGACY_PAGE_SLUGS as $legacy_slug ) {
+			$legacy_hook = add_submenu_page(
+				null,
+				__( 'Licences', 'ufsc-licence-competition' ),
+				__( 'Licences', 'ufsc-licence-competition' ),
+				UFSC_LC_Capabilities::get_read_capability(),
+				$legacy_slug,
+				array( $this, 'render_page' )
+			);
+			UFSC_LC_Admin_Assets::register_page( $legacy_hook );
+		}
 		// Status submenu is registered in UFSC_LC_Status_Page::register_menu().
 	}
 
@@ -34,7 +48,7 @@ class UFSC_LC_Licences_Admin {
 			wp_die( esc_html__( 'Accès refusé : votre compte dispose uniquement d’un accès en lecture sur les licences.', 'ufsc-licence-competition' ) );
 		}
 		if ( isset( $_GET['ufsc_lc_reset'] ) ) {
-			wp_safe_redirect( admin_url( 'admin.php?page=ufsc-lc-licences' ) );
+			wp_safe_redirect( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) );
 			exit;
 		}
 
@@ -63,7 +77,7 @@ class UFSC_LC_Licences_Admin {
 			<hr class="wp-header-end">
 			<?php $list_table->views(); ?>
 			<form method="get">
-				<input type="hidden" name="page" value="ufsc-lc-licences" />
+				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
 				<?php $filters = $list_table->get_sanitized_filters(); ?>
 				<?php if ( 'all' !== $filters['tab'] ) : ?>
 					<input type="hidden" name="ufsc_lc_tab" value="<?php echo esc_attr( $filters['tab'] ); ?>" />
@@ -82,7 +96,7 @@ class UFSC_LC_Licences_Admin {
 			}
 
 			// Log only if we're on the expected admin screen (avoid noise).
-			if ( '' === $screen_id || false !== strpos( $screen_id, 'ufsc-lc-licences' ) ) {
+			if ( '' === $screen_id || false !== strpos( $screen_id, self::PAGE_SLUG ) || false !== strpos( $screen_id, 'ufsc-lc-licences' ) ) {
 				ufsc_lc_log_query_count(
 					'admin: licences list',
 					array(
@@ -308,7 +322,7 @@ class UFSC_LC_Licences_Admin {
 	private function is_licences_screen() {
 		$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
 
-		return 'ufsc-lc-licences' === $page;
+		return in_array( $page, array_merge( array( self::PAGE_SLUG ), self::LEGACY_PAGE_SLUGS ), true );
 	}
 
 	private function is_edit_asptt_action() {
@@ -336,7 +350,7 @@ class UFSC_LC_Licences_Admin {
 					esc_html__( 'Licence invalide.', 'ufsc-licence-competition' )
 				);
 				?>
-				<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=ufsc-lc-licences' ) ); ?>">&larr; <?php esc_html_e( 'Retour aux licences', 'ufsc-licence-competition' ); ?></a></p>
+				<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ); ?>">&larr; <?php esc_html_e( 'Retour aux licences', 'ufsc-licence-competition' ); ?></a></p>
 			</div>
 			<?php
 			return;
@@ -347,7 +361,7 @@ class UFSC_LC_Licences_Admin {
 
 		$licence        = $this->get_licence_context( $licence_id );
 		$asptt_number   = $this->get_licence_asptt_number( $licence_id );
-		$back_url       = admin_url( 'admin.php?page=ufsc-lc-licences' );
+		$back_url       = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Modifier le N° licence ASPTT', 'ufsc-licence-competition' ); ?></h1>
@@ -576,7 +590,7 @@ class UFSC_LC_Licences_Admin {
 	private function redirect_to_edit_page( $licence_id, $type, $code ) {
 		$url = add_query_arg(
 			array(
-				'page'       => 'ufsc-lc-licences',
+				'page'       => self::PAGE_SLUG,
 				'action'     => 'edit_asptt',
 				'licence_id' => (int) $licence_id,
 				$type        => $code,
@@ -591,7 +605,7 @@ class UFSC_LC_Licences_Admin {
 	private function redirect_to_list_page( $type, $code ) {
 		$url = add_query_arg(
 			array(
-				'page' => 'ufsc-lc-licences',
+				'page' => self::PAGE_SLUG,
 				$type  => $code,
 			),
 			admin_url( 'admin.php' )
