@@ -42,7 +42,8 @@ class Menu {
 
 	public function add_menu(): void {
 		$cap = \UFSC\Competitions\Capabilities::get_read_capability();
-		$settings_cap = class_exists( '\UFSC_LC_Capabilities' ) ? \UFSC_LC_Capabilities::COMPETITIONS_CAPABILITY : $cap;
+		$manage_cap = \UFSC\Competitions\Capabilities::get_edit_capability();
+		$admin_cap = 'manage_options';
 
 		add_menu_page(
 			__( 'Compétitions', 'ufsc-licence-competition' ),
@@ -80,7 +81,7 @@ class Menu {
 		);
 
 		$this->add_submenu_safe(
-			$cap,
+			$manage_cap,
 			self::PAGE_ENTRIES_IMPORT,
 			__( 'Import CSV', 'ufsc-licence-competition' ),
 			__( 'Import CSV', 'ufsc-licence-competition' ),
@@ -112,7 +113,7 @@ class Menu {
 		);
 
 		$this->add_submenu_safe(
-			$cap,
+			$manage_cap,
 			self::PAGE_TIMING,
 			__( 'Timing Profiles', 'ufsc-licence-competition' ),
 			__( 'Timing Profiles', 'ufsc-licence-competition' ),
@@ -144,7 +145,7 @@ class Menu {
 		);
 
 		$this->add_submenu_safe(
-			$settings_cap,
+			$manage_cap,
 			self::PAGE_SENSITIVE_OPS,
 			__( 'Actions sensibles', 'ufsc-licence-competition' ),
 			__( 'Actions sensibles', 'ufsc-licence-competition' ),
@@ -160,7 +161,7 @@ class Menu {
 		);
 
 		$this->add_submenu_safe(
-			$settings_cap,
+			$admin_cap,
 			self::PAGE_SETTINGS,
 			__( 'Paramètres', 'ufsc-licence-competition' ),
 			__( 'Paramètres', 'ufsc-licence-competition' ),
@@ -168,7 +169,7 @@ class Menu {
 		);
 
 		$this->add_submenu_safe(
-			$settings_cap,
+			$manage_cap,
 			self::PAGE_LOGS,
 			__( 'Logs', 'ufsc-licence-competition' ),
 			__( 'Logs', 'ufsc-licence-competition' ),
@@ -184,7 +185,7 @@ class Menu {
 		);
 
 		$diagnostic_hook = $this->add_submenu_safe(
-			$settings_cap,
+			$admin_cap,
 			self::PAGE_ACCESS_DIAGNOSTIC,
 			__( 'Diagnostic Accès', 'ufsc-licence-competition' ),
 			__( 'Diagnostic Accès', 'ufsc-licence-competition' ),
