@@ -178,6 +178,20 @@ class EntryActions {
 			}
 		}
 
+		if ( $license && array_key_exists( 'is_selectable', $license ) && ! (bool) $license['is_selectable'] ) {
+			self::debug_log(
+				'entry_action_license_status_rejected',
+				array(
+					'action'         => $action,
+					'competition_id' => $competition_id,
+					'club_id'        => $club_id,
+					'license_id'     => $license_id,
+					'status'         => (string) ( $license['status'] ?? '' ),
+				)
+			);
+			self::redirect_with_notice( $competition_id, 'error_license_status' );
+		}
+
 		if ( $license_id && ! $license ) {
 			self::debug_log(
 				'entry_action_license_lookup_failed',

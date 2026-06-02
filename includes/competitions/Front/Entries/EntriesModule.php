@@ -577,6 +577,13 @@ class EntriesModule {
 
 		$repo = new EntryFrontRepository();
 		$results = self::get_license_search_results( $term, $license_number, $birth_date, $club_id, $repo );
+		$diagnostic = array();
+		if ( current_user_can( 'manage_options' ) && class_exists( '\\UFSC\\Competitions\\Front\\Licenses\\LicenseBridge' ) ) {
+			$diagnostic = \UFSC\Competitions\Front\Licenses\LicenseBridge::get_last_diagnostic();
+			$diagnostic['capability'] = 'manage_options';
+			$diagnostic['user_id'] = $user_id;
+			$diagnostic['competition_id'] = $competition_id;
+		}
 		self::debug_log(
 			'license_search_results',
 			array(
@@ -595,13 +602,19 @@ class EntriesModule {
 			)
 		);
 
-		wp_send_json_success(
-			array(
-				'found' => ! empty( $results ),
-				'results' => $results,
-				'message' => empty( $results ) ? __( 'Aucun licencié trouvé.', 'ufsc-licence-competition' ) : '',
-			)
+		$response = array(
+			'found' => ! empty( $results ),
+			'results' => $results,
+			'message' => empty( $results ) ? __( 'Aucun licencié trouvé pour votre club. Vérifiez le nom, le prénom, le n° licence/ASPTT ou contactez l’administrateur si la licence existe.', 'ufsc-licence-competition' ) : '',
 		);
+		if ( ! empty( $diagnostic ) ) {
+			$response['diagnostic'] = $diagnostic;
+		}
+		if ( ! empty( $diagnostic['is_truncated'] ) ) {
+			$response['message'] = __( 'Plus de résultats existent : affinez votre recherche.', 'ufsc-licence-competition' );
+		}
+
+		wp_send_json_success( $response );
 	}
 
 	private static function debug_log( string $message, array $context = array() ): void {

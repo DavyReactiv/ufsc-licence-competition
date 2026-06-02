@@ -105,6 +105,22 @@
     debugLog("entry_state_reset", { clearIdentity });
   };
 
+  const invalidateLicenseSelection = (reason = "") => {
+    const hiddenLicenseId = entryForm.querySelector('input[name="ufsc_license_id"]');
+    if (hiddenLicenseId) {
+      hiddenLicenseId.value = "";
+    }
+    licenseResults = [];
+    if (licenseSelectForm) {
+      const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
+      if (select) {
+        select.value = "";
+      }
+      licenseSelectForm.style.display = "none";
+    }
+    debugLog("license_selection_invalidated", { reason });
+  };
+
   const urlParams = new URLSearchParams(window.location.search || "");
   if (urlParams.get("ufsc_notice") === "created") {
     resetEntryState({ clearIdentity: true });
@@ -440,7 +456,10 @@
     results.forEach((result) => {
       const option = document.createElement("option");
       option.value = String(result.id || "");
-      option.textContent = result.label || "";
+      option.textContent = [result.label || "", result.warning || ""].filter(Boolean).join(" — ");
+      if (result.is_selectable === false) {
+        option.disabled = true;
+      }
       select.appendChild(option);
     });
 
@@ -465,6 +484,8 @@
       const birthDate = getValue(
         licenseSearchForm.querySelector("input[name='ufsc_license_birthdate']")
       );
+
+      invalidateLicenseSelection("search_submitted");
 
       if (!term && !licenseNumber && !birthDate) {
         setLicenseFeedback(config.labels?.searchEmpty || "", "error");
@@ -542,7 +563,7 @@
 
         licenseResults = results;
 
-        if (results.length === 1) {
+        if (results.length === 1 && results[0]?.is_selectable !== false) {
           debugLog("license_search_single_result_prefill", {
             id: Number(results[0]?.id || 0),
             label: results[0]?.label || "",
@@ -574,6 +595,14 @@
     });
   }
 
+  if (licenseSearchForm) {
+    licenseSearchForm
+      .querySelectorAll("input[name='ufsc_license_term'], input[name='ufsc_license_number'], input[name='ufsc_license_birthdate']")
+      .forEach((input) => {
+        input.addEventListener("input", () => invalidateLicenseSelection("search_text_changed"));
+      });
+  }
+
   if (licenseSelectForm) {
     const select = licenseSelectForm.querySelector("select[name='ufsc_license_id']");
 
@@ -593,10 +622,13 @@
         (item) => String(item.id) === String(select.value)
       );
 
-      if (selected) {
-        applyLicensePayload(selected);
+      if (!selected || selected.is_selectable === false) {
+        setLicenseFeedback(selected?.warning || config.labels?.searchError || "", "error");
+        invalidateLicenseSelection("non_selectable_result");
+        return;
       }
 
+      applyLicensePayload(selected);
       setLicenseFeedback(config.labels?.searchOne || "", "success");
     });
   }
