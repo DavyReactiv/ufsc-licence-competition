@@ -426,6 +426,24 @@
     });
   });
 
+
+  const getLicenseSearchErrorMessage = (data) => {
+    const code = data?.data?.code || data?.code || "";
+    const message = data?.data?.message || data?.message || "";
+
+    if (code === "permission_denied") {
+      return message || "Votre compte n’est pas autorisé à effectuer cette recherche.";
+    }
+    if (code === "club_not_found") {
+      return message || "Votre club n’a pas été identifié. Contactez l’UFSC.";
+    }
+    if (code === "nonce_invalid") {
+      return message || "Votre session a expiré, veuillez actualiser la page.";
+    }
+
+    return message || config.labels?.searchError || "";
+  };
+
   const setLicenseFeedback = (message, type = "") => {
     if (!licenseSearchFeedback) {
       return;
@@ -533,7 +551,7 @@
 
         if (!data || !data.success) {
           debugLog("license_search_error_payload", data);
-          setLicenseFeedback(config.labels?.searchError || "", "error");
+          setLicenseFeedback(getLicenseSearchErrorMessage(data), "error");
           return;
         }
 

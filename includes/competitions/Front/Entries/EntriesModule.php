@@ -525,28 +525,22 @@ class EntriesModule {
 	}
 
 	public static function handle_license_search(): void {
-		if ( ! is_user_logged_in() || ! \ufsc_lc_user_can( UFSC_LC_CAP_COMPETITIONS_READ ) ) {
-			wp_send_json_error( array( 'message' => __( 'Accès refusé : droits insuffisants.', 'ufsc-licence-competition' ) ), 403 );
-		}
-
 		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
-		$nonce_valid = (bool) wp_verify_nonce( $nonce, 'ufsc_competitions_license_search' );
-		self::debug_log(
-			'license_search_nonce_validation',
-			array(
-				'nonce_present' => '' !== $nonce,
-				'nonce_valid'   => $nonce_valid,
-			)
-		);
-		if ( ! $nonce_valid ) {
-			wp_send_json_error( array( 'message' => __( 'Jeton de sécurité invalide.', 'ufsc-licence-competition' ) ), 403 );
-		}
-
 		$term = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
 		$license_number = isset( $_POST['license_number'] ) ? sanitize_text_field( wp_unslash( $_POST['license_number'] ) ) : '';
 		$birth_date = isset( $_POST['birth_date'] ) ? sanitize_text_field( wp_unslash( $_POST['birth_date'] ) ) : '';
 		$birth_date = self::normalize_birthdate_input( $birth_date );
 		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$requested_club_id = isset( $_POST['club_id'] ) ? absint( $_POST['club_id'] ) : 0;
+
+		$authorization = self::can_search_licenses_for_entry( (int) get_current_user_id(), $competition_id, $nonce, $requested_club_id );
+		if ( empty( $authorization['allowed'] ) ) {
+			$status = self::get_license_search_error_status( (string) ( $authorization['code'] ?? 'permission_denied' ) );
+			wp_send_json_error( self::build_license_search_error_payload( $authorization ), $status );
+		}
+
+		$user_id = (int) ( $authorization['user_id'] ?? get_current_user_id() );
+		$club_id = (int) ( $authorization['detected_club_id'] ?? 0 );
 
 		if ( '' === $term && '' === $license_number && '' === $birth_date ) {
 			wp_send_json_success(
@@ -558,8 +552,6 @@ class EntriesModule {
 			);
 		}
 
-		$user_id = (int) get_current_user_id();
-		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
 		self::debug_log(
 			'license_search_access_context',
 			array(
@@ -569,11 +561,9 @@ class EntriesModule {
 				'term'           => $term,
 				'license_number' => $license_number,
 				'birth_date'     => $birth_date,
+				'authorization'  => $authorization['code'] ?? '',
 			)
 		);
-		if ( ! $club_id ) {
-			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
-		}
 
 		$repo = new EntryFrontRepository();
 		$results = self::get_license_search_results( $term, $license_number, $birth_date, $club_id, $repo );
@@ -615,6 +605,138 @@ class EntriesModule {
 		}
 
 		wp_send_json_success( $response );
+	}
+
+	private static function can_search_licenses_for_entry( int $user_id, int $competition_id, string $nonce, int $requested_club_id = 0 ): array {
+		$base = array(
+			'allowed'          => false,
+			'code'             => 'permission_denied',
+			'message'          => __( 'Votre compte n’est pas autorisé à rechercher des licenciés pour cette compétition.', 'ufsc-licence-competition' ),
+			'detected_club_id' => 0,
+			'user_id'          => $user_id,
+			'competition_id'   => $competition_id,
+		);
+
+		if ( $user_id <= 0 || ! is_user_logged_in() ) {
+			$base['code'] = 'not_logged_in';
+			$base['message'] = __( 'Vous devez être connecté pour rechercher un licencié.', 'ufsc-licence-competition' );
+			$base['failed_check'] = 'is_user_logged_in';
+			return $base;
+		}
+
+		$nonce_valid = (bool) wp_verify_nonce( $nonce, 'ufsc_competitions_license_search' );
+		self::debug_log(
+			'license_search_nonce_validation',
+			array(
+				'nonce_present' => '' !== $nonce,
+				'nonce_valid'   => $nonce_valid,
+			)
+		);
+		if ( ! $nonce_valid ) {
+			$base['code'] = 'nonce_invalid';
+			$base['message'] = __( 'Votre session a expiré, veuillez actualiser la page.', 'ufsc-licence-competition' );
+			$base['failed_check'] = 'wp_verify_nonce';
+			return $base;
+		}
+
+		if ( $competition_id <= 0 || ! self::get_competition( $competition_id ) ) {
+			$base['code'] = 'competition_not_found';
+			$base['message'] = __( 'Compétition introuvable.', 'ufsc-licence-competition' );
+			$base['failed_check'] = 'competition_exists';
+			return $base;
+		}
+
+		$is_admin = current_user_can( 'manage_options' );
+		$is_competition_manager = function_exists( 'ufsc_lc_user_can' )
+			&& ( ufsc_lc_user_can( UFSC_LC_CAP_COMPETITIONS_MANAGE, $user_id )
+				|| ufsc_lc_user_can( 'ufsc_competitions_manage', $user_id )
+				|| ufsc_lc_user_can( 'ufsc_comp_manage_all', $user_id ) );
+
+		$club_id = function_exists( 'ufsc_lc_get_current_club_id' ) ? (int) ufsc_lc_get_current_club_id( $user_id ) : 0;
+		if ( ( $is_admin || $is_competition_manager ) && $requested_club_id > 0 ) {
+			$club_id = $requested_club_id;
+		}
+		$base['detected_club_id'] = $club_id;
+		$base['is_admin'] = $is_admin;
+		$base['is_competition_manager'] = $is_competition_manager;
+
+		if ( $club_id <= 0 ) {
+			$base['code'] = 'club_not_found';
+			$base['message'] = __( 'Votre club n’a pas été identifié. Contactez l’UFSC.', 'ufsc-licence-competition' );
+			$base['failed_check'] = 'ufsc_lc_get_current_club_id';
+			return $base;
+		}
+
+		if ( $is_admin || $is_competition_manager ) {
+			return array_merge(
+				$base,
+				array(
+					'allowed' => true,
+					'code'    => 'allowed',
+					'message' => __( 'Recherche autorisée.', 'ufsc-licence-competition' ),
+				)
+			);
+		}
+
+		$access = new CompetitionAccess();
+		$register_result = $access->can_register( $competition_id, $club_id, $user_id );
+		if ( ! $register_result->allowed ) {
+			$base['code'] = 'permission_denied';
+			$base['message'] = __( 'Votre compte n’est pas autorisé à rechercher des licenciés pour cette compétition.', 'ufsc-licence-competition' );
+			$base['failed_check'] = 'CompetitionAccess::can_register';
+			$base['access_reason'] = (string) ( $register_result->reason ?? '' );
+			return $base;
+		}
+
+		return array_merge(
+			$base,
+			array(
+				'allowed' => true,
+				'code'    => 'allowed',
+				'message' => __( 'Recherche autorisée.', 'ufsc-licence-competition' ),
+			)
+		);
+	}
+
+	private static function build_license_search_error_payload( array $authorization ): array {
+		$payload = array(
+			'code'    => sanitize_key( (string) ( $authorization['code'] ?? 'permission_denied' ) ),
+			'message' => sanitize_text_field( (string) ( $authorization['message'] ?? __( 'Votre compte n’est pas autorisé à rechercher des licenciés pour cette compétition.', 'ufsc-licence-competition' ) ) ),
+		);
+
+		if ( current_user_can( 'manage_options' ) ) {
+			$user = ! empty( $authorization['user_id'] ) ? get_userdata( (int) $authorization['user_id'] ) : null;
+			$payload['diagnostic'] = array(
+				'user_id' => (int) ( $authorization['user_id'] ?? 0 ),
+				'roles' => $user ? array_values( (array) $user->roles ) : array(),
+				'capabilities' => array(
+					'manage_options' => current_user_can( 'manage_options' ),
+					'ufsc_competitions_manage' => function_exists( 'ufsc_lc_user_can' ) ? ufsc_lc_user_can( 'ufsc_competitions_manage', (int) ( $authorization['user_id'] ?? 0 ) ) : false,
+					'ufsc_competitions_read' => function_exists( 'ufsc_lc_user_can' ) ? ufsc_lc_user_can( 'ufsc_competitions_read', (int) ( $authorization['user_id'] ?? 0 ) ) : false,
+				),
+				'competition_id' => isset( $authorization['competition_id'] ) ? (int) $authorization['competition_id'] : 0,
+				'detected_club_id' => (int) ( $authorization['detected_club_id'] ?? 0 ),
+				'code' => (string) ( $authorization['code'] ?? '' ),
+				'failed_check' => (string) ( $authorization['failed_check'] ?? '' ),
+				'access_reason' => (string) ( $authorization['access_reason'] ?? '' ),
+			);
+		}
+
+		return $payload;
+	}
+
+	private static function get_license_search_error_status( string $code ): int {
+		switch ( $code ) {
+			case 'not_logged_in':
+				return 401;
+			case 'competition_not_found':
+				return 404;
+			case 'nonce_invalid':
+			case 'club_not_found':
+			case 'permission_denied':
+			default:
+				return 403;
+		}
 	}
 
 	private static function debug_log( string $message, array $context = array() ): void {
