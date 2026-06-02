@@ -967,6 +967,7 @@ class EntryFormRenderer {
 			'error'                    => array( 'error', __( 'Une erreur est survenue. Merci de réessayer.', 'ufsc-licence-competition' ) ),
 			'error_forbidden'          => array( 'error', __( 'Accès refusé.', 'ufsc-licence-competition' ) ),
 			'error_invalid_fields'     => array( 'error', __( 'Certaines informations sont invalides ou incomplètes. Vérifiez les champs signalés puis réessayez.', 'ufsc-licence-competition' ) ),
+			'error_license_status'     => array( 'error', __( 'Licence trouvée mais statut non éligible pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_external_not_allowed' => array( 'error', __( 'Participants non licenciés UFSC non autorisés pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'error_closed'             => array( 'error', __( 'Inscriptions fermées pour cette compétition. Aucune nouvelle soumission n’est possible.', 'ufsc-licence-competition' ) ),
 			'error_not_found'          => array( 'error', __( 'Compétition introuvable.', 'ufsc-licence-competition' ) ),

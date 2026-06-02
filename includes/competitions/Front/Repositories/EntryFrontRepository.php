@@ -427,6 +427,12 @@ class EntryFrontRepository {
 			'weight_class' => sanitize_text_field( $license['weight_class'] ?? '' ),
 			'level' => sanitize_text_field( $license['level'] ?? '' ),
 			'license_number' => $license_number,
+			'asptt_number' => sanitize_text_field( $license['asptt_number'] ?? $license['numero_asptt'] ?? '' ),
+			'club_id' => absint( $license['club_id'] ?? 0 ),
+			'club_name' => sanitize_text_field( $license['club_name'] ?? $license['club_nom'] ?? '' ),
+			'status' => sanitize_text_field( $license['status'] ?? $license['license_status'] ?? $license['statut'] ?? '' ),
+			'is_selectable' => ! array_key_exists( 'is_selectable', $license ) || (bool) $license['is_selectable'],
+			'warning' => sanitize_text_field( $license['warning'] ?? '' ),
 		);
 
 		if ( '' !== $normalized['birthdate'] && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $normalized['birthdate'] ) ) {
