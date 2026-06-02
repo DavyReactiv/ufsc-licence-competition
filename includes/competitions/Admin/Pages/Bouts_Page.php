@@ -172,6 +172,22 @@ class Bouts_Page {
 			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'same_fighter', $id );
 		}
 
+		$entry_scope_error = $this->validate_fight_entries_in_competition( $data['competition_id'], $data['red_entry_id'], $data['blue_entry_id'] );
+		if ( '' !== $entry_scope_error ) {
+			$this->logger->audit(
+				'fight_save_blocked_entry_scope',
+				(int) $data['competition_id'],
+				'fight',
+				$id,
+				array(
+					'red_entry_id'  => $data['red_entry_id'],
+					'blue_entry_id' => $data['blue_entry_id'],
+					'reason'        => $entry_scope_error,
+				)
+			);
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'entry_competition_mismatch', $id );
+		}
+
 		if ( $id ) {
 			$existing = $this->repository->get( $id, true );
 			if ( $existing && function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
@@ -278,6 +294,25 @@ class Bouts_Page {
 				$this->redirect_with_notice( $page_slug, 'deleted' );
 				break;
 		}
+	}
+
+	private function validate_fight_entries_in_competition( int $competition_id, int $red_entry_id, int $blue_entry_id ): string {
+		$competition_id = absint( $competition_id );
+		foreach ( array( 'red' => $red_entry_id, 'blue' => $blue_entry_id ) as $corner => $entry_id ) {
+			$entry_id = absint( $entry_id );
+			if ( ! $entry_id ) {
+				continue;
+			}
+			$entry = $this->entries->get( $entry_id, true );
+			if ( ! $entry ) {
+				return $corner . '_entry_not_found';
+			}
+			if ( (int) ( $entry->competition_id ?? 0 ) !== $competition_id ) {
+				return $corner . '_entry_competition_mismatch';
+			}
+		}
+
+		return '';
 	}
 
 	private function render_form( $item ) {
@@ -882,6 +917,7 @@ class Bouts_Page {
 				'correction_supervisor_required' => __( 'Validation superviseur obligatoire : des combats suivants sont déjà joués.', 'ufsc-licence-competition' ),
 				'status_invalid' => __( 'Statut invalide.', 'ufsc-licence-competition' ),
 				'same_fighter' => __( 'Le même combattant ne peut pas être sélectionné en rouge et en bleu.', 'ufsc-licence-competition' ),
+				'entry_competition_mismatch' => __( 'Action bloquée : un combattant sélectionné ne correspond pas à cette compétition.', 'ufsc-licence-competition' ),
 				'status_transition_blocked' => __( 'Transition de statut refusée.', 'ufsc-licence-competition' ),
 				);
 
@@ -889,7 +925,7 @@ class Bouts_Page {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked', 'permanent_delete_confirmation_required' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'correction_invalid', 'correction_supervisor_required', 'protected_delete', 'protected_edit', 'bulk_partial', 'status_invalid', 'status_transition_blocked', 'entry_competition_mismatch', 'permanent_delete_confirmation_required' ), true ) ? 'error' : 'success';
 		$text = '' !== $custom_message ? $custom_message : $messages[ $notice ];
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $text ) );
 	}

@@ -69,6 +69,11 @@ class ResultService {
 	public function record_result( int $fight_id, array $payload ): array {
 		$fight = $this->fights->get( $fight_id, true );
 		if ( ! $fight ) { return array( 'ok' => false, 'error' => 'fight_not_found' ); }
+		$status = $this->fights->get_effective_fight_status( $fight );
+		if ( in_array( $status, array( FightRepository::STATUS_LOCKED, FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER, FightRepository::STATUS_TRASHED ), true ) ) {
+			$this->logger->audit( 'result_record_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => 'unsupported_status', 'status' => $status ) );
+			return array( 'ok' => false, 'error' => 'unsupported_status' );
+		}
 		$check = $this->validate_result_payload( $fight, $payload, false );
 		if ( ! $check['ok'] ) { return $check; }
 		$new = $this->build_update_payload( $fight, $payload, false );
