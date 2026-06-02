@@ -8,6 +8,7 @@ use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\FighterNumberService;
@@ -29,12 +30,14 @@ class Print_Page {
 	private $fighter_numbers_by_entry = array();
 	private $result_summary;
 	private $surface_map_cache = array();
+	private $weighins;
 
 	public function __construct() {
 		$this->competitions = new CompetitionRepository();
 		$this->categories = new CategoryRepository();
 		$this->entries = new EntryRepository();
 		$this->fights = new FightRepository();
+		$this->weighins = new WeighInRepository();
 		$this->renderer = new PrintRenderer();
 		$this->result_summary = new ResultSummaryService();
 	}
@@ -74,9 +77,10 @@ class Print_Page {
 				<select name="print_type" id="ufsc_print_type">
 					<option value="entries" <?php selected( $type, 'entries' ); ?>><?php esc_html_e( 'Liste détaillée des inscrits', 'ufsc-licence-competition' ); ?></option>
 					<option value="categories" <?php selected( $type, 'categories' ); ?>><?php esc_html_e( 'Référentiel catégories', 'ufsc-licence-competition' ); ?></option>
-					<option value="fights_by_surface" <?php selected( $type, 'fights_by_surface' ); ?>><?php esc_html_e( 'Répartition des combats par surface', 'ufsc-licence-competition' ); ?></option>
+					<option value="fights_by_surface" <?php selected( $type, 'fights_by_surface' ); ?>><?php esc_html_e( 'Répartition des combats par surface / tous les plateaux', 'ufsc-licence-competition' ); ?></option>
 					<option value="surface_sheet" <?php selected( $type, 'surface_sheet' ); ?>><?php esc_html_e( 'Feuille de surface', 'ufsc-licence-competition' ); ?></option>
 					<option value="surface_overview" <?php selected( $type, 'surface_overview' ); ?>><?php esc_html_e( 'Affichage synthétique organisation', 'ufsc-licence-competition' ); ?></option>
+					<option value="weighins" <?php selected( $type, 'weighins' ); ?>><?php esc_html_e( 'Liste des pesées', 'ufsc-licence-competition' ); ?></option>
 					<option value="results_sheet" <?php selected( $type, 'results_sheet' ); ?>><?php esc_html_e( 'Feuille de résultats', 'ufsc-licence-competition' ); ?></option>
 					<option value="results_entered" <?php selected( $type, 'results_entered' ); ?>><?php esc_html_e( 'Résultats saisis', 'ufsc-licence-competition' ); ?></option>
 					<option value="lone_fighters" <?php selected( $type, 'lone_fighters' ); ?>><?php esc_html_e( 'Combattants sans adversaire', 'ufsc-licence-competition' ); ?></option>
@@ -98,12 +102,13 @@ class Print_Page {
 					'surface_overview' => __( 'Ce document sert aux officiels et à l’organisation : résumé des surfaces, volumes de combats, catégories ouvertes, alertes et besoins humains par surface.', 'ufsc-licence-competition' ),
 					'categories' => __( 'Ce document liste les catégories réellement détectées dans les inscriptions ou dans les combats générés.', 'ufsc-licence-competition' ),
 					'entries' => __( 'Ce document permet de contrôler les engagés, les données manquantes et les informations administratives avant génération.', 'ufsc-licence-competition' ),
+					'weighins' => __( 'Ce document sert au contrôle des pesées : poids prévu, poids mesuré, statut et observations.', 'ufsc-licence-competition' ),
 				);
 				echo esc_html( $desc[ $type ] ?? $desc['entries'] );
 				?>
 			</p>
 			<p class="description"><strong><?php esc_html_e( 'Format recommandé : paysage pour les tableaux larges.', 'ufsc-licence-competition' ); ?></strong></p>
-			<?php if ( 'a4' === $format && in_array( $type, array( 'entries', 'fights_by_surface', 'surface_sheet', 'lone_fighters', 'results_sheet' ), true ) ) : ?>
+			<?php if ( 'a4' === $format && in_array( $type, array( 'entries', 'weighins', 'fights_by_surface', 'surface_sheet', 'lone_fighters', 'results_sheet' ), true ) ) : ?>
 				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Ce document contient beaucoup de colonnes. Le format paysage est recommandé.', 'ufsc-licence-competition' ); ?></p></div>
 			<?php endif; ?>
 
@@ -138,6 +143,8 @@ class Print_Page {
 							$this->render_fights_by_surface( $competition_id );
 						} elseif ( 'surface_overview' === $type ) {
 							$this->render_surface_overview( $competition_id );
+						} elseif ( 'weighins' === $type ) {
+							$this->render_weighins_table( $competition_id, $competition );
 						} elseif ( 'results_sheet' === $type ) {
 							$this->render_results_sheet( $competition_id, false );
 						} elseif ( 'results_entered' === $type ) {
@@ -161,6 +168,56 @@ class Print_Page {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+	private function render_weighins_table( int $competition_id, $competition ): void {
+		$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
+		}
+		$entries = $this->entries->list_with_details( $entry_filters, 3000, 0 );
+		$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+		$weighins = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+
+		echo '<h2>' . esc_html__( 'Liste des pesées', 'ufsc-licence-competition' ) . '</h2>';
+		echo '<table class="widefat striped ufsc-print-table">';
+		echo '<thead><tr>'
+			. '<th>' . esc_html__( 'N°', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Club', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Catégorie', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Poids prévu', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Poids mesuré', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Statut pesée', 'ufsc-licence-competition' ) . '</th>'
+			. '<th>' . esc_html__( 'Observation', 'ufsc-licence-competition' ) . '</th>'
+			. '</tr></thead><tbody>';
+
+		if ( empty( $entries ) ) {
+			echo '<tr><td colspan="8">' . esc_html__( 'Aucune inscription à imprimer.', 'ufsc-licence-competition' ) . '</td></tr>';
+		} else {
+			foreach ( $entries as $entry ) {
+				$row = $weighins[ (int) ( $entry->id ?? 0 ) ] ?? null;
+				$status = sanitize_key( (string) ( $row->status ?? 'pending' ) );
+				$is_valid = $this->weighins->is_valid_weighin_row( $row, (float) ( $competition->weight_tolerance ?? 1 ), isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null );
+				$status_label = $is_valid ? __( 'Validée', 'ufsc-licence-competition' ) : ( $status ? $status : __( 'À faire', 'ufsc-licence-competition' ) );
+				$name = trim( (string) ( ( $entry->last_name ?? '' ) . ' ' . ( $entry->first_name ?? '' ) ) );
+				if ( '' === $name ) {
+					$name = sprintf( '#%d', (int) ( $entry->id ?? 0 ) );
+				}
+				echo '<tr>';
+				echo '<td>' . esc_html( (string) ( $entry->fighter_number ?? $entry->competition_number ?? $entry->id ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( $name ) . '</td>';
+				echo '<td>' . esc_html( (string) ( $entry->club_name ?? $entry->club ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( (string) ( $entry->category_name ?? $entry->category ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( (string) ( $entry->weight_kg ?? $entry->weight ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( (string) ( $row->weight_measured ?? '' ) ) . '</td>';
+				echo '<td>' . esc_html( $status_label ) . '</td>';
+				echo '<td>' . esc_html( (string) ( $row->notes ?? '' ) ) . '</td>';
+				echo '</tr>';
+			}
+		}
+
+		echo '</tbody></table>';
 	}
 
 	private function render_categories_table( int $competition_id ): void {
