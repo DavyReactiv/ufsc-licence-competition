@@ -13,6 +13,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\CompetitionSafetyService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -379,6 +380,14 @@ class WeighIns_Page {
 		$status = isset( $_POST['weighin_status'] ) ? sanitize_key( (string) wp_unslash( $_POST['weighin_status'] ) ) : 'pending';
 		if ( ! isset( $this->get_mutation_status_choices()[ $status ] ) ) {
 			$status = 'pending';
+		}
+
+		$safety = ( new CompetitionSafetyService() )->guard_weighin_mutation( $competition_id, $entry_id, 'save_weighin' );
+		if ( empty( $safety['ok'] ) ) {
+			return array(
+				'type' => 'error',
+				'message' => (string) ( $safety['message'] ?? __( 'Pesée bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ),
+			);
 		}
 
 		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );

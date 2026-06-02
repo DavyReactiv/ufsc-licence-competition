@@ -631,7 +631,8 @@ class Bouts_Page {
 			)
 		);
 		if ( empty( $res['ok'] ) ) {
-			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, __( 'Correction bloquée: vérifiez statut, vainqueur et motif.', 'ufsc-licence-competition' ) );
+			$message = ! empty( $res['message'] ) ? (string) $res['message'] : __( 'Correction bloquée : vérifiez statut, vainqueur et motif.', 'ufsc-licence-competition' );
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'correction_invalid', 0, $message );
 		}
 		$propagation = $this->propagate_winner_to_next_round( $fight, $old_winner, $winner_entry_id );
 
@@ -682,7 +683,8 @@ class Bouts_Page {
 		);
 		$res = $this->result_service->record_result( $fight_id, $payload );
 		if ( empty( $res['ok'] ) ) {
-			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_record_blocked', 0, __( 'Saisie résultat bloquée: vérifiez le statut, le vainqueur et le motif.', 'ufsc-licence-competition' ) );
+			$message = ! empty( $res['message'] ) ? (string) $res['message'] : __( 'Saisie résultat bloquée : vérifiez le statut, le vainqueur et le motif.', 'ufsc-licence-competition' );
+			$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_record_blocked', 0, $message );
 		}
 		$this->redirect_with_notice( Menu::PAGE_BOUTS, 'result_recorded' );
 	}

@@ -11,6 +11,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
+use UFSC\Competitions\Services\CompetitionSafetyService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -79,6 +80,8 @@ class Quality_Page {
 				<button type="submit" class="button button-primary"><?php esc_html_e( 'Lancer le contrôle', 'ufsc-licence-competition' ); ?></button>
 			</form>
 
+			<?php $this->render_data_protection_section( $competition_id ); ?>
+
 			<?php if ( 0 === $issues_count ) : ?>
 				<div class="ufsc-empty-state">
 					<h2><?php esc_html_e( 'Aucune anomalie détectée', 'ufsc-licence-competition' ); ?></h2>
@@ -97,6 +100,39 @@ class Quality_Page {
 		</div>
 		<?php
 	}
+
+	private function render_data_protection_section( int $competition_id ): void {
+		if ( $competition_id <= 0 ) {
+			echo '<div class="notice notice-info inline"><p>' . esc_html__( 'Protection des données réelles : sélectionnez une compétition pour afficher les blocages actifs.', 'ufsc-licence-competition' ) . '</p></div>';
+			return;
+		}
+
+		$summary = ( new CompetitionSafetyService() )->get_protection_summary( $competition_id );
+		?>
+		<section class="ufsc-admin-surface ufsc-data-protection-summary">
+			<h2><?php esc_html_e( 'Protection des données réelles', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php esc_html_e( 'Cette section indique les protections anti-perte activées pour la compétition sélectionnée. En cas de résultats ou verrous, les actions destructrices et régénérations sont bloquées.', 'ufsc-licence-competition' ); ?></p>
+			<section class="ufsc-kpis ufsc-kpis--premium">
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Inscriptions réelles', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $summary['entries_count'] ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Combats existants', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $summary['fights_count'] ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Résultats saisis', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $summary['results_entered'] ) ); ?></strong></article>
+				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Combats verrouillés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) $summary['locked_fights'] ) ); ?></strong></article>
+			</section>
+			<p><strong><?php esc_html_e( 'Statut de protection :', 'ufsc-licence-competition' ); ?></strong> <?php echo esc_html( (string) $summary['protection_status'] ); ?></p>
+			<?php if ( ! empty( $summary['blocked_actions'] ) ) : ?>
+				<div class="notice notice-warning inline"><p><strong><?php esc_html_e( 'Actions sensibles actuellement bloquées ou renforcées :', 'ufsc-licence-competition' ); ?></strong></p><ul>
+					<?php foreach ( $summary['blocked_actions'] as $blocked_action ) : ?>
+						<li><?php echo esc_html( (string) $blocked_action ); ?></li>
+					<?php endforeach; ?>
+				</ul></div>
+			<?php else : ?>
+				<div class="notice notice-success inline"><p><?php esc_html_e( 'Aucune donnée réelle critique détectée. Les protections restent actives dès qu’une inscription, un combat ou un résultat apparaît.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
+			<p class="description"><?php esc_html_e( 'Recommandation jour J : exporter les inscrits, imprimer les pesées et vérifier les logs avant toute action sensible.', 'ufsc-licence-competition' ); ?></p>
+		</section>
+		<?php
+	}
+
 
 	private function collect_issues( int $competition_id = 0 ) {
 		$competition_filters = array( 'view' => 'all' );
