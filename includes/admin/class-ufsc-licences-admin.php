@@ -10,6 +10,12 @@ class UFSC_LC_Licences_Admin {
 	const PAGE_SLUG = 'ufsc-sql-licences';
 	const LEGACY_PAGE_SLUGS = array( 'ufsc-lc-licences', 'ufsc-licences', 'ufsc_lc_licences' );
 	public function register() {
+		static $registered = false;
+		if ( $registered ) {
+			return;
+		}
+		$registered = true;
+
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 30 );
 		add_action( 'admin_notices', array( $this, 'render_notices' ) );
 		add_action( 'admin_post_ufsc_lc_export_csv', array( $this, 'handle_export_csv' ) );
@@ -19,15 +25,17 @@ class UFSC_LC_Licences_Admin {
 	}
 
 	public function register_menu() {
-		$hook_suffix = add_submenu_page(
-			UFSC_LC_Plugin::PARENT_SLUG,
-			__( 'Licences', 'ufsc-licence-competition' ),
-			__( 'Licences', 'ufsc-licence-competition' ),
-			UFSC_LC_Capabilities::get_read_capability(),
-			self::PAGE_SLUG,
-			array( $this, 'render_page' )
-		);
-		UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+		if ( self::PAGE_SLUG !== UFSC_LC_Plugin::PARENT_SLUG ) {
+			$hook_suffix = add_submenu_page(
+				UFSC_LC_Plugin::PARENT_SLUG,
+				__( 'Licences', 'ufsc-licence-competition' ),
+				__( 'Licences', 'ufsc-licence-competition' ),
+				UFSC_LC_Capabilities::get_read_capability(),
+				self::PAGE_SLUG,
+				array( $this, 'render_page' )
+			);
+			UFSC_LC_Admin_Assets::register_page( $hook_suffix );
+		}
 
 		foreach ( self::LEGACY_PAGE_SLUGS as $legacy_slug ) {
 			$legacy_hook = add_submenu_page(

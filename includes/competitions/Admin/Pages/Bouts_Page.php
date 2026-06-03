@@ -90,6 +90,7 @@ class Bouts_Page {
 					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Générez, planifiez et suivez les combats par surface avec une lecture opérationnelle claire.', 'ufsc-licence-competition' ); ?></p>
 				</div>
 				<div class="ufsc-admin-page-actions">
+					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_RESULTS, 'competition_id' => $competition_id ), admin_url( 'admin.php' ) ) ); ?>" class="button"><?php esc_html_e( 'Résultats jour J', 'ufsc-licence-competition' ); ?></a>
 					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_BOUTS, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary"><?php esc_html_e( 'Ajouter un combat', 'ufsc-licence-competition' ); ?></a>
 				</div>
 			</header>
