@@ -720,6 +720,15 @@ class FightAutoGenerationService {
 			);
 		}
 
+		$safety = class_exists( CompetitionSafetyService::class ) ? ( new CompetitionSafetyService() )->guard_fight_generation( $competition_id, 'validate_fight_draft', array( 'apply_mode' => $apply_mode ) ) : array( 'ok' => true );
+		if ( empty( $safety['ok'] ) ) {
+			return array(
+				'ok' => false,
+				'message' => (string) ( $safety['message'] ?? __( 'Validation bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
 		$apply_mode = 'replace' === $apply_mode ? 'replace' : 'append';
 		if ( 'replace' === $apply_mode ) {
 			return array(
@@ -891,13 +900,13 @@ class FightAutoGenerationService {
 			if ( ! $fight || (int) ( $fight->competition_id ?? 0 ) !== absint( $competition_id ) ) {
 				continue;
 			}
-			$deleted = $fight_repo->delete( $fight_id );
+			$deleted = $fight_repo->soft_delete( $fight_id );
 			if ( false !== $deleted ) {
 				$rolled_back++;
 			}
 		}
 		if ( $rolled_back > 0 ) {
-			( new LogService() )->audit( 'generation_rolled_back', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'rolled_back_ids' => $inserted_ids, 'rolled_back_count' => $rolled_back ) );
+			( new LogService() )->audit( 'generation_soft_rolled_back', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'soft_rolled_back_ids' => $inserted_ids, 'soft_rolled_back_count' => $rolled_back ) );
 		}
 		return $rolled_back;
 	}

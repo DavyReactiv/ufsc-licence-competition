@@ -162,13 +162,18 @@ class EntryRepository {
 	}
 
 	public function delete( $id ) {
-		global $wpdb;
+		$id = absint( $id );
+		if ( ! $id ) {
+			return 0;
+		}
 
-		$deleted = $wpdb->delete( Db::entries_table(), array( 'id' => absint( $id ) ), array( '%d' ) );
+		if ( $this->has_entry_column( 'deleted_at' ) ) {
+			$this->logger->log( 'delete_rerouted_to_trash', 'entry', $id, 'Suppression physique interdite : inscription déplacée en corbeille.', array() );
+			return $this->soft_delete( $id );
+		}
 
-		$this->logger->log( 'delete', 'entry', $id, 'Entry deleted permanently.', array() );
-
-		return $deleted;
+		$this->logger->log( 'delete_blocked_no_trash_column', 'entry', $id, 'Suppression physique bloquée : aucune colonne deleted_at disponible.', array() );
+		return 0;
 	}
 
 	public function get_status_storage_field(): string {

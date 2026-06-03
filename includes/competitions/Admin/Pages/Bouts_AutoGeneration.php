@@ -9,6 +9,7 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Services\FightAutoGenerationService;
 use UFSC\Competitions\Services\GenerationLockService;
 use UFSC\Competitions\Services\GenerationReadinessDiagnostic;
+use UFSC\Competitions\Services\CompetitionSafetyService;
 use UFSC\Competitions\Services\LogService;
 use UFSC\Competitions\Db;
 
@@ -62,7 +63,7 @@ class Bouts_AutoGeneration {
 			return;
 		}
 
-		$type = 'error' === $notice || 'draft_error' === $notice || 'action_error' === $notice ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error', 'draft_error', 'action_error', 'action_protected', 'invalid_settings' ), true ) ? 'error' : 'success';
 		$text = $message ? $message : $messages[ $notice ];
 
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $text ) );
@@ -1005,6 +1006,10 @@ class Bouts_AutoGeneration {
 		if ( ! $competition_id ) {
 			self::redirect( 0, 'action_error', __( 'Compétition invalide.', 'ufsc-licence-competition' ) );
 		}
+		$safety = ( new CompetitionSafetyService() )->guard_fight_generation( $competition_id, 'regenerate_fight_draft' );
+		if ( empty( $safety['ok'] ) ) {
+			self::redirect( $competition_id, 'action_protected', (string) ( $safety['message'] ?? __( 'Régénération bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ) );
+		}
 		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) && ! Capabilities::user_can_regenerate_fights() ) {
 			( new LogService() )->audit( 'sensitive_action_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'generation_locked' ) );
 			self::redirect( $competition_id, 'action_protected', __( 'Régénération protégée : action sensible requise.', 'ufsc-licence-competition' ) );
@@ -1020,6 +1025,10 @@ class Bouts_AutoGeneration {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_validate_fight_draft', $competition_id );
 		$apply_mode = isset( $_POST['apply_mode'] ) ? sanitize_key( wp_unslash( $_POST['apply_mode'] ) ) : 'append';
+		$safety = ( new CompetitionSafetyService() )->guard_fight_generation( $competition_id, 'validate_fight_draft', array( 'apply_mode' => $apply_mode ) );
+		if ( empty( $safety['ok'] ) ) {
+			self::redirect( $competition_id, 'action_protected', (string) ( $safety['message'] ?? __( 'Validation bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ) );
+		}
 		if ( 'replace' === $apply_mode ) {
 			self::redirect( $competition_id, 'action_error', __( 'Le mode remplacement n’est pas disponible.', 'ufsc-licence-competition' ) );
 		}
@@ -1053,6 +1062,10 @@ class Bouts_AutoGeneration {
 	public static function handle_recalc_schedule(): void {
 		$competition_id = self::resolve_competition_id( isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0 );
 		self::guard_action( 'ufsc_competitions_recalc_fight_schedule', $competition_id );
+		$safety = ( new CompetitionSafetyService() )->guard_fight_generation( $competition_id, 'recalc_fight_schedule' );
+		if ( empty( $safety['ok'] ) ) {
+			self::redirect( $competition_id, 'action_protected', (string) ( $safety['message'] ?? __( 'Recalcul bloqué par la protection des données réelles.', 'ufsc-licence-competition' ) ) );
+		}
 		if ( function_exists( 'ufsc_competition_save_surfaces' ) && isset( $_POST['surface_details'] ) ) {
 			ufsc_competition_save_surfaces( $competition_id, wp_unslash( $_POST['surface_details'] ) );
 		}
@@ -1239,6 +1252,11 @@ class Bouts_AutoGeneration {
 			self::redirect( $competition_id, 'action_error', 'Combat hors compétition.' );
 		}
 		$status = sanitize_key( (string) ( $fight->status ?? '' ) );
+		$is_correction = 'completed' === $status;
+		$safety = ( new CompetitionSafetyService() )->guard_fight_result_mutation( $competition_id, $fight_id, 'record_fight_result', $is_correction );
+		if ( empty( $safety['ok'] ) ) {
+			self::redirect( $competition_id, 'action_error', (string) ( $safety['message'] ?? __( 'Saisie résultat bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ) );
+		}
 		if ( in_array( $status, array( 'running', 'locked' ), true ) ) {
 			self::redirect( $competition_id, 'action_error', 'Combat verrouillé/en cours: utilisez Actions sensibles.' );
 		}
@@ -1490,7 +1508,7 @@ class Bouts_AutoGeneration {
 				if ( $entry_id <= 0 || ! self::is_tracked_test_entry( $entry_id, $competition_id ) ) {
 					continue;
 				}
-				$wpdb->delete( Db::weighins_table(), array( 'entry_id' => $entry_id ), array( '%d' ) );
+				$wpdb->delete( Db::weighins_table(), array( 'competition_id' => $competition_id, 'entry_id' => $entry_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
 				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id, 'competition_id' => $competition_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
