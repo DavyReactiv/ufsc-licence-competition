@@ -2,6 +2,7 @@
 
 namespace UFSC\Competitions\Services;
 
+use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
@@ -653,6 +654,8 @@ class FightAutoGenerationService {
 				}
 			}
 
+			$validation_context = self::build_draft_validation_context( $competition_id, $settings, $stats );
+
 			$draft = array(
 				'draft_id'        => 'draft_' . $competition_id . '_' . wp_generate_uuid4(),
 				'competition_id' => $competition_id,
@@ -661,6 +664,7 @@ class FightAutoGenerationService {
 				'generated_by'   => get_current_user_id() ?: null,
 				'created_by'     => get_current_user_id() ?: null,
 				'settings'       => $settings,
+				'validation_context' => $validation_context,
 				'stats'          => $stats,
 				'summary'        => $stats,
 				'warnings'       => $warnings,
@@ -772,28 +776,110 @@ class FightAutoGenerationService {
 		}
 
 		$apply_mode = 'replace' === $apply_mode ? 'replace' : 'append';
+		$diagnostic['apply_mode'] = $apply_mode;
 		if ( 'replace' === $apply_mode ) {
+			$diagnostic['errors'][] = 'replace_mode_refused';
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'replace_mode_refused' ) );
 			return array(
 				'ok'      => false,
-				'message' => __( 'Le mode remplacement n’est pas disponible.', 'ufsc-licence-competition' ),
+				'message' => __( 'Validation refusée : le mode remplacement est désactivé par défaut. Régénérez en mode ajout sécurisé ou utilisez un workflow d’action sensible dédié.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
+		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
+			$diagnostic['errors'][] = 'generation_locked';
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'generation_locked' ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Validation refusée : la compétition est verrouillée.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
 			);
 		}
 
 		$draft = self::get_draft( $competition_id );
+		$diagnostic['draft_id'] = sanitize_text_field( (string) ( $draft['draft_id'] ?? '' ) );
+		$diagnostic['draft_hash'] = sanitize_text_field( (string) ( $draft['draft_hash'] ?? '' ) );
+		$diagnostic['diagnostic_hash'] = sanitize_text_field( (string) ( $draft['diagnostic_hash'] ?? '' ) );
 		$diagnostic['estimated_fights'] = is_array( $draft['fights'] ?? null ) ? count( $draft['fights'] ) : 0;
 		$diagnostic['warnings_count'] = is_array( $draft['warnings'] ?? null ) ? count( $draft['warnings'] ) : 0;
 		if ( empty( $draft['fights'] ) || ! is_array( $draft['fights'] ) ) {
+			$diagnostic['errors'][] = 'missing_draft';
 			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'missing_draft' ) );
 			return array(
 				'ok'      => false,
 				'message' => __( 'Aucun brouillon disponible : générez et vérifiez une prévisualisation avant validation.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
 			);
 		}
 
-		$settings = self::get_settings( $competition_id );
+		$current_settings = self::get_settings( $competition_id );
+		$settings = $current_settings;
 		if ( ! empty( $draft['settings'] ) && is_array( $draft['settings'] ) ) {
 			$settings = array_merge( $settings, $draft['settings'] );
 		}
+
+		$fight_repo = new FightRepository();
+		$existing_result_count = self::count_existing_result_fights( $competition_id, $fight_repo );
+		if ( $existing_result_count > 0 ) {
+			$diagnostic['errors'][] = 'existing_results';
+			$diagnostic['existing_result_fights'] = $existing_result_count;
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'existing_results', 'count' => $existing_result_count ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Validation refusée : des résultats existent déjà.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
+		$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
+		if ( empty( $regeneration_scope['allowed'] ) ) {
+			$diagnostic['errors'][] = 'existing_sensitive_fights';
+			$diagnostic['existing_sensitive_fights'] = (int) ( $regeneration_scope['blocking_count'] ?? 0 );
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'existing_sensitive_fights', 'scope' => $regeneration_scope ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Validation refusée : des combats existent déjà sur cette compétition.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
+		$existing_fights = self::get_existing_generation_blockers( $competition_id );
+		if ( (int) ( $existing_fights['total'] ?? 0 ) > 0 ) {
+			$diagnostic['errors'][] = 'existing_fights';
+			$diagnostic['existing_fights'] = (int) $existing_fights['total'];
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'existing_fights', 'counts' => $existing_fights ) );
+			return array(
+				'ok'      => false,
+				'message' => __( 'Validation refusée : des combats existent déjà sur cette compétition.', 'ufsc-licence-competition' ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
+		$freshness = self::validate_draft_freshness( $competition_id, $draft, $current_settings );
+		$diagnostic['draft_freshness'] = $freshness;
+		if ( empty( $freshness['ok'] ) ) {
+			$diagnostic['errors'][] = sanitize_key( (string) ( $freshness['reason'] ?? 'draft_obsolete' ) );
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'draft_obsolete', 'freshness' => $freshness ) );
+			return array(
+				'ok'      => false,
+				'message' => (string) ( $freshness['message'] ?? __( 'Le brouillon est obsolète : régénérez-le avant validation.', 'ufsc-licence-competition' ) ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
+		$payload_validation = self::validate_draft_payload_for_application( $draft );
+		$diagnostic['payload_validation'] = $payload_validation;
+		if ( empty( $payload_validation['ok'] ) ) {
+			$diagnostic['errors'][] = sanitize_key( (string) ( $payload_validation['reason'] ?? 'draft_payload_invalid' ) );
+			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'draft_payload_invalid', 'validation' => $payload_validation ) );
+			return array(
+				'ok'      => false,
+				'message' => (string) ( $payload_validation['message'] ?? __( 'Validation refusée : un ou plusieurs combats du brouillon sont incomplets.', 'ufsc-licence-competition' ) ),
+				'diagnostic' => $diagnostic,
+			);
+		}
+
 		$readiness = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::check( $competition_id, $settings, $draft ) : array( 'blocking' => false, 'errors' => array(), 'warnings' => array(), 'summary' => array() );
 		if ( ! empty( $readiness['blocking'] ) ) {
 			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'readiness_diagnostic', 'diagnostic' => $readiness ) );
@@ -811,7 +897,7 @@ class FightAutoGenerationService {
 			return $validation;
 		}
 
-		$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $competition_id, 'before_generation_apply', array( 'draft_hash' => (string) ( $draft['draft_hash'] ?? '' ) ) ) : '';
+		$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $competition_id, 'before_generation_apply', array( 'draft_hash' => (string) ( $draft['draft_hash'] ?? '' ), 'diagnostic_hash' => (string) ( $draft['diagnostic_hash'] ?? '' ), 'draft_id' => (string) ( $draft['draft_id'] ?? '' ), 'apply_mode' => $apply_mode ) ) : '';
 		if ( '' === $snapshot_id ) {
 			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'snapshot_failed' ) );
 			return array(
@@ -822,7 +908,6 @@ class FightAutoGenerationService {
 		}
 		( new LogService() )->audit( 'generation_draft_validated', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'draft_hash' => (string) ( $draft['draft_hash'] ?? '' ) ) );
 
-		$fight_repo    = new FightRepository();
 		$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 
 		$prepared_fights = array();
@@ -847,22 +932,15 @@ class FightAutoGenerationService {
 				$diagnostic['last_sql_error'] = $last_error;
 				$diagnostic['failed_inserts'] = max( 1, $attempted - $inserted );
 				$diagnostic['errors'][] = $last_error ?: 'sql_insert_failed';
-				$columns = implode( ', ', array_keys( $fight ) );
+				$diagnostic['insert_table'] = $table;
+				$diagnostic['insert_columns'] = array_values( array_map( 'sanitize_key', array_keys( $fight ) ) );
 				$rolled_back = self::rollback_inserted_fights( $inserted_ids, $competition_id, $snapshot_id );
-				( new LogService() )->audit( 'generation_failed', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'error' => $last_error, 'inserted_ids' => $inserted_ids, 'rolled_back' => $rolled_back ) );
+				$diagnostic['rolled_back_inserts'] = $rolled_back;
+				( new LogService() )->audit( 'generation_failed', $competition_id, 'competition', $competition_id, array( 'snapshot_id' => $snapshot_id, 'error' => $last_error, 'inserted_ids' => $inserted_ids, 'rolled_back' => $rolled_back, 'table' => $table ) );
 
 				return array(
 					'ok'      => false,
-					'message' => sprintf(
-						/* translators: 1: table name, 2: SQL error, 3: competition id, 4: attempted inserts, 5: successful inserts, 6: columns */
-						__( 'Échec insertion SQL. Rollback ciblé exécuté. Table: %1$s | SQL: %2$s | competition_id: %3$d | inserts tentés: %4$d | inserts réussis: %5$d | colonnes: %6$s', 'ufsc-licence-competition' ),
-						$table,
-						$last_error ?: 'n/a',
-						$competition_id,
-						$attempted,
-						$inserted,
-						$columns
-					),
+					'message' => __( 'Validation refusée : une erreur est survenue pendant l’insertion des combats. Un rollback ciblé a été exécuté ; aucun combat existant avant validation n’a été supprimé.', 'ufsc-licence-competition' ),
 					'diagnostic' => $diagnostic,
 				);
 			}
@@ -3115,6 +3193,292 @@ class FightAutoGenerationService {
 		}
 
 		return $best;
+	}
+
+
+	private static function build_draft_validation_context( int $competition_id, array $settings, array $stats = array() ): array {
+		$fingerprint = self::build_current_generation_state_fingerprint( $competition_id, $settings );
+		$fingerprint['created_at'] = current_time( 'mysql' );
+		$fingerprint['expected'] = array(
+			'total_entries'     => (int) ( $stats['total_entries'] ?? 0 ),
+			'eligible_entries'  => (int) ( $stats['eligible_entries'] ?? $stats['entries'] ?? 0 ),
+			'groups'            => (int) ( $stats['groups'] ?? 0 ),
+			'fights'            => (int) ( $stats['fights'] ?? 0 ),
+			'bye_slots'         => (int) ( $stats['bye_slots'] ?? $stats['estimated_bye_slots'] ?? 0 ),
+			'isolated_count'    => (int) ( $stats['isolated_count'] ?? 0 ),
+			'groups_insufficient' => (int) ( $stats['groups_insufficient'] ?? 0 ),
+		);
+		return $fingerprint;
+	}
+
+	private static function validate_draft_freshness( int $competition_id, array $draft, array $current_settings ): array {
+		$draft_competition_id = absint( $draft['competition_id'] ?? 0 );
+		if ( $draft_competition_id !== $competition_id ) {
+			return self::draft_validation_error( 'competition_mismatch', __( 'Validation refusée : le brouillon ne correspond pas à cette compétition.', 'ufsc-licence-competition' ) );
+		}
+
+		foreach ( array( 'draft_id', 'generated_at', 'draft_hash', 'diagnostic_hash' ) as $required_key ) {
+			if ( '' === trim( (string) ( $draft[ $required_key ] ?? '' ) ) ) {
+				return self::draft_validation_error( 'draft_metadata_missing', __( 'Le brouillon est obsolète : métadonnées de validation manquantes, régénérez-le avant application.', 'ufsc-licence-competition' ) );
+			}
+		}
+
+		$stored_hash   = sanitize_text_field( (string) ( $draft['draft_hash'] ?? '' ) );
+		$expected_hash = class_exists( GenerationReadinessDiagnostic::class ) ? GenerationReadinessDiagnostic::hash_draft( $draft ) : hash( 'sha256', wp_json_encode( array_diff_key( $draft, array( 'draft_hash' => true ) ) ) ?: '' );
+		if ( '' === $stored_hash || $stored_hash !== $expected_hash ) {
+			return self::draft_validation_error( 'draft_hash_mismatch', __( 'Le brouillon est obsolète : son contenu a changé depuis sa création.', 'ufsc-licence-competition' ) );
+		}
+
+		$context = isset( $draft['validation_context'] ) && is_array( $draft['validation_context'] ) ? $draft['validation_context'] : array();
+		if ( empty( $context ) ) {
+			return self::draft_validation_error( 'validation_context_missing', __( 'Le brouillon est obsolète : contexte de validation absent, régénérez-le avant application.', 'ufsc-licence-competition' ) );
+		}
+
+		$settings_for_comparison = $current_settings;
+		$draft_settings = isset( $draft['settings'] ) && is_array( $draft['settings'] ) ? $draft['settings'] : array();
+		foreach ( array( 'allow_unweighed', 'sandbox_generation' ) as $temporary_override_key ) {
+			if ( ! empty( $draft_settings[ $temporary_override_key ] ) && empty( $settings_for_comparison[ $temporary_override_key ] ) ) {
+				$settings_for_comparison[ $temporary_override_key ] = $draft_settings[ $temporary_override_key ];
+			}
+		}
+
+		$current = self::build_current_generation_state_fingerprint( $competition_id, $settings_for_comparison );
+		$comparisons = array(
+			'entries_state_hash'    => array( 'reason' => 'entries_changed', 'message' => __( 'Le brouillon est obsolète : les inscriptions ont changé depuis sa création.', 'ufsc-licence-competition' ) ),
+			'weighins_state_hash'   => array( 'reason' => 'weighins_changed', 'message' => __( 'Le brouillon est obsolète : les pesées ont changé depuis sa création.', 'ufsc-licence-competition' ) ),
+			'categories_state_hash' => array( 'reason' => 'categories_changed', 'message' => __( 'Le brouillon est obsolète : les catégories ont changé depuis sa création.', 'ufsc-licence-competition' ) ),
+			'surfaces_state_hash'   => array( 'reason' => 'surfaces_changed', 'message' => __( 'Le brouillon est obsolète : les surfaces ont changé depuis sa création.', 'ufsc-licence-competition' ) ),
+			'settings_state_hash'   => array( 'reason' => 'settings_changed', 'message' => __( 'Le brouillon est obsolète : les paramètres de génération ont changé depuis sa création.', 'ufsc-licence-competition' ) ),
+		);
+
+		foreach ( $comparisons as $key => $failure ) {
+			if ( (string) ( $context[ $key ] ?? '' ) !== (string) ( $current[ $key ] ?? '' ) ) {
+				return self::draft_validation_error(
+					$failure['reason'],
+					$failure['message'],
+					array(
+						'field' => $key,
+						'expected' => (string) ( $context[ $key ] ?? '' ),
+						'current' => (string) ( $current[ $key ] ?? '' ),
+					)
+				);
+			}
+		}
+
+		$expected = isset( $context['expected'] ) && is_array( $context['expected'] ) ? $context['expected'] : array();
+		$stats    = isset( $draft['stats'] ) && is_array( $draft['stats'] ) ? $draft['stats'] : array();
+		$checks   = array(
+			'total_entries'    => (int) ( $stats['total_entries'] ?? 0 ),
+			'eligible_entries' => (int) ( $stats['eligible_entries'] ?? $stats['entries'] ?? 0 ),
+			'groups'           => (int) ( $stats['groups'] ?? 0 ),
+			'fights'           => is_array( $draft['fights'] ?? null ) ? count( $draft['fights'] ) : 0,
+		);
+		foreach ( $checks as $key => $current_value ) {
+			if ( array_key_exists( $key, $expected ) && (int) $expected[ $key ] !== $current_value ) {
+				return self::draft_validation_error(
+					'draft_counts_mismatch',
+					__( 'Le brouillon est obsolète : ses compteurs ne correspondent plus au payload à appliquer.', 'ufsc-licence-competition' ),
+					array( 'field' => $key, 'expected' => (int) $expected[ $key ], 'current' => $current_value )
+				);
+			}
+		}
+
+		return array(
+			'ok'      => true,
+			'reason'  => 'fresh',
+			'message' => '',
+			'current' => $current,
+		);
+	}
+
+	private static function validate_draft_payload_for_application( array $draft ): array {
+		$fights = isset( $draft['fights'] ) && is_array( $draft['fights'] ) ? $draft['fights'] : array();
+		if ( empty( $fights ) ) {
+			return self::draft_validation_error( 'draft_empty', __( 'Validation refusée : aucun combat à enregistrer.', 'ufsc-licence-competition' ) );
+		}
+
+		$issues = array(
+			'missing_group_key' => 0,
+			'missing_category_id' => 0,
+			'incomplete_real_fight' => 0,
+			'invalid_bye' => 0,
+		);
+
+		foreach ( $fights as $fight ) {
+			$fight = is_array( $fight ) ? $fight : array();
+			$type = sanitize_key( (string) ( $fight['type'] ?? '' ) );
+			$status = sanitize_key( (string) ( $fight['status'] ?? '' ) );
+			$is_bye = 'bye' === $type || 'bye' === $status;
+			$is_placeholder = 'placeholder' === $type || 'placeholder' === $status;
+			$red_id = absint( $fight['red_entry_id'] ?? 0 );
+			$blue_id = absint( $fight['blue_entry_id'] ?? 0 );
+
+			if ( '' === trim( (string) ( $fight['group_key'] ?? '' ) ) ) {
+				$issues['missing_group_key']++;
+			}
+			if ( absint( $fight['category_id'] ?? 0 ) <= 0 ) {
+				$issues['missing_category_id']++;
+			}
+			if ( ! $is_bye && ! $is_placeholder && ( $red_id <= 0 || $blue_id <= 0 ) ) {
+				$issues['incomplete_real_fight']++;
+			}
+			if ( $is_bye ) {
+				$winner_id = absint( $fight['winner_entry_id'] ?? 0 );
+				$real_count = ( $red_id > 0 ? 1 : 0 ) + ( $blue_id > 0 ? 1 : 0 );
+				if ( 1 !== $real_count || $winner_id <= 0 || ( $winner_id !== $red_id && $winner_id !== $blue_id ) ) {
+					$issues['invalid_bye']++;
+				}
+			}
+		}
+
+		if ( $issues['missing_category_id'] > 0 ) {
+			return self::draft_validation_error( 'category_id_missing', __( 'Validation refusée : une catégorie ne possède pas de category_id.', 'ufsc-licence-competition' ), $issues );
+		}
+		if ( $issues['missing_group_key'] > 0 ) {
+			return self::draft_validation_error( 'group_key_missing', __( 'Validation refusée : une catégorie ne possède pas de clé de groupe.', 'ufsc-licence-competition' ), $issues );
+		}
+		if ( $issues['incomplete_real_fight'] > 0 ) {
+			return self::draft_validation_error( 'incomplete_real_fight', __( 'Validation refusée : un ou plusieurs combats du brouillon sont incomplets.', 'ufsc-licence-competition' ), $issues );
+		}
+		if ( $issues['invalid_bye'] > 0 ) {
+			return self::draft_validation_error( 'invalid_bye', __( 'Validation refusée : un BYE du brouillon n’identifie pas clairement son participant qualifié.', 'ufsc-licence-competition' ), $issues );
+		}
+
+		return array(
+			'ok'      => true,
+			'reason'  => 'payload_valid',
+			'message' => '',
+			'issues'  => $issues,
+		);
+	}
+
+	private static function count_existing_result_fights( int $competition_id, FightRepository $fight_repo ): int {
+		$count = 0;
+		foreach ( $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 ) as $fight ) {
+			$status = method_exists( $fight_repo, 'get_effective_fight_status' ) ? $fight_repo->get_effective_fight_status( $fight ) : sanitize_key( (string) ( $fight->status ?? '' ) );
+			$winner_entry_id = absint( $fight->winner_entry_id ?? 0 );
+			$result_method = trim( (string) ( $fight->result_method ?? '' ) );
+			$score_red = trim( (string) ( $fight->score_red ?? '' ) );
+			$score_blue = trim( (string) ( $fight->score_blue ?? '' ) );
+			if ( 'completed' === $status || $winner_entry_id > 0 || '' !== $result_method || '' !== $score_red || '' !== $score_blue ) {
+				$count++;
+			}
+		}
+		return $count;
+	}
+
+	private static function build_current_generation_state_fingerprint( int $competition_id, array $settings ): array {
+		$entry_repo    = new EntryRepository();
+		$category_repo = new CategoryRepository();
+		$weighin_repo  = new WeighInRepository();
+
+		$entries = $entry_repo->list_with_details( array( 'view' => 'all', 'competition_id' => $competition_id, 'include_deleted' => true ), 5000, 0 );
+		$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+		$categories = $category_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
+		$weighins = method_exists( $weighin_repo, 'get_for_entries' ) ? $weighin_repo->get_for_entries( $competition_id, $entry_ids ) : array();
+		$surfaces = function_exists( 'ufsc_competition_get_surfaces' ) ? (array) ufsc_competition_get_surfaces( $competition_id, array( 'fallback_count' => max( 1, absint( $settings['surface_count'] ?? 1 ) ) ) ) : self::normalize_surface_details( $settings );
+
+		return array(
+			'competition_id' => $competition_id,
+			'entries_count' => count( $entries ),
+			'entries_state_hash' => self::fingerprint_rows( $entries, array( 'id', 'status', 'deleted_at', 'updated_at', 'category_id', 'discipline', 'sex', 'gender', 'birth_date', 'birthdate', 'date_naissance', 'weight', 'weight_kg', 'weight_class', 'level', 'class', 'fighter_number', 'participant_type', 'club_id', 'license_number' ) ),
+			'categories_count' => count( $categories ),
+			'categories_state_hash' => self::fingerprint_rows( $categories, array( 'id', 'name', 'label', 'discipline', 'sex', 'gender', 'age_min', 'age_max', 'weight_min', 'weight_max', 'weight_class', 'level', 'class', 'deleted_at', 'updated_at' ) ),
+			'weighins_count' => is_array( $weighins ) ? count( $weighins ) : 0,
+			'weighins_state_hash' => self::fingerprint_rows( is_array( $weighins ) ? $weighins : array(), array( 'id', 'entry_id', 'status', 'weight', 'weight_kg', 'weight_measured', 'valid', 'deleted_at', 'updated_at', 'created_at' ) ),
+			'surfaces_count' => count( $surfaces ),
+			'surfaces_state_hash' => self::fingerprint_payload( self::normalize_payload_for_fingerprint( $surfaces ) ),
+			'settings_state_hash' => self::fingerprint_payload( self::normalize_settings_for_fingerprint( $settings ) ),
+		);
+	}
+
+	private static function fingerprint_rows( array $rows, array $fields ): string {
+		$normalized = array();
+		foreach ( $rows as $row ) {
+			$item = array();
+			foreach ( $fields as $field ) {
+				$item[ $field ] = self::read_row_value( $row, $field );
+			}
+			ksort( $item );
+			$normalized[] = $item;
+		}
+		usort(
+			$normalized,
+			static function ( array $a, array $b ): int {
+				return (string) ( $a['id'] ?? $a['entry_id'] ?? '' ) <=> (string) ( $b['id'] ?? $b['entry_id'] ?? '' );
+			}
+		);
+		return self::fingerprint_payload( $normalized );
+	}
+
+	private static function read_row_value( $row, string $field ) {
+		$value = null;
+		if ( is_array( $row ) && array_key_exists( $field, $row ) ) {
+			$value = $row[ $field ];
+		} elseif ( is_object( $row ) && isset( $row->{$field} ) ) {
+			$value = $row->{$field};
+		}
+		if ( is_bool( $value ) ) {
+			return $value ? 1 : 0;
+		}
+		if ( is_numeric( $value ) ) {
+			return (string) $value;
+		}
+		if ( is_scalar( $value ) ) {
+			return sanitize_text_field( (string) $value );
+		}
+		return '';
+	}
+
+	private static function normalize_settings_for_fingerprint( array $settings ): array {
+		$ignored = array( 'settings_saved_at' => true, 'direct_generation_context' => true );
+		$clean = array();
+		foreach ( $settings as $key => $value ) {
+			$key = sanitize_key( (string) $key );
+			if ( '' === $key || isset( $ignored[ $key ] ) ) {
+				continue;
+			}
+			$clean[ $key ] = self::normalize_payload_for_fingerprint( $value );
+		}
+		ksort( $clean );
+		return $clean;
+	}
+
+	private static function normalize_payload_for_fingerprint( $payload ) {
+		if ( is_array( $payload ) ) {
+			$clean = array();
+			foreach ( $payload as $key => $value ) {
+				$clean[ is_string( $key ) ? sanitize_key( $key ) : $key ] = self::normalize_payload_for_fingerprint( $value );
+			}
+			ksort( $clean );
+			return $clean;
+		}
+		if ( is_object( $payload ) ) {
+			return self::normalize_payload_for_fingerprint( get_object_vars( $payload ) );
+		}
+		if ( is_bool( $payload ) ) {
+			return $payload ? 1 : 0;
+		}
+		if ( is_numeric( $payload ) ) {
+			return (string) $payload;
+		}
+		if ( is_scalar( $payload ) ) {
+			return sanitize_text_field( (string) $payload );
+		}
+		return '';
+	}
+
+	private static function fingerprint_payload( $payload ): string {
+		return hash( 'sha256', wp_json_encode( $payload ) ?: '' );
+	}
+
+	private static function draft_validation_error( string $reason, string $message, array $details = array() ): array {
+		return array(
+			'ok'      => false,
+			'reason'  => sanitize_key( $reason ),
+			'message' => $message,
+			'details' => $details,
+		);
 	}
 
 	private static function validate_draft( array $draft ): array {
