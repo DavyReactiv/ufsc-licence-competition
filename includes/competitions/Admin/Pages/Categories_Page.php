@@ -217,6 +217,7 @@ class Categories_Page {
 		$preview = $competition_id ? $service->preview( $competition_id, $discipline, $season ) : array( 'rows' => array() );
 		$rows = $preview['rows'] ?? array();
 		$missing_count = count( array_filter( $rows, static function( $row ) { return empty( $row['exists'] ) && empty( $row['conflict'] ); } ) );
+		$conflict_count = count( array_filter( $rows, static function( $row ) { return ! empty( $row['conflict'] ); } ) );
 		?>
 		<section class="ufsc-admin-surface ufsc-category-preset-preview">
 			<h2><?php esc_html_e( 'Prévisualiser le référentiel catégories UFSC / tatami', 'ufsc-licence-competition' ); ?></h2>
@@ -242,10 +243,10 @@ class Categories_Page {
 				<button type="submit" class="button"><?php esc_html_e( 'Prévisualiser le référentiel catégories', 'ufsc-licence-competition' ); ?></button>
 			</form>
 			<?php if ( $competition_id && $rows ) : ?>
-				<p><strong><?php echo esc_html( sprintf( __( '%d catégorie(s) manquante(s) détectée(s), %d déjà présente(s).', 'ufsc-licence-competition' ), (int) $missing_count, (int) count( $rows ) - (int) $missing_count ) ); ?></strong></p>
+				<p><strong><?php echo esc_html( sprintf( __( '%1$d catégorie(s) manquante(s) détectée(s), %2$d déjà présente(s), %3$d conflit(s) possible(s).', 'ufsc-licence-competition' ), (int) $missing_count, (int) count( $rows ) - (int) $missing_count - (int) $conflict_count, (int) $conflict_count ) ); ?></strong></p>
 				<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Âges', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th></tr></thead><tbody>
 				<?php foreach ( array_slice( $rows, 0, 80 ) as $row ) : ?>
-					<tr><td><?php echo esc_html( (string) $row['name'] ); ?></td><td><?php echo esc_html( (string) $row['age_min'] . '–' . (string) $row['age_max'] ); ?></td><td><?php echo esc_html( ( '' !== (string) $row['weight_min'] ? (string) $row['weight_min'] : '0' ) . ' / ' . ( '' !== (string) $row['weight_max'] ? (string) $row['weight_max'] : '+' ) ); ?></td><td><?php echo ! empty( $row['exists'] ) ? esc_html__( 'Déjà existante — ignorée', 'ufsc-licence-competition' ) : esc_html__( 'À créer', 'ufsc-licence-competition' ); ?></td></tr>
+					<tr><td><?php echo esc_html( (string) $row['name'] ); ?></td><td><?php echo esc_html( (string) $row['age_min'] . '–' . (string) $row['age_max'] ); ?></td><td><?php echo esc_html( ( '' !== (string) $row['weight_min'] ? (string) $row['weight_min'] : '0' ) . ' / ' . ( '' !== (string) $row['weight_max'] ? (string) $row['weight_max'] : '+' ) ); ?></td><td><?php echo ! empty( $row['conflict'] ) ? esc_html( sprintf( __( 'Conflit possible — ignorée (%s)', 'ufsc-licence-competition' ), (string) ( $row['conflict_reason'] ?? '' ) ) ) : ( ! empty( $row['exists'] ) ? esc_html__( 'Déjà existante — ignorée', 'ufsc-licence-competition' ) : esc_html__( 'À créer', 'ufsc-licence-competition' ) ); ?></td></tr>
 				<?php endforeach; ?>
 				</tbody></table>
 				<?php if ( $missing_count > 0 ) : ?>

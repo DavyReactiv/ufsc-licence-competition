@@ -39,15 +39,33 @@ class CategoryPresetService {
 		$season         = sanitize_text_field( (string) $season );
 		$existing       = $competition_id ? $this->categories->list( array( 'competition_id' => $competition_id, 'view' => 'all' ), 10000, 0 ) : array();
 		$existing_keys  = array();
+		$existing_names = array();
 		foreach ( $existing as $category ) {
-			$existing_keys[ $this->category_key( $category ) ] = true;
+			$key = $this->category_key( $category );
+			$name_key = $this->category_name_key( $category );
+			$existing_keys[ $key ] = true;
+			if ( '' !== $name_key ) {
+				$existing_names[ $name_key ][ $key ] = true;
+			}
 		}
 
 		$rows = array();
+		$preset_keys = array();
 		foreach ( $this->get_preset_rows( $discipline, $season ) as $preset ) {
 			$key = $this->category_key( (object) $preset );
+			$name_key = $this->category_name_key( (object) $preset );
 			$preset['exists'] = isset( $existing_keys[ $key ] );
 			$preset['conflict'] = false;
+			$preset['conflict_reason'] = '';
+			if ( ! $preset['exists'] && isset( $existing_names[ $name_key ] ) && ! isset( $existing_names[ $name_key ][ $key ] ) ) {
+				$preset['conflict'] = true;
+				$preset['conflict_reason'] = __( 'Un libellé proche existe déjà avec des paramètres âge/poids/sexe différents.', 'ufsc-licence-competition' );
+			}
+			if ( isset( $preset_keys[ $key ] ) ) {
+				$preset['conflict'] = true;
+				$preset['conflict_reason'] = __( 'Doublon détecté dans le référentiel préprogrammé.', 'ufsc-licence-competition' );
+			}
+			$preset_keys[ $key ] = true;
 			$rows[] = $preset;
 		}
 
@@ -111,11 +129,15 @@ class CategoryPresetService {
 		return $rows;
 	}
 
+	private function category_name_key( $category ): string {
+		return CompetitionStatsService::normalize_category_label( $category->name ?? '' );
+	}
+
 	private function category_key( $category ): string {
 		return implode(
 			'|',
 			array(
-				CompetitionStatsService::normalize_category_label( $category->name ?? '' ),
+				$this->category_name_key( $category ),
 				(string) ( $category->age_min ?? '' ),
 				(string) ( $category->age_max ?? '' ),
 				(string) ( $category->weight_min ?? '' ),
