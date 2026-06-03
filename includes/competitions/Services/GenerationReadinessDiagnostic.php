@@ -59,6 +59,7 @@ class GenerationReadinessDiagnostic {
 		$categories   = self::analyse_categories( $competition_id, $analysis['approved'], $weighins['by_entry'], $settings );
 		$surfaces     = self::analyse_surfaces( $competition_id, $settings, $draft, $categories['summary']['estimated_fights'] ?? 0 );
 		$fight_state  = self::analyse_fights( $competition_id, $fights, $fight_repo );
+		$draft_cases  = self::analyse_draft_cases( $draft );
 
 		self::build_competition_section( $result, $competition_id, $competition, $settings, $draft, $fight_state, $surfaces );
 		self::build_entries_section( $result, $competition_id, $analysis );
@@ -66,6 +67,7 @@ class GenerationReadinessDiagnostic {
 		self::build_categories_section( $result, $competition_id, $categories, ! empty( $settings['strict_lone_categories'] ) || ! empty( $settings['block_categories_without_opponents'] ) );
 		self::build_surfaces_section( $result, $competition_id, $surfaces );
 		self::build_fights_section( $result, $competition_id, $fight_state );
+		self::build_draft_cases_section( $result, $competition_id, $draft_cases );
 
 		if ( ! empty( $draft ) ) {
 			$expected_hash = self::hash_draft( $draft );
@@ -558,6 +560,109 @@ class GenerationReadinessDiagnostic {
 			self::add_warning( $result, 'surface_names_missing', __( 'Certaines surfaces actives n’ont pas de nom clair.', 'ufsc-licence-competition' ) );
 		}
 		self::add_section( $result, 'surfaces', __( 'Surfaces / Plateau', 'ufsc-licence-competition' ), $status, $summary, $surfaces['items'] );
+	}
+
+	private static function analyse_draft_cases( array $draft ): array {
+		$summary = array_fill_keys(
+			array(
+				'groups_total',
+				'groups_without_fight',
+				'isolated_participants',
+				'insufficient_groups',
+				'odd_groups',
+				'bye_count',
+				'placeholder_count',
+				'fights_total',
+				'fights_missing_group_key',
+				'fights_missing_category_id',
+				'fights_without_real_opponent',
+			),
+			0
+		);
+		$items = array();
+		$groups = isset( $draft['groups'] ) && is_array( $draft['groups'] ) ? $draft['groups'] : array();
+		$fights = isset( $draft['fights'] ) && is_array( $draft['fights'] ) ? $draft['fights'] : ( isset( $draft['fights_preview'] ) && is_array( $draft['fights_preview'] ) ? $draft['fights_preview'] : array() );
+
+		foreach ( $groups as $group ) {
+			$group = is_array( $group ) ? $group : array();
+			$summary['groups_total']++;
+			$label = sanitize_text_field( (string) ( $group['label'] ?? $group['group_key'] ?? __( 'Groupe sans libellé', 'ufsc-licence-competition' ) ) );
+			$fighter_count = (int) ( $group['fighter_count'] ?? $group['entries_count'] ?? count( (array) ( $group['athletes'] ?? array() ) ) );
+			$fight_count = (int) ( $group['fight_count'] ?? $group['estimated_fights'] ?? 0 );
+			$bye_count = (int) ( $group['bye_count'] ?? $group['bye_slots'] ?? 0 );
+			$warnings = array_values( array_filter( array_map( 'sanitize_key', (array) ( $group['warnings'] ?? array() ) ) ) );
+
+			if ( $fight_count <= 0 ) {
+				$summary['groups_without_fight']++;
+				self::push_limited( $items, self::item( 'draft_group_without_fight', sprintf( __( '%s — aucun combat prévu dans le brouillon.', 'ufsc-licence-competition' ), $label ), 'warning' ) );
+			}
+			if ( 1 === $fighter_count || in_array( 'isolated_participant', $warnings, true ) ) {
+				$summary['isolated_participants'] += max( 0, $fighter_count );
+				self::push_limited( $items, self::item( 'isolated_participant', sprintf( __( '%s — participant seul à contrôler.', 'ufsc-licence-competition' ), $label ), 'warning' ) );
+			}
+			if ( $fighter_count < 2 || in_array( 'insufficient_participants', $warnings, true ) ) {
+				$summary['insufficient_groups']++;
+			}
+			if ( $fighter_count > 1 && 1 === ( $fighter_count % 2 ) ) {
+				$summary['odd_groups']++;
+				self::push_limited( $items, self::item( 'odd_participant_count', sprintf( __( '%s — nombre impair de participants.', 'ufsc-licence-competition' ), $label ), 'warning' ) );
+			}
+			if ( $bye_count > 0 ) {
+				self::push_limited( $items, self::item( 'bye_generated', sprintf( __( '%s — %d BYE prévu(s).', 'ufsc-licence-competition' ), $label, $bye_count ), 'info' ) );
+			}
+		}
+
+		foreach ( $fights as $fight ) {
+			$fight = is_array( $fight ) ? $fight : array();
+			$summary['fights_total']++;
+			$type = sanitize_key( (string) ( $fight['type'] ?? '' ) );
+			$status = sanitize_key( (string) ( $fight['status'] ?? '' ) );
+			$is_bye = 'bye' === $type || 'bye' === $status;
+			$is_placeholder = 'placeholder' === $type || 'placeholder' === $status;
+			$red_id = absint( $fight['red_entry_id'] ?? 0 );
+			$blue_id = absint( $fight['blue_entry_id'] ?? 0 );
+			$fight_no = absint( $fight['fight_no'] ?? $fight['preview_number'] ?? 0 );
+			if ( $is_bye ) {
+				$summary['bye_count']++;
+			}
+			if ( $is_placeholder ) {
+				$summary['placeholder_count']++;
+			}
+			if ( '' === trim( (string) ( $fight['group_key'] ?? '' ) ) ) {
+				$summary['fights_missing_group_key']++;
+				self::push_limited( $items, self::item( 'fight_missing_group_key', sprintf( __( 'Combat brouillon #%d — group_key absent.', 'ufsc-licence-competition' ), $fight_no ), 'warning' ) );
+			}
+			if ( absint( $fight['category_id'] ?? 0 ) <= 0 ) {
+				$summary['fights_missing_category_id']++;
+				self::push_limited( $items, self::item( 'fight_missing_category_id', sprintf( __( 'Combat brouillon #%d — category_id absent.', 'ufsc-licence-competition' ), $fight_no ), 'blocked' ) );
+			}
+			if ( ! $is_bye && ! $is_placeholder && ( $red_id <= 0 || $blue_id <= 0 ) ) {
+				$summary['fights_without_real_opponent']++;
+				self::push_limited( $items, self::item( 'fight_without_real_opponent', sprintf( __( 'Combat brouillon #%d — adversaire réel manquant.', 'ufsc-licence-competition' ), $fight_no ), 'blocked' ) );
+			}
+		}
+
+		return array( 'summary' => $summary, 'items' => $items );
+	}
+
+	private static function build_draft_cases_section( array &$result, int $competition_id, array $draft_cases ): void {
+		$summary = $draft_cases['summary'];
+		$status = 'ready';
+		if ( (int) $summary['fights_missing_category_id'] > 0 || (int) $summary['fights_without_real_opponent'] > 0 ) {
+			$status = 'blocked';
+			self::add_error( $result, 'draft_payload_incomplete', __( 'Le brouillon contient des combats avec category_id absent ou adversaire réel manquant.', 'ufsc-licence-competition' ) );
+		}
+		if ( (int) $summary['groups_without_fight'] > 0 || (int) $summary['isolated_participants'] > 0 || (int) $summary['odd_groups'] > 0 || (int) $summary['fights_missing_group_key'] > 0 ) {
+			if ( 'blocked' !== $status ) {
+				$status = 'warning';
+			}
+			self::add_warning( $result, 'draft_special_cases_to_review', __( 'Le brouillon contient des cas particuliers à vérifier : participant seul, groupe impair, groupe sans combat ou group_key absent.', 'ufsc-licence-competition' ) );
+		}
+		if ( (int) $summary['bye_count'] > 0 ) {
+			self::add_info( $result, 'draft_byes_present', sprintf( __( '%d BYE prévu(s) dans le brouillon.', 'ufsc-licence-competition' ), (int) $summary['bye_count'] ) );
+		}
+
+		self::add_section( $result, 'draft_cases', __( 'Brouillon — cas particuliers', 'ufsc-licence-competition' ), $status, $summary, $draft_cases['items'] );
 	}
 
 	private static function analyse_fights( int $competition_id, array $fights, FightRepository $repo ): array {
