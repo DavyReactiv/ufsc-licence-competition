@@ -112,6 +112,8 @@ function load_competitions_core_dependencies(): void {
 
 		// Production safety service depends on repositories being available.
 		$base . '/Services/CompetitionSafetyService.php',
+		$base . '/Services/CompetitionStatsService.php',
+		$base . '/Services/CategoryPresetService.php',
 
 		// Front repositories / handlers required for front + ajax/admin-post.
 		$base . '/Front/Access/ClubAccess.php',

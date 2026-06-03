@@ -2,12 +2,8 @@
 
 namespace UFSC\Competitions\Admin;
 
-use UFSC\Competitions\Entries\EntriesWorkflow;
-use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
-use UFSC\Competitions\Repositories\EntryRepository;
-use UFSC\Competitions\Repositories\FightRepository;
-use UFSC\Competitions\Repositories\WeighInRepository;
+use UFSC\Competitions\Services\CompetitionStatsService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -337,71 +333,46 @@ class Menu {
 
 	private function build_dashboard_context( int $competition_id ): array {
 		$competition_repo = new CompetitionRepository();
-		$entry_repo       = new EntryRepository();
-		$category_repo    = new CategoryRepository();
-		$fight_repo       = new FightRepository();
-		$weighin_repo     = new WeighInRepository();
+		$stats_service    = new CompetitionStatsService();
 
 		$competition_filters = array( 'view' => 'all' );
 		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$competitions = $competition_repo->list( $competition_filters, 200, 0 );
-		if ( ! $competition_id && ! empty( $competitions ) ) {
-			$competition_id = (int) $competitions[0]->id;
-		}
 
 		$competition = $competition_id ? $competition_repo->get( $competition_id, true ) : null;
 		if ( $competition && method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
 			$competition_repo->assert_competition_in_scope( $competition_id );
 		}
 
-		$stats = array( 'entries' => 0, 'approved' => 0, 'weighed' => 0, 'weighing_remaining' => 0, 'categories' => 0, 'fights' => 0, 'results' => 0, 'surfaces' => 0 );
-		if ( $competition ) {
-			$entry_counts = $entry_repo->count_by_status( $competition_id );
-			$stats['entries']  = (int) ( $entry_counts['total'] ?? 0 );
-			$stats['approved'] = (int) ( $entry_counts['approved'] ?? 0 );
-
-			$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
-			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
-				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
-			}
-			$entries  = $entry_repo->list_with_details( $entry_filters, 3000, 0 );
-			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
-			$weighins = $weighin_repo->get_for_entries( $competition_id, $entry_ids );
-			foreach ( $entries as $entry ) {
-				$status = EntriesWorkflow::normalize_status( (string) ( $entry->status ?? '' ) );
-				if ( 'approved' !== $status ) {
-					continue;
-				}
-				$row = $weighins[ (int) $entry->id ] ?? null;
-				if ( $weighin_repo->is_valid_weighin_row( $row, (float) ( $competition->weight_tolerance ?? 1 ), isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null ) ) {
-					$stats['weighed']++;
-				}
-			}
-			$stats['weighing_remaining'] = max( 0, $stats['approved'] - $stats['weighed'] );
-			$stats['categories'] = (int) $category_repo->count( array( 'view' => 'all', 'competition_id' => $competition_id ) );
-			$fights = $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
-			$stats['fights'] = count( $fights );
-			$surfaces = array();
-			foreach ( $fights as $fight ) {
-				if ( ! empty( $fight->winner_entry_id ) || 'completed' === $fight_repo->get_effective_fight_status( $fight ) || 'locked' === $fight_repo->get_effective_fight_status( $fight ) ) {
-					$stats['results']++;
-				}
-				$ring = trim( (string) ( $fight->ring ?? '' ) );
-				if ( '' !== $ring ) {
-					$surfaces[ $ring ] = true;
-				}
-			}
-			$stats['surfaces'] = count( $surfaces );
-		}
+		$stats = $competition ? $stats_service->get_competition_stats( $competition_id ) : $stats_service->get_competition_stats( 0 );
+		$entries = $stats['entries'];
+		$weighins = $stats['weighins'];
+		$fights = $stats['fights'];
+		$categories = $stats['categories'];
 
 		$alerts = array();
 		if ( $competition ) {
-			if ( 0 === $stats['entries'] ) { $alerts[] = __( 'Aucune inscription enregistrée pour cette compétition.', 'ufsc-licence-competition' ); }
-			if ( 0 === $stats['categories'] ) { $alerts[] = __( 'Aucune catégorie configurée : la génération officielle sera bloquée ou incomplète.', 'ufsc-licence-competition' ); }
-			if ( $stats['approved'] > 0 && $stats['weighing_remaining'] > 0 ) { $alerts[] = sprintf( __( '%d pesée(s) validée(s) manquante(s) parmi les inscriptions approuvées.', 'ufsc-licence-competition' ), $stats['weighing_remaining'] ); }
-			if ( $stats['fights'] > 0 && 0 === $stats['surfaces'] ) { $alerts[] = __( 'Des combats existent mais aucune surface/plateau n’est renseigné.', 'ufsc-licence-competition' ); }
+			if ( 0 === (int) $entries['total'] ) {
+				$alerts[] = __( 'Aucune inscription enregistrée pour cette compétition.', 'ufsc-licence-competition' );
+			}
+			if ( 0 === (int) $categories['configured_count'] ) {
+				if ( (int) $categories['text_distinct_count'] > 0 ) {
+					$alerts[] = sprintf(
+						__( 'Aucun référentiel catégories n’est configuré pour cette compétition. %d libellé(s) de catégorie existent dans les inscriptions : ce sont des données déclarées/importées, pas encore le référentiel utilisé pour la génération automatique.', 'ufsc-licence-competition' ),
+						(int) $categories['text_distinct_count']
+					);
+				} else {
+					$alerts[] = __( 'Aucun référentiel catégories n’est configuré : la génération officielle sera bloquée ou incomplète.', 'ufsc-licence-competition' );
+				}
+			}
+			if ( (int) $entries['approved'] > 0 && (int) $weighins['remaining'] > 0 ) {
+				$alerts[] = sprintf( __( '%d pesée(s) restent à valider dans le périmètre affiché par la page Pesées.', 'ufsc-licence-competition' ), (int) $weighins['remaining'] );
+			}
+			if ( (int) $fights['generated'] > 0 && 0 === (int) $fights['surfaces'] ) {
+				$alerts[] = __( 'Des combats existent mais aucune surface/plateau n’est renseigné.', 'ufsc-licence-competition' );
+			}
 		}
 
 		return array(
@@ -409,11 +380,12 @@ class Menu {
 			'competition'    => $competition,
 			'competitions'   => $competitions,
 			'alerts'         => $alerts,
+			'stats'          => $stats,
 			'kpis'           => array(
-				array( 'label' => __( 'Inscrits', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['entries'] ), 'hint' => sprintf( __( '%d approuvé(s)', 'ufsc-licence-competition' ), $stats['approved'] ) ),
-				array( 'label' => __( 'Pesées validées', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['weighed'] ), 'hint' => sprintf( __( '%d restante(s)', 'ufsc-licence-competition' ), $stats['weighing_remaining'] ) ),
-				array( 'label' => __( 'Combats générés', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['fights'] ), 'hint' => sprintf( __( '%d plateau(x)', 'ufsc-licence-competition' ), $stats['surfaces'] ) ),
-				array( 'label' => __( 'Résultats saisis', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['results'] ), 'hint' => $stats['fights'] > 0 ? sprintf( __( '%d à traiter', 'ufsc-licence-competition' ), max( 0, $stats['fights'] - $stats['results'] ) ) : __( 'Aucun combat', 'ufsc-licence-competition' ) ),
+				array( 'label' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'value' => number_format_i18n( (int) $entries['total'] ), 'hint' => sprintf( __( '%1$d approuvée(s), %2$d à valider', 'ufsc-licence-competition' ), (int) $entries['approved'], (int) $entries['to_validate'] ) ),
+				array( 'label' => __( 'Pesées validées', 'ufsc-licence-competition' ), 'value' => number_format_i18n( (int) $weighins['validated'] ), 'hint' => sprintf( __( '%1$d visible(s), %2$d restante(s)', 'ufsc-licence-competition' ), (int) $weighins['visible_entries'], (int) $weighins['remaining'] ) ),
+				array( 'label' => __( 'Combats générés', 'ufsc-licence-competition' ), 'value' => number_format_i18n( (int) $fights['generated'] ), 'hint' => sprintf( __( '%d plateau(x)', 'ufsc-licence-competition' ), (int) $fights['surfaces'] ) ),
+				array( 'label' => __( 'Résultats saisis', 'ufsc-licence-competition' ), 'value' => number_format_i18n( (int) $fights['results_entered'] ), 'hint' => (int) $fights['generated'] > 0 ? sprintf( __( '%d à traiter', 'ufsc-licence-competition' ), max( 0, (int) $fights['generated'] - (int) $fights['results_entered'] ) ) : __( 'Aucun combat', 'ufsc-licence-competition' ) ),
 			),
 		);
 	}

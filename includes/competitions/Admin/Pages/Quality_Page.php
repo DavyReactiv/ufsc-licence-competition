@@ -12,6 +12,7 @@ use UFSC\Competitions\Repositories\FightRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\CompetitionSafetyService;
+use UFSC\Competitions\Services\CompetitionStatsService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -81,6 +82,7 @@ class Quality_Page {
 			</form>
 
 			<?php $this->render_data_protection_section( $competition_id ); ?>
+			<?php $this->render_counter_diagnostic_section( $competition_id ); ?>
 
 			<?php if ( 0 === $issues_count ) : ?>
 				<div class="ufsc-empty-state">
@@ -133,6 +135,42 @@ class Quality_Page {
 		<?php
 	}
 
+	private function render_counter_diagnostic_section( int $competition_id ): void {
+		if ( $competition_id <= 0 ) {
+			return;
+		}
+
+		$stats = ( new CompetitionStatsService() )->get_competition_stats( $competition_id );
+		$entries = $stats['entries'] ?? array();
+		$weighins = $stats['weighins'] ?? array();
+		$categories = $stats['categories'] ?? array();
+		$by_status = $entries['by_status'] ?? array();
+		?>
+		<section class="ufsc-admin-surface ufsc-counter-diagnostic">
+			<h2><?php esc_html_e( 'Diagnostic des compteurs', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php echo esc_html( sprintf( __( 'Compétition analysée : competition_id=%d. Cette section explique pourquoi les compteurs peuvent différer entre Inscriptions, Pesées et Tableau de bord sans modifier les données.', 'ufsc-licence-competition' ), $competition_id ) ); ?></p>
+			<table class="widefat striped">
+				<tbody>
+				<tr><th><?php esc_html_e( 'Inscriptions totales', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( number_format_i18n( (int) ( $entries['total'] ?? 0 ) ) ); ?></td><td><?php echo esc_html( (string) ( $stats['sources']['entries'] ?? '' ) ); ?></td></tr>
+				<tr><th><?php esc_html_e( 'Statuts comptés', 'ufsc-licence-competition' ); ?></th><td colspan="2"><?php foreach ( $by_status as $status => $count ) : ?><span class="ufsc-badge"><?php echo esc_html( $status . ': ' . (int) $count ); ?></span> <?php endforeach; ?></td></tr>
+				<tr><th><?php esc_html_e( 'Périmètre Pesées', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( sprintf( __( '%1$d visible(s), %2$d exclue(s)', 'ufsc-licence-competition' ), (int) ( $weighins['visible_entries'] ?? 0 ), max( 0, (int) ( $entries['total'] ?? 0 ) - (int) ( $weighins['visible_entries'] ?? 0 ) ) ) ); ?></td><td><?php echo esc_html( (string) ( $stats['sources']['weighins'] ?? '' ) ); ?></td></tr>
+				<tr><th><?php esc_html_e( 'Catégories référentiel', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( number_format_i18n( (int) ( $categories['configured_count'] ?? 0 ) ) ); ?></td><td><?php esc_html_e( 'Catégories configurées utilisées par la génération automatique.', 'ufsc-licence-competition' ); ?></td></tr>
+				<tr><th><?php esc_html_e( 'Catégories déclarées dans les inscriptions', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( number_format_i18n( (int) ( $categories['text_distinct_count'] ?? 0 ) ) ); ?></td><td><?php esc_html_e( 'Libellés textuels importés/saisis sur les inscriptions, sans import automatique dans le référentiel.', 'ufsc-licence-competition' ); ?></td></tr>
+				</tbody>
+			</table>
+			<?php if ( ! empty( $categories['unmatched_text_labels'] ) ) : ?>
+				<p><strong><?php esc_html_e( 'Libellés déclarés non retrouvés dans le référentiel configuré :', 'ufsc-licence-competition' ); ?></strong></p>
+				<ul>
+					<?php foreach ( array_slice( $categories['unmatched_text_labels'], 0, 20 ) as $label_data ) : ?>
+						<li><?php echo esc_html( sprintf( '%s (%d inscription(s))', (string) ( $label_data['label'] ?? '' ), (int) ( $label_data['count'] ?? 0 ) ) ); ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+
 
 	private function collect_issues( int $competition_id = 0 ) {
 		$competition_filters = array( 'view' => 'all' );
@@ -169,15 +207,26 @@ class Quality_Page {
 
 			$categories = $this->categories->list( array( 'view' => 'all', 'competition_id' => $cid ), 1000, 0 );
 			$category_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $categories, 'id' ) ) ) );
-			if ( empty( $categories ) ) {
-				$issues[] = $this->issue( __( 'Bloquant : aucune catégorie', 'ufsc-licence-competition' ), $name, '', __( 'Ajoutez les catégories avant d’ouvrir ou générer officiellement les combats.', 'ufsc-licence-competition' ) );
-			}
 
 			$entry_filters = array( 'view' => 'all', 'competition_id' => $cid );
 			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
 				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
 			}
 			$entries = $this->entries->list_with_details( $entry_filters, 5000, 0 );
+			if ( empty( $categories ) ) {
+				$text_labels = array();
+				foreach ( $entries as $entry_for_label ) {
+					$label = trim( (string) ( $entry_for_label->category_name ?? $entry_for_label->category ?? '' ) );
+					if ( '' !== $label ) {
+						$text_labels[ CompetitionStatsService::normalize_category_label( $label ) ] = $label;
+					}
+				}
+				if ( $text_labels ) {
+					$issues[] = $this->issue( __( 'Bloquant : référentiel catégories non configuré', 'ufsc-licence-competition' ), $name, '', sprintf( __( 'Des catégories sont visibles dans les inscriptions (%d libellé(s)), mais le référentiel utilisé pour la génération automatique n’est pas encore configuré. Prévisualisez/importez le référentiel catégories sans modifier les inscriptions existantes.', 'ufsc-licence-competition' ), count( $text_labels ) ) );
+				} else {
+					$issues[] = $this->issue( __( 'Bloquant : aucune catégorie', 'ufsc-licence-competition' ), $name, '', __( 'Ajoutez ou importez le référentiel catégories avant d’ouvrir ou générer officiellement les combats.', 'ufsc-licence-competition' ) );
+				}
+			}
 			if ( empty( $entries ) ) {
 				$issues[] = $this->issue( __( 'Bloquant : aucun inscrit', 'ufsc-licence-competition' ), $name, '', __( 'Importez ou saisissez les inscriptions avant les pesées et la génération.', 'ufsc-licence-competition' ) );
 			}

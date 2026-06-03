@@ -276,3 +276,82 @@ Considérer le plugin **non prêt** tant qu'un des points suivants n'est pas ré
 3. Parcours test B4 à B8 : brouillon, validation test, résultat, verrouillage, blocage régénération.
 4. Logs après blocage d'une action sensible test.
 5. Diagnostic Accès avec le compte qui sera utilisé le jour de la compétition.
+
+---
+
+## Lot cohérence compteurs / référentiel catégories — tests manuels ajoutés
+
+> Objectif : vérifier les corrections d’affichage sans toucher aux inscriptions réelles, sans génération officielle et sans suppression.
+
+### A. Compétition réelle — lecture seule
+
+1. Aller dans **Compétitions**.
+2. Sélectionner `Championnat NATIONAL KICK LIGHT 2026`.
+3. Cliquer sur **Afficher le tableau de bord**.
+4. Vérifier que l’URL contient `competition_id=` et que la compétition reste sélectionnée.
+5. Comparer les KPIs du tableau de bord avec **Inscriptions** et **Pesées**.
+
+**Résultat attendu :**
+- Les KPIs indiquent le même périmètre de compétition.
+- Les différences restent possibles uniquement si le périmètre métier est différent (ex. Pesées = inscriptions soumises/en attente/approuvées), et ce périmètre est expliqué à l’écran.
+- Aucun message de succès ne doit apparaître après une simple consultation.
+
+### B. Inscriptions — compteur compétition
+
+1. Depuis le tableau de bord, cliquer sur **Inscriptions**.
+2. Vérifier que le filtre compétition est conservé.
+3. Relever : total inscriptions, à valider, approuvées, rejetées.
+
+**Résultat attendu :**
+- Avec une compétition sélectionnée, les compteurs ne doivent plus représenter toutes les compétitions du site.
+- Une notice indique que les compteurs sont limités au `competition_id` sélectionné.
+
+### C. Pesées — périmètre expliqué
+
+1. Depuis le tableau de bord, cliquer sur **Pesées**.
+2. Vérifier la notice “Périmètre Pesées”.
+3. Relever : total compétition, visibles pesées, exclues, pesées validées, non pesées, éligibles combats.
+
+**Résultat attendu :**
+- La page explique si elle affiche seulement les inscriptions soumises, en attente ou approuvées.
+- Les inscriptions non approuvées ne deviennent pas éligibles automatiquement.
+- Ne pas cliquer sur **Enregistrer** sur la compétition réelle sauf pesée réellement contrôlée par l’organisation.
+
+### D. Qualité — diagnostic compteurs et catégories
+
+1. Aller dans **Qualité**.
+2. Sélectionner la compétition réelle.
+3. Vérifier la section **Diagnostic des compteurs**.
+4. Vérifier la distinction entre :
+   - catégories déclarées dans les inscriptions ;
+   - référentiel catégories configuré pour la génération.
+
+**Résultat attendu :**
+- Si le référentiel est vide mais que des catégories textuelles existent dans les inscriptions, le message doit parler de “référentiel catégories non configuré” et non laisser penser que les inscriptions n’ont aucune catégorie.
+- Les libellés non retrouvés dans le référentiel sont affichés en diagnostic uniquement, sans modification automatique.
+
+### E. Référentiel catégories — prévisualisation sans import réel
+
+1. Aller dans **Catégories**.
+2. Utiliser **Prévisualiser le référentiel catégories UFSC / tatami**.
+3. Sélectionner la compétition réelle, la discipline et la saison 2025/2026.
+4. Cliquer uniquement sur **Prévisualiser le référentiel catégories**.
+
+**Résultat attendu :**
+- Un tableau liste les catégories déjà présentes et les catégories à créer.
+- Aucune inscription réelle n’est modifiée.
+- Ne pas cocher la confirmation et ne pas cliquer sur **Importer les catégories manquantes** sur la compétition réelle sans validation organisateur.
+
+### F. Compétition test — import autorisé
+
+1. Créer ou sélectionner une compétition test.
+2. Prévisualiser le référentiel catégories.
+3. Cocher la confirmation non destructive.
+4. Cliquer sur **Importer les catégories manquantes**.
+5. Vérifier les logs.
+
+**Résultat attendu :**
+- Seules les catégories manquantes sont créées.
+- Les catégories déjà existantes sont ignorées.
+- Les inscriptions existantes ne changent pas.
+- Un log d’audit indique le nombre de créations/ignorées/conflits.
