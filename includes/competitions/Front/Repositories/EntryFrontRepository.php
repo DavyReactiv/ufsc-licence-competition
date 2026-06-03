@@ -379,15 +379,30 @@ class EntryFrontRepository {
 			);
 
 			$this->maybe_log_db_error( __METHOD__ . ':soft_delete' );
+			if ( class_exists( '\\UFSC\\Competitions\\Services\\LogService' ) ) {
+				( new \UFSC\Competitions\Services\LogService() )->audit(
+					'entry_trashed',
+					0,
+					'entry',
+					$entry_id,
+					array( 'source' => 'front_repository_delete', 'soft_delete' => 1 )
+				);
+			}
 
 			return (int) $updated;
 		}
 
-		$deleted = $wpdb->delete( $table, array( 'id' => $entry_id ), array( '%d' ) );
+		if ( class_exists( '\\UFSC\\Competitions\\Services\\LogService' ) ) {
+			( new \UFSC\Competitions\Services\LogService() )->audit(
+				'entry_delete_blocked_no_trash_column',
+				0,
+				'entry',
+				$entry_id,
+				array( 'reason' => 'physical_delete_disabled_in_production' )
+			);
+		}
 
-		$this->maybe_log_db_error( __METHOD__ . ':delete' );
-
-		return (int) $deleted;
+		return 0;
 	}
 
 	public function normalize_license_result( array $license ): array {

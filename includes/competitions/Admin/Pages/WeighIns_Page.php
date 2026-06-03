@@ -13,6 +13,8 @@ use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\WeighInRepository;
 use UFSC\Competitions\Services\WeightCategoryResolver;
 use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\CompetitionSafetyService;
+use UFSC\Competitions\Services\CompetitionStatsService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -74,6 +76,7 @@ class WeighIns_Page {
 			'eligible' => 0,
 		);
 		$categories = array();
+		$scope_stats = $competition_id > 0 ? ( new CompetitionStatsService() )->get_competition_stats( $competition_id ) : array();
 
 		if ( $competition_id > 0 ) {
 			$competition = $this->competitions->get( $competition_id, true );
@@ -231,8 +234,11 @@ class WeighIns_Page {
 			</form>
 
 			<?php if ( $competition_id > 0 ) : ?>
+				<?php $scope_weighins = $scope_stats['weighins'] ?? array(); $scope_entries = $scope_stats['entries'] ?? array(); ?>
+				<div class="notice notice-info inline"><p><?php echo esc_html( sprintf( __( 'Périmètre Pesées : cette page affiche les inscriptions soumises, en attente ou approuvées. Total inscriptions compétition : %1$d. Visibles dans les pesées avant filtres écran : %2$d. Exclues du périmètre pesée : %3$d (brouillon, rejetée, annulée ou autre statut). Les inscriptions non approuvées ne deviennent pas éligibles automatiquement aux combats.', 'ufsc-licence-competition' ), (int) ( $scope_entries['total'] ?? 0 ), (int) ( $scope_weighins['visible_entries'] ?? 0 ), max( 0, (int) ( $scope_entries['total'] ?? 0 ) - (int) ( $scope_weighins['visible_entries'] ?? 0 ) ) ) ); ?></p></div>
 				<section class="ufsc-kpis ufsc-kpis--premium">
-					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Total inscrits', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $stats['total'] ) ); ?></strong></article>
+					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Visibles pesées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $stats['total'] ) ); ?></strong><small><?php esc_html_e( 'Après filtres écran', 'ufsc-licence-competition' ); ?></small></article>
+					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Total compétition', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( (int) ( $scope_entries['total'] ?? 0 ) ) ); ?></strong><small><?php esc_html_e( 'Source centralisée', 'ufsc-licence-competition' ); ?></small></article>
 					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Pesés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $stats['weighed'] ) ); ?></strong></article>
 					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Non pesés', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $stats['not_weighed'] ) ); ?></strong></article>
 					<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Hors limite', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $stats['out_of_limit'] ) ); ?></strong></article>
@@ -379,6 +385,14 @@ class WeighIns_Page {
 		$status = isset( $_POST['weighin_status'] ) ? sanitize_key( (string) wp_unslash( $_POST['weighin_status'] ) ) : 'pending';
 		if ( ! isset( $this->get_mutation_status_choices()[ $status ] ) ) {
 			$status = 'pending';
+		}
+
+		$safety = ( new CompetitionSafetyService() )->guard_weighin_mutation( $competition_id, $entry_id, 'save_weighin' );
+		if ( empty( $safety['ok'] ) ) {
+			return array(
+				'type' => 'error',
+				'message' => (string) ( $safety['message'] ?? __( 'Pesée bloquée par la protection des données réelles.', 'ufsc-licence-competition' ) ),
+			);
 		}
 
 		$existing = $this->weighins->get_for_entry( $competition_id, $entry_id );

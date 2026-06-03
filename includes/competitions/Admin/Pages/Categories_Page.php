@@ -10,6 +10,7 @@ use UFSC\Competitions\Admin\Tables\Categories_Table;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\GenerationLockService;
 use UFSC\Competitions\Services\LogService;
+use UFSC\Competitions\Services\CategoryPresetService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -29,6 +30,7 @@ class Categories_Page {
 		add_action( 'admin_post_ufsc_competitions_trash_category', array( $this, 'handle_trash' ) );
 		add_action( 'admin_post_ufsc_competitions_restore_category', array( $this, 'handle_restore' ) );
 		add_action( 'admin_post_ufsc_competitions_delete_category', array( $this, 'handle_delete' ) );
+		add_action( 'admin_post_ufsc_competitions_import_category_preset', array( $this, 'handle_preset_import' ) );
 	}
 
 	public function render() {
@@ -67,7 +69,8 @@ class Categories_Page {
 					<a href="<?php echo esc_url( add_query_arg( array( 'page' => Menu::PAGE_CATEGORIES, 'ufsc_action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="button button-primary"><?php esc_html_e( 'Ajouter une catégorie', 'ufsc-licence-competition' ); ?></a>
 				</div>
 			</header>
-			<?php $this->render_helper_notice( __( 'Définir âge/poids/sexe/niveau + format poules/élimination.', 'ufsc-licence-competition' ) ); ?>
+			<?php $this->render_helper_notice( __( 'Définir âge/poids/sexe/niveau + format poules/élimination. Les catégories du référentiel servent à la génération automatique des combats ; les catégories visibles dans les inscriptions sont des données déclarées/importées.', 'ufsc-licence-competition' ) ); ?>
+			<?php $this->render_preset_preview_section(); ?>
 			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
 			<form method="post" class="ufsc-admin-toolbar">
@@ -154,6 +157,114 @@ class Categories_Page {
 	public function handle_delete() {
 		$this->handle_simple_action( 'ufsc_competitions_delete_category', 'delete', Menu::PAGE_CATEGORIES );
 	}
+
+	public function handle_preset_import() {
+		if ( ! Capabilities::user_can_manage() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		check_admin_referer( 'ufsc_competitions_import_category_preset' );
+		$competition_id = isset( $_POST['competition_id'] ) ? absint( $_POST['competition_id'] ) : 0;
+		$discipline = isset( $_POST['discipline'] ) ? sanitize_key( wp_unslash( $_POST['discipline'] ) ) : '';
+		$season = isset( $_POST['season'] ) ? sanitize_text_field( wp_unslash( $_POST['season'] ) ) : '2025-2026';
+		$confirm = isset( $_POST['confirm_non_destructive'] ) ? sanitize_key( wp_unslash( $_POST['confirm_non_destructive'] ) ) : '';
+
+		if ( ! $competition_id || '' === $discipline || 'yes' !== $confirm ) {
+			$this->redirect_with_notice( Menu::PAGE_CATEGORIES, 'preset_missing_confirmation' );
+		}
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
+		}
+
+		$result = ( new CategoryPresetService() )->import_missing( $competition_id, $discipline, $season );
+		( new LogService() )->audit(
+			'category_preset_import',
+			$competition_id,
+			'category',
+			0,
+			$result,
+			'Import non destructif du référentiel catégories manquantes.'
+		);
+
+		$url = add_query_arg(
+			array(
+				'page' => Menu::PAGE_CATEGORIES,
+				'ufsc_notice' => 'preset_imported',
+				'competition_id' => $competition_id,
+				'discipline' => $discipline,
+				'season' => $season,
+				'created' => (int) $result['created'],
+				'ignored' => (int) $result['ignored'],
+				'conflicts' => (int) $result['conflicts'],
+			),
+			admin_url( 'admin.php' )
+		);
+		wp_safe_redirect( $url );
+		exit;
+	}
+
+	private function render_preset_preview_section(): void {
+		$service = new CategoryPresetService();
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$discipline = isset( $_GET['discipline'] ) ? sanitize_key( wp_unslash( $_GET['discipline'] ) ) : '';
+		$season = isset( $_GET['season'] ) ? sanitize_text_field( wp_unslash( $_GET['season'] ) ) : '2025-2026';
+		$competitions = $this->competition_repository->list( array( 'view' => 'all' ), 200, 0 );
+		$disciplines = $service->get_tatami_disciplines();
+		if ( '' === $discipline && ! empty( $disciplines ) ) {
+			$discipline_keys = array_keys( $disciplines );
+			$discipline = (string) reset( $discipline_keys );
+		}
+		$preview = $competition_id ? $service->preview( $competition_id, $discipline, $season ) : array( 'rows' => array() );
+		$rows = $preview['rows'] ?? array();
+		$missing_count = count( array_filter( $rows, static function( $row ) { return empty( $row['exists'] ) && empty( $row['conflict'] ); } ) );
+		$conflict_count = count( array_filter( $rows, static function( $row ) { return ! empty( $row['conflict'] ); } ) );
+		?>
+		<section class="ufsc-admin-surface ufsc-category-preset-preview">
+			<h2><?php esc_html_e( 'Prévisualiser le référentiel catégories UFSC / tatami', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php esc_html_e( 'Prévisualisation non destructive : aucune inscription existante n’est modifiée, aucune catégorie existante n’est écrasée. L’import crée uniquement les catégories manquantes après confirmation.', 'ufsc-licence-competition' ); ?></p>
+			<form method="get" class="ufsc-admin-filters">
+				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_CATEGORIES ); ?>" />
+				<select name="competition_id" required>
+					<option value="0"><?php esc_html_e( 'Sélectionner une compétition', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $competitions as $competition ) : ?>
+						<option value="<?php echo esc_attr( (int) $competition->id ); ?>" <?php selected( $competition_id, (int) $competition->id ); ?>><?php echo esc_html( (string) $competition->name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<select name="discipline">
+					<?php foreach ( $disciplines as $key => $label ) : ?>
+						<option value="<?php echo esc_attr( $key ); ?>" <?php selected( $discipline, $key ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<select name="season">
+					<?php foreach ( $service->get_available_seasons() as $season_key => $season_label ) : ?>
+						<option value="<?php echo esc_attr( $season_key ); ?>" <?php selected( $season, $season_key ); ?>><?php echo esc_html( $season_label ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<button type="submit" class="button"><?php esc_html_e( 'Prévisualiser le référentiel catégories', 'ufsc-licence-competition' ); ?></button>
+			</form>
+			<?php if ( $competition_id && $rows ) : ?>
+				<p><strong><?php echo esc_html( sprintf( __( '%1$d catégorie(s) manquante(s) détectée(s), %2$d déjà présente(s), %3$d conflit(s) possible(s).', 'ufsc-licence-competition' ), (int) $missing_count, (int) count( $rows ) - (int) $missing_count - (int) $conflict_count, (int) $conflict_count ) ); ?></strong></p>
+				<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Âges', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th></tr></thead><tbody>
+				<?php foreach ( array_slice( $rows, 0, 80 ) as $row ) : ?>
+					<tr><td><?php echo esc_html( (string) $row['name'] ); ?></td><td><?php echo esc_html( (string) $row['age_min'] . '–' . (string) $row['age_max'] ); ?></td><td><?php echo esc_html( ( '' !== (string) $row['weight_min'] ? (string) $row['weight_min'] : '0' ) . ' / ' . ( '' !== (string) $row['weight_max'] ? (string) $row['weight_max'] : '+' ) ); ?></td><td><?php echo ! empty( $row['conflict'] ) ? esc_html( sprintf( __( 'Conflit possible — ignorée (%s)', 'ufsc-licence-competition' ), (string) ( $row['conflict_reason'] ?? '' ) ) ) : ( ! empty( $row['exists'] ) ? esc_html__( 'Déjà existante — ignorée', 'ufsc-licence-competition' ) : esc_html__( 'À créer', 'ufsc-licence-competition' ) ); ?></td></tr>
+				<?php endforeach; ?>
+				</tbody></table>
+				<?php if ( $missing_count > 0 ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+						<?php wp_nonce_field( 'ufsc_competitions_import_category_preset' ); ?>
+						<input type="hidden" name="action" value="ufsc_competitions_import_category_preset" />
+						<input type="hidden" name="competition_id" value="<?php echo esc_attr( $competition_id ); ?>" />
+						<input type="hidden" name="discipline" value="<?php echo esc_attr( $discipline ); ?>" />
+						<input type="hidden" name="season" value="<?php echo esc_attr( $season ); ?>" />
+						<label><input type="checkbox" name="confirm_non_destructive" value="yes" required /> <?php esc_html_e( 'Je confirme importer uniquement les catégories manquantes, sans modifier les inscriptions existantes.', 'ufsc-licence-competition' ); ?></label>
+						<?php submit_button( __( 'Importer les catégories manquantes', 'ufsc-licence-competition' ), 'primary', '', false ); ?>
+					</form>
+				<?php endif; ?>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
 
 	private function handle_simple_action( $action, $method, $page_slug ) {
 		if ( ! Capabilities::user_can_manage() ) {
@@ -334,13 +445,15 @@ class Categories_Page {
 			'error_required'=> __( 'Veuillez renseigner le nom et la discipline de la catégorie.', 'ufsc-licence-competition' ),
 			'not_found'     => __( 'Catégorie introuvable.', 'ufsc-licence-competition' ),
 			'locked_after_generation' => __( 'Catégories verrouillées après génération : action sensible requise.', 'ufsc-licence-competition' ),
+			'preset_imported' => __( 'Import du référentiel terminé : seules les catégories manquantes ont été créées, aucune inscription n’a été modifiée.', 'ufsc-licence-competition' ),
+			'preset_missing_confirmation' => __( 'Import annulé : sélectionnez une compétition et confirmez explicitement que seules les catégories manquantes seront créées.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'locked_after_generation' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'locked_after_generation', 'preset_missing_confirmation' ), true ) ? 'error' : 'success';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), esc_html( $messages[ $notice ] ) );
 	}
 
