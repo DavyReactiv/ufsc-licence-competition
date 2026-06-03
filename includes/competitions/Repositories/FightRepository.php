@@ -769,12 +769,23 @@ class FightRepository {
 	}
 
 	private function build_order_by(): string {
-		if ( $this->has_fight_no_column() ) {
-			// fight_no is the human-facing fight order sequence.
-			return 'ORDER BY fight_no ASC';
+		$parts = array();
+		if ( Db::has_table_column( Db::fights_table(), 'scheduled_order' ) ) {
+			// scheduled_order is the operational passage order once surfaces are assigned.
+			$parts[] = 'CASE WHEN scheduled_order IS NULL OR scheduled_order = 0 THEN 1 ELSE 0 END ASC';
+			$parts[] = 'scheduled_order ASC';
 		}
+		if ( Db::has_table_column( Db::fights_table(), 'scheduled_time' ) ) {
+			$parts[] = 'CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END ASC';
+			$parts[] = 'scheduled_time ASC';
+		}
+		if ( $this->has_fight_no_column() ) {
+			// fight_no remains the human-facing fight sequence.
+			$parts[] = 'fight_no ASC';
+		}
+		$parts[] = 'id ASC';
 
-		return 'ORDER BY id ASC';
+		return 'ORDER BY ' . implode( ', ', $parts );
 	}
 
 

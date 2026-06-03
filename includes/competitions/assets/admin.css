@@ -914,6 +914,68 @@
 	align-items: center;
 }
 
+.ufsc-print-active-filters {
+	margin: 8px 0 12px;
+	padding: 8px 10px;
+	border-left: 4px solid #2271b1;
+	background: #f6f7f7;
+}
+
+.ufsc-print-result-box,
+.ufsc-print-observation-box {
+	min-width: 120px;
+	line-height: 1.5;
+}
+
+.ufsc-print-judge-sheet {
+	margin: 0 0 18px;
+	padding: 14px;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	break-inside: avoid;
+	page-break-inside: avoid;
+}
+
+.ufsc-print-judge-sheet--notice {
+	border-style: dashed;
+	background: #f6f7f7;
+}
+
+.ufsc-print-judge-grid,
+.ufsc-print-signature-row,
+.ufsc-print-decision-boxes {
+	display: grid;
+	gap: 10px;
+	margin: 10px 0;
+}
+
+.ufsc-print-judge-grid {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ufsc-print-signature-row {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	min-height: 48px;
+}
+
+.ufsc-print-decision-boxes {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	padding: 10px;
+	border: 1px solid #dcdcde;
+}
+
+.ufsc-print-judge-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.ufsc-print-judge-table th,
+.ufsc-print-judge-table td {
+	padding: 8px;
+	border: 1px solid #dcdcde;
+	text-align: left;
+}
+
 @media print {
   @page { margin: 8mm; }
   .ufsc-print-table table, .ufsc-print-table, table.widefat {
@@ -932,4 +994,11 @@
   }
   .ufsc-print-table--entries, .ufsc-print-table--fights { font-size: 8px; }
   .ufsc-print-fighter-cell { white-space: pre-line; }
+  .ufsc-print-surface-sheet { break-after: page; page-break-after: always; }
+  .ufsc-print-surface-sheet:last-child { break-after: auto; page-break-after: auto; }
+  .ufsc-print-judge-sheet { break-after: page; page-break-after: always; border-color: #000; }
+  .ufsc-print-judge-sheet:last-child { break-after: auto; page-break-after: auto; }
+  .ufsc-print-judge-grid, .ufsc-print-signature-row, .ufsc-print-decision-boxes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ufsc-print-decision-boxes { border-color: #000; }
+  .ufsc-print-active-filters { border-color: #000; background: #fff; }
 }

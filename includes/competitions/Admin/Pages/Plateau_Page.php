@@ -4,9 +4,11 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Admin\Menu;
 use UFSC\Competitions\Capabilities;
+use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Services\GenerationLockService;
 use UFSC\Competitions\Services\LogService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -62,6 +64,10 @@ class Plateau_Page {
 		$counts = $this->compute_counts( $fights );
 		$surface_options = array_keys( $grouped );
 		sort( $surface_options );
+		$active_surface_options = $this->get_active_surface_labels( $competition_id );
+		if ( empty( $active_surface_options ) ) {
+			$active_surface_options = array_values( array_filter( $surface_options, static fn( $surface ) => '' !== trim( (string) $surface ) ) );
+		}
 
 		$this->render_notice( $notice, $message );
 		?>
@@ -119,7 +125,7 @@ class Plateau_Page {
 				<section class="ufsc-plateau-surface-card">
 					<h2><?php echo esc_html( $surface_name ); ?></h2>
 					<?php foreach ( $surface_fights as $fight ) : ?>
-						<?php $this->render_fight_card( $competition_id, $fight, $entry_map, $surface_options ); ?>
+						<?php $this->render_fight_card( $competition_id, $fight, $entry_map, $active_surface_options ); ?>
 					<?php endforeach; ?>
 				</section>
 			<?php endforeach; ?>
@@ -167,12 +173,25 @@ class Plateau_Page {
 			$this->redirect( $competition_id, 'invalid_scope' );
 		}
 		$status = $this->fights->get_effective_fight_status( $fight );
-		if ( in_array( $status, array( FightRepository::STATUS_COMPLETED, FightRepository::STATUS_LOCKED, FightRepository::STATUS_TRASHED ), true ) ) {
+		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
+			$this->log_blocked( $competition_id, $fight_id, 'surface_change_generation_locked', $status, '' );
+			$this->redirect( $competition_id, 'blocked', __( 'Compétition verrouillée : changement de surface interdit.', 'ufsc-licence-competition' ) );
+		}
+		if ( in_array( $status, array( FightRepository::STATUS_COMPLETED, FightRepository::STATUS_LOCKED, FightRepository::STATUS_TRASHED, FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER ), true ) ) {
 			$this->log_blocked( $competition_id, $fight_id, 'surface_change_blocked_status', $status, '' );
-			$this->redirect( $competition_id, 'blocked', __( 'Combat verrouillé/terminé: déplacement interdit.', 'ufsc-licence-competition' ) );
+			$this->redirect( $competition_id, 'blocked', __( 'Combat verrouillé, terminé, BYE ou placeholder : déplacement interdit.', 'ufsc-licence-competition' ) );
+		}
+		if ( $this->fight_has_result_payload( $fight ) ) {
+			$this->log_blocked( $competition_id, $fight_id, 'surface_change_result_exists', $status, '' );
+			$this->redirect( $competition_id, 'blocked', __( 'Résultat existant : changement de surface interdit.', 'ufsc-licence-competition' ) );
+		}
+		$surface_payload = $this->build_surface_update_payload( $competition_id, $new_surface );
+		if ( empty( $surface_payload ) ) {
+			$this->log_blocked( $competition_id, $fight_id, 'surface_change_unknown_surface', $status, $new_surface );
+			$this->redirect( $competition_id, 'blocked', __( 'Surface cible inactive ou inexistante.', 'ufsc-licence-competition' ) );
 		}
 		$old_surface = (string) ( $fight->ring ?? '' );
-		$this->fights->update( $fight_id, array( 'ring' => $new_surface ) );
+		$this->update_fight_surface( $fight_id, $surface_payload );
 		$this->logger->audit( 'plateau_surface_changed', $competition_id, 'fight', $fight_id, array(
 			'old_status' => $status,
 			'new_status' => $status,
@@ -277,7 +296,18 @@ class Plateau_Page {
 	private function group_by_surface( array $fights ): array {
 		$grouped = array();
 		usort( $fights, static function ( $a, $b ) {
-			return (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+			$order_a = (int) ( $a->scheduled_order ?? 0 );
+			$order_b = (int) ( $b->scheduled_order ?? 0 );
+			if ( $order_a !== $order_b ) {
+				return ( 0 === $order_a ? PHP_INT_MAX : $order_a ) <=> ( 0 === $order_b ? PHP_INT_MAX : $order_b );
+			}
+			$time_a = ! empty( $a->scheduled_time ) ? strtotime( (string) $a->scheduled_time ) : ( ! empty( $a->scheduled_at ) ? strtotime( (string) $a->scheduled_at ) : 0 );
+			$time_b = ! empty( $b->scheduled_time ) ? strtotime( (string) $b->scheduled_time ) : ( ! empty( $b->scheduled_at ) ? strtotime( (string) $b->scheduled_at ) : 0 );
+			if ( $time_a !== $time_b ) {
+				return ( 0 === $time_a ? PHP_INT_MAX : $time_a ) <=> ( 0 === $time_b ? PHP_INT_MAX : $time_b );
+			}
+			$fight_no_compare = (int) ( $a->fight_no ?? 0 ) <=> (int) ( $b->fight_no ?? 0 );
+			return 0 !== $fight_no_compare ? $fight_no_compare : ( (int) ( $a->id ?? 0 ) <=> (int) ( $b->id ?? 0 ) );
 		} );
 		foreach ( $fights as $fight ) {
 			$surface = trim( (string) ( $fight->ring ?? '' ) );
@@ -320,6 +350,7 @@ class Plateau_Page {
 			<p><strong><?php esc_html_e( 'Rouge', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( $red ); ?></p>
 			<p><strong><?php esc_html_e( 'Bleu', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( $blue ); ?></p>
 			<p><strong><?php esc_html_e( 'Phase', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $fight->phase ?? '-' ) ); ?> / R<?php echo esc_html( (string) ( $fight->round_no ?? 0 ) ); ?></p>
+			<p><strong><?php esc_html_e( 'Ordre', 'ufsc-licence-competition' ); ?>:</strong> <?php echo esc_html( (string) ( $fight->scheduled_order ?? $fight->fight_no ?? '—' ) ); ?></p>
 			<div class="ufsc-plateau-actions">
 				<?php foreach ( array( FightRepository::STATUS_CALLED, FightRepository::STATUS_RUNNING, FightRepository::STATUS_COMPLETED, FightRepository::STATUS_DELAYED, FightRepository::STATUS_ABSENT, FightRepository::STATUS_DISPUTED, FightRepository::STATUS_CANCELLED ) as $target_status ) : ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -348,6 +379,79 @@ class Plateau_Page {
 			</form>
 		</article>
 		<?php
+	}
+
+
+	private function get_active_surface_labels( int $competition_id ): array {
+		if ( $competition_id <= 0 || ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			return array();
+		}
+		$labels = array();
+		foreach ( ufsc_competition_get_surfaces( $competition_id ) as $surface ) {
+			if ( empty( $surface['active'] ) ) {
+				continue;
+			}
+			$label = trim( (string) ( $surface['name'] ?? $surface['short_label'] ?? '' ) );
+			if ( '' !== $label ) {
+				$labels[] = $label;
+			}
+		}
+		return array_values( array_unique( $labels ) );
+	}
+
+	private function build_surface_update_payload( int $competition_id, string $surface_label ): array {
+		if ( ! function_exists( 'ufsc_competition_get_surfaces' ) ) {
+			return array( 'ring' => $surface_label );
+		}
+		foreach ( ufsc_competition_get_surfaces( $competition_id ) as $surface ) {
+			if ( empty( $surface['active'] ) ) {
+				continue;
+			}
+			$name = trim( (string) ( $surface['name'] ?? '' ) );
+			$short = trim( (string) ( $surface['short_label'] ?? '' ) );
+			if ( $surface_label !== $name && $surface_label !== $short ) {
+				continue;
+			}
+			return array(
+				'ring' => $name ?: $short,
+				'surface_uuid' => (string) ( $surface['uuid'] ?? '' ),
+				'surface_index' => (int) ( $surface['index'] ?? 0 ),
+				'surface_name' => $name ?: $short,
+				'surface_type' => (string) ( $surface['type'] ?? '' ),
+				'surface_short_label' => $short,
+			);
+		}
+		return array();
+	}
+
+	private function update_fight_surface( int $fight_id, array $payload ): void {
+		global $wpdb;
+		$table = Db::fights_table();
+		$columns = method_exists( Db::class, 'get_table_columns' ) ? Db::get_table_columns( $table ) : array();
+		if ( empty( $columns ) ) {
+			$this->fights->update( $fight_id, array( 'ring' => (string) ( $payload['ring'] ?? '' ) ) );
+			return;
+		}
+		$payload['updated_at'] = current_time( 'mysql' );
+		$payload = array_intersect_key( $payload, array_fill_keys( $columns, true ) );
+		if ( empty( $payload ) ) {
+			return;
+		}
+		$wpdb->update( $table, $payload, array( 'id' => $fight_id ), null, array( '%d' ) );
+	}
+
+	private function fight_has_result_payload( $fight ): bool {
+		foreach ( array( 'winner_entry_id', 'winner_id' ) as $field ) {
+			if ( absint( $fight->{$field} ?? 0 ) > 0 ) {
+				return true;
+			}
+		}
+		foreach ( array( 'result_method', 'result_type', 'result', 'result_note', 'score', 'score_red', 'score_blue' ) as $field ) {
+			if ( '' !== trim( (string) ( $fight->{$field} ?? '' ) ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private function entry_label( int $entry_id, array $entry_map ): string {
