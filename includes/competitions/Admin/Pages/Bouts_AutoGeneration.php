@@ -289,6 +289,13 @@ class Bouts_AutoGeneration {
 			<?php if ( ! empty( $preview['groups_preview'] ) && is_array( $preview['groups_preview'] ) ) : ?>
 			<div class="ufsc-fightgen-precheck">
 				<h3><?php esc_html_e( 'Groupes détectés avant génération', 'ufsc-licence-competition' ); ?></h3>
+				<ul>
+					<li><?php echo esc_html( sprintf( __( 'Groupes générables : %d', 'ufsc-licence-competition' ), (int) ( $preview['groups_generable'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Groupes insuffisants : %d', 'ufsc-licence-competition' ), (int) ( $preview['insufficient_groups_count'] ?? $preview['groups_insufficient'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Participants seuls : %d', 'ufsc-licence-competition' ), (int) ( $preview['isolated_count'] ?? $preview['isolated_participants'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Groupes impairs : %d', 'ufsc-licence-competition' ), (int) ( $preview['odd_groups'] ?? 0 ) ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'BYE prévus : %d', 'ufsc-licence-competition' ), (int) ( $preview['bye_count'] ?? 0 ) ) ); ?></li>
+				</ul>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php wp_nonce_field( 'ufsc_competitions_save_fight_settings' ); ?>
 					<input type="hidden" name="action" value="ufsc_competitions_save_fight_settings">
@@ -298,6 +305,7 @@ class Bouts_AutoGeneration {
 						<li>
 							<strong><?php echo esc_html( (string) ( $group_row['group_key'] ?? '—' ) ); ?></strong>
 							— <?php echo esc_html( sprintf( __( '%1$d athlètes, %2$d combats estimés', 'ufsc-licence-competition' ), (int) ( $group_row['entries_count'] ?? 0 ), (int) ( $group_row['estimated_fights'] ?? 0 ) ) ); ?>
+								— <?php echo esc_html( sprintf( __( 'Cas : %s', 'ufsc-licence-competition' ), (string) ( $group_row['case_label'] ?? $group_row['case_type'] ?? '—' ) ) ); ?>
 								— <?php echo esc_html( sprintf( __( 'Format conseillé : %s', 'ufsc-licence-competition' ), (string) ( $group_row['format'] ?? 'tableau' ) ) ); ?>
 								— <?php echo esc_html( sprintf( __( 'BYE estimés : %d', 'ufsc-licence-competition' ), (int) ( $group_row['bye_slots'] ?? 0 ) ) ); ?>
 								<?php if ( ! empty( $group_row['recommendation'] ) && is_array( $group_row['recommendation'] ) ) : ?>
@@ -307,6 +315,9 @@ class Bouts_AutoGeneration {
 							— <span class="<?php echo esc_attr( self::status_badge_class( ( 'generable' === ( $group_row['status'] ?? '' ) ) ? 'ok' : 'warn' ) ); ?>"><?php echo esc_html( 'generable' === ( $group_row['status'] ?? '' ) ? __( 'Générable', 'ufsc-licence-competition' ) : __( 'Insuffisant', 'ufsc-licence-competition' ) ); ?></span>
 								<?php if ( ! empty( $group_row['lone_fighter'] ) ) : ?>
 									— <span class="<?php echo esc_attr( self::status_badge_class( 'warn' ) ); ?>"><?php esc_html_e( 'Combattant seul dans sa catégorie', 'ufsc-licence-competition' ); ?></span>
+								<?php endif; ?>
+								<?php if ( ! empty( $group_row['warnings'] ) && is_array( $group_row['warnings'] ) ) : ?>
+									<br><em><?php echo esc_html( sprintf( __( 'Alertes : %s', 'ufsc-licence-competition' ), implode( ', ', array_map( 'sanitize_key', (array) $group_row['warnings'] ) ) ) ); ?></em>
 								<?php endif; ?>
 								<br>
 								<label>
@@ -1181,6 +1192,7 @@ class Bouts_AutoGeneration {
 		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$settings['sandbox_generation'] = 1;
+		$settings['direct_generation_context'] = 'test_fixture';
 		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
