@@ -27,6 +27,7 @@ class Menu {
 	public const PAGE_WEIGHINS = 'ufsc-competitions-weighins';
 	public const PAGE_BOUTS        = 'ufsc-competitions-bouts';
 	public const PAGE_PLATEAU      = 'ufsc-competitions-plateau';
+	public const PAGE_RESULTS      = 'ufsc-competitions-results';
 	public const PAGE_TIMING      = 'ufsc-competitions-timing-profiles';
 	public const PAGE_QUALITY      = 'ufsc-competitions-quality';
 	public const PAGE_PRINT        = 'ufsc-competitions-print';
@@ -113,6 +114,14 @@ class Menu {
 			__( 'Plateau jour J', 'ufsc-licence-competition' ),
 			__( 'Plateau jour J', 'ufsc-licence-competition' ),
 			'UFSC\\Competitions\\Admin\\Pages\\Plateau_Page'
+		);
+
+		$this->add_submenu_safe(
+			$cap,
+			self::PAGE_RESULTS,
+			__( 'Résultats jour J', 'ufsc-licence-competition' ),
+			__( 'Résultats jour J', 'ufsc-licence-competition' ),
+			'UFSC\\Competitions\\Admin\\Pages\\Results_Page'
 		);
 
 		$this->add_submenu_safe(
@@ -244,6 +253,7 @@ class Menu {
 			'UFSC\\Competitions\\Admin\\Pages\\Entries_Import_Page',
 			'UFSC\Competitions\Admin\Pages\Bouts_Page',
 			'UFSC\Competitions\Admin\Pages\Plateau_Page',
+			'UFSC\Competitions\Admin\Pages\Results_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Settings_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\CompetitionLogs_Page',
 			'UFSC\\Competitions\\Admin\\Pages\\Timing_Profiles_Page',
@@ -397,6 +407,7 @@ class Menu {
 			array( 'label' => __( 'Pesées', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_WEIGHINS ) ), admin_url( 'admin.php' ) ), 'primary' => true ),
 			array( 'label' => __( 'Générer / gérer les combats', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_BOUTS ) ), admin_url( 'admin.php' ) ), 'primary' => true ),
 			array( 'label' => __( 'Plateau jour J', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_PLATEAU ) ), admin_url( 'admin.php' ) ) ),
+			array( 'label' => __( 'Résultats jour J', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_RESULTS ) ), admin_url( 'admin.php' ) ), 'primary' => true ),
 			array( 'label' => __( 'Impressions', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_PRINT ) ), admin_url( 'admin.php' ) ) ),
 			array( 'label' => __( 'Contrôle qualité', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_QUALITY ) ), admin_url( 'admin.php' ) ) ),
 			array( 'label' => __( 'Logs', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_LOGS ) ), admin_url( 'admin.php' ) ) ),
