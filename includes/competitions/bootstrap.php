@@ -82,6 +82,7 @@ function load_competitions_core_dependencies(): void {
 		$base . '/Services/GenerationLockService.php',
 		$base . '/Services/GenerationSnapshotService.php',
 		$base . '/Services/GenerationReadinessDiagnostic.php',
+		$base . '/Services/CompetitionSafetyService.php',
 		$base . '/Services/UfscReference/UfscAgeCategoryRules.php',
 		$base . '/Services/UfscReference/UfscWeightRules.php',
 		$base . '/Services/UfscReference/UfscTimingRules.php',
