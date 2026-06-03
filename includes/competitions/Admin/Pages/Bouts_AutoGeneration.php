@@ -1181,6 +1181,7 @@ class Bouts_AutoGeneration {
 		$competition_id = (int) ( $fixture['competition_id'] ?? 0 );
 		$settings = FightAutoGenerationService::get_settings( $competition_id );
 		$settings['sandbox_generation'] = 1;
+		$settings['direct_generation_context'] = 'test_fixture';
 		$settings['allow_unweighed'] = 1;
 		$preview = FightAutoGenerationService::get_generation_preview( $competition_id, $settings );
 		$draft = FightAutoGenerationService::generate_draft( $competition_id, $settings );
