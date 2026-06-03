@@ -219,6 +219,7 @@ class EntryFormRenderer {
 						array(
 							'action'         => 'ufsc_competitions_export_engaged_csv',
 							'competition_id' => (int) ( $competition->id ?? 0 ),
+							'club_id'        => (int) $club_id,
 							'status'         => $engaged_status,
 						),
 						admin_url( 'admin-post.php' )

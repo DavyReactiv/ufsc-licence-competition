@@ -22,11 +22,13 @@ class Engaged_Entries_Export_Controller {
 		$registered = true;
 
 		add_action( 'admin_post_ufsc_competitions_export_engaged_csv', array( $this, 'handle_export' ) );
+		add_action( 'admin_post_nopriv_ufsc_competitions_export_engaged_csv', array( $this, 'handle_export' ) );
 	}
 
 	public function handle_export(): void {
-		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
-		$status         = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'approved';
+		$competition_id    = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$requested_club_id = isset( $_GET['club_id'] ) ? absint( $_GET['club_id'] ) : 0;
+		$status            = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'approved';
 		if ( 'submitted' === $status ) {
 			$status = 'review_queue';
 		}
@@ -57,6 +59,9 @@ class Engaged_Entries_Export_Controller {
 		if ( ! $club_id ) {
 			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
 		}
+		if ( $requested_club_id && $requested_club_id !== $club_id ) {
+			$this->redirect_with_notice( $competition_id, 'error_forbidden' );
+		}
 
 		$competition_repo = new CompetitionReadRepository();
 		$competition      = $competition_repo->get( $competition_id );
@@ -78,6 +83,14 @@ class Engaged_Entries_Export_Controller {
 			),
 			0,
 			0
+		);
+		$entries    = array_values(
+			array_filter(
+				$entries,
+				function ( $entry ) use ( $club_id ) {
+					return $this->entry_belongs_to_club( $entry, $club_id );
+				}
+			)
 		);
 
 		if ( empty( $entries ) ) {
@@ -111,6 +124,15 @@ class Engaged_Entries_Export_Controller {
 
 		fclose( $handle );
 		exit;
+	}
+
+	private function entry_belongs_to_club( $entry, int $club_id ): bool {
+		$entry_club_id = absint( $entry->club_id ?? 0 );
+		if ( ! $entry_club_id ) {
+			$entry_club_id = absint( $entry->licensee_club_id ?? 0 );
+		}
+
+		return $entry_club_id === $club_id;
 	}
 
 	private function redirect_with_notice( int $competition_id, string $notice ): void {

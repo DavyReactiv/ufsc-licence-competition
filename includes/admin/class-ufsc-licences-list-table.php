@@ -689,37 +689,36 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$params = array();
 		$this->add_soft_delete_filter( $where, 'l' );
 
-		$search_like = '';
+		$search_likes = array();
 		if ( '' !== $search ) {
-			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
+			$search_likes = $this->build_search_like_values( $search );
 			$search_clauses = array();
 			if ( $this->has_nom ) {
-				$search_clauses[] = 'l.nom LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.nom', $search_likes, $search_clauses, $params );
 			}
 			if ( $this->has_nom_licence ) {
-				$search_clauses[] = 'l.nom_licence LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.nom_licence', $search_likes, $search_clauses, $params );
 			}
-			$search_clauses[] = 'l.prenom LIKE %s';
-			$params[] = $search_like;
-			$search_clauses[] = 'c.nom LIKE %s';
-			$params[] = $search_like;
+			$this->append_like_clauses( 'l.prenom', $search_likes, $search_clauses, $params );
+			$this->append_like_clauses( 'c.nom', $search_likes, $search_clauses, $params );
 
 			if ( $this->has_email ) {
-				$search_clauses[] = 'l.email LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.email', $search_likes, $search_clauses, $params );
 			}
 
 			$asptt_column = $this->get_status_or_number_column( 'asptt' );
 			if ( '' !== $asptt_column ) {
-				$search_clauses[] = "l.{$asptt_column} LIKE %s";
-				$params[] = $search_like;
+				$this->append_like_clauses( "l.{$asptt_column}", $search_likes, $search_clauses, $params );
 			}
 
 			if ( $this->has_licence_number ) {
-				$search_clauses[] = 'l.numero_licence_delegataire LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.numero_licence_delegataire', $search_likes, $search_clauses, $params );
+			}
+			if ( $this->has_licence_number_alt ) {
+				$this->append_like_clauses( 'l.licence_number', $search_likes, $search_clauses, $params );
+			}
+			if ( $this->has_documents_table ) {
+				$this->append_like_clauses( 'd.source_licence_number', $search_likes, $search_clauses, $params );
 			}
 			$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
 		}
@@ -729,16 +728,13 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$club_clause = array( 'l.club_id = %d' );
 			$club_params = array( $club_id );
 			if ( '' !== $club_name ) {
-				$club_like = '%' . $wpdb->esc_like( $club_name ) . '%';
-				$club_clause[] = 'c.nom LIKE %s';
-				$club_params[] = $club_like;
+				$club_likes = $this->build_search_like_values( $club_name );
+				$this->append_like_clauses( 'c.nom', $club_likes, $club_clause, $club_params );
 				if ( $this->has_column( $licences_table, 'club' ) ) {
-					$club_clause[] = 'l.club LIKE %s';
-					$club_params[] = $club_like;
+					$this->append_like_clauses( 'l.club', $club_likes, $club_clause, $club_params );
 				}
 				if ( $this->has_column( $licences_table, 'nom_club' ) ) {
-					$club_clause[] = 'l.nom_club LIKE %s';
-					$club_params[] = $club_like;
+					$this->append_like_clauses( 'l.nom_club', $club_likes, $club_clause, $club_params );
 				}
 			}
 			$where[] = '(' . implode( ' OR ', $club_clause ) . ')';
@@ -746,9 +742,16 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		if ( '' !== $club_search ) {
-			$club_like = '%' . $wpdb->esc_like( $club_search ) . '%';
-			$where[] = 'c.nom LIKE %s';
-			$params[] = $club_like;
+			$club_likes = $this->build_search_like_values( $club_search );
+			$club_search_clauses = array();
+			$this->append_like_clauses( 'c.nom', $club_likes, $club_search_clauses, $params );
+			if ( $this->has_column( $licences_table, 'club' ) ) {
+				$this->append_like_clauses( 'l.club', $club_likes, $club_search_clauses, $params );
+			}
+			if ( $this->has_column( $licences_table, 'nom_club' ) ) {
+				$this->append_like_clauses( 'l.nom_club', $club_likes, $club_search_clauses, $params );
+			}
+			$where[] = '(' . implode( ' OR ', $club_search_clauses ) . ')';
 		}
 
 		if ( '' !== $statut ) {
@@ -794,11 +797,6 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$document_params  = array( 'ASPTT' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
 			$select_documents = "{$date_asptt_sql} AS date_asptt, d.attachment_id";
-
-			if ( '' !== $search ) {
-				$where[]  = 'd.source_licence_number LIKE %s';
-				$params[] = $search_like;
-			}
 
 			if ( 'with' === $pdf_filter ) {
 				$where[] = 'd.attachment_id IS NOT NULL';
@@ -954,37 +952,36 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$params = array();
 		$this->add_soft_delete_filter( $where, 'l' );
 
-		$search_like = '';
+		$search_likes = array();
 		if ( '' !== $search ) {
-			$search_like = '%' . $wpdb->esc_like( $search ) . '%';
+			$search_likes = $this->build_search_like_values( $search );
 			$search_clauses = array();
 			if ( $this->has_nom ) {
-				$search_clauses[] = 'l.nom LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.nom', $search_likes, $search_clauses, $params );
 			}
 			if ( $this->has_nom_licence ) {
-				$search_clauses[] = 'l.nom_licence LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.nom_licence', $search_likes, $search_clauses, $params );
 			}
-			$search_clauses[] = 'l.prenom LIKE %s';
-			$params[] = $search_like;
-			$search_clauses[] = 'c.nom LIKE %s';
-			$params[] = $search_like;
+			$this->append_like_clauses( 'l.prenom', $search_likes, $search_clauses, $params );
+			$this->append_like_clauses( 'c.nom', $search_likes, $search_clauses, $params );
 
 			if ( $this->has_email ) {
-				$search_clauses[] = 'l.email LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.email', $search_likes, $search_clauses, $params );
 			}
 
 			$asptt_column = $this->get_status_or_number_column( 'asptt' );
 			if ( '' !== $asptt_column ) {
-				$search_clauses[] = "l.{$asptt_column} LIKE %s";
-				$params[] = $search_like;
+				$this->append_like_clauses( "l.{$asptt_column}", $search_likes, $search_clauses, $params );
 			}
 
 			if ( $this->has_licence_number ) {
-				$search_clauses[] = 'l.numero_licence_delegataire LIKE %s';
-				$params[] = $search_like;
+				$this->append_like_clauses( 'l.numero_licence_delegataire', $search_likes, $search_clauses, $params );
+			}
+			if ( $this->has_licence_number_alt ) {
+				$this->append_like_clauses( 'l.licence_number', $search_likes, $search_clauses, $params );
+			}
+			if ( $this->has_documents_table ) {
+				$this->append_like_clauses( 'd.source_licence_number', $search_likes, $search_clauses, $params );
 			}
 			$where[] = '(' . implode( ' OR ', $search_clauses ) . ')';
 		}
@@ -994,16 +991,13 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$club_clause = array( 'l.club_id = %d' );
 			$club_params = array( $club_id );
 			if ( '' !== $club_name ) {
-				$club_like = '%' . $wpdb->esc_like( $club_name ) . '%';
-				$club_clause[] = 'c.nom LIKE %s';
-				$club_params[] = $club_like;
+				$club_likes = $this->build_search_like_values( $club_name );
+				$this->append_like_clauses( 'c.nom', $club_likes, $club_clause, $club_params );
 				if ( $this->has_column( $licences_table, 'club' ) ) {
-					$club_clause[] = 'l.club LIKE %s';
-					$club_params[] = $club_like;
+					$this->append_like_clauses( 'l.club', $club_likes, $club_clause, $club_params );
 				}
 				if ( $this->has_column( $licences_table, 'nom_club' ) ) {
-					$club_clause[] = 'l.nom_club LIKE %s';
-					$club_params[] = $club_like;
+					$this->append_like_clauses( 'l.nom_club', $club_likes, $club_clause, $club_params );
 				}
 			}
 			$where[] = '(' . implode( ' OR ', $club_clause ) . ')';
@@ -1011,9 +1005,16 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 
 		if ( '' !== $club_search ) {
-			$club_like = '%' . $wpdb->esc_like( $club_search ) . '%';
-			$where[] = 'c.nom LIKE %s';
-			$params[] = $club_like;
+			$club_likes = $this->build_search_like_values( $club_search );
+			$club_search_clauses = array();
+			$this->append_like_clauses( 'c.nom', $club_likes, $club_search_clauses, $params );
+			if ( $this->has_column( $licences_table, 'club' ) ) {
+				$this->append_like_clauses( 'l.club', $club_likes, $club_search_clauses, $params );
+			}
+			if ( $this->has_column( $licences_table, 'nom_club' ) ) {
+				$this->append_like_clauses( 'l.nom_club', $club_likes, $club_search_clauses, $params );
+			}
+			$where[] = '(' . implode( ' OR ', $club_search_clauses ) . ')';
 		}
 
 		if ( '' !== $statut ) {
@@ -1058,11 +1059,6 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$document_params  = array( 'ASPTT' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
 			$select_documents = "{$date_asptt_sql} AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
-
-			if ( '' !== $search ) {
-				$where[]  = 'd.source_licence_number LIKE %s';
-				$params[] = $search_like;
-			}
 
 			if ( 'with' === $pdf_filter ) {
 				$where[] = 'd.attachment_id IS NOT NULL';
@@ -1164,6 +1160,46 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		if ( ! empty( $result ) ) {
 			$this->redirect_with_notice( $result );
+		}
+	}
+
+	private function build_search_like_values( $raw_search ) {
+		global $wpdb;
+
+		$raw_search = trim( sanitize_text_field( (string) $raw_search ) );
+		if ( '' === $raw_search ) {
+			return array();
+		}
+
+		$variants = array( $raw_search );
+		$without_accents = remove_accents( $raw_search );
+		if ( $without_accents !== $raw_search ) {
+			$variants[] = $without_accents;
+		}
+
+		$lower = strtolower( $without_accents );
+		if ( $lower !== $without_accents ) {
+			$variants[] = $lower;
+		}
+
+		$collapsed = preg_replace( '/(.)\1+/u', '$1', $lower );
+		if ( is_string( $collapsed ) && '' !== $collapsed && $collapsed !== $lower ) {
+			$variants[] = $collapsed;
+		}
+
+		$variants = array_values( array_unique( array_filter( array_map( 'trim', $variants ) ) ) );
+		$likes = array();
+		foreach ( $variants as $variant ) {
+			$likes[] = '%' . $wpdb->esc_like( $variant ) . '%';
+		}
+
+		return array_values( array_unique( $likes ) );
+	}
+
+	private function append_like_clauses( $column_sql, array $likes, array &$clauses, array &$params ) {
+		foreach ( $likes as $like ) {
+			$clauses[] = $column_sql . ' LIKE %s';
+			$params[] = $like;
 		}
 	}
 
