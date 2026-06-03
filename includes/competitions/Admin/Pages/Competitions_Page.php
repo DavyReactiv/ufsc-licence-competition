@@ -820,10 +820,8 @@ class Competitions_Page {
 			} elseif ( 'restore' === $action && method_exists( $this->repository, 'restore' ) ) {
 				$this->repository->restore( $id );
 			} elseif ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
-				if ( ! \UFSC\Competitions\Capabilities::user_can_delete() ) {
-					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
-				}
-				$this->repository->delete( $id );
+				( new CompetitionSafetyService() )->log_blocked_action( $id, 'bulk_delete_competition', 'bulk_permanent_delete_disabled', array( 'ids' => $ids ) );
+				$this->redirect_notice( 'production_delete_blocked' );
 			} elseif ( 'archive' === $action && method_exists( $this->repository, 'archive' ) ) {
 				$this->repository->archive( $id );
 			} elseif ( 'unarchive' === $action && method_exists( $this->repository, 'unarchive' ) ) {

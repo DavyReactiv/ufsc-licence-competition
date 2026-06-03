@@ -1508,7 +1508,7 @@ class Bouts_AutoGeneration {
 				if ( $entry_id <= 0 || ! self::is_tracked_test_entry( $entry_id, $competition_id ) ) {
 					continue;
 				}
-				$wpdb->delete( Db::weighins_table(), array( 'entry_id' => $entry_id ), array( '%d' ) );
+				$wpdb->delete( Db::weighins_table(), array( 'competition_id' => $competition_id, 'entry_id' => $entry_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
 				$wpdb->delete( Db::entries_table(), array( 'id' => $entry_id, 'competition_id' => $competition_id ), array( '%d', '%d' ) );
 				$count += (int) $wpdb->rows_affected;
