@@ -397,9 +397,14 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 			'modifiable_fights'    => 0,
 			'assigned_fights'      => 0,
 			'surfaces_active'      => 0,
+			'surfaces_ignored'     => 0,
 			'surfaces_used'        => 0,
 			'skipped_sensitive'    => 0,
 			'skipped_by_reason'    => array(),
+			'columns_available'    => array(),
+			'surface_distribution' => array(),
+			'first_order'          => 0,
+			'last_order'           => 0,
 			'last_sql_error'       => '',
 			'errors'               => array(),
 			'warnings'             => array(),
@@ -414,6 +419,7 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 
 		$surfaces = ! empty( $surfaces ) ? ufsc_competition_normalize_surfaces( $surfaces ) : ufsc_competition_get_surfaces( $competition_id );
 		$active_surfaces = array_values( array_filter( $surfaces, static fn( $s ) => ! empty( $s['active'] ) ) );
+		$result['surfaces_ignored'] = max( 0, count( $surfaces ) - count( $active_surfaces ) );
 		if ( empty( $active_surfaces ) ) {
 			$active_surfaces = array( array( 'uuid' => uniqid( 'surface_', false ), 'index' => 1, 'name' => 'Surface 1', 'type' => 'tatami', 'short_label' => 'T1', 'order' => 1, 'active' => 1 ) );
 		}
@@ -434,6 +440,7 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 		}
 
 		$columns = ufsc_competition_get_table_columns( $table );
+		$result['columns_available'] = $columns;
 		$columns_map = array_fill_keys( $columns, true );
 		$required_columns = array( 'id', 'competition_id', 'status' );
 		$missing_required = array_values( array_diff( $required_columns, $columns ) );
@@ -457,7 +464,7 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 		if ( isset( $columns_map['deleted_at'] ) ) {
 			$where_parts[] = 'deleted_at IS NULL';
 		}
-		$statuses = array( 'scheduled', 'bye', 'placeholder', 'draft' );
+		$statuses = array( 'scheduled', 'draft' );
 		$placeholders = implode( ',', array_fill( 0, count( $statuses ), '%s' ) );
 		$where_parts[] = $wpdb->prepare( "status IN ({$placeholders})", $statuses );
 		if ( isset( $columns_map['winner_entry_id'] ) ) {
@@ -478,8 +485,24 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 		if ( isset( $columns_map['completed_at'] ) ) {
 			$where_parts[] = 'completed_at IS NULL';
 		}
+		if ( isset( $columns_map['locked_at'] ) ) {
+			$where_parts[] = 'locked_at IS NULL';
+		}
+		if ( isset( $columns_map['winner_id'] ) ) {
+			$where_parts[] = '(winner_id IS NULL OR winner_id = 0)';
+		}
+		foreach ( array( 'result', 'result_note', 'score' ) as $result_column ) {
+			if ( isset( $columns_map[ $result_column ] ) ) {
+				$where_parts[] = "({$result_column} IS NULL OR {$result_column} = '')";
+			}
+		}
 
-		$order_by = isset( $columns_map['fight_no'] ) ? 'fight_no ASC' : 'id ASC';
+		$order_parts = array();
+		if ( isset( $columns_map['fight_no'] ) ) {
+			$order_parts[] = 'fight_no ASC';
+		}
+		$order_parts[] = 'id ASC';
+		$order_by = implode( ', ', $order_parts );
 		$sql = "SELECT * FROM `{$table}` WHERE " . implode( ' AND ', $where_parts ) . " ORDER BY {$order_by}";
 		$fights = $wpdb->get_results( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM `{$table}` WHERE competition_id = %d", $competition_id ) );
@@ -508,6 +531,7 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 				$surface_name = (string) ( $active_surfaces[ $target ]['name'] ?? '' );
 				$surface_short_label = (string) ( $active_surfaces[ $target ]['short_label'] ?? '' );
 				$payload = array(
+					'ring' => $surface_name ?: $surface_short_label,
 					'surface_uuid' => (string) ( $active_surfaces[ $target ]['uuid'] ?? '' ),
 					'surface_index' => (int) ( $active_surfaces[ $target ]['index'] ?? ( $target + 1 ) ),
 					'surface_name' => $surface_name,
@@ -526,6 +550,10 @@ if ( ! function_exists( 'ufsc_competition_assign_surfaces_and_times' ) ) {
 					continue;
 				}
 				$result['assigned_fights']++;
+				$surface_key = $surface_name ?: $surface_short_label ?: ( 'Surface ' . ( $target + 1 ) );
+				$result['surface_distribution'][ $surface_key ] = (int) ( $result['surface_distribution'][ $surface_key ] ?? 0 ) + 1;
+				$result['first_order'] = 0 === (int) $result['first_order'] ? (int) $surface_orders[ $target ] : min( (int) $result['first_order'], (int) $surface_orders[ $target ] );
+				$result['last_order'] = max( (int) $result['last_order'], (int) $surface_orders[ $target ] );
 				$surface_load[ $target ] += $fight_seconds;
 			}
 		}
