@@ -320,6 +320,9 @@ class FightAutoGenerationService {
 			'precheck'                    => array(),
 			'rejection_diagnostics'       => array(),
 			'groups_preview'              => array(),
+			'bye_count'                   => 0,
+			'isolated_count'              => 0,
+			'insufficient_groups_count'   => 0,
 		);
 
 		if ( ! $competition_id ) {
@@ -337,7 +340,7 @@ class FightAutoGenerationService {
 		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
 		$groups     = self::group_entries_by_category( $eligible, $settings );
-		$group_stats = self::summarize_generation_groups( $groups );
+		$group_stats = self::summarize_generation_groups( $groups, $settings );
 		if ( ! $groups ) {
 			$preview['eligible_entries']   = count( $eligible );
 			$preview['excluded_unweighed'] = (int) ( $selection['excluded_unweighed'] ?? 0 );
@@ -348,7 +351,7 @@ class FightAutoGenerationService {
 
 		$estimated_fights = 0;
 		foreach ( $groups as $group_entries ) {
-			$estimated_fights += self::estimate_fights_for_group_size( count( $group_entries ) );
+			$estimated_fights += (int) self::describe_group_generation_case( count( $group_entries ), $settings )['estimated_fights'];
 		}
 
 		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
@@ -375,6 +378,9 @@ class FightAutoGenerationService {
 		$preview['groups_insufficient']       = (int) ( $group_stats['insufficient_groups'] ?? 0 );
 		$preview['isolated_participants']     = (int) ( $group_stats['isolated_participants'] ?? 0 );
 		$preview['odd_groups']                = (int) ( $group_stats['odd_groups'] ?? 0 );
+		$preview['bye_count']                 = (int) ( $group_stats['bye_slots'] ?? 0 );
+		$preview['isolated_count']            = (int) ( $group_stats['isolated_participants'] ?? 0 );
+		$preview['insufficient_groups_count'] = (int) ( $group_stats['insufficient_groups'] ?? 0 );
 		$preview['group_diagnostics']         = $group_stats;
 		$preview['eligible_entries']          = count( $eligible );
 		$preview['excluded_unweighed']        = (int) ( $selection['excluded_unweighed'] ?? 0 );
@@ -585,6 +591,7 @@ class FightAutoGenerationService {
 				);
 			}
 
+			$group_stats = self::summarize_generation_groups( $groups, $settings );
 			$groups = self::sort_groups_for_generation( $groups, $normalized_categories );
 
 			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
@@ -621,9 +628,12 @@ class FightAutoGenerationService {
 				'total_entries'     => $total_entries,
 				'eligible_entries'  => count( $valid_entries ),
 				'excluded_unweighed' => $excluded_unweighed,
-				'bye_slots'         => $total_bye_slots,
-				'ignored_groups'    => $ignored_groups,
+				'bye_slots'          => $total_bye_slots,
+				'ignored_groups'     => $ignored_groups,
 				'reason_counts'      => $reason_counts,
+				'estimated_bye_slots'=> (int) ( $group_stats['bye_slots'] ?? 0 ),
+				'isolated_count'     => (int) ( $group_stats['isolated_participants'] ?? 0 ),
+				'groups_insufficient'=> (int) ( $group_stats['insufficient_groups'] ?? 0 ),
 			);
 			$full_preview = self::get_generation_preview( $competition_id, $settings );
 			$excluded_entries = array();
@@ -1538,26 +1548,20 @@ class FightAutoGenerationService {
 					'first_name' => self::pick_entry_value( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) ),
 				);
 			}
-			$group_warnings = array();
-			if ( 1 === $count ) {
-				$group_warnings[] = 'isolated_participant';
-			}
-			if ( $count < 2 ) {
-				$group_warnings[] = 'insufficient_participants';
-			}
-			if ( $count > 1 && 1 === ( $count % 2 ) ) {
-				$group_warnings[] = 'odd_participant_count';
-			}
+			$case = self::describe_group_generation_case( $count, $settings );
+			$group_warnings = (array) ( $case['warnings'] ?? array() );
 			$group_components = ! empty( $group_entries ) ? self::get_generation_group_components( $group_entries[0], $settings ) : array();
 			$rows[] = array(
 				'group_key'         => (string) $group_key,
 				'group_components'  => $group_components,
 				'warnings'          => $group_warnings,
 				'entries_count'     => $count,
-				'estimated_fights'  => self::estimate_fights_for_group_size( $count ),
+				'estimated_fights'  => (int) ( $case['estimated_fights'] ?? 0 ),
 				'status'            => $status,
-				'format'            => self::recommend_group_format( $count, $settings ),
-				'bye_slots'         => self::estimate_bye_slots( $count ),
+				'case_type'         => (string) ( $case['case_type'] ?? '' ),
+				'case_label'        => (string) ( $case['label'] ?? '' ),
+				'format'            => (string) ( $case['recommended_format'] ?? self::recommend_group_format( $count, $settings ) ),
+				'bye_slots'         => (int) ( $case['bye_slots'] ?? 0 ),
 				'lone_fighter'      => 1 === $count,
 				'recommendation'    => function_exists( 'ufsc_competition_recommend_group_format' )
 					? ufsc_competition_recommend_group_format(
@@ -1571,6 +1575,88 @@ class FightAutoGenerationService {
 			);
 		}
 		return $rows;
+	}
+
+	private static function describe_group_generation_case( int $count, array $settings ): array {
+		$allow_pool = ! empty( $settings['prefer_round_robin_for_3'] ) || ! empty( $settings['prefer_pool_for_4_6'] );
+		$bye_slots  = self::estimate_bye_slots( $count );
+		$case = array(
+			'case_type'          => 'unsupported',
+			'label'              => __( 'Format non supporté', 'ufsc-licence-competition' ),
+			'recommended_format' => 'unsupported',
+			'estimated_fights'   => 0,
+			'bye_slots'          => 0,
+			'warnings'           => array(),
+		);
+
+		if ( $count <= 0 ) {
+			$case['case_type'] = 'insufficient';
+			$case['label'] = __( 'Groupe vide ou insuffisant', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'insufficient';
+			$case['warnings'][] = 'insufficient_participants';
+			return $case;
+		}
+		if ( 1 === $count ) {
+			$case['case_type'] = 'isolated';
+			$case['label'] = __( 'Participant seul — aucun combat généré', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'isolated';
+			$case['warnings'] = array( 'isolated_participant', 'insufficient_participants' );
+			return $case;
+		}
+		if ( 2 === $count ) {
+			$case['case_type'] = 'direct_final';
+			$case['label'] = __( 'Combat direct / finale directe', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'direct_final';
+			$case['estimated_fights'] = 1;
+			return $case;
+		}
+		if ( 3 === $count && $allow_pool ) {
+			$case['case_type'] = 'pool_3';
+			$case['label'] = __( 'Poule de 3 combattants', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'pool_3';
+			$case['estimated_fights'] = 3;
+			$case['warnings'][] = 'round_robin_three_fighters';
+			return $case;
+		}
+		if ( 3 === $count ) {
+			$case['case_type'] = 'bracket_with_bye';
+			$case['label'] = __( 'Tableau à 3 avec BYE', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'bracket_with_bye';
+			$case['estimated_fights'] = 3;
+			$case['bye_slots'] = $bye_slots;
+			$case['warnings'] = array( 'odd_participant_count', 'bye_required' );
+			return $case;
+		}
+		if ( $count >= 4 && $count <= 6 && $allow_pool ) {
+			$case['case_type'] = 'pool';
+			$case['label'] = __( 'Poule complète', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'pool';
+			$case['estimated_fights'] = (int) ( $count * ( $count - 1 ) / 2 );
+			return $case;
+		}
+		if ( 4 === $count ) {
+			$case['case_type'] = 'bracket';
+			$case['label'] = __( 'Tableau simple demi-finales / finale', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'bracket';
+			$case['estimated_fights'] = 3;
+			return $case;
+		}
+		if ( $count >= 3 && $count <= 32 ) {
+			$case['case_type'] = $bye_slots > 0 ? 'bracket_with_bye' : 'bracket';
+			$case['label'] = $bye_slots > 0 ? __( 'Tableau avec BYE', 'ufsc-licence-competition' ) : __( 'Tableau élimination', 'ufsc-licence-competition' );
+			$case['recommended_format'] = $bye_slots > 0 ? 'bracket_with_bye' : 'bracket';
+			$case['estimated_fights'] = self::estimate_fights_for_group_size( $count );
+			$case['bye_slots'] = $bye_slots;
+			if ( 1 === ( $count % 2 ) ) {
+				$case['warnings'][] = 'odd_participant_count';
+			}
+			if ( $bye_slots > 0 ) {
+				$case['warnings'][] = 'bye_required';
+			}
+			return $case;
+		}
+
+		return $case;
 	}
 
 	private static function estimate_bye_slots( int $count ): int {
@@ -1915,19 +2001,23 @@ class FightAutoGenerationService {
 		return $groups;
 	}
 
-	private static function summarize_generation_groups( array $groups ): array {
+	private static function summarize_generation_groups( array $groups, array $settings = array() ): array {
 		$summary = array(
 			'total_groups'           => count( $groups ),
 			'generable_groups'       => 0,
 			'insufficient_groups'    => 0,
 			'isolated_participants'  => 0,
 			'odd_groups'             => 0,
+			'bye_slots'              => 0,
 			'participants_in_groups' => 0,
 		);
 
+		$settings = array_merge( self::get_default_settings(), $settings );
 		foreach ( $groups as $group_entries ) {
 			$count = count( (array) $group_entries );
+			$case = self::describe_group_generation_case( $count, $settings );
 			$summary['participants_in_groups'] += $count;
+			$summary['bye_slots'] += (int) ( $case['bye_slots'] ?? 0 );
 			if ( $count >= 2 ) {
 				$summary['generable_groups']++;
 			} else {
@@ -2063,6 +2153,18 @@ class FightAutoGenerationService {
 		);
 	}
 
+	private static function extract_generation_warning_codes( array $anomalies ): array {
+		$codes = array();
+		foreach ( $anomalies as $anomaly ) {
+			$code = sanitize_key( (string) ( is_array( $anomaly ) ? ( $anomaly['code'] ?? '' ) : '' ) );
+			if ( '' !== $code ) {
+				$codes[] = $code;
+			}
+		}
+
+		return array_values( array_unique( $codes ) );
+	}
+
 	private static function build_fights_for_group( int $competition_id, int $category_id, array $entries, int $start_no, string $group_key = '' ): array {
 		$fights     = array();
 		$count      = count( $entries );
@@ -2120,8 +2222,10 @@ class FightAutoGenerationService {
 					unset( $premium_fight );
 
 					return array(
-						'fights'  => $premium_fights,
-						'next_no' => max( $next_no, $max_no + 1 ),
+						'fights'   => $premium_fights,
+						'next_no'  => max( $next_no, $max_no + 1 ),
+						'bye_slots' => (int) ( $premium_plan['stats']['bye_count'] ?? 0 ),
+						'warnings' => self::extract_generation_warning_codes( $premium_anomalies ),
 					);
 				}
 
@@ -2144,12 +2248,18 @@ class FightAutoGenerationService {
 			}
 		}
 
-		if ( 'combat_simple' === $format ) {
+		if ( 'single' === $format ) {
+			$warnings[] = 'isolated_participant';
+			$warnings[] = 'insufficient_participants';
+		} elseif ( 'combat_simple' === $format ) {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[1], 1, $group_key );
 			if ( self::same_club( $entries[0], $entries[1] ) ) {
 				$warnings[] = sprintf( 'Catégorie #%d : premier tour même club (best effort).', $category_id );
 			}
 			$next_no++;
+			$fights[ count( $fights ) - 1 ]['case_type'] = 'direct_final';
+			$fights[ count( $fights ) - 1 ]['phase'] = 'Finale directe';
+			$fights[ count( $fights ) - 1 ]['round_label'] = 'Finale directe';
 		} elseif ( 'poule' === $format ) {
 			$pool_preview = self::build_pool_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
 			foreach ( (array) ( $pool_preview['fights'] ?? array() ) as $pfight ) {
@@ -2159,6 +2269,7 @@ class FightAutoGenerationService {
 				$pfight['round_no'] = 1;
 				$pfight['phase'] = (string) ( $pfight['phase'] ?? 'Poule' );
 				$pfight['status'] = 'scheduled';
+				$pfight['case_type'] = 3 === $count ? 'pool_3' : 'pool';
 				if ( '' !== $group_key && empty( $pfight['group_key'] ) ) {
 					$pfight['group_key'] = $group_key;
 				}
@@ -2182,7 +2293,7 @@ class FightAutoGenerationService {
 			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2, $group_key );
 			$next_no++;
 		} elseif ( 'tableau_bye' === $format || 'tableau' === $format ) {
-			$bracket_preview = self::build_bracket_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
+			$bracket_preview = self::build_bracket_preview( $entries, array( 'category_id' => $category_id, 'group_key' => $group_key ), self::get_settings( $competition_id ) );
 			foreach ( (array) ( $bracket_preview['fights'] ?? array() ) as $bfight ) {
 				$bfight['competition_id'] = $competition_id;
 				$bfight['category_id'] = $category_id;
@@ -2207,23 +2318,39 @@ class FightAutoGenerationService {
 			'fights'   => $fights,
 			'next_no'  => $next_no,
 			'bye_slots' => $bye_slots,
-			'warnings' => $warnings,
+			'warnings' => array_values( array_unique( array_filter( $warnings ) ) ),
+			'case_type' => (string) ( self::describe_group_generation_case( $count, self::get_settings( $competition_id ) )['case_type'] ?? '' ),
 		);
 	}
 
 	private static function determine_generation_format( array $entries, array $settings, array $group = array() ): string {
-		$count = count( $entries );
-		$allow_pool = ! empty( $settings['prefer_round_robin_for_3'] ) || ! empty( $settings['prefer_pool_for_4_6'] );
-		if ( $count <= 1 ) { return 'single'; }
-		if ( 2 === $count ) { return 'combat_simple'; }
-		if ( $count >= 3 && $count <= 6 && $allow_pool ) { return 'poule'; }
-		if ( 4 === $count || 8 === $count ) { return 'tableau'; }
-		if ( $count >= 3 && $count <= 32 ) { return 'tableau_bye'; }
-		return 'unsupported';
+		$case = self::describe_group_generation_case( count( $entries ), $settings );
+		switch ( (string) ( $case['case_type'] ?? '' ) ) {
+			case 'isolated':
+			case 'insufficient':
+				return 'single';
+			case 'direct_final':
+				return 'combat_simple';
+			case 'pool_3':
+			case 'pool':
+				return 'poule';
+			case 'bracket':
+				return 'tableau';
+			case 'bracket_with_bye':
+				return 'tableau_bye';
+			default:
+				return 'unsupported';
+		}
 	}
 
 	private static function get_generation_format_label( string $format ): string {
 		switch ( sanitize_key( $format ) ) {
+			case 'direct_final': return 'Finale directe';
+			case 'pool_3': return 'Poule de 3';
+			case 'bracket_with_bye': return 'Tableau avec BYE';
+			case 'bracket': return 'Tableau';
+			case 'isolated': return 'Participant seul';
+			case 'insufficient': return 'Groupe insuffisant';
 			case 'combat_simple': return 'Combat simple';
 			case 'poule': return 'Poule';
 			case 'tableau': return 'Tableau';
@@ -2246,7 +2373,8 @@ class FightAutoGenerationService {
 	private static function build_bracket_preview( array $entries, array $group, array $settings ): array {
 		$count = count( $entries );
 		$size = self::determine_bracket_size( $count );
-		$out = array( 'fights' => array(), 'bye_count' => 0, 'placeholder_count' => 0, 'warnings' => array(), 'bracket_size' => $size, 'rounds' => array() );
+		$out = array( 'fights' => array(), 'bye_count' => 0, 'placeholder_count' => 0, 'warnings' => array(), 'bracket_size' => $size, 'rounds' => array(), 'bye_entry_ids' => array() );
+		$group_key = sanitize_text_field( (string) ( $group['group_key'] ?? '' ) );
 		if ( $size <= 0 || $size > 32 ) {
 			$out['warnings'][] = 'Tableau supérieur à 32 non supporté dans ce lot.';
 			return $out;
@@ -2257,19 +2385,23 @@ class FightAutoGenerationService {
 		$r1 = array();
 		foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
 			$is_bye = ! empty( $match['is_bye'] );
+			$qualified_id = $is_bye ? (int) ( ( $match['red']->id ?? 0 ) ?: ( $match['blue']->id ?? 0 ) ) : 0;
 			$r1[] = array(
 				'phase' => $round_labels[ $size ][1] ?? 'Tour 1',
 				'round' => 1,
 				'round_no' => 1,
 				'round_label' => $round_labels[ $size ][1] ?? 'Tour 1',
 				'type' => $is_bye ? 'bye' : 'fight',
+				'case_type' => $is_bye ? 'bracket_with_bye' : 'bracket',
 				'status' => $is_bye ? 'bye' : 'scheduled',
 				'red_entry_id' => (int) ( $match['red']->id ?? 0 ),
 				'blue_entry_id' => (int) ( $match['blue']->id ?? 0 ),
 				'red_label' => self::entry_label( $match['red'] ?? null ),
 				'blue_label' => $is_bye ? 'BYE — Qualifié automatiquement' : self::entry_label( $match['blue'] ?? null ),
+				'winner_entry_id' => $qualified_id > 0 ? $qualified_id : null,
+				'group_key' => $group_key,
 			);
-			if ( $is_bye ) { $out['bye_count']++; }
+			if ( $is_bye ) { $out['bye_count']++; if ( $qualified_id > 0 ) { $out['bye_entry_ids'][] = $qualified_id; } }
 		}
 		$out['fights'] = array_merge( $out['fights'], $r1 );
 		$prev_count = count( $r1 );
@@ -2286,11 +2418,13 @@ class FightAutoGenerationService {
 					'round_no' => $round_no,
 					'round_label' => $round_labels[ $size ][ $round_no ] ?? ( 'Tour ' . $round_no ),
 					'type' => 'placeholder',
+					'case_type' => $out['bye_count'] > 0 ? 'bracket_with_bye' : 'bracket',
 					'status' => 'placeholder',
 					'red_label' => 'Vainqueur combat ' . $src_a,
 					'blue_label' => 'Vainqueur combat ' . $src_b,
 					'source_red_fight_no' => $src_a,
 					'source_blue_fight_no' => $src_b,
+					'group_key' => $group_key,
 				);
 				$out['placeholder_count']++;
 			}
@@ -2298,12 +2432,18 @@ class FightAutoGenerationService {
 			$prev_count = $current;
 			$round_no++;
 		}
-		$out['warnings'][] = 'Propagation complète du tableau à finaliser dans un lot suivant.';
+		if ( $out['bye_count'] > 0 ) {
+			$out['warnings'][] = 'bye_required';
+		}
+		if ( 1 === ( $count % 2 ) ) {
+			$out['warnings'][] = 'odd_participant_count';
+		}
 		return $out;
 	}
 
 	private static function build_pool_preview( array $entries, array $group, array $settings ): array {
 		$pool_size = count( $entries );
+		$group_key = sanitize_text_field( (string) ( $group['group_key'] ?? '' ) );
 		$pairs = self::round_robin_pairs( $entries );
 		$pairs = self::order_round_robin_pairs( $pairs );
 		$fights = array();
@@ -2329,11 +2469,13 @@ class FightAutoGenerationService {
 				'round' => 1,
 				'round_label' => 'Poule',
 				'type' => 'fight',
+				'case_type' => 3 === $pool_size ? 'pool_3' : 'pool',
 				'status' => 'scheduled',
 				'red_entry_id' => $red_id,
 				'blue_entry_id' => $blue_id,
 				'red_label' => self::entry_label( $pair['red'] ?? null ),
 				'blue_label' => self::entry_label( $pair['blue'] ?? null ),
+				'group_key' => $group_key,
 			);
 			$last_entry = $blue_id;
 		}
@@ -2412,6 +2554,7 @@ class FightAutoGenerationService {
 			$fight['blue_corner'] = (string) ( $fight['blue_label'] ?? ( $fight['blue_entry_id'] ?? '' ) );
 			$fight['type'] = $type;
 			$fight['status'] = $status;
+			$fight['case_type'] = sanitize_key( (string) ( $fight['case_type'] ?? ( 'bye' === $type ? 'bracket_with_bye' : ( 'placeholder' === $type ? 'bracket' : '' ) ) ) );
 			$fight['surface_name'] = (string) ( $fight['ring'] ?? '' );
 			$fight['scheduled_order'] = (int) ( $fight['fight_no'] ?? $index );
 			$fight['scheduled_time'] = (string) ( $fight['scheduled_at'] ?? '' );
@@ -2431,11 +2574,21 @@ class FightAutoGenerationService {
 			}
 			if ( '' === $key ) { continue; }
 			if ( ! isset( $by_group[ $key ] ) ) {
-				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0, 'round_labels' => array() );
+				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0, 'round_labels' => array(), 'case_types' => array(), 'bye_entry_ids' => array() );
 			}
 			$by_group[ $key ]['fight_count']++;
-			if ( 'bye' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['bye_count']++; }
+			if ( 'bye' === (string) ( $fight['type'] ?? '' ) ) {
+				$by_group[ $key ]['bye_count']++;
+				$winner_id = absint( $fight['winner_entry_id'] ?? 0 );
+				if ( $winner_id > 0 ) {
+					$by_group[ $key ]['bye_entry_ids'][ $winner_id ] = true;
+				}
+			}
 			if ( 'placeholder' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['placeholder_count']++; }
+			$case_type = sanitize_key( (string) ( $fight['case_type'] ?? '' ) );
+			if ( '' !== $case_type ) {
+				$by_group[ $key ]['case_types'][ $case_type ] = true;
+			}
 			$round_label = sanitize_text_field( (string) ( $fight['round_label'] ?? '' ) );
 			if ( '' !== $round_label ) {
 				$by_group[ $key ]['round_labels'][ $round_label ] = true;
@@ -2451,6 +2604,12 @@ class FightAutoGenerationService {
 			$group['fight_count'] = (int) ( $stats['fight_count'] ?? ( $group['estimated_fights'] ?? 0 ) );
 			$group['bye_count'] = (int) ( $stats['bye_count'] ?? ( $group['bye_slots'] ?? 0 ) );
 			$group['placeholder_count'] = (int) ( $stats['placeholder_count'] ?? 0 );
+			$case_types = array_keys( (array) ( $stats['case_types'] ?? array() ) );
+			if ( ! empty( $case_types ) ) {
+				$group['case_type'] = (string) $case_types[0];
+				$group['case_label'] = self::get_generation_format_label( (string) $case_types[0] );
+			}
+			$group['bye_entry_ids'] = array_map( 'absint', array_keys( (array) ( $stats['bye_entry_ids'] ?? array() ) ) );
 			$group['warnings'] = isset( $group['warnings'] ) && is_array( $group['warnings'] ) ? $group['warnings'] : array();
 			$group['fighters'] = isset( $group['athletes'] ) && is_array( $group['athletes'] ) ? $group['athletes'] : array();
 			if ( 'poule' === (string) ( $group['format'] ?? '' ) ) {
