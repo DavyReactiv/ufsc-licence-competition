@@ -23,8 +23,8 @@ class ResultService {
 		if ( in_array( $status, array( FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER, FightRepository::STATUS_TRASHED ), true ) ) {
 			return array( 'ok' => false, 'error' => 'unsupported_fight_status' );
 		}
-		if ( FightRepository::STATUS_LOCKED === $status && ! Capabilities::user_can_correct_results() ) {
-			return array( 'ok' => false, 'error' => 'locked_requires_sensitive_right' );
+		if ( FightRepository::STATUS_LOCKED === $status ) {
+			return array( 'ok' => false, 'error' => 'locked_result_cannot_be_modified_directly' );
 		}
 		if ( FightRepository::STATUS_COMPLETED === $status && ! $is_correction ) {
 			return array( 'ok' => false, 'error' => 'completed_requires_correction_flow' );
@@ -69,6 +69,10 @@ class ResultService {
 	public function record_result( int $fight_id, array $payload ): array {
 		$fight = $this->fights->get( $fight_id, true );
 		if ( ! $fight ) { return array( 'ok' => false, 'error' => 'fight_not_found' ); }
+		$safety = ( new CompetitionSafetyService() )->guard_fight_result_mutation( (int) $fight->competition_id, $fight_id, 'record_result', false );
+		if ( empty( $safety['ok'] ) ) {
+			return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+		}
 		$check = $this->validate_result_payload( $fight, $payload, false );
 		if ( ! $check['ok'] ) { return $check; }
 		$new = $this->build_update_payload( $fight, $payload, false );
@@ -84,6 +88,12 @@ class ResultService {
 			$this->logger->audit( 'result_correction_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => 'missing_capability' ) );
 			return array( 'ok' => false, 'error' => 'missing_capability' );
 		}
+		$safety = ( new CompetitionSafetyService() )->guard_fight_result_mutation( (int) $fight->competition_id, $fight_id, 'correct_result', true );
+		if ( empty( $safety['ok'] ) ) {
+			$this->logger->audit( 'result_correction_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => (string) ( $safety['reason'] ?? 'safety_blocked' ) ) );
+			return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+		}
+
 		$check = $this->validate_result_payload( $fight, $payload, true );
 		if ( ! $check['ok'] ) {
 			$this->logger->audit( 'result_correction_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => (string) ( $check['error'] ?? 'validation_failed' ) ) );
@@ -98,6 +108,10 @@ class ResultService {
 	public function lock_result( int $fight_id, string $reason = '' ): array {
 		$fight = $this->fights->get( $fight_id, true );
 		if ( ! $fight ) { return array( 'ok' => false, 'error' => 'fight_not_found' ); }
+		$safety = ( new CompetitionSafetyService() )->assert_competition_ready( (int) $fight->competition_id, 'lock_result', array( 'fight_id' => $fight_id ) );
+		if ( empty( $safety['ok'] ) ) {
+			return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+		}
 		$status = $this->fights->get_effective_fight_status( $fight );
 		if ( in_array( $status, array( FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER, FightRepository::STATUS_TRASHED ), true ) ) {
 			return array( 'ok' => false, 'error' => 'lock_unsupported_status' );

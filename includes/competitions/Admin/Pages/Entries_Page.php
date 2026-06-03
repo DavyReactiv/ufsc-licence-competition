@@ -16,6 +16,7 @@ use UFSC\Competitions\Repositories\ExternalParticipantRepository;
 use UFSC\Competitions\Services\ExternalParticipantService;
 use UFSC\Competitions\Services\EntryDeduplication;
 use UFSC\Competitions\Services\WeightCategoryResolver;
+use UFSC\Competitions\Services\CompetitionStatsService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -122,10 +123,19 @@ class Entries_Page {
 		$list_table->prepare_items();
 		$filters            = $list_table->get_filters();
 		$current_view       = $filters['view'] ?? 'all';
-		$total_entries      = (int) $this->repository->count( array( 'view' => 'all' ) );
-		$submitted_entries  = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'submitted' ) );
-		$approved_entries   = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'approved' ) );
-		$rejected_entries   = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'rejected' ) );
+		$stats_competition_id = absint( $filters['competition_id'] ?? 0 );
+		if ( $stats_competition_id ) {
+			$competition_stats  = ( new CompetitionStatsService() )->get_competition_stats( $stats_competition_id );
+			$total_entries      = (int) ( $competition_stats['entries']['total'] ?? 0 );
+			$submitted_entries  = (int) ( $competition_stats['entries']['to_validate'] ?? 0 );
+			$approved_entries   = (int) ( $competition_stats['entries']['approved'] ?? 0 );
+			$rejected_entries   = (int) ( $competition_stats['entries']['rejected'] ?? 0 );
+		} else {
+			$total_entries      = (int) $this->repository->count( array( 'view' => 'all' ) );
+			$submitted_entries  = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'submitted' ) ) + (int) $this->repository->count( array( 'view' => 'all', 'status' => 'pending' ) );
+			$approved_entries   = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'approved' ) );
+			$rejected_entries   = (int) $this->repository->count( array( 'view' => 'all', 'status' => 'rejected' ) );
+		}
 		$items_count        = is_countable( $list_table->items ) ? count( $list_table->items ) : 0;
 		$table_output       = $this->capture_list_table_output( $list_table );
 		$has_table_markup   = false !== strpos( $table_output, 'wp-list-table' );
@@ -184,6 +194,9 @@ class Entries_Page {
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Approuvées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $approved_entries ) ); ?></strong></article>
 				<article class="ufsc-kpi"><span class="ufsc-kpi__label"><?php esc_html_e( 'Rejetées', 'ufsc-licence-competition' ); ?></span><strong class="ufsc-kpi__value"><?php echo esc_html( number_format_i18n( $rejected_entries ) ); ?></strong></article>
 			</section>
+			<?php if ( ! empty( $stats_competition_id ) ) : ?>
+				<div class="notice notice-info inline"><p><?php echo esc_html( sprintf( __( 'Ces compteurs sont limités à la compétition sélectionnée (competition_id=%d). Sans filtre compétition, ils affichent toutes les inscriptions accessibles.', 'ufsc-licence-competition' ), (int) $stats_competition_id ) ); ?></p></div>
+			<?php endif; ?>
 			<?php $this->render_helper_notice( __( 'Ajouter/valider les inscrits, contrôler doublons, gérer la forclusion.', 'ufsc-licence-competition' ) ); ?>
 			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
@@ -1064,6 +1077,9 @@ class Entries_Page {
 		?>
 		<div class="wrap ufsc-competitions-admin">
 			<h1><?php echo esc_html( $values['id'] ? __( 'Modifier l\'inscription', 'ufsc-licence-competition' ) : __( 'Nouvelle inscription', 'ufsc-licence-competition' ) ); ?></h1>
+			<?php if ( ! empty( $stats_competition_id ) ) : ?>
+				<div class="notice notice-info inline"><p><?php echo esc_html( sprintf( __( 'Ces compteurs sont limités à la compétition sélectionnée (competition_id=%d). Sans filtre compétition, ils affichent toutes les inscriptions accessibles.', 'ufsc-licence-competition' ), (int) $stats_competition_id ) ); ?></p></div>
+			<?php endif; ?>
 			<?php $this->render_helper_notice( __( 'Ajouter/valider les inscrits, contrôler doublons, gérer la forclusion.', 'ufsc-licence-competition' ) ); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ufsc-competitions-form">
 				<?php wp_nonce_field( 'ufsc_competitions_save_entry' ); ?>
