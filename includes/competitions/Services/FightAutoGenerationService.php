@@ -320,6 +320,9 @@ class FightAutoGenerationService {
 			'precheck'                    => array(),
 			'rejection_diagnostics'       => array(),
 			'groups_preview'              => array(),
+			'bye_count'                   => 0,
+			'isolated_count'              => 0,
+			'insufficient_groups_count'   => 0,
 		);
 
 		if ( ! $competition_id ) {
@@ -337,16 +340,18 @@ class FightAutoGenerationService {
 		$selection  = self::select_eligible_entries( $entries, $competition_id, $competition, $settings );
 		$eligible   = (array) ( $selection['valid_entries'] ?? array() );
 		$groups     = self::group_entries_by_category( $eligible, $settings );
+		$group_stats = self::summarize_generation_groups( $groups, $settings );
 		if ( ! $groups ) {
 			$preview['eligible_entries']   = count( $eligible );
 			$preview['excluded_unweighed'] = (int) ( $selection['excluded_unweighed'] ?? 0 );
 			$preview['rejection_diagnostics'] = self::build_rejection_diagnostics( $entries, $selection );
+			$preview['group_diagnostics'] = $group_stats;
 			return $preview;
 		}
 
 		$estimated_fights = 0;
 		foreach ( $groups as $group_entries ) {
-			$estimated_fights += self::estimate_fights_for_group_size( count( $group_entries ) );
+			$estimated_fights += (int) self::describe_group_generation_case( count( $group_entries ), $settings )['estimated_fights'];
 		}
 
 		$surface_count = max( 1, absint( $settings['surface_count'] ?? 1 ) );
@@ -369,6 +374,14 @@ class FightAutoGenerationService {
 		$preview['estimated_categories']      = count( $groups );
 		$preview['estimated_total_seconds']   = $estimated_fights * $step_seconds;
 		$preview['estimated_per_surface']     = $per_surface;
+		$preview['groups_generable']          = (int) ( $group_stats['generable_groups'] ?? 0 );
+		$preview['groups_insufficient']       = (int) ( $group_stats['insufficient_groups'] ?? 0 );
+		$preview['isolated_participants']     = (int) ( $group_stats['isolated_participants'] ?? 0 );
+		$preview['odd_groups']                = (int) ( $group_stats['odd_groups'] ?? 0 );
+		$preview['bye_count']                 = (int) ( $group_stats['bye_slots'] ?? 0 );
+		$preview['isolated_count']            = (int) ( $group_stats['isolated_participants'] ?? 0 );
+		$preview['insufficient_groups_count'] = (int) ( $group_stats['insufficient_groups'] ?? 0 );
+		$preview['group_diagnostics']         = $group_stats;
 		$preview['eligible_entries']          = count( $eligible );
 		$preview['excluded_unweighed']        = (int) ( $selection['excluded_unweighed'] ?? 0 );
 		$preview['duplicate_fighter_numbers'] = $duplicates;
@@ -554,10 +567,21 @@ class FightAutoGenerationService {
 					continue;
 				}
 
-				if ( ! isset( $groups[ $category_id ] ) ) {
-					$groups[ $category_id ] = array();
+				$entry->category_id = $category_id;
+				$group_key = self::get_generation_category_key( $entry, $settings );
+				if ( '' === $group_key ) {
+					$warnings[] = sprintf(
+						__( 'Entrée #%d non affectée : clé de groupe incomplète.', 'ufsc-licence-competition' ),
+						(int) ( $entry->id ?? 0 )
+					);
+					continue;
 				}
-				$groups[ $category_id ][] = $entry;
+
+				$draft_group_key = $category_id . '|' . $group_key;
+				if ( ! isset( $groups[ $draft_group_key ] ) ) {
+					$groups[ $draft_group_key ] = array();
+				}
+				$groups[ $draft_group_key ][] = $entry;
 			}
 
 			if ( ! $groups ) {
@@ -567,16 +591,22 @@ class FightAutoGenerationService {
 				);
 			}
 
+			$group_stats = self::summarize_generation_groups( $groups, $settings );
 			$groups = self::sort_groups_for_generation( $groups, $normalized_categories );
 
-				$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
+			$next_fight_no = $fight_repo->get_max_fight_no( $competition_id ) + 1;
 
 			$fights         = array();
 			$total_bye_slots = 0;
 			$ignored_groups = 0;
-			foreach ( $groups as $category_id => $group_entries ) {
+			foreach ( $groups as $draft_group_key => $group_entries ) {
 				$group_entries = self::sort_entries_for_generation( $group_entries );
-				$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no );
+				$category_id = ! empty( $group_entries ) ? absint( $group_entries[0]->category_id ?? 0 ) : 0;
+				if ( $category_id <= 0 ) {
+					$category_id = absint( strtok( (string) $draft_group_key, '|' ) );
+				}
+				$group_key = self::get_generation_category_key( $group_entries[0] ?? null, $settings );
+				$generated = self::build_fights_for_group( $competition_id, $category_id, $group_entries, $next_fight_no, $group_key );
 				$fights    = array_merge( $fights, $generated['fights'] );
 				$next_fight_no = $generated['next_no'];
 				$total_bye_slots += (int) ( $generated['bye_slots'] ?? 0 );
@@ -598,9 +628,12 @@ class FightAutoGenerationService {
 				'total_entries'     => $total_entries,
 				'eligible_entries'  => count( $valid_entries ),
 				'excluded_unweighed' => $excluded_unweighed,
-				'bye_slots'         => $total_bye_slots,
-				'ignored_groups'    => $ignored_groups,
+				'bye_slots'          => $total_bye_slots,
+				'ignored_groups'     => $ignored_groups,
 				'reason_counts'      => $reason_counts,
+				'estimated_bye_slots'=> (int) ( $group_stats['bye_slots'] ?? 0 ),
+				'isolated_count'     => (int) ( $group_stats['isolated_participants'] ?? 0 ),
+				'groups_insufficient'=> (int) ( $group_stats['insufficient_groups'] ?? 0 ),
 			);
 			$full_preview = self::get_generation_preview( $competition_id, $settings );
 			$excluded_entries = array();
@@ -665,11 +698,20 @@ class FightAutoGenerationService {
 		switch ( sanitize_key( $reason ) ) {
 			case 'missing_weight':
 			case 'weight_missing':
-				return 'Corriger le poids déclaré ou valider la pesée.';
+			case 'weight_class_missing':
+				return 'Corriger le poids déclaré, la catégorie de poids ou valider la pesée.';
+			case 'category_unresolved':
+				return 'Renseigner ou recalculer la catégorie sportive avant génération.';
+			case 'discipline_missing':
+				return 'Renseigner la discipline du combattant.';
 			case 'missing_sex':
+			case 'sex_missing':
 				return 'Renseigner le sexe du combattant.';
 			case 'missing_birthdate':
+			case 'birthdate_missing':
 				return 'Renseigner la date de naissance.';
+			case 'level_missing':
+				return 'Renseigner le niveau/la classe ou désactiver la séparation par niveau.';
 			case 'weighin_missing':
 				return 'Saisir une pesée valide ou activer allow_unweighed en Sandbox.';
 			case 'duplicate_fighter_number':
@@ -911,22 +953,91 @@ class FightAutoGenerationService {
 		return $rolled_back;
 	}
 
+	/**
+	 * Legacy direct-generation fallback kept for tracked sandbox fixtures only.
+	 *
+	 * @deprecated Use generate_draft() then validate_and_apply_draft() for every real competition.
+	 */
 	public static function generate_simple_pairing_fights( int $competition_id, array $settings = array() ): array {
-		if ( empty( $settings['sandbox_generation'] ) && ! apply_filters( 'ufsc_competitions_allow_direct_generation_fallback', false, $competition_id, $settings ) ) {
-			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'direct_fallback_disabled' ) );
+		$competition_id = absint( $competition_id );
+		$logger         = new LogService();
+		$blocked        = static function ( string $reason, string $message, array $context = array() ) use ( $competition_id, $logger ): array {
+			$logger->audit(
+				'generation_blocked',
+				$competition_id,
+				'competition',
+				$competition_id,
+				array_merge( array( 'reason' => $reason, 'source' => 'generate_simple_pairing_fights' ), $context )
+			);
+
 			return array(
 				'ok'      => false,
-				'message' => __( 'Génération directe désactivée : utilisez la prévisualisation puis validez le brouillon.', 'ufsc-licence-competition' ),
+				'message' => $message,
+				'reason'  => $reason,
+			);
+		};
+
+		if ( $competition_id <= 0 ) {
+			return $blocked(
+				'competition_id_invalid',
+				__( 'Génération directe bloquée : compétition invalide.', 'ufsc-licence-competition' )
 			);
 		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition      = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			return $blocked(
+				'competition_not_found',
+				__( 'Génération directe bloquée : compétition introuvable.', 'ufsc-licence-competition' )
+			);
+		}
+
+		$competition_name = trim( (string) ( $competition->name ?? '' ) );
+		$is_test_competition = 1 === preg_match( '/^\s*\[TEST\]/i', $competition_name );
+		$context             = sanitize_key( (string) ( $settings['direct_generation_context'] ?? '' ) );
+		if ( empty( $settings['sandbox_generation'] ) || 'test_fixture' !== $context || ! $is_test_competition ) {
+			return $blocked(
+				'direct_fallback_test_fixture_only',
+				__( 'Génération directe bloquée : utilisez le workflow brouillon puis validation. Le fallback direct est réservé aux fixtures [TEST].', 'ufsc-licence-competition' ),
+				array( 'competition_name' => $competition_name, 'direct_generation_context' => $context )
+			);
+		}
+
+		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
+			return $blocked(
+				'generation_locked',
+				__( 'Génération directe bloquée : la génération est verrouillée pour cette compétition.', 'ufsc-licence-competition' ),
+				array( 'competition_name' => $competition_name )
+			);
+		}
+
+		if ( class_exists( CompetitionSafetyService::class ) ) {
+			$safety = ( new CompetitionSafetyService() )->guard_fight_generation(
+				$competition_id,
+				'direct_simple_pairing_fallback',
+				array( 'competition_name' => $competition_name, 'direct_generation_context' => $context )
+			);
+			if ( empty( $safety['ok'] ) ) {
+				return $blocked(
+					(string) ( $safety['reason'] ?? 'competition_safety_blocked' ),
+					(string) ( $safety['message'] ?? __( 'Génération directe bloquée par les protections compétition.', 'ufsc-licence-competition' ) ),
+					array( 'competition_name' => $competition_name )
+				);
+			}
+		}
+
 		$fight_repo = new FightRepository();
 		$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
 		$existing_fights = self::get_existing_generation_blockers( $competition_id );
 		if ( empty( $regeneration_scope['allowed'] ) || (int) ( $existing_fights['total'] ?? 0 ) > 0 ) {
-			return array(
-				'ok'      => false,
-				'message' => __( 'Fallback simple pairing bloqué : des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
-				'existing_fights' => (int) ( $existing_fights['total'] ?? 0 ),
+			return $blocked(
+				'direct_fallback_existing_or_sensitive_fights',
+				__( 'Fallback simple pairing bloqué : des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
+				array(
+					'existing_fights' => (int) ( $existing_fights['total'] ?? 0 ),
+					'regeneration_scope' => $regeneration_scope,
+				)
 			);
 		}
 
@@ -1300,35 +1411,48 @@ class FightAutoGenerationService {
 				}
 			}
 
-				if ( $enforce_weighin ) {
+			$grouping_reasons = self::get_entry_grouping_rejection_reasons( $entry, $settings );
+			if ( ! empty( $grouping_reasons ) ) {
+				foreach ( $grouping_reasons as $reason ) {
+					$ineligible_reasons[ $reason ] = true;
+					$reason_counts[ $reason ]      = (int) ( $reason_counts[ $reason ] ?? 0 ) + 1;
+				}
+				$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, $grouping_reasons, (string) ( $eligibility['status'] ?? '' ) );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+					error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => $grouping_reasons, 'context' => 'grouping' ) ) );
+				}
+				continue;
+			}
+
+			if ( $enforce_weighin ) {
 				$entry_weight = isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null;
 				$row          = $weighins_by_entry[ $entry_id ] ?? null;
 				$has_weighin  = method_exists( $weighin_repo, 'is_valid_weighin_row' )
 					? $weighin_repo->is_valid_weighin_row( $row, $competition_tolerance, $entry_weight )
 					: $weighin_repo->has_valid_weighin( $competition_id, $entry_id, $competition_tolerance, $entry_weight );
-					if ( ! $has_weighin ) {
-						$ineligible_reasons['weighin_missing'] = true;
-						$reason_counts['weighin_missing']      = (int) ( $reason_counts['weighin_missing'] ?? 0 ) + 1;
-						$excluded_unweighed++;
-						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'weighin_missing' ) );
-						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'weighin_missing' ), 'context' => 'weighin' ) ) );
-						}
-						continue;
+				if ( ! $has_weighin ) {
+					$ineligible_reasons['weighin_missing'] = true;
+					$reason_counts['weighin_missing']      = (int) ( $reason_counts['weighin_missing'] ?? 0 ) + 1;
+					$excluded_unweighed++;
+					$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'weighin_missing' ) );
+					if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+						error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'weighin_missing' ), 'context' => 'weighin' ) ) );
 					}
-
-					$meta = self::extract_weighin_notes_meta( $row );
-					if ( ! empty( $meta['reclass_pending'] ) ) {
-						$ineligible_reasons['reclass_pending'] = true;
-						$reason_counts['reclass_pending']      = (int) ( $reason_counts['reclass_pending'] ?? 0 ) + 1;
-						$excluded_unweighed++;
-						$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'reclass_pending' ) );
-						if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-							error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'reclass_pending' ), 'context' => 'weighin' ) ) );
-						}
-						continue;
-					}
+					continue;
 				}
+
+				$meta = self::extract_weighin_notes_meta( $row );
+				if ( ! empty( $meta['reclass_pending'] ) ) {
+					$ineligible_reasons['reclass_pending'] = true;
+					$reason_counts['reclass_pending']      = (int) ( $reason_counts['reclass_pending'] ?? 0 ) + 1;
+					$excluded_unweighed++;
+					$rejected_entries[] = self::build_rejected_entry_snapshot( $entry, array( 'reclass_pending' ) );
+					if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+						error_log( 'UFSC FightAutoGenerationService entry_excluded ' . wp_json_encode( array( 'entry_id' => $entry_id, 'reasons' => array( 'reclass_pending' ), 'context' => 'weighin' ) ) );
+					}
+					continue;
+				}
+			}
 
 			$valid_entries[] = $entry;
 		}
@@ -1387,7 +1511,8 @@ class FightAutoGenerationService {
 			'rejected_weighin'                  => $sum( array( 'weighin_missing', 'reclass_pending' ) ),
 			'rejected_missing_sport_data'       => $sum( array( 'external_identity_incomplete', 'external_missing_required_sport_data', 'external_birth_date_invalid', 'external_birth_date_future', 'external_sex_invalid' ) ),
 			'non_blocking_warnings'             => $sum( $non_blocking_reasons ),
-			'rejected_category_weight_level'    => $sum( array( 'weight_missing', 'weight_class_missing' ) ),
+			'rejected_category_weight_level'    => $sum( array( 'weight_missing', 'weight_class_missing', 'category_unresolved' ) ),
+			'rejected_grouping'                 => $sum( array( 'discipline_missing', 'sex_missing', 'weight_class_missing', 'category_unresolved', 'birthdate_missing', 'level_missing' ) ),
 			'rejected_discipline'               => $sum( array( 'discipline_missing' ) ),
 			'rejected_club'                     => $sum( array( 'club_missing' ) ),
 			'rejected_incomplete_fighter_data'  => $sum( array( 'entry_missing', 'entry_not_found', 'entry_deleted' ) ),
@@ -1423,13 +1548,20 @@ class FightAutoGenerationService {
 					'first_name' => self::pick_entry_value( $entry, array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' ) ),
 				);
 			}
+			$case = self::describe_group_generation_case( $count, $settings );
+			$group_warnings = (array) ( $case['warnings'] ?? array() );
+			$group_components = ! empty( $group_entries ) ? self::get_generation_group_components( $group_entries[0], $settings ) : array();
 			$rows[] = array(
 				'group_key'         => (string) $group_key,
+				'group_components'  => $group_components,
+				'warnings'          => $group_warnings,
 				'entries_count'     => $count,
-				'estimated_fights'  => self::estimate_fights_for_group_size( $count ),
+				'estimated_fights'  => (int) ( $case['estimated_fights'] ?? 0 ),
 				'status'            => $status,
-				'format'            => self::recommend_group_format( $count, $settings ),
-				'bye_slots'         => self::estimate_bye_slots( $count ),
+				'case_type'         => (string) ( $case['case_type'] ?? '' ),
+				'case_label'        => (string) ( $case['label'] ?? '' ),
+				'format'            => (string) ( $case['recommended_format'] ?? self::recommend_group_format( $count, $settings ) ),
+				'bye_slots'         => (int) ( $case['bye_slots'] ?? 0 ),
 				'lone_fighter'      => 1 === $count,
 				'recommendation'    => function_exists( 'ufsc_competition_recommend_group_format' )
 					? ufsc_competition_recommend_group_format(
@@ -1443,6 +1575,88 @@ class FightAutoGenerationService {
 			);
 		}
 		return $rows;
+	}
+
+	private static function describe_group_generation_case( int $count, array $settings ): array {
+		$allow_pool = ! empty( $settings['prefer_round_robin_for_3'] ) || ! empty( $settings['prefer_pool_for_4_6'] );
+		$bye_slots  = self::estimate_bye_slots( $count );
+		$case = array(
+			'case_type'          => 'unsupported',
+			'label'              => __( 'Format non supporté', 'ufsc-licence-competition' ),
+			'recommended_format' => 'unsupported',
+			'estimated_fights'   => 0,
+			'bye_slots'          => 0,
+			'warnings'           => array(),
+		);
+
+		if ( $count <= 0 ) {
+			$case['case_type'] = 'insufficient';
+			$case['label'] = __( 'Groupe vide ou insuffisant', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'insufficient';
+			$case['warnings'][] = 'insufficient_participants';
+			return $case;
+		}
+		if ( 1 === $count ) {
+			$case['case_type'] = 'isolated';
+			$case['label'] = __( 'Participant seul — aucun combat généré', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'isolated';
+			$case['warnings'] = array( 'isolated_participant', 'insufficient_participants' );
+			return $case;
+		}
+		if ( 2 === $count ) {
+			$case['case_type'] = 'direct_final';
+			$case['label'] = __( 'Combat direct / finale directe', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'direct_final';
+			$case['estimated_fights'] = 1;
+			return $case;
+		}
+		if ( 3 === $count && $allow_pool ) {
+			$case['case_type'] = 'pool_3';
+			$case['label'] = __( 'Poule de 3 combattants', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'pool_3';
+			$case['estimated_fights'] = 3;
+			$case['warnings'][] = 'round_robin_three_fighters';
+			return $case;
+		}
+		if ( 3 === $count ) {
+			$case['case_type'] = 'bracket_with_bye';
+			$case['label'] = __( 'Tableau à 3 avec BYE', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'bracket_with_bye';
+			$case['estimated_fights'] = 3;
+			$case['bye_slots'] = $bye_slots;
+			$case['warnings'] = array( 'odd_participant_count', 'bye_required' );
+			return $case;
+		}
+		if ( $count >= 4 && $count <= 6 && $allow_pool ) {
+			$case['case_type'] = 'pool';
+			$case['label'] = __( 'Poule complète', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'pool';
+			$case['estimated_fights'] = (int) ( $count * ( $count - 1 ) / 2 );
+			return $case;
+		}
+		if ( 4 === $count ) {
+			$case['case_type'] = 'bracket';
+			$case['label'] = __( 'Tableau simple demi-finales / finale', 'ufsc-licence-competition' );
+			$case['recommended_format'] = 'bracket';
+			$case['estimated_fights'] = 3;
+			return $case;
+		}
+		if ( $count >= 3 && $count <= 32 ) {
+			$case['case_type'] = $bye_slots > 0 ? 'bracket_with_bye' : 'bracket';
+			$case['label'] = $bye_slots > 0 ? __( 'Tableau avec BYE', 'ufsc-licence-competition' ) : __( 'Tableau élimination', 'ufsc-licence-competition' );
+			$case['recommended_format'] = $bye_slots > 0 ? 'bracket_with_bye' : 'bracket';
+			$case['estimated_fights'] = self::estimate_fights_for_group_size( $count );
+			$case['bye_slots'] = $bye_slots;
+			if ( 1 === ( $count % 2 ) ) {
+				$case['warnings'][] = 'odd_participant_count';
+			}
+			if ( $bye_slots > 0 ) {
+				$case['warnings'][] = 'bye_required';
+			}
+			return $case;
+		}
+
+		return $case;
 	}
 
 	private static function estimate_bye_slots( int $count ): int {
@@ -1500,7 +1714,7 @@ class FightAutoGenerationService {
 			__( 'Aucun combat n’a été généré.', 'ufsc-licence-competition' ),
 			sprintf( __( '%1$d participants analysés, %2$d éligibles, %3$d rejetés.', 'ufsc-licence-competition' ), $total_entries, $eligible_entries, $rejected_entries ),
 			sprintf( __( 'Statut non compatible : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['status_not_approved'] ?? 0 ) ),
-			sprintf( __( 'Catégorie manquante : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['weight_class_missing'] ?? 0 ) ),
+			sprintf( __( 'Catégorie manquante : %d', 'ufsc-licence-competition' ), (int) ( ( $reason_counts['weight_class_missing'] ?? 0 ) + ( $reason_counts['category_unresolved'] ?? 0 ) ) ),
 			sprintf( __( 'Pesée non validée : %d', 'ufsc-licence-competition' ), (int) ( ( $reason_counts['weighin_missing'] ?? 0 ) + ( $reason_counts['reclass_pending'] ?? 0 ) ) ),
 			sprintf( __( 'Déjà affecté à un combat : %d', 'ufsc-licence-competition' ), (int) ( $reason_counts['already_assigned_fight'] ?? 0 ) ),
 			sprintf( __( 'Groupes avec moins de 2 combattants : %d', 'ufsc-licence-competition' ), $ignored_groups ),
@@ -1535,6 +1749,73 @@ class FightAutoGenerationService {
 		return $counts;
 	}
 
+	private static function get_entry_grouping_rejection_reasons( $entry, array $settings ): array {
+		$category_label = self::pick_entry_value( $entry, array( 'category', 'category_name', 'categorie', 'age_category', 'categorie_age', 'category_label' ) );
+		$category_id    = absint( self::pick_entry_value( $entry, array( 'category_id' ) ) );
+		$discipline     = self::normalize_discipline_for_generation( self::pick_entry_value( $entry, array( 'discipline' ) ) );
+		$sex            = self::normalize_sex_value( self::pick_entry_value( $entry, array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' ) ), $category_label );
+		$weight_class   = self::pick_entry_value( $entry, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' ) );
+		$birth_raw      = self::pick_entry_value( $entry, array( 'birth_date', 'date_naissance', 'birthdate', 'dob', 'date_of_birth', 'naissance', 'licensee_birthdate' ) );
+		$level          = sanitize_key( self::pick_entry_value( $entry, array( 'level', 'class', 'classe', 'niveau' ) ) );
+		$reasons        = array();
+
+		if ( '' === $discipline ) {
+			$reasons[] = 'discipline_missing';
+		}
+		if ( '' === $sex ) {
+			$reasons[] = 'sex_missing';
+		}
+		if ( '' === $weight_class ) {
+			$reasons[] = 'weight_class_missing';
+		}
+		if ( $category_id <= 0 && '' === $category_label ) {
+			$reasons[] = 'category_unresolved';
+			if ( '' === self::normalize_birth_date_value( $birth_raw ) ) {
+				$reasons[] = 'birthdate_missing';
+			}
+		}
+		if ( ! empty( $settings['use_level_split'] ) && ( '' === $level || 'non_defini' === $level ) ) {
+			$reasons[] = 'level_missing';
+		}
+
+		return array_values( array_unique( array_map( 'sanitize_key', $reasons ) ) );
+	}
+
+	private static function get_generation_group_components( $entry, array $settings = array() ): array {
+		$category_label = self::pick_entry_value( $entry, array( 'category', 'category_name', 'categorie', 'age_category', 'categorie_age', 'category_label' ) );
+		$category_id    = absint( self::pick_entry_value( $entry, array( 'category_id' ) ) );
+		$discipline     = self::normalize_discipline_for_generation( self::pick_entry_value( $entry, array( 'discipline' ) ) );
+		$sex            = self::normalize_sex_value( self::pick_entry_value( $entry, array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' ) ), $category_label );
+		$weight_class   = self::pick_entry_value( $entry, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' ) );
+		$level          = sanitize_key( self::pick_entry_value( $entry, array( 'level', 'class', 'classe', 'niveau' ) ) );
+
+		return array(
+			'category_id'     => $category_id,
+			'category_key'    => $category_id > 0 ? 'category_' . $category_id : 'category_unresolved',
+			'discipline'      => '' !== $discipline ? $discipline : 'discipline_missing',
+			'sex'             => '' !== $sex ? $sex : 'sex_missing',
+			'age_category'    => '' !== $category_label ? sanitize_text_field( $category_label ) : ( $category_id > 0 ? 'category_' . $category_id : 'category_unresolved' ),
+			'weight_category' => '' !== $weight_class ? sanitize_text_field( $weight_class ) : 'weight_missing',
+			'level'           => '' !== $level ? $level : 'non_defini',
+			'use_level_split' => ! empty( $settings['use_level_split'] ),
+		);
+	}
+
+	private static function build_generation_group_key_from_components( array $components ): string {
+		$key = array(
+			sanitize_key( (string) ( $components['discipline'] ?? 'discipline_missing' ) ),
+			sanitize_key( (string) ( $components['sex'] ?? 'sex_missing' ) ),
+			sanitize_key( (string) ( $components['category_key'] ?? 'category_unresolved' ) ),
+			sanitize_key( (string) ( $components['age_category'] ?? 'category_unresolved' ) ),
+			sanitize_key( (string) ( $components['weight_category'] ?? 'weight_missing' ) ),
+		);
+		if ( ! empty( $components['use_level_split'] ) ) {
+			$key[] = sanitize_key( (string) ( $components['level'] ?? 'non_defini' ) );
+		}
+
+		return implode( '|', $key );
+	}
+
 	private static function build_rejected_entry_snapshot( $entry, array $reasons, string $status = '' ): array {
 		$name_keys = array( 'licensee_last_name', 'last_name', 'lastname', 'nom', 'family_name' );
 		$first_keys = array( 'licensee_first_name', 'first_name', 'firstname', 'prenom', 'given_name' );
@@ -1553,6 +1834,7 @@ class FightAutoGenerationService {
 		$sex_normalized = self::normalize_sex_value( $sex_raw, $category );
 		$date_normalized = self::normalize_birth_date_value( $birth_raw );
 		$level_normalized = '' !== $level_raw ? $level_raw : 'non_defini';
+		$group_components = self::get_generation_group_components( $entry );
 		$resolved_status = '' !== $status ? $status : sanitize_key( (string) ( $entry->status ?? '' ) );
 
 		return array(
@@ -1570,6 +1852,8 @@ class FightAutoGenerationService {
 			'birthdate_normalized'   => $date_normalized,
 			'level_raw'              => $level_raw,
 			'level_normalized'       => $level_normalized,
+			'group_key'              => self::build_generation_group_key_from_components( $group_components ),
+			'group_components'       => $group_components,
 			'reasons'                => array_values( array_filter( array_map( 'sanitize_key', $reasons ) ) ),
 		);
 	}
@@ -1717,28 +2001,46 @@ class FightAutoGenerationService {
 		return $groups;
 	}
 
-	private static function get_generation_category_key( $entry, array $settings = array() ): string {
-		$read = static function ( $entry, array $keys ): string {
-			foreach ( $keys as $key ) {
-				if ( is_object( $entry ) && isset( $entry->{$key} ) && '' !== trim( (string) $entry->{$key} ) ) {
-					return sanitize_text_field( (string) $entry->{$key} );
-				}
-				if ( is_array( $entry ) && isset( $entry[$key] ) && '' !== trim( (string) $entry[$key] ) ) {
-					return sanitize_text_field( (string) $entry[$key] );
-				}
+	private static function summarize_generation_groups( array $groups, array $settings = array() ): array {
+		$summary = array(
+			'total_groups'           => count( $groups ),
+			'generable_groups'       => 0,
+			'insufficient_groups'    => 0,
+			'isolated_participants'  => 0,
+			'odd_groups'             => 0,
+			'bye_slots'              => 0,
+			'participants_in_groups' => 0,
+		);
+
+		$settings = array_merge( self::get_default_settings(), $settings );
+		foreach ( $groups as $group_entries ) {
+			$count = count( (array) $group_entries );
+			$case = self::describe_group_generation_case( $count, $settings );
+			$summary['participants_in_groups'] += $count;
+			$summary['bye_slots'] += (int) ( $case['bye_slots'] ?? 0 );
+			if ( $count >= 2 ) {
+				$summary['generable_groups']++;
+			} else {
+				$summary['insufficient_groups']++;
 			}
+			if ( 1 === $count ) {
+				$summary['isolated_participants']++;
+			}
+			if ( $count > 1 && 1 === ( $count % 2 ) ) {
+				$summary['odd_groups']++;
+			}
+		}
+
+		return $summary;
+	}
+
+	private static function get_generation_category_key( $entry, array $settings = array() ): string {
+		$reasons = self::get_entry_grouping_rejection_reasons( $entry, $settings );
+		if ( ! empty( $reasons ) ) {
 			return '';
-		};
-		$category_id = absint( $read( $entry, array( 'category_id' ) ) );
-		$discipline = self::normalize_discipline_for_generation( $read( $entry, array( 'discipline' ) ) );
-		$sex = self::normalize_sex_value( $read( $entry, array( 'sex','sexe','gender','licensee_sex' ) ), $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age' ) ) );
-		$age_category = $read( $entry, array( 'category','category_name','categorie','age_category','categorie_age','category_label' ) );
-		$weight_category = $read( $entry, array( 'weight_class','weight_category','weight_cat','categorie_poids','category_weight' ) );
-		$level = $read( $entry, array( 'level','class','classe','niveau' ) );
-		if ( '' === $age_category && $category_id <= 0 ) { return ''; }
-		$key = array($discipline ?: 'na', $sex ?: 'x', $age_category ?: ('category_'.$category_id), $weight_category ?: 'poids_na');
-		if ( ! empty( $settings['use_level_split'] ) ) { $key[] = ('' !== $level ? sanitize_key($level) : 'non_defini'); }
-		return implode('|',$key);
+		}
+
+		return self::build_generation_group_key_from_components( self::get_generation_group_components( $entry, $settings ) );
 	}
 
 	private static function count_duplicate_fighter_numbers( array $entries ): int {
@@ -1851,13 +2153,28 @@ class FightAutoGenerationService {
 		);
 	}
 
-	private static function build_fights_for_group( int $competition_id, int $category_id, array $entries, int $start_no ): array {
+	private static function extract_generation_warning_codes( array $anomalies ): array {
+		$codes = array();
+		foreach ( $anomalies as $anomaly ) {
+			$code = sanitize_key( (string) ( is_array( $anomaly ) ? ( $anomaly['code'] ?? '' ) : '' ) );
+			if ( '' !== $code ) {
+				$codes[] = $code;
+			}
+		}
+
+		return array_values( array_unique( $codes ) );
+	}
+
+	private static function build_fights_for_group( int $competition_id, int $category_id, array $entries, int $start_no, string $group_key = '' ): array {
 		$fights     = array();
 		$count      = count( $entries );
 		$next_no    = $start_no;
 		$bye_slots  = 0;
 		$warnings   = array();
-		$format     = self::determine_generation_format( $entries, self::get_settings( $competition_id ), array( 'category_id' => $category_id ) );
+		if ( '' === $group_key && ! empty( $entries ) ) {
+			$group_key = self::get_generation_category_key( $entries[0], self::get_settings( $competition_id ) );
+		}
+		$format     = self::determine_generation_format( $entries, self::get_settings( $competition_id ), array( 'category_id' => $category_id, 'group_key' => $group_key ) );
 		$format_label = self::get_generation_format_label( $format );
 
 		if ( class_exists( FightGenerationPremiumPlanner::class ) ) {
@@ -1868,6 +2185,7 @@ class FightAutoGenerationService {
 						'category_id' => $category_id,
 						'start_no' => $start_no,
 						'format' => 'auto',
+						'group_key' => $group_key,
 						'require_weight_data' => true,
 						'require_category_data' => true,
 					)
@@ -1892,16 +2210,22 @@ class FightAutoGenerationService {
 				$premium_fallback = ! empty( $premium_plan['fallback'] );
 				if ( ! $premium_fallback && ! empty( $premium_fights ) ) {
 					$max_no = $start_no;
-					foreach ( $premium_fights as $premium_fight ) {
+					foreach ( $premium_fights as &$premium_fight ) {
+						if ( '' !== $group_key && empty( $premium_fight['group_key'] ) ) {
+							$premium_fight['group_key'] = $group_key;
+						}
 						$fight_no = isset( $premium_fight['fight_no'] ) ? absint( $premium_fight['fight_no'] ) : 0;
 						if ( $fight_no > $max_no ) {
 							$max_no = $fight_no;
 						}
 					}
+					unset( $premium_fight );
 
 					return array(
-						'fights'  => $premium_fights,
-						'next_no' => max( $next_no, $max_no + 1 ),
+						'fights'   => $premium_fights,
+						'next_no'  => max( $next_no, $max_no + 1 ),
+						'bye_slots' => (int) ( $premium_plan['stats']['bye_count'] ?? 0 ),
+						'warnings' => self::extract_generation_warning_codes( $premium_anomalies ),
 					);
 				}
 
@@ -1924,12 +2248,18 @@ class FightAutoGenerationService {
 			}
 		}
 
-		if ( 'combat_simple' === $format ) {
-			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[1], 1 );
+		if ( 'single' === $format ) {
+			$warnings[] = 'isolated_participant';
+			$warnings[] = 'insufficient_participants';
+		} elseif ( 'combat_simple' === $format ) {
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[1], 1, $group_key );
 			if ( self::same_club( $entries[0], $entries[1] ) ) {
 				$warnings[] = sprintf( 'Catégorie #%d : premier tour même club (best effort).', $category_id );
 			}
 			$next_no++;
+			$fights[ count( $fights ) - 1 ]['case_type'] = 'direct_final';
+			$fights[ count( $fights ) - 1 ]['phase'] = 'Finale directe';
+			$fights[ count( $fights ) - 1 ]['round_label'] = 'Finale directe';
 		} elseif ( 'poule' === $format ) {
 			$pool_preview = self::build_pool_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
 			foreach ( (array) ( $pool_preview['fights'] ?? array() ) as $pfight ) {
@@ -1939,6 +2269,10 @@ class FightAutoGenerationService {
 				$pfight['round_no'] = 1;
 				$pfight['phase'] = (string) ( $pfight['phase'] ?? 'Poule' );
 				$pfight['status'] = 'scheduled';
+				$pfight['case_type'] = 3 === $count ? 'pool_3' : 'pool';
+				if ( '' !== $group_key && empty( $pfight['group_key'] ) ) {
+					$pfight['group_key'] = $group_key;
+				}
 				$fights[] = $pfight;
 				$next_no++;
 			}
@@ -1946,26 +2280,29 @@ class FightAutoGenerationService {
 				$warnings = array_merge( $warnings, (array) $pool_preview['warnings'] );
 			}
 		} elseif ( 4 === $count && 'tableau' === $format ) {
-			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[3], 1 );
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[0], $entries[3], 1, $group_key );
 			if ( self::same_club( $entries[0], $entries[3] ) ) {
 				$warnings[] = sprintf( 'Catégorie #%d : quart/demi même club détecté.', $category_id );
 			}
 			$next_no++;
-			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[1], $entries[2], 1 );
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, $entries[1], $entries[2], 1, $group_key );
 			if ( self::same_club( $entries[1], $entries[2] ) ) {
 				$warnings[] = sprintf( 'Catégorie #%d : quart/demi même club détecté.', $category_id );
 			}
 			$next_no++;
-			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2 );
+			$fights[] = self::build_fight_payload( $competition_id, $category_id, $next_no, null, null, 2, $group_key );
 			$next_no++;
 		} elseif ( 'tableau_bye' === $format || 'tableau' === $format ) {
-			$bracket_preview = self::build_bracket_preview( $entries, array( 'category_id' => $category_id ), self::get_settings( $competition_id ) );
+			$bracket_preview = self::build_bracket_preview( $entries, array( 'category_id' => $category_id, 'group_key' => $group_key ), self::get_settings( $competition_id ) );
 			foreach ( (array) ( $bracket_preview['fights'] ?? array() ) as $bfight ) {
 				$bfight['competition_id'] = $competition_id;
 				$bfight['category_id'] = $category_id;
 				$bfight['fight_no'] = $next_no;
 				$bfight['round_no'] = (int) ( $bfight['round_no'] ?? $bfight['round'] ?? 1 );
 				$bfight['status'] = (string) ( $bfight['status'] ?? 'scheduled' );
+				if ( '' !== $group_key && empty( $bfight['group_key'] ) ) {
+					$bfight['group_key'] = $group_key;
+				}
 				$fights[] = $bfight;
 				$next_no++;
 			}
@@ -1981,23 +2318,39 @@ class FightAutoGenerationService {
 			'fights'   => $fights,
 			'next_no'  => $next_no,
 			'bye_slots' => $bye_slots,
-			'warnings' => $warnings,
+			'warnings' => array_values( array_unique( array_filter( $warnings ) ) ),
+			'case_type' => (string) ( self::describe_group_generation_case( $count, self::get_settings( $competition_id ) )['case_type'] ?? '' ),
 		);
 	}
 
 	private static function determine_generation_format( array $entries, array $settings, array $group = array() ): string {
-		$count = count( $entries );
-		$allow_pool = ! empty( $settings['prefer_round_robin_for_3'] ) || ! empty( $settings['prefer_pool_for_4_6'] );
-		if ( $count <= 1 ) { return 'single'; }
-		if ( 2 === $count ) { return 'combat_simple'; }
-		if ( $count >= 3 && $count <= 6 && $allow_pool ) { return 'poule'; }
-		if ( 4 === $count || 8 === $count ) { return 'tableau'; }
-		if ( $count >= 3 && $count <= 32 ) { return 'tableau_bye'; }
-		return 'unsupported';
+		$case = self::describe_group_generation_case( count( $entries ), $settings );
+		switch ( (string) ( $case['case_type'] ?? '' ) ) {
+			case 'isolated':
+			case 'insufficient':
+				return 'single';
+			case 'direct_final':
+				return 'combat_simple';
+			case 'pool_3':
+			case 'pool':
+				return 'poule';
+			case 'bracket':
+				return 'tableau';
+			case 'bracket_with_bye':
+				return 'tableau_bye';
+			default:
+				return 'unsupported';
+		}
 	}
 
 	private static function get_generation_format_label( string $format ): string {
 		switch ( sanitize_key( $format ) ) {
+			case 'direct_final': return 'Finale directe';
+			case 'pool_3': return 'Poule de 3';
+			case 'bracket_with_bye': return 'Tableau avec BYE';
+			case 'bracket': return 'Tableau';
+			case 'isolated': return 'Participant seul';
+			case 'insufficient': return 'Groupe insuffisant';
 			case 'combat_simple': return 'Combat simple';
 			case 'poule': return 'Poule';
 			case 'tableau': return 'Tableau';
@@ -2020,7 +2373,8 @@ class FightAutoGenerationService {
 	private static function build_bracket_preview( array $entries, array $group, array $settings ): array {
 		$count = count( $entries );
 		$size = self::determine_bracket_size( $count );
-		$out = array( 'fights' => array(), 'bye_count' => 0, 'placeholder_count' => 0, 'warnings' => array(), 'bracket_size' => $size, 'rounds' => array() );
+		$out = array( 'fights' => array(), 'bye_count' => 0, 'placeholder_count' => 0, 'warnings' => array(), 'bracket_size' => $size, 'rounds' => array(), 'bye_entry_ids' => array() );
+		$group_key = sanitize_text_field( (string) ( $group['group_key'] ?? '' ) );
 		if ( $size <= 0 || $size > 32 ) {
 			$out['warnings'][] = 'Tableau supérieur à 32 non supporté dans ce lot.';
 			return $out;
@@ -2031,19 +2385,23 @@ class FightAutoGenerationService {
 		$r1 = array();
 		foreach ( (array) ( $plan['matches'] ?? array() ) as $match ) {
 			$is_bye = ! empty( $match['is_bye'] );
+			$qualified_id = $is_bye ? (int) ( ( $match['red']->id ?? 0 ) ?: ( $match['blue']->id ?? 0 ) ) : 0;
 			$r1[] = array(
 				'phase' => $round_labels[ $size ][1] ?? 'Tour 1',
 				'round' => 1,
 				'round_no' => 1,
 				'round_label' => $round_labels[ $size ][1] ?? 'Tour 1',
 				'type' => $is_bye ? 'bye' : 'fight',
+				'case_type' => $is_bye ? 'bracket_with_bye' : 'bracket',
 				'status' => $is_bye ? 'bye' : 'scheduled',
 				'red_entry_id' => (int) ( $match['red']->id ?? 0 ),
 				'blue_entry_id' => (int) ( $match['blue']->id ?? 0 ),
 				'red_label' => self::entry_label( $match['red'] ?? null ),
 				'blue_label' => $is_bye ? 'BYE — Qualifié automatiquement' : self::entry_label( $match['blue'] ?? null ),
+				'winner_entry_id' => $qualified_id > 0 ? $qualified_id : null,
+				'group_key' => $group_key,
 			);
-			if ( $is_bye ) { $out['bye_count']++; }
+			if ( $is_bye ) { $out['bye_count']++; if ( $qualified_id > 0 ) { $out['bye_entry_ids'][] = $qualified_id; } }
 		}
 		$out['fights'] = array_merge( $out['fights'], $r1 );
 		$prev_count = count( $r1 );
@@ -2060,11 +2418,13 @@ class FightAutoGenerationService {
 					'round_no' => $round_no,
 					'round_label' => $round_labels[ $size ][ $round_no ] ?? ( 'Tour ' . $round_no ),
 					'type' => 'placeholder',
+					'case_type' => $out['bye_count'] > 0 ? 'bracket_with_bye' : 'bracket',
 					'status' => 'placeholder',
 					'red_label' => 'Vainqueur combat ' . $src_a,
 					'blue_label' => 'Vainqueur combat ' . $src_b,
 					'source_red_fight_no' => $src_a,
 					'source_blue_fight_no' => $src_b,
+					'group_key' => $group_key,
 				);
 				$out['placeholder_count']++;
 			}
@@ -2072,12 +2432,18 @@ class FightAutoGenerationService {
 			$prev_count = $current;
 			$round_no++;
 		}
-		$out['warnings'][] = 'Propagation complète du tableau à finaliser dans un lot suivant.';
+		if ( $out['bye_count'] > 0 ) {
+			$out['warnings'][] = 'bye_required';
+		}
+		if ( 1 === ( $count % 2 ) ) {
+			$out['warnings'][] = 'odd_participant_count';
+		}
 		return $out;
 	}
 
 	private static function build_pool_preview( array $entries, array $group, array $settings ): array {
 		$pool_size = count( $entries );
+		$group_key = sanitize_text_field( (string) ( $group['group_key'] ?? '' ) );
 		$pairs = self::round_robin_pairs( $entries );
 		$pairs = self::order_round_robin_pairs( $pairs );
 		$fights = array();
@@ -2103,11 +2469,13 @@ class FightAutoGenerationService {
 				'round' => 1,
 				'round_label' => 'Poule',
 				'type' => 'fight',
+				'case_type' => 3 === $pool_size ? 'pool_3' : 'pool',
 				'status' => 'scheduled',
 				'red_entry_id' => $red_id,
 				'blue_entry_id' => $blue_id,
 				'red_label' => self::entry_label( $pair['red'] ?? null ),
 				'blue_label' => self::entry_label( $pair['blue'] ?? null ),
+				'group_key' => $group_key,
 			);
 			$last_entry = $blue_id;
 		}
@@ -2186,6 +2554,7 @@ class FightAutoGenerationService {
 			$fight['blue_corner'] = (string) ( $fight['blue_label'] ?? ( $fight['blue_entry_id'] ?? '' ) );
 			$fight['type'] = $type;
 			$fight['status'] = $status;
+			$fight['case_type'] = sanitize_key( (string) ( $fight['case_type'] ?? ( 'bye' === $type ? 'bracket_with_bye' : ( 'placeholder' === $type ? 'bracket' : '' ) ) ) );
 			$fight['surface_name'] = (string) ( $fight['ring'] ?? '' );
 			$fight['scheduled_order'] = (int) ( $fight['fight_no'] ?? $index );
 			$fight['scheduled_time'] = (string) ( $fight['scheduled_at'] ?? '' );
@@ -2205,11 +2574,21 @@ class FightAutoGenerationService {
 			}
 			if ( '' === $key ) { continue; }
 			if ( ! isset( $by_group[ $key ] ) ) {
-				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0, 'round_labels' => array() );
+				$by_group[ $key ] = array( 'fight_count' => 0, 'bye_count' => 0, 'placeholder_count' => 0, 'round_labels' => array(), 'case_types' => array(), 'bye_entry_ids' => array() );
 			}
 			$by_group[ $key ]['fight_count']++;
-			if ( 'bye' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['bye_count']++; }
+			if ( 'bye' === (string) ( $fight['type'] ?? '' ) ) {
+				$by_group[ $key ]['bye_count']++;
+				$winner_id = absint( $fight['winner_entry_id'] ?? 0 );
+				if ( $winner_id > 0 ) {
+					$by_group[ $key ]['bye_entry_ids'][ $winner_id ] = true;
+				}
+			}
 			if ( 'placeholder' === (string) ( $fight['type'] ?? '' ) ) { $by_group[ $key ]['placeholder_count']++; }
+			$case_type = sanitize_key( (string) ( $fight['case_type'] ?? '' ) );
+			if ( '' !== $case_type ) {
+				$by_group[ $key ]['case_types'][ $case_type ] = true;
+			}
 			$round_label = sanitize_text_field( (string) ( $fight['round_label'] ?? '' ) );
 			if ( '' !== $round_label ) {
 				$by_group[ $key ]['round_labels'][ $round_label ] = true;
@@ -2225,6 +2604,12 @@ class FightAutoGenerationService {
 			$group['fight_count'] = (int) ( $stats['fight_count'] ?? ( $group['estimated_fights'] ?? 0 ) );
 			$group['bye_count'] = (int) ( $stats['bye_count'] ?? ( $group['bye_slots'] ?? 0 ) );
 			$group['placeholder_count'] = (int) ( $stats['placeholder_count'] ?? 0 );
+			$case_types = array_keys( (array) ( $stats['case_types'] ?? array() ) );
+			if ( ! empty( $case_types ) ) {
+				$group['case_type'] = (string) $case_types[0];
+				$group['case_label'] = self::get_generation_format_label( (string) $case_types[0] );
+			}
+			$group['bye_entry_ids'] = array_map( 'absint', array_keys( (array) ( $stats['bye_entry_ids'] ?? array() ) ) );
 			$group['warnings'] = isset( $group['warnings'] ) && is_array( $group['warnings'] ) ? $group['warnings'] : array();
 			$group['fighters'] = isset( $group['athletes'] ) && is_array( $group['athletes'] ) ? $group['athletes'] : array();
 			if ( 'poule' === (string) ( $group['format'] ?? '' ) ) {
@@ -2345,8 +2730,8 @@ class FightAutoGenerationService {
 		return $pairs;
 	}
 
-	private static function build_fight_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no ): array {
-		return array(
+	private static function build_fight_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no, string $group_key = '' ): array {
+		$payload = array(
 			'competition_id'     => $competition_id,
 			'category_id'        => $category_id,
 			'fight_no'           => $fight_no,
@@ -2367,10 +2752,15 @@ class FightAutoGenerationService {
 			'fight_pause'        => null,
 			'fight_duration'     => null,
 		);
+		if ( '' !== $group_key ) {
+			$payload['group_key'] = $group_key;
+		}
+
+		return $payload;
 	}
 
-	private static function build_bye_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no ): array {
-		$payload = self::build_fight_payload( $competition_id, $category_id, $fight_no, $red_entry, $blue_entry, $round_no );
+	private static function build_bye_payload( int $competition_id, int $category_id, int $fight_no, $red_entry, $blue_entry, int $round_no, string $group_key = '' ): array {
+		$payload = self::build_fight_payload( $competition_id, $category_id, $fight_no, $red_entry, $blue_entry, $round_no, $group_key );
 		$qualified_entry_id = $red_entry ? (int) ( $red_entry->id ?? 0 ) : ( $blue_entry ? (int) ( $blue_entry->id ?? 0 ) : 0 );
 
 		$payload['status']          = FightRepository::STATUS_BYE;
