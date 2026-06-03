@@ -11,6 +11,7 @@ use UFSC\Competitions\Services\CompetitionMeta;
 use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\LogService;
 use UFSC\Competitions\Services\GenerationSnapshotService;
+use UFSC\Competitions\Services\CompetitionSafetyService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -819,10 +820,8 @@ class Competitions_Page {
 			} elseif ( 'restore' === $action && method_exists( $this->repository, 'restore' ) ) {
 				$this->repository->restore( $id );
 			} elseif ( 'delete' === $action && method_exists( $this->repository, 'delete' ) ) {
-				if ( ! \UFSC\Competitions\Capabilities::user_can_delete() ) {
-					wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
-				}
-				$this->repository->delete( $id );
+				( new CompetitionSafetyService() )->log_blocked_action( $id, 'bulk_delete_competition', 'bulk_permanent_delete_disabled', array( 'ids' => $ids ) );
+				$this->redirect_notice( 'production_delete_blocked' );
 			} elseif ( 'archive' === $action && method_exists( $this->repository, 'archive' ) ) {
 				$this->repository->archive( $id );
 			} elseif ( 'unarchive' === $action && method_exists( $this->repository, 'unarchive' ) ) {
@@ -1047,12 +1046,21 @@ class Competitions_Page {
 
 		if ( $id && $this->repository && method_exists( $this->repository, 'delete' ) ) {
 			$old_competition = $this->repository->get( $id, true );
-			$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $id, 'before_competition_permanent_delete', array() ) : '';
+			$safety_summary = ( new CompetitionSafetyService() )->get_protection_summary( $id );
+			if ( ! empty( $safety_summary['is_real_data'] ) && ( empty( $_GET['confirm_real_data_delete'] ) || 'SUPPRIMER-DEFINITIVEMENT' !== (string) wp_unslash( $_GET['confirm_real_data_delete'] ) ) ) {
+				( new CompetitionSafetyService() )->log_blocked_action( $id, 'delete_competition', 'missing_real_data_delete_confirmation', $safety_summary );
+				$this->redirect_notice( 'production_delete_blocked' );
+			}
+			$snapshot_id = class_exists( GenerationSnapshotService::class ) ? ( new GenerationSnapshotService() )->create_snapshot( $id, 'before_competition_permanent_delete', array( 'safety_summary' => $safety_summary ) ) : '';
+			if ( '' === $snapshot_id ) {
+				( new CompetitionSafetyService() )->log_blocked_action( $id, 'delete_competition', 'snapshot_failed_before_delete', $safety_summary );
+				$this->redirect_notice( 'production_delete_blocked' );
+			}
 			if ( method_exists( $this->repository, 'assert_competition_in_scope' ) ) {
 				$this->repository->assert_competition_in_scope( $id );
 			}
 			$this->repository->delete( $id );
-			( new LogService() )->audit( 'competition_deleted_permanently', $id, 'competition', $id, array( 'old_payload' => $old_competition, 'snapshot_id' => $snapshot_id ) );
+			( new LogService() )->audit( 'competition_deleted_permanently', $id, 'competition', $id, array( 'old_payload' => $old_competition, 'snapshot_id' => $snapshot_id, 'safety_summary' => $safety_summary ) );
 		}
 
 		wp_safe_redirect(
@@ -1203,6 +1211,7 @@ class Competitions_Page {
 			'pdf_no_entries' => array( 'warning', __( 'Aucune inscription approuvée à exporter pour cette compétition.', 'ufsc-licence-competition' ) ),
 			'pdf_generation_failed' => array( 'error', __( 'Impossible de générer le PDF pour le moment. Utilisez la page “Impression” comme fallback immédiat.', 'ufsc-licence-competition' ) ),
 				'permanent_delete_confirmation_required' => array( 'error', __( 'Suppression définitive protégée : confirmation forte requise.', 'ufsc-licence-competition' ) ),
+			'production_delete_blocked' => array( 'error', __( 'Suppression définitive bloquée : données réelles détectées ou snapshot de sécurité impossible. Aucune donnée n’a été supprimée.', 'ufsc-licence-competition' ) ),
 		);
 
 		if ( ! isset( $map[ $notice ] ) ) {

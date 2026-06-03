@@ -2,6 +2,13 @@
 
 namespace UFSC\Competitions\Admin;
 
+use UFSC\Competitions\Entries\EntriesWorkflow;
+use UFSC\Competitions\Repositories\CategoryRepository;
+use UFSC\Competitions\Repositories\CompetitionRepository;
+use UFSC\Competitions\Repositories\EntryRepository;
+use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Repositories\WeighInRepository;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -259,14 +266,168 @@ class Menu {
 	}
 
 	public function render_root(): void {
-		echo '<div class="wrap ufsc-competitions-admin">';
-		echo '<header class="ufsc-admin-page-header">';
-		echo '<div>';
-		echo '<p class="ufsc-admin-page-kicker">' . esc_html__( 'Centre de pilotage', 'ufsc-licence-competition' ) . '</p>';
-		echo '<h1>' . esc_html__( 'Compétitions', 'ufsc-licence-competition' ) . '</h1>';
-		echo '<p class="ufsc-admin-page-description">' . esc_html__( 'Menu Compétitions actif. Utilise les sous-menus pour accéder aux pages.', 'ufsc-licence-competition' ) . '</p>';
-		echo '</div>';
-		echo '</header>';
-		echo '</div>';
+		if ( ! \UFSC\Competitions\Capabilities::user_can_read() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
+		}
+
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( $_GET['competition_id'] ) : 0;
+		$dashboard      = $this->build_dashboard_context( $competition_id );
+		$competition_id = (int) ( $dashboard['competition_id'] ?? 0 );
+		$competition    = $dashboard['competition'] ?? null;
+
+		?>
+		<div class="wrap ufsc-competitions-admin">
+			<header class="ufsc-admin-page-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Centre de pilotage jour J', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php esc_html_e( 'Tableau de bord compétition', 'ufsc-licence-competition' ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Suivez l’état global d’une compétition officielle depuis un seul écran : inscriptions, pesées, combats, résultats et actions prioritaires.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			</header>
+
+			<form method="get" class="ufsc-admin-filters ufsc-dashboard-selector">
+				<input type="hidden" name="page" value="<?php echo esc_attr( self::MENU_SLUG ); ?>" />
+				<label for="ufsc-dashboard-competition"><strong><?php esc_html_e( 'Compétition pilotée', 'ufsc-licence-competition' ); ?></strong></label>
+				<select id="ufsc-dashboard-competition" name="competition_id">
+					<option value="0"><?php esc_html_e( 'Sélectionner une compétition', 'ufsc-licence-competition' ); ?></option>
+					<?php foreach ( $dashboard['competitions'] as $item ) : ?>
+						<option value="<?php echo esc_attr( (int) $item->id ); ?>" <?php selected( $competition_id, (int) $item->id ); ?>><?php echo esc_html( (string) $item->name ); ?></option>
+					<?php endforeach; ?>
+				</select>
+				<button type="submit" class="button button-primary"><?php esc_html_e( 'Afficher le tableau de bord', 'ufsc-licence-competition' ); ?></button>
+			</form>
+
+			<?php if ( ! $competition ) : ?>
+				<div class="notice notice-info"><p><?php esc_html_e( 'Choisissez une compétition pour afficher les indicateurs opérationnels et les accès rapides.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php else : ?>
+				<section class="ufsc-kpis ufsc-kpis--premium">
+					<?php foreach ( $dashboard['kpis'] as $kpi ) : ?>
+						<article class="ufsc-kpi">
+							<span class="ufsc-kpi__label"><?php echo esc_html( $kpi['label'] ); ?></span>
+							<strong class="ufsc-kpi__value"><?php echo esc_html( $kpi['value'] ); ?></strong>
+							<?php if ( ! empty( $kpi['hint'] ) ) : ?><small><?php echo esc_html( $kpi['hint'] ); ?></small><?php endif; ?>
+						</article>
+					<?php endforeach; ?>
+				</section>
+
+				<div class="ufsc-admin-surface">
+					<h2><?php echo esc_html( sprintf( __( 'État général — %s', 'ufsc-licence-competition' ), (string) $competition->name ) ); ?></h2>
+					<?php if ( empty( $dashboard['alerts'] ) ) : ?>
+						<div class="notice notice-success inline"><p><?php esc_html_e( 'Aucune alerte bloquante détectée sur les indicateurs principaux. Lancez tout de même le contrôle qualité complet avant génération officielle.', 'ufsc-licence-competition' ); ?></p></div>
+					<?php else : ?>
+						<div class="notice notice-warning inline"><p><strong><?php esc_html_e( 'Points à vérifier avant le jour J :', 'ufsc-licence-competition' ); ?></strong></p><ul>
+							<?php foreach ( $dashboard['alerts'] as $alert ) : ?><li><?php echo esc_html( $alert ); ?></li><?php endforeach; ?>
+						</ul></div>
+					<?php endif; ?>
+				</div>
+
+				<div class="ufsc-admin-surface">
+					<h2><?php esc_html_e( 'Actions rapides', 'ufsc-licence-competition' ); ?></h2>
+					<p><?php esc_html_e( 'Ces raccourcis conservent le contexte de compétition pour éviter les erreurs de sélection le jour de l’évènement.', 'ufsc-licence-competition' ); ?></p>
+					<p class="ufsc-admin-page-actions">
+						<?php foreach ( $this->get_dashboard_links( $competition_id ) as $link ) : ?>
+							<a class="button<?php echo ! empty( $link['primary'] ) ? ' button-primary' : ''; ?>" href="<?php echo esc_url( $link['url'] ); ?>"><?php echo esc_html( $link['label'] ); ?></a>
+						<?php endforeach; ?>
+					</p>
+				</div>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	private function build_dashboard_context( int $competition_id ): array {
+		$competition_repo = new CompetitionRepository();
+		$entry_repo       = new EntryRepository();
+		$category_repo    = new CategoryRepository();
+		$fight_repo       = new FightRepository();
+		$weighin_repo     = new WeighInRepository();
+
+		$competition_filters = array( 'view' => 'all' );
+		if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
+		}
+		$competitions = $competition_repo->list( $competition_filters, 200, 0 );
+		if ( ! $competition_id && ! empty( $competitions ) ) {
+			$competition_id = (int) $competitions[0]->id;
+		}
+
+		$competition = $competition_id ? $competition_repo->get( $competition_id, true ) : null;
+		if ( $competition && method_exists( $competition_repo, 'assert_competition_in_scope' ) ) {
+			$competition_repo->assert_competition_in_scope( $competition_id );
+		}
+
+		$stats = array( 'entries' => 0, 'approved' => 0, 'weighed' => 0, 'weighing_remaining' => 0, 'categories' => 0, 'fights' => 0, 'results' => 0, 'surfaces' => 0 );
+		if ( $competition ) {
+			$entry_counts = $entry_repo->count_by_status( $competition_id );
+			$stats['entries']  = (int) ( $entry_counts['total'] ?? 0 );
+			$stats['approved'] = (int) ( $entry_counts['approved'] ?? 0 );
+
+			$entry_filters = array( 'view' => 'all', 'competition_id' => $competition_id );
+			if ( function_exists( 'ufsc_lc_competitions_apply_scope_to_query_args' ) ) {
+				$entry_filters = ufsc_lc_competitions_apply_scope_to_query_args( $entry_filters );
+			}
+			$entries  = $entry_repo->list_with_details( $entry_filters, 3000, 0 );
+			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+			$weighins = $weighin_repo->get_for_entries( $competition_id, $entry_ids );
+			foreach ( $entries as $entry ) {
+				$status = EntriesWorkflow::normalize_status( (string) ( $entry->status ?? '' ) );
+				if ( 'approved' !== $status ) {
+					continue;
+				}
+				$row = $weighins[ (int) $entry->id ] ?? null;
+				if ( $weighin_repo->is_valid_weighin_row( $row, (float) ( $competition->weight_tolerance ?? 1 ), isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null ) ) {
+					$stats['weighed']++;
+				}
+			}
+			$stats['weighing_remaining'] = max( 0, $stats['approved'] - $stats['weighed'] );
+			$stats['categories'] = (int) $category_repo->count( array( 'view' => 'all', 'competition_id' => $competition_id ) );
+			$fights = $fight_repo->list( array( 'view' => 'all', 'competition_id' => $competition_id ), 5000, 0 );
+			$stats['fights'] = count( $fights );
+			$surfaces = array();
+			foreach ( $fights as $fight ) {
+				if ( ! empty( $fight->winner_entry_id ) || 'completed' === $fight_repo->get_effective_fight_status( $fight ) || 'locked' === $fight_repo->get_effective_fight_status( $fight ) ) {
+					$stats['results']++;
+				}
+				$ring = trim( (string) ( $fight->ring ?? '' ) );
+				if ( '' !== $ring ) {
+					$surfaces[ $ring ] = true;
+				}
+			}
+			$stats['surfaces'] = count( $surfaces );
+		}
+
+		$alerts = array();
+		if ( $competition ) {
+			if ( 0 === $stats['entries'] ) { $alerts[] = __( 'Aucune inscription enregistrée pour cette compétition.', 'ufsc-licence-competition' ); }
+			if ( 0 === $stats['categories'] ) { $alerts[] = __( 'Aucune catégorie configurée : la génération officielle sera bloquée ou incomplète.', 'ufsc-licence-competition' ); }
+			if ( $stats['approved'] > 0 && $stats['weighing_remaining'] > 0 ) { $alerts[] = sprintf( __( '%d pesée(s) validée(s) manquante(s) parmi les inscriptions approuvées.', 'ufsc-licence-competition' ), $stats['weighing_remaining'] ); }
+			if ( $stats['fights'] > 0 && 0 === $stats['surfaces'] ) { $alerts[] = __( 'Des combats existent mais aucune surface/plateau n’est renseigné.', 'ufsc-licence-competition' ); }
+		}
+
+		return array(
+			'competition_id' => $competition_id,
+			'competition'    => $competition,
+			'competitions'   => $competitions,
+			'alerts'         => $alerts,
+			'kpis'           => array(
+				array( 'label' => __( 'Inscrits', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['entries'] ), 'hint' => sprintf( __( '%d approuvé(s)', 'ufsc-licence-competition' ), $stats['approved'] ) ),
+				array( 'label' => __( 'Pesées validées', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['weighed'] ), 'hint' => sprintf( __( '%d restante(s)', 'ufsc-licence-competition' ), $stats['weighing_remaining'] ) ),
+				array( 'label' => __( 'Combats générés', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['fights'] ), 'hint' => sprintf( __( '%d plateau(x)', 'ufsc-licence-competition' ), $stats['surfaces'] ) ),
+				array( 'label' => __( 'Résultats saisis', 'ufsc-licence-competition' ), 'value' => number_format_i18n( $stats['results'] ), 'hint' => $stats['fights'] > 0 ? sprintf( __( '%d à traiter', 'ufsc-licence-competition' ), max( 0, $stats['fights'] - $stats['results'] ) ) : __( 'Aucun combat', 'ufsc-licence-competition' ) ),
+			),
+		);
+	}
+
+	private function get_dashboard_links( int $competition_id ): array {
+		$base = array( 'competition_id' => $competition_id );
+		return array(
+			array( 'label' => __( 'Inscriptions', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_ENTRIES ) ), admin_url( 'admin.php' ) ) ),
+			array( 'label' => __( 'Pesées', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_WEIGHINS ) ), admin_url( 'admin.php' ) ), 'primary' => true ),
+			array( 'label' => __( 'Générer / gérer les combats', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_BOUTS ) ), admin_url( 'admin.php' ) ), 'primary' => true ),
+			array( 'label' => __( 'Plateau jour J', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_PLATEAU ) ), admin_url( 'admin.php' ) ) ),
+			array( 'label' => __( 'Impressions', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_PRINT ) ), admin_url( 'admin.php' ) ) ),
+			array( 'label' => __( 'Contrôle qualité', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_QUALITY ) ), admin_url( 'admin.php' ) ) ),
+			array( 'label' => __( 'Logs', 'ufsc-licence-competition' ), 'url' => add_query_arg( array_merge( $base, array( 'page' => self::PAGE_LOGS ) ), admin_url( 'admin.php' ) ) ),
+		);
 	}
 }
