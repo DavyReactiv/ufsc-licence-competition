@@ -911,22 +911,91 @@ class FightAutoGenerationService {
 		return $rolled_back;
 	}
 
+	/**
+	 * Legacy direct-generation fallback kept for tracked sandbox fixtures only.
+	 *
+	 * @deprecated Use generate_draft() then validate_and_apply_draft() for every real competition.
+	 */
 	public static function generate_simple_pairing_fights( int $competition_id, array $settings = array() ): array {
-		if ( empty( $settings['sandbox_generation'] ) && ! apply_filters( 'ufsc_competitions_allow_direct_generation_fallback', false, $competition_id, $settings ) ) {
-			( new LogService() )->audit( 'generation_blocked', $competition_id, 'competition', $competition_id, array( 'reason' => 'direct_fallback_disabled' ) );
+		$competition_id = absint( $competition_id );
+		$logger         = new LogService();
+		$blocked        = static function ( string $reason, string $message, array $context = array() ) use ( $competition_id, $logger ): array {
+			$logger->audit(
+				'generation_blocked',
+				$competition_id,
+				'competition',
+				$competition_id,
+				array_merge( array( 'reason' => $reason, 'source' => 'generate_simple_pairing_fights' ), $context )
+			);
+
 			return array(
 				'ok'      => false,
-				'message' => __( 'Génération directe désactivée : utilisez la prévisualisation puis validez le brouillon.', 'ufsc-licence-competition' ),
+				'message' => $message,
+				'reason'  => $reason,
+			);
+		};
+
+		if ( $competition_id <= 0 ) {
+			return $blocked(
+				'competition_id_invalid',
+				__( 'Génération directe bloquée : compétition invalide.', 'ufsc-licence-competition' )
 			);
 		}
+
+		$competition_repo = new CompetitionRepository();
+		$competition      = $competition_repo->get( $competition_id, true );
+		if ( ! $competition ) {
+			return $blocked(
+				'competition_not_found',
+				__( 'Génération directe bloquée : compétition introuvable.', 'ufsc-licence-competition' )
+			);
+		}
+
+		$competition_name = trim( (string) ( $competition->name ?? '' ) );
+		$is_test_competition = 1 === preg_match( '/^\s*\[TEST\]/i', $competition_name );
+		$context             = sanitize_key( (string) ( $settings['direct_generation_context'] ?? '' ) );
+		if ( empty( $settings['sandbox_generation'] ) || 'test_fixture' !== $context || ! $is_test_competition ) {
+			return $blocked(
+				'direct_fallback_test_fixture_only',
+				__( 'Génération directe bloquée : utilisez le workflow brouillon puis validation. Le fallback direct est réservé aux fixtures [TEST].', 'ufsc-licence-competition' ),
+				array( 'competition_name' => $competition_name, 'direct_generation_context' => $context )
+			);
+		}
+
+		if ( class_exists( GenerationLockService::class ) && GenerationLockService::is_generation_locked( $competition_id ) ) {
+			return $blocked(
+				'generation_locked',
+				__( 'Génération directe bloquée : la génération est verrouillée pour cette compétition.', 'ufsc-licence-competition' ),
+				array( 'competition_name' => $competition_name )
+			);
+		}
+
+		if ( class_exists( CompetitionSafetyService::class ) ) {
+			$safety = ( new CompetitionSafetyService() )->guard_fight_generation(
+				$competition_id,
+				'direct_simple_pairing_fallback',
+				array( 'competition_name' => $competition_name, 'direct_generation_context' => $context )
+			);
+			if ( empty( $safety['ok'] ) ) {
+				return $blocked(
+					(string) ( $safety['reason'] ?? 'competition_safety_blocked' ),
+					(string) ( $safety['message'] ?? __( 'Génération directe bloquée par les protections compétition.', 'ufsc-licence-competition' ) ),
+					array( 'competition_name' => $competition_name )
+				);
+			}
+		}
+
 		$fight_repo = new FightRepository();
 		$regeneration_scope = $fight_repo->can_regenerate_scope( $competition_id );
 		$existing_fights = self::get_existing_generation_blockers( $competition_id );
 		if ( empty( $regeneration_scope['allowed'] ) || (int) ( $existing_fights['total'] ?? 0 ) > 0 ) {
-			return array(
-				'ok'      => false,
-				'message' => __( 'Fallback simple pairing bloqué : des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
-				'existing_fights' => (int) ( $existing_fights['total'] ?? 0 ),
+			return $blocked(
+				'direct_fallback_existing_or_sensitive_fights',
+				__( 'Fallback simple pairing bloqué : des combats existent déjà pour cette compétition.', 'ufsc-licence-competition' ),
+				array(
+					'existing_fights' => (int) ( $existing_fights['total'] ?? 0 ),
+					'regeneration_scope' => $regeneration_scope,
+				)
 			);
 		}
 
