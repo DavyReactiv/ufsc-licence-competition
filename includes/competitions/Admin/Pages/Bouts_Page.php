@@ -110,12 +110,16 @@ class Bouts_Page {
 			</div>
 			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
-			<form method="post" class="ufsc-admin-toolbar">
+			<form method="get" class="ufsc-admin-toolbar">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />
 				<?php $list_table->search_box( __( 'Rechercher', 'ufsc-licence-competition' ), 'ufsc-competitions-fights-search' ); ?>
 			</form>
 			<form method="post">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_BOUTS ); ?>" />
+				<?php $fight_filters = $list_table->get_filters(); ?>
+				<?php if ( ! empty( $fight_filters['category_id'] ) ) : ?>
+					<input type="hidden" name="ufsc_category_id" value="<?php echo esc_attr( (int) $fight_filters['category_id'] ); ?>" />
+				<?php endif; ?>
 				<div class="ufsc-competitions-table-wrap">
 					<?php $list_table->display(); ?>
 				</div>

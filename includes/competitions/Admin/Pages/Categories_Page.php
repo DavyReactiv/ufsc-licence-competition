@@ -4,6 +4,7 @@ namespace UFSC\Competitions\Admin\Pages;
 
 use UFSC\Competitions\Capabilities;
 use UFSC\Competitions\Admin\Menu;
+use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Admin\Tables\Categories_Table;
@@ -70,6 +71,7 @@ class Categories_Page {
 				</div>
 			</header>
 			<?php $this->render_helper_notice( __( 'Définir âge/poids/sexe/niveau + format poules/élimination. Les catégories du référentiel servent à la génération automatique des combats ; les catégories visibles dans les inscriptions sont des données déclarées/importées.', 'ufsc-licence-competition' ) ); ?>
+			<?php $this->render_category_diagnostic( (array) $list_table->get_filters() ); ?>
 			<?php $this->render_preset_preview_section(); ?>
 			<section class="ufsc-admin-surface ufsc-admin-listing-surface">
 			<?php $list_table->views(); ?>
@@ -86,6 +88,141 @@ class Categories_Page {
 			</section>
 		</div>
 		<?php
+	}
+
+
+	private function render_category_diagnostic( array $filters ): void {
+		$diagnostic = $this->build_category_diagnostic( $filters );
+		$duplicates = (array) ( $diagnostic['duplicates'] ?? array() );
+		$same_weight = (array) ( $diagnostic['same_weight'] ?? array() );
+		$analyzed = (int) ( $diagnostic['analyzed'] ?? 0 );
+		?>
+		<section class="ufsc-admin-surface" style="margin-top:16px;">
+			<h2><?php esc_html_e( 'Catégories détectées', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php esc_html_e( 'Diagnostic non destructif : aucune catégorie, inscription, pesée, combat ou résultat n’est modifié. Les catégories à poids identique ne sont suspectes que si discipline, sexe, âge, niveau et poids correspondent aussi.', 'ufsc-licence-competition' ); ?></p>
+			<p><strong><?php echo esc_html( sprintf( __( 'Catégories analysées : %d', 'ufsc-licence-competition' ), $analyzed ) ); ?></strong></p>
+			<?php if ( empty( $duplicates ) && empty( $same_weight ) ) : ?>
+				<div class="notice notice-success inline"><p><?php esc_html_e( 'Aucun doublon probable détecté avec les critères disponibles.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
+			<?php if ( ! empty( $duplicates ) ) : ?>
+				<div class="notice notice-warning inline"><p><strong><?php esc_html_e( 'Doublons possibles', 'ufsc-licence-competition' ); ?></strong> — <?php esc_html_e( 'Même discipline, sexe, tranche d’âge, niveau et poids/plage de poids. Vérification manuelle recommandée uniquement.', 'ufsc-licence-competition' ); ?></p></div>
+				<?php $this->render_category_diagnostic_table( $duplicates, __( 'Doublons possibles', 'ufsc-licence-competition' ) ); ?>
+			<?php endif; ?>
+			<?php if ( ! empty( $same_weight ) ) : ?>
+				<div class="notice notice-info inline"><p><strong><?php esc_html_e( 'Même poids, catégorie différente', 'ufsc-licence-competition' ); ?></strong> — <?php esc_html_e( 'Ces groupes partagent un poids mais diffèrent par discipline, sexe, âge ou niveau : ce n’est pas une anomalie critique.', 'ufsc-licence-competition' ); ?></p></div>
+				<?php $this->render_category_diagnostic_table( $same_weight, __( 'Même poids, catégorie différente', 'ufsc-licence-competition' ) ); ?>
+			<?php endif; ?>
+		</section>
+		<?php
+	}
+
+	private function render_category_diagnostic_table( array $groups, string $caption ): void {
+		$groups = array_slice( $groups, 0, 20 );
+		?>
+		<div class="ufsc-competitions-table-wrap">
+			<table class="widefat striped">
+				<caption class="screen-reader-text"><?php echo esc_html( $caption ); ?></caption>
+				<thead><tr><th><?php esc_html_e( 'Diagnostic', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Critères', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Catégories', 'ufsc-licence-competition' ); ?></th></tr></thead>
+				<tbody>
+				<?php foreach ( $groups as $group ) : ?>
+					<tr>
+						<td><?php echo esc_html( (string) ( $group['label'] ?? '' ) ); ?></td>
+						<td><?php echo esc_html( (string) ( $group['criteria'] ?? '' ) ); ?></td>
+						<td><?php echo esc_html( implode( ' | ', array_map( 'strval', (array) ( $group['names'] ?? array() ) ) ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+		<?php
+	}
+
+	private function build_category_diagnostic( array $filters ): array {
+		if ( ! class_exists( Db::class ) || ! Db::table_exists( Db::categories_table() ) ) {
+			return array( 'analyzed' => 0, 'duplicates' => array(), 'same_weight' => array() );
+		}
+
+		$query_filters = array( 'view' => 'all' );
+		if ( ! empty( $filters['competition_id'] ) ) {
+			$query_filters['competition_id'] = absint( $filters['competition_id'] );
+		}
+		if ( ! empty( $filters['discipline'] ) ) {
+			$query_filters['discipline'] = sanitize_key( (string) $filters['discipline'] );
+		}
+
+		$categories = $this->repository->list( $query_filters, 2000, 0 );
+		if ( ! is_array( $categories ) ) {
+			$categories = array();
+		}
+
+		$full_groups = array();
+		$weight_groups = array();
+		foreach ( $categories as $category ) {
+			$normalized = $this->normalize_category_diagnostic_row( $category );
+			$full_groups[ $normalized['full_key'] ][] = $normalized;
+			if ( '' !== $normalized['weight_key'] ) {
+				$weight_groups[ $normalized['weight_key'] ][] = $normalized;
+			}
+		}
+
+		$duplicates = array();
+		foreach ( $full_groups as $rows ) {
+			if ( count( $rows ) > 1 ) {
+				$duplicates[] = $this->format_category_diagnostic_group( $rows, __( 'Doublon possible', 'ufsc-licence-competition' ) );
+			}
+		}
+
+		$same_weight = array();
+		foreach ( $weight_groups as $rows ) {
+			if ( count( $rows ) <= 1 ) {
+				continue;
+			}
+			$full_keys = array_unique( wp_list_pluck( $rows, 'full_key' ) );
+			if ( count( $full_keys ) > 1 ) {
+				$same_weight[] = $this->format_category_diagnostic_group( $rows, __( 'Même poids, catégorie différente', 'ufsc-licence-competition' ) );
+			}
+		}
+
+		return array(
+			'analyzed' => count( $categories ),
+			'duplicates' => $duplicates,
+			'same_weight' => $same_weight,
+		);
+	}
+
+	private function normalize_category_diagnostic_row( $category ): array {
+		$discipline = sanitize_key( (string) ( $category->discipline ?? '' ) );
+		$sex = sanitize_key( (string) ( $category->sex ?? '' ) );
+		$level = sanitize_key( (string) ( $category->level ?? '' ) );
+		$age_min = '' === (string) ( $category->age_min ?? '' ) ? '' : (string) absint( $category->age_min );
+		$age_max = '' === (string) ( $category->age_max ?? '' ) ? '' : (string) absint( $category->age_max );
+		$weight_min = $this->normalize_diagnostic_decimal( $category->weight_min ?? '' );
+		$weight_max = $this->normalize_diagnostic_decimal( $category->weight_max ?? '' );
+		$weight_key = $weight_min . '-' . $weight_max;
+
+		return array(
+			'name' => sanitize_text_field( (string) ( $category->name ?? '' ) ) . ' (#' . absint( $category->id ?? 0 ) . ')',
+			'full_key' => implode( '|', array( $discipline, $sex, $age_min, $age_max, $level, $weight_min, $weight_max ) ),
+			'weight_key' => '-' === $weight_key ? '' : $weight_key,
+			'criteria' => sprintf( 'discipline=%s; sexe=%s; âge=%s-%s; niveau=%s; poids=%s-%s', $discipline ?: '—', $sex ?: '—', $age_min ?: '—', $age_max ?: '—', $level ?: '—', $weight_min ?: '—', $weight_max ?: '—' ),
+		);
+	}
+
+	private function normalize_diagnostic_decimal( $value ): string {
+		if ( null === $value || '' === trim( (string) $value ) ) {
+			return '';
+		}
+
+		return rtrim( rtrim( number_format( (float) $value, 3, '.', '' ), '0' ), '.' );
+	}
+
+	private function format_category_diagnostic_group( array $rows, string $label ): array {
+		$first = $rows[0] ?? array();
+		return array(
+			'label' => $label,
+			'criteria' => (string) ( $first['criteria'] ?? '' ),
+			'names' => wp_list_pluck( $rows, 'name' ),
+		);
 	}
 
 	public function handle_save() {
