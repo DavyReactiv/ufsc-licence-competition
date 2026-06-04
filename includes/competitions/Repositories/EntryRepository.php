@@ -30,6 +30,36 @@ class EntryRepository {
 		);
 	}
 
+
+	public function get_distinct_category_ids( array $filters = array() ): array {
+		global $wpdb;
+
+		$table = Db::entries_table();
+		if ( ! Db::table_exists( $table ) || ! Db::has_table_column( $table, 'category_id' ) ) {
+			return array();
+		}
+
+		$where = array( '1=1' );
+		if ( Db::has_table_column( $table, 'deleted_at' ) ) {
+			$where[] = 'deleted_at IS NULL';
+		}
+		if ( ! empty( $filters['competition_id'] ) ) {
+			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
+		}
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
+			$ids = array_values( array_filter( array_map( 'absint', $filters['competition_ids'] ) ) );
+			if ( $ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$where[] = $wpdb->prepare( "competition_id IN ({$placeholders})", $ids );
+			}
+		}
+
+		$sql = "SELECT DISTINCT category_id FROM {$table} WHERE " . implode( ' AND ', $where ) . ' AND category_id IS NOT NULL AND category_id > 0 ORDER BY category_id ASC';
+		$ids = $wpdb->get_col( $sql );
+
+		return array_values( array_filter( array_map( 'absint', is_array( $ids ) ? $ids : array() ) ) );
+	}
+
 	public function get_with_details( int $entry_id, bool $include_deleted = false ) {
 		$entry_id = absint( $entry_id );
 		if ( ! $entry_id ) {
@@ -842,6 +872,27 @@ class EntryRepository {
 
 		if ( ! empty( $filters['entry_id'] ) ) {
 			$where[] = $wpdb->prepare( "{$entries_alias}.id = %d", absint( $filters['entry_id'] ) );
+		}
+
+		if ( ! empty( $filters['category_id'] ) ) {
+			$category_id = absint( $filters['category_id'] );
+			if ( $category_id > 0 ) {
+				$category = ( new CategoryRepository() )->get( $category_id, true );
+				$category_name = sanitize_text_field( (string) ( $category->name ?? '' ) );
+				if ( in_array( 'category_id', $entry_columns, true ) ) {
+					if ( '' !== $category_name && "''" !== $entry_category_expr ) {
+						$where[] = $wpdb->prepare(
+							"({$entries_alias}.category_id = %d OR (({$entries_alias}.category_id IS NULL OR {$entries_alias}.category_id = 0) AND {$entry_category_expr} = %s))",
+							$category_id,
+							$category_name
+						);
+					} else {
+						$where[] = $wpdb->prepare( "{$entries_alias}.category_id = %d", $category_id );
+					}
+				} elseif ( '' !== $category_name && "''" !== $entry_category_expr ) {
+					$where[] = $wpdb->prepare( "{$entry_category_expr} = %s", $category_name );
+				}
+			}
 		}
 		if ( ! empty( $filters['entry_ids'] ) && is_array( $filters['entry_ids'] ) ) {
 			$entry_ids = array_values( array_filter( array_map( 'absint', $filters['entry_ids'] ) ) );

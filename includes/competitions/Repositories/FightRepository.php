@@ -377,6 +377,22 @@ class FightRepository {
 		return $wpdb->get_results( $sql );
 	}
 
+
+	public function get_distinct_category_ids( array $filters = array() ): array {
+		global $wpdb;
+
+		$table = Db::fights_table();
+		if ( ! Db::table_exists( $table ) || ! Db::has_table_column( $table, 'category_id' ) ) {
+			return array();
+		}
+
+		$where = $this->build_where( $filters );
+		$sql = "SELECT DISTINCT category_id FROM {$table} {$where} AND category_id IS NOT NULL AND category_id > 0 ORDER BY category_id ASC";
+		$ids = $wpdb->get_col( $sql );
+
+		return array_values( array_filter( array_map( 'absint', is_array( $ids ) ? $ids : array() ) ) );
+	}
+
 	public function count( $filters = array() ) {
 		$filters = is_array( $filters ) ? $filters : array( "status" => $filters );
 		global $wpdb;
@@ -737,9 +753,10 @@ class FightRepository {
 		}
 
 		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) ) {
-			$ids = array_filter( array_map( 'absint', $filters['competition_ids'] ) );
+			$ids = array_values( array_filter( array_map( 'absint', $filters['competition_ids'] ) ) );
 			if ( $ids ) {
-				$where[] = 'competition_id IN (' . implode( ',', $ids ) . ')';
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$where[] = $wpdb->prepare( "competition_id IN ({$placeholders})", $ids );
 			}
 		}
 
@@ -753,8 +770,13 @@ class FightRepository {
 				1000,
 				0
 			);
-			$ids = array_filter( array_map( 'absint', wp_list_pluck( $competitions, 'id' ) ) );
-			$where[] = $ids ? 'competition_id IN (' . implode( ',', $ids ) . ')' : '1=0';
+			$ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $competitions, 'id' ) ) ) );
+			if ( $ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$where[] = $wpdb->prepare( "competition_id IN ({$placeholders})", $ids );
+			} else {
+				$where[] = '1=0';
+			}
 		}
 
 		if ( ! empty( $filters['category_id'] ) ) {

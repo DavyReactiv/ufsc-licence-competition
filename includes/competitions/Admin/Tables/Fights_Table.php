@@ -80,6 +80,7 @@ class Fights_Table extends \WP_List_Table {
 			'view'           => isset( $_REQUEST['ufsc_view'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_view'] ) ) : 'all',
 			'competition_view' => $competition_view,
 			'competition_id' => isset( $_REQUEST['ufsc_competition_id'] ) ? absint( $_REQUEST['ufsc_competition_id'] ) : 0,
+			'category_id'    => isset( $_REQUEST['ufsc_category_id'] ) ? absint( wp_unslash( $_REQUEST['ufsc_category_id'] ) ) : 0,
 			'status'         => $status_filter,
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 		);
@@ -93,7 +94,7 @@ class Fights_Table extends \WP_List_Table {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$this->competitions = $this->competition_repository->list( $competition_filters, 200, 0 );
-		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
+		$this->categories = $this->get_filter_categories( (int) ( $filters['competition_id'] ?? 0 ) );
 
 		if ( ! $filters['competition_id'] ) {
 			$filters['competition_ids'] = wp_list_pluck( $this->competitions, 'id' );
@@ -255,7 +256,7 @@ class Fights_Table extends \WP_List_Table {
 	}
 
 	public function no_items() {
-		if ( ! empty( $this->filters['competition_id'] ) || ! empty( $this->filters['status'] ) || ! empty( $this->filters['discipline'] ) ) {
+		if ( ! empty( $this->filters['competition_id'] ) || ! empty( $this->filters['status'] ) || ! empty( $this->filters['discipline'] ) || ! empty( $this->filters['category_id'] ) ) {
 			esc_html_e( 'Aucun combat trouvé pour ces filtres/scope. Essayez une autre vue de compétitions ou réinitialisez les filtres.', 'ufsc-licence-competition' );
 			return;
 		}
@@ -272,6 +273,7 @@ class Fights_Table extends \WP_List_Table {
 		$status = $this->filters['status'] ?? '';
 		$competition_view = $this->filters['competition_view'] ?? 'all_with_archived';
 		$discipline = $this->filters['discipline'] ?? '';
+		$category_id = absint( $this->filters['category_id'] ?? 0 );
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
 		<div class="alignleft actions">
@@ -298,6 +300,13 @@ class Fights_Table extends \WP_List_Table {
 					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $discipline, $value ); ?>><?php echo esc_html( $label ); ?></option>
 				<?php endforeach; ?>
 			</select>
+			<label class="screen-reader-text" for="ufsc_category_filter"><?php esc_html_e( 'Filtrer par catégorie', 'ufsc-licence-competition' ); ?></label>
+			<select name="ufsc_category_id" id="ufsc_category_filter">
+				<option value="0"><?php esc_html_e( 'Toutes les catégories', 'ufsc-licence-competition' ); ?></option>
+				<?php foreach ( $this->categories as $category ) : ?>
+					<option value="<?php echo esc_attr( (int) $category->id ); ?>" <?php selected( $category_id, (int) $category->id ); ?>><?php echo esc_html( $this->format_category_option_label( $category ) ); ?></option>
+				<?php endforeach; ?>
+			</select>
 			<label class="screen-reader-text" for="ufsc_status_filter"><?php esc_html_e( 'Filtrer par statut', 'ufsc-licence-competition' ); ?></label>
 			<select name="ufsc_status" id="ufsc_status_filter">
 				<option value=""><?php esc_html_e( 'Tous les statuts', 'ufsc-licence-competition' ); ?></option>
@@ -311,6 +320,52 @@ class Fights_Table extends \WP_List_Table {
 			<?php endif; ?>
 		</div>
 		<?php
+	}
+
+
+	private function get_filter_categories( int $competition_id ): array {
+		$filters = array( 'view' => 'all' );
+		if ( $competition_id > 0 ) {
+			$filters['competition_id'] = $competition_id;
+		}
+
+		$categories = $this->category_repository->list( $filters, 1000, 0 );
+		if ( ! is_array( $categories ) || empty( $categories ) ) {
+			return array();
+		}
+
+		$present_ids = method_exists( $this->repository, 'get_distinct_category_ids' )
+			? $this->repository->get_distinct_category_ids( $filters )
+			: array();
+		if ( empty( $present_ids ) ) {
+			return $categories;
+		}
+
+		$present_lookup = array_fill_keys( array_map( 'absint', $present_ids ), true );
+		return array_values(
+			array_filter(
+				$categories,
+				static function ( $category ) use ( $present_lookup ) {
+					return isset( $present_lookup[ absint( $category->id ?? 0 ) ] );
+				}
+			)
+		);
+	}
+
+	private function format_category_option_label( $category ): string {
+		$name = sanitize_text_field( (string) ( $category->name ?? '' ) );
+		$parts = array_filter(
+			array(
+				$name,
+				isset( $category->sex ) && '' !== (string) $category->sex ? sanitize_text_field( (string) $category->sex ) : '',
+				isset( $category->level ) && '' !== (string) $category->level ? sanitize_text_field( (string) $category->level ) : '',
+			),
+			static function ( $value ) {
+				return '' !== trim( (string) $value );
+			}
+		);
+
+		return implode( ' — ', $parts );
 	}
 
 	private function get_page_url() {

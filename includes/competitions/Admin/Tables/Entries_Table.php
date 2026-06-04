@@ -61,6 +61,7 @@ class Entries_Table extends \WP_List_Table {
 			'discipline'     => isset( $_REQUEST['ufsc_discipline'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_discipline'] ) ) : '',
 			'participant_type' => isset( $_REQUEST['ufsc_participant_type'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_participant_type'] ) ) : '',
 			'group_label'    => isset( $_REQUEST['ufsc_group_label'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['ufsc_group_label'] ) ) : '',
+			'category_id'    => isset( $_REQUEST['ufsc_category_id'] ) ? absint( wp_unslash( $_REQUEST['ufsc_category_id'] ) ) : 0,
 			'club_affiliation' => isset( $_REQUEST['ufsc_club_affiliation'] ) ? sanitize_key( wp_unslash( $_REQUEST['ufsc_club_affiliation'] ) ) : '',
 			'search'         => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '',
 			'entry_id'       => isset( $_REQUEST['entry_id'] ) ? absint( wp_unslash( $_REQUEST['entry_id'] ) ) : 0,
@@ -73,6 +74,7 @@ class Entries_Table extends \WP_List_Table {
 			$filters['discipline'] = '';
 			$filters['participant_type'] = '';
 			$filters['group_label'] = '';
+			$filters['category_id'] = 0;
 			$filters['club_affiliation'] = '';
 			$filters['view'] = 'all';
 			$current_page = 1;
@@ -98,7 +100,7 @@ class Entries_Table extends \WP_List_Table {
 			$competition_filters = ufsc_lc_competitions_apply_scope_to_query_args( $competition_filters );
 		}
 		$this->competitions = $this->competition_repository->list( $competition_filters, 100, 0 );
-		$this->categories = $this->category_repository->list( array( 'view' => 'all' ), 500, 0 );
+		$this->categories = $this->get_filter_categories( (int) ( $filters['competition_id'] ?? 0 ) );
 
 		if ( $filters['discipline'] && ! $filters['competition_id'] ) {
 			$filters['competition_ids'] = $this->get_competition_ids_by_discipline( $filters['discipline'] );
@@ -359,6 +361,7 @@ class Entries_Table extends \WP_List_Table {
 		$discipline = $this->filters['discipline'] ?? '';
 		$participant_type = $this->filters['participant_type'] ?? '';
 		$group_label = $this->filters['group_label'] ?? '';
+		$category_id = absint( $this->filters['category_id'] ?? 0 );
 		$club_affiliation = $this->filters['club_affiliation'] ?? '';
 		$disciplines = DisciplineRegistry::get_disciplines();
 		?>
@@ -391,6 +394,13 @@ class Entries_Table extends \WP_List_Table {
 				<option value="external_non_licensed" <?php selected( $participant_type, 'external_non_licensed' ); ?>><?php esc_html_e( 'Non licencié UFSC', 'ufsc-licence-competition' ); ?></option>
 			</select>
 			<input type="text" name="ufsc_group_label" value="<?php echo esc_attr( $group_label ); ?>" placeholder="<?php echo esc_attr__( 'Groupe / lot', 'ufsc-licence-competition' ); ?>" />
+			<label class="screen-reader-text" for="ufsc_category_filter"><?php esc_html_e( 'Filtrer par catégorie', 'ufsc-licence-competition' ); ?></label>
+			<select name="ufsc_category_id" id="ufsc_category_filter">
+				<option value="0"><?php esc_html_e( 'Toutes les catégories', 'ufsc-licence-competition' ); ?></option>
+				<?php foreach ( $this->categories as $category ) : ?>
+					<option value="<?php echo esc_attr( (int) $category->id ); ?>" <?php selected( $category_id, (int) $category->id ); ?>><?php echo esc_html( $this->format_category_option_label( $category ) ); ?></option>
+				<?php endforeach; ?>
+			</select>
 			<select name="ufsc_club_affiliation" id="ufsc_club_affiliation_filter">
 				<option value=""><?php esc_html_e( 'Tous les clubs', 'ufsc-licence-competition' ); ?></option>
 				<option value="non_affiliated" <?php selected( $club_affiliation, 'non_affiliated' ); ?>><?php esc_html_e( 'Club non affilié', 'ufsc-licence-competition' ); ?></option>
@@ -399,6 +409,52 @@ class Entries_Table extends \WP_List_Table {
 			<?php submit_button( __( 'Filtrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 		</div>
 		<?php
+	}
+
+
+	private function get_filter_categories( int $competition_id ): array {
+		$filters = array( 'view' => 'all' );
+		if ( $competition_id > 0 ) {
+			$filters['competition_id'] = $competition_id;
+		}
+
+		$categories = $this->category_repository->list( $filters, 1000, 0 );
+		if ( ! is_array( $categories ) || empty( $categories ) ) {
+			return array();
+		}
+
+		$present_ids = method_exists( $this->repository, 'get_distinct_category_ids' )
+			? $this->repository->get_distinct_category_ids( $filters )
+			: array();
+		if ( empty( $present_ids ) ) {
+			return $categories;
+		}
+
+		$present_lookup = array_fill_keys( array_map( 'absint', $present_ids ), true );
+		return array_values(
+			array_filter(
+				$categories,
+				static function ( $category ) use ( $present_lookup ) {
+					return isset( $present_lookup[ absint( $category->id ?? 0 ) ] );
+				}
+			)
+		);
+	}
+
+	private function format_category_option_label( $category ): string {
+		$name = sanitize_text_field( (string) ( $category->name ?? '' ) );
+		$parts = array_filter(
+			array(
+				$name,
+				isset( $category->sex ) && '' !== (string) $category->sex ? sanitize_text_field( (string) $category->sex ) : '',
+				isset( $category->level ) && '' !== (string) $category->level ? sanitize_text_field( (string) $category->level ) : '',
+			),
+			static function ( $value ) {
+				return '' !== trim( (string) $value );
+			}
+		);
+
+		return implode( ' — ', $parts );
 	}
 
 	private function get_page_url() {

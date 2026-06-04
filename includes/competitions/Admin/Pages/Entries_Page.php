@@ -220,6 +220,9 @@ class Entries_Page {
 				<?php if ( ! empty( $filters['group_label'] ) ) : ?>
 					<input type="hidden" name="ufsc_group_label" value="<?php echo esc_attr( $filters['group_label'] ); ?>" />
 				<?php endif; ?>
+				<?php if ( ! empty( $filters['category_id'] ) ) : ?>
+					<input type="hidden" name="ufsc_category_id" value="<?php echo esc_attr( (int) $filters['category_id'] ); ?>" />
+				<?php endif; ?>
 				<?php if ( ! empty( $filters['club_affiliation'] ) ) : ?>
 					<input type="hidden" name="ufsc_club_affiliation" value="<?php echo esc_attr( $filters['club_affiliation'] ); ?>" />
 				<?php endif; ?>
@@ -247,6 +250,9 @@ class Entries_Page {
 				<?php endif; ?>
 				<?php if ( ! empty( $filters['group_label'] ) ) : ?>
 					<input type="hidden" name="ufsc_group_label" value="<?php echo esc_attr( $filters['group_label'] ); ?>" />
+				<?php endif; ?>
+				<?php if ( ! empty( $filters['category_id'] ) ) : ?>
+					<input type="hidden" name="ufsc_category_id" value="<?php echo esc_attr( (int) $filters['category_id'] ); ?>" />
 				<?php endif; ?>
 				<?php if ( ! empty( $filters['club_affiliation'] ) ) : ?>
 					<input type="hidden" name="ufsc_club_affiliation" value="<?php echo esc_attr( $filters['club_affiliation'] ); ?>" />
