@@ -162,13 +162,48 @@ class CompetitionStatsService {
 	}
 
 	private function get_entry_category_label( $entry ): string {
+		$category = '';
 		foreach ( array( 'category_name', 'category', 'category_label' ) as $key ) {
 			$value = is_object( $entry ) ? ( $entry->{$key} ?? '' ) : '';
 			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
-				return trim( (string) $value );
+				$category = trim( (string) $value );
+				break;
 			}
 		}
-		return '';
+
+		$sex = '';
+		foreach ( array( 'sex', 'sexe', 'gender', 'licensee_sex' ) as $key ) {
+			$value = is_object( $entry ) ? ( $entry->{$key} ?? '' ) : '';
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				$sex = strtoupper( trim( (string) $value ) );
+				break;
+			}
+		}
+
+		$weight_class = '';
+		foreach ( array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) as $key ) {
+			$value = is_object( $entry ) ? ( $entry->{$key} ?? '' ) : '';
+			if ( is_scalar( $value ) && '' !== trim( (string) $value ) ) {
+				$weight_class = trim( (string) $value );
+				break;
+			}
+		}
+
+		$parts = array_filter(
+			array( $category, $sex, $weight_class ),
+			static function ( $value ) {
+				return '' !== trim( (string) $value );
+			}
+		);
+
+		if ( empty( $parts ) ) {
+			$discipline = is_object( $entry ) ? sanitize_text_field( (string) ( $entry->discipline ?? '' ) ) : '';
+			if ( '' !== $discipline ) {
+				$parts[] = $discipline;
+			}
+		}
+
+		return trim( implode( ' ', $parts ) );
 	}
 
 	private function build_weighin_stats( $competition, array $visible_entries, array $weighins ): array {

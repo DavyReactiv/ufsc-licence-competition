@@ -76,6 +76,7 @@ class WeighIns_Page {
 			'eligible' => 0,
 		);
 		$categories = array();
+		$category_filter_options = array();
 		$scope_stats = $competition_id > 0 ? ( new CompetitionStatsService() )->get_competition_stats( $competition_id ) : array();
 
 		if ( $competition_id > 0 ) {
@@ -120,6 +121,7 @@ class WeighIns_Page {
 			}
 			$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
 			$weighins  = $this->weighins->get_for_entries( $competition_id, $entry_ids );
+			$category_filter_options = $this->get_distinct_categories( $entries, $categories );
 
 			$entries = array_values(
 				array_filter(
@@ -132,10 +134,7 @@ class WeighIns_Page {
 								return false;
 							}
 							$entry_id = (int) $entry->id;
-						$category_label = (string) ( $entry->category_name ?? $entry->category ?? '' );
-						if ( '' === $category_label && ! empty( $entry->category_id ) && isset( $categories[ (int) $entry->category_id ] ) ) {
-							$category_label = (string) $categories[ (int) $entry->category_id ]->name;
-						}
+						$category_label = $this->resolve_entry_category_filter_label( $entry, $categories );
 						$row = $weighins[ $entry_id ] ?? null;
 						$meta = $this->extract_meta( $row ? (string) ( $row->notes ?? '' ) : '' );
 						$status = $this->normalize_weighin_status( (string) ( $row->status ?? '' ), $meta );
@@ -217,7 +216,7 @@ class WeighIns_Page {
 					/>
 					<select name="category_filter">
 						<option value=""><?php esc_html_e( 'Toutes les catégories', 'ufsc-licence-competition' ); ?></option>
-						<?php foreach ( $this->get_distinct_categories( $entries ) as $category_label ) : ?>
+						<?php foreach ( $category_filter_options as $category_label ) : ?>
 							<option value="<?php echo esc_attr( $category_label ); ?>" <?php selected( $category_filter, $category_label ); ?>><?php echo esc_html( $category_label ); ?></option>
 						<?php endforeach; ?>
 					</select>
@@ -522,10 +521,10 @@ class WeighIns_Page {
 		return is_array( $decoded ) ? $decoded : array();
 	}
 
-	private function get_distinct_categories( array $entries ): array {
+	private function get_distinct_categories( array $entries, array $categories = array() ): array {
 		$labels = array();
 		foreach ( $entries as $entry ) {
-			$label = (string) ( $entry->_ufsc_weighin['category_label'] ?? '' );
+			$label = $this->resolve_entry_category_filter_label( $entry, $categories );
 			if ( '' !== $label ) {
 				$labels[ $label ] = $label;
 			}
@@ -533,6 +532,31 @@ class WeighIns_Page {
 		ksort( $labels );
 
 		return array_values( $labels );
+	}
+
+	private function resolve_entry_category_filter_label( $entry, array $categories = array() ): string {
+		$category_label = sanitize_text_field( (string) ( $entry->category_name ?? $entry->category ?? $entry->category_label ?? '' ) );
+		if ( '' === $category_label && ! empty( $entry->category_id ) && isset( $categories[ (int) $entry->category_id ] ) ) {
+			$category_label = sanitize_text_field( (string) ( $categories[ (int) $entry->category_id ]->name ?? '' ) );
+		}
+
+		$sex = sanitize_text_field( (string) ( $entry->sex ?? $entry->sexe ?? $entry->gender ?? $entry->licensee_sex ?? '' ) );
+		$weight_class = sanitize_text_field( (string) ( $entry->weight_class ?? $entry->weight_category ?? $entry->weight_cat ?? $entry->categorie_poids ?? '' ) );
+		$parts = array_filter(
+			array( $category_label, strtoupper( $sex ), $weight_class ),
+			static function ( $value ) {
+				return '' !== trim( (string) $value );
+			}
+		);
+
+		if ( empty( $parts ) ) {
+			$discipline = sanitize_text_field( (string) ( $entry->discipline ?? '' ) );
+			if ( '' !== $discipline ) {
+				$parts[] = $discipline;
+			}
+		}
+
+		return trim( implode( ' ', $parts ) );
 	}
 
 	private function get_status_choices(): array {

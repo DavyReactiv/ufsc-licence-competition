@@ -60,6 +60,84 @@ class EntryRepository {
 		return array_values( array_filter( array_map( 'absint', is_array( $ids ) ? $ids : array() ) ) );
 	}
 
+
+	/**
+	 * Read-only source for category filters, including submitted/non-weighed entries
+	 * whose category_id is empty but whose imported text fields are populated.
+	 */
+	public function get_distinct_category_filter_options( array $filters = array() ): array {
+		global $wpdb;
+
+		$table = Db::entries_table();
+		if ( ! Db::table_exists( $table ) ) {
+			return array();
+		}
+
+		$columns = Db::get_table_columns( $table );
+		if ( ! is_array( $columns ) || empty( $columns ) ) {
+			return array();
+		}
+
+		$category_id_expr = in_array( 'category_id', $columns, true ) ? 'category_id' : '0';
+		$category_expr    = $this->build_entry_text_expression( '', $columns, array( 'category_name', 'category', 'category_label', 'categorie', 'categorie_age' ) );
+		$sex_expr         = $this->build_entry_text_expression( '', $columns, array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' ) );
+		$weight_expr      = $this->build_entry_text_expression( '', $columns, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids', 'category_weight' ) );
+		$discipline_expr  = $this->build_entry_text_expression( '', $columns, array( 'discipline' ) );
+
+		$where = array( '1=1' );
+		if ( in_array( 'deleted_at', $columns, true ) ) {
+			$where[] = 'deleted_at IS NULL';
+		}
+		if ( ! empty( $filters['competition_id'] ) && in_array( 'competition_id', $columns, true ) ) {
+			$where[] = $wpdb->prepare( 'competition_id = %d', absint( $filters['competition_id'] ) );
+		}
+		if ( ! empty( $filters['competition_ids'] ) && is_array( $filters['competition_ids'] ) && in_array( 'competition_id', $columns, true ) ) {
+			$ids = array_values( array_filter( array_map( 'absint', $filters['competition_ids'] ) ) );
+			if ( $ids ) {
+				$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+				$where[] = $wpdb->prepare( "competition_id IN ({$placeholders})", $ids );
+			}
+		}
+
+		$has_any_category_data = array();
+		if ( '0' !== $category_id_expr ) {
+			$has_any_category_data[] = 'category_id IS NOT NULL AND category_id > 0';
+		}
+		foreach ( array( $category_expr, $sex_expr, $weight_expr, $discipline_expr ) as $expression ) {
+			if ( "''" !== $expression ) {
+				$has_any_category_data[] = "{$expression} <> ''";
+			}
+		}
+		if ( $has_any_category_data ) {
+			$where[] = '(' . implode( ' OR ', $has_any_category_data ) . ')';
+		}
+
+		$sql = "SELECT DISTINCT {$category_id_expr} AS category_id, {$category_expr} AS category_label, {$sex_expr} AS sex, {$weight_expr} AS weight_class, {$discipline_expr} AS discipline FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY category_label ASC, sex ASC, weight_class ASC';
+		$rows = $wpdb->get_results( $sql );
+		$rows = is_array( $rows ) ? $rows : array();
+
+		$options = array();
+		foreach ( $rows as $row ) {
+			$category_id = absint( $row->category_id ?? 0 );
+			$category_label = sanitize_text_field( (string) ( $row->category_label ?? '' ) );
+			$sex = sanitize_text_field( (string) ( $row->sex ?? '' ) );
+			$weight_class = sanitize_text_field( (string) ( $row->weight_class ?? '' ) );
+			$discipline = sanitize_text_field( (string) ( $row->discipline ?? '' ) );
+			if ( $category_id <= 0 && '' === $category_label && '' === $sex && '' === $weight_class && '' === $discipline ) {
+				continue;
+			}
+			$options[] = array(
+				'category_id'    => $category_id,
+				'category_label' => $category_label,
+				'sex'            => $sex,
+				'weight_class'   => $weight_class,
+				'discipline'     => $discipline,
+			);
+		}
+
+		return $options;
+	}
+
 	public function get_with_details( int $entry_id, bool $include_deleted = false ) {
 		$entry_id = absint( $entry_id );
 		if ( ! $entry_id ) {
@@ -894,6 +972,29 @@ class EntryRepository {
 				}
 			}
 		}
+		if ( ! empty( $filters['category_fallback'] ) && is_array( $filters['category_fallback'] ) ) {
+			$fallback = $filters['category_fallback'];
+			$fallback_clauses = array();
+			if ( ! empty( $fallback['category_label'] ) && "''" !== $entry_category_expr ) {
+				$fallback_clauses[] = $wpdb->prepare( "{$entry_category_expr} = %s", sanitize_text_field( (string) $fallback['category_label'] ) );
+			}
+			if ( ! empty( $fallback['sex'] ) ) {
+				$entry_sex_expr = $this->build_entry_text_expression( $entries_alias . '.', $entry_columns, array( 'sex', 'sexe', 'gender', 'genre', 'fighter_sex', 'participant_gender', 'licensee_sex' ) );
+				if ( "''" !== $entry_sex_expr ) {
+					$fallback_clauses[] = $wpdb->prepare( "LOWER({$entry_sex_expr}) = %s", strtolower( sanitize_text_field( (string) $fallback['sex'] ) ) );
+				}
+			}
+			if ( ! empty( $fallback['weight_class'] ) && "''" !== $entry_weight_class_expr ) {
+				$fallback_clauses[] = $wpdb->prepare( "{$entry_weight_class_expr} = %s", sanitize_text_field( (string) $fallback['weight_class'] ) );
+			}
+			if ( ! empty( $fallback['discipline'] ) && "''" !== $entry_discipline_expr ) {
+				$fallback_clauses[] = $wpdb->prepare( "{$entry_discipline_expr} = %s", sanitize_text_field( (string) $fallback['discipline'] ) );
+			}
+			if ( $fallback_clauses ) {
+				$where[] = '(' . implode( ' AND ', $fallback_clauses ) . ')';
+			}
+		}
+
 		if ( ! empty( $filters['entry_ids'] ) && is_array( $filters['entry_ids'] ) ) {
 			$entry_ids = array_values( array_filter( array_map( 'absint', $filters['entry_ids'] ) ) );
 			if ( $entry_ids ) {
