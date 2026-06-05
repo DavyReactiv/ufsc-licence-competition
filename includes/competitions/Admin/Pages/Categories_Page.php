@@ -12,6 +12,7 @@ use UFSC\Competitions\Services\DisciplineRegistry;
 use UFSC\Competitions\Services\GenerationLockService;
 use UFSC\Competitions\Services\LogService;
 use UFSC\Competitions\Services\CategoryPresetService;
+use UFSC\Competitions\Services\CategoryPresetRegistry;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -353,12 +354,14 @@ class Categories_Page {
 		}
 		$preview = $competition_id ? $service->preview( $competition_id, $discipline, $season ) : array( 'rows' => array() );
 		$rows = $preview['rows'] ?? array();
+		$extra_rows = (array) ( $preview['extra_rows'] ?? array() );
 		$missing_count = count( array_filter( $rows, static function( $row ) { return empty( $row['exists'] ) && empty( $row['conflict'] ); } ) );
 		$conflict_count = count( array_filter( $rows, static function( $row ) { return ! empty( $row['conflict'] ); } ) );
 		?>
 		<section class="ufsc-admin-surface ufsc-category-preset-preview">
-			<h2><?php esc_html_e( 'Prévisualiser le référentiel catégories UFSC / tatami', 'ufsc-licence-competition' ); ?></h2>
-			<p><?php esc_html_e( 'Prévisualisation non destructive : aucune inscription existante n’est modifiée, aucune catégorie existante n’est écrasée. L’import crée uniquement les catégories manquantes après confirmation.', 'ufsc-licence-competition' ); ?></p>
+			<h2><?php esc_html_e( 'Prévisualiser le référentiel officiel ASSAUT / TATAMI UFSC', 'ufsc-licence-competition' ); ?></h2>
+			<p><?php esc_html_e( 'Prévisualisation non destructive du tableau officiel ASSAUT / TATAMI : aucune inscription, pesée, combat ou catégorie existante n’est modifié. L’import crée uniquement les catégories manquantes après confirmation.', 'ufsc-licence-competition' ); ?></p>
+			<p><?php echo esc_html( sprintf( __( 'Référentiel attendu : %d lignes catégories/poids, avec séparation par sexe sauf pré-poussins mixte.', 'ufsc-licence-competition' ), count( CategoryPresetRegistry::get_assaut_tatami_categories_reference() ) ) ); ?></p>
 			<form method="get" class="ufsc-admin-filters">
 				<input type="hidden" name="page" value="<?php echo esc_attr( Menu::PAGE_CATEGORIES ); ?>" />
 				<select name="competition_id" required>
@@ -381,6 +384,14 @@ class Categories_Page {
 			</form>
 			<?php if ( $competition_id && $rows ) : ?>
 				<p><strong><?php echo esc_html( sprintf( __( '%1$d catégorie(s) manquante(s) détectée(s), %2$d déjà présente(s), %3$d conflit(s) possible(s).', 'ufsc-licence-competition' ), (int) $missing_count, (int) count( $rows ) - (int) $missing_count - (int) $conflict_count, (int) $conflict_count ) ); ?></strong></p>
+				<?php if ( ! empty( $extra_rows ) ) : ?>
+					<div class="notice notice-warning inline"><p><?php echo esc_html( sprintf( __( '%d catégorie(s) présente(s) ne correspondent pas exactement au référentiel officiel. Elles sont signalées uniquement : aucune suppression ni modification automatique.', 'ufsc-licence-competition' ), count( $extra_rows ) ) ); ?></p></div>
+					<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Catégorie hors référentiel strict', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Âges', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Sexe', 'ufsc-licence-competition' ); ?></th></tr></thead><tbody>
+					<?php foreach ( array_slice( $extra_rows, 0, 30 ) as $extra ) : ?>
+						<tr><td><?php echo esc_html( (string) ( $extra['name'] ?? '' ) . ' #' . (int) ( $extra['id'] ?? 0 ) ); ?></td><td><?php echo esc_html( (string) ( $extra['age_min'] ?? '—' ) . '–' . (string) ( $extra['age_max'] ?? '—' ) ); ?></td><td><?php echo esc_html( ( '' !== (string) ( $extra['weight_min'] ?? '' ) ? (string) $extra['weight_min'] : '0' ) . ' / ' . ( '' !== (string) ( $extra['weight_max'] ?? '' ) ? (string) $extra['weight_max'] : '+' ) ); ?></td><td><?php echo esc_html( (string) ( $extra['sex'] ?? '' ) ?: __( 'mixte/non renseigné', 'ufsc-licence-competition' ) ); ?></td></tr>
+					<?php endforeach; ?>
+					</tbody></table>
+				<?php endif; ?>
 				<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Âges', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Poids', 'ufsc-licence-competition' ); ?></th><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th></tr></thead><tbody>
 				<?php foreach ( array_slice( $rows, 0, 80 ) as $row ) : ?>
 					<tr><td><?php echo esc_html( (string) $row['name'] ); ?></td><td><?php echo esc_html( (string) $row['age_min'] . '–' . (string) $row['age_max'] ); ?></td><td><?php echo esc_html( ( '' !== (string) $row['weight_min'] ? (string) $row['weight_min'] : '0' ) . ' / ' . ( '' !== (string) $row['weight_max'] ? (string) $row['weight_max'] : '+' ) ); ?></td><td><?php echo ! empty( $row['conflict'] ) ? esc_html( sprintf( __( 'Conflit possible — ignorée (%s)', 'ufsc-licence-competition' ), (string) ( $row['conflict_reason'] ?? '' ) ) ) : ( ! empty( $row['exists'] ) ? esc_html__( 'Déjà existante — ignorée', 'ufsc-licence-competition' ) : esc_html__( 'À créer', 'ufsc-licence-competition' ) ); ?></td></tr>

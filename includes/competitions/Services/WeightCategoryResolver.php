@@ -62,7 +62,7 @@ class WeightCategoryResolver {
 			$rule_set = $rule_set[ $table ];
 		}
 
-		$age_group = self::resolve_age_group( $age, $rule_set['age_groups'] ?? array() );
+		$age_group = self::resolve_age_group( $age, $rule_set['age_groups'] ?? array(), $sex );
 		if ( ! $age_group ) {
 			return array(
 				'label' => self::OUT_OF_RANGE_LABEL,
@@ -113,7 +113,7 @@ class WeightCategoryResolver {
 			$rule_set = $rule_set[ $table ];
 		}
 
-		$age_group = self::resolve_age_group( $age, $rule_set['age_groups'] ?? array() );
+		$age_group = self::resolve_age_group( $age, $rule_set['age_groups'] ?? array(), $sex );
 		if ( ! $age_group ) {
 			return array();
 		}
@@ -149,54 +149,68 @@ class WeightCategoryResolver {
 	}
 
 	private static function get_default_rules(): array {
-		$tatami_weights = array( -30, -35, -40, -45, -50, -55, -60, -65, -70, -75, -80, -85, -90, -95, -100, -1000 );
+		$assaut_tatami_weights = array(
+			'pre_poussins'        => array( 'neutral' => array( -18, -23, -28, -32, -37, -42, -47, 47 ) ),
+			'poussins'            => array( 'm' => array( -18, -23, -28, -32, -37, -42, -47, 47 ), 'f' => array( -18, -23, -28, -32, -37, -42, -47, 47 ) ),
+			'benjamins'           => array( 'm' => array( -23, -28, -32, -37, -42, -47, -52, 52 ), 'f' => array( -23, -28, -32, -37, -42, -47, -52, 52 ) ),
+			'minimes_filles'      => array( 'f' => array( -28, -32, -37, -42, -46, -50, -55, -60, 60 ) ),
+			'minimes_garcons'     => array( 'm' => array( -28, -32, -37, -42, -47, -52, -57, -63, -69, 69 ) ),
+			'cadettes'            => array( 'f' => array( -37, -42, -46, -50, -55, -60, -65, 65 ) ),
+			'cadets'              => array( 'm' => array( -37, -42, -47, -52, -57, -63, -69, -74, 74 ) ),
+			'juniors_filles'      => array( 'f' => array( -42, -46, -50, -55, -60, -65, -70, 70 ) ),
+			'juniors_garcons'     => array( 'm' => array( -47, -52, -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+			'seniors_femmes'      => array( 'f' => array( -50, -55, -60, -65, -70, 70 ) ),
+			'veterans_feminines' => array( 'f' => array( -50, -55, -60, -65, -70, 70 ) ),
+			'seniors_hommes'      => array( 'm' => array( -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+			'veterans_masculins' => array( 'm' => array( -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+		);
 		$ring_weights = array( -48, -51, -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, -100, -1000 );
 
-		$age_groups = array(
-			array( 'key' => 'poussin', 'label' => __( 'Poussin', 'ufsc-licence-competition' ), 'age_min' => 7, 'age_max' => 9 ),
-			array( 'key' => 'pupille', 'label' => __( 'Pupille', 'ufsc-licence-competition' ), 'age_min' => 10, 'age_max' => 11 ),
-			array( 'key' => 'benjamin', 'label' => __( 'Benjamin', 'ufsc-licence-competition' ), 'age_min' => 12, 'age_max' => 13 ),
-			array( 'key' => 'minime', 'label' => __( 'Minime', 'ufsc-licence-competition' ), 'age_min' => 14, 'age_max' => 15 ),
-			array( 'key' => 'cadet', 'label' => __( 'Cadet', 'ufsc-licence-competition' ), 'age_min' => 16, 'age_max' => 17 ),
-			array( 'key' => 'junior', 'label' => __( 'Junior', 'ufsc-licence-competition' ), 'age_min' => 18, 'age_max' => 19 ),
-			array( 'key' => 'senior', 'label' => __( 'Senior', 'ufsc-licence-competition' ), 'age_min' => 20, 'age_max' => 34 ),
-			array( 'key' => 'veteran', 'label' => __( 'Vétéran', 'ufsc-licence-competition' ), 'age_min' => 35, 'age_max' => 99 ),
+		$assaut_age_groups = array(
+			array( 'key' => 'pre_poussins', 'label' => __( 'Pré-poussins mixte', 'ufsc-licence-competition' ), 'age_min' => 6, 'age_max' => 7 ),
+			array( 'key' => 'poussins', 'label' => __( 'Poussins', 'ufsc-licence-competition' ), 'age_min' => 8, 'age_max' => 9 ),
+			array( 'key' => 'benjamins', 'label' => __( 'Benjamins', 'ufsc-licence-competition' ), 'age_min' => 10, 'age_max' => 11 ),
+			array( 'key' => 'minimes_filles', 'label' => __( 'Minimes filles', 'ufsc-licence-competition' ), 'age_min' => 12, 'age_max' => 13, 'sex' => 'f' ),
+			array( 'key' => 'minimes_garcons', 'label' => __( 'Minimes garçons', 'ufsc-licence-competition' ), 'age_min' => 12, 'age_max' => 13, 'sex' => 'm' ),
+			array( 'key' => 'cadettes', 'label' => __( 'Cadettes', 'ufsc-licence-competition' ), 'age_min' => 14, 'age_max' => 15, 'sex' => 'f' ),
+			array( 'key' => 'cadets', 'label' => __( 'Cadets', 'ufsc-licence-competition' ), 'age_min' => 14, 'age_max' => 15, 'sex' => 'm' ),
+			array( 'key' => 'juniors_filles', 'label' => __( 'Juniors filles', 'ufsc-licence-competition' ), 'age_min' => 16, 'age_max' => 17, 'sex' => 'f' ),
+			array( 'key' => 'juniors_garcons', 'label' => __( 'Juniors garçons', 'ufsc-licence-competition' ), 'age_min' => 16, 'age_max' => 17, 'sex' => 'm' ),
+			array( 'key' => 'seniors_femmes', 'label' => __( 'Seniors femmes', 'ufsc-licence-competition' ), 'age_min' => 18, 'age_max' => 40, 'sex' => 'f' ),
+			array( 'key' => 'seniors_hommes', 'label' => __( 'Seniors hommes', 'ufsc-licence-competition' ), 'age_min' => 18, 'age_max' => 40, 'sex' => 'm' ),
+			array( 'key' => 'veterans_feminines', 'label' => __( 'Vétérans féminines', 'ufsc-licence-competition' ), 'age_min' => 41, 'age_max' => 50, 'sex' => 'f' ),
+			array( 'key' => 'veterans_masculins', 'label' => __( 'Vétérans masculins', 'ufsc-licence-competition' ), 'age_min' => 41, 'age_max' => 50, 'sex' => 'm' ),
+		);
+		$ring_age_groups = array(
+			array( 'key' => 'cadet', 'label' => __( 'Cadet', 'ufsc-licence-competition' ), 'age_min' => 14, 'age_max' => 15 ),
+			array( 'key' => 'junior', 'label' => __( 'Junior', 'ufsc-licence-competition' ), 'age_min' => 16, 'age_max' => 17 ),
+			array( 'key' => 'senior', 'label' => __( 'Senior', 'ufsc-licence-competition' ), 'age_min' => 18, 'age_max' => 39 ),
+			array( 'key' => 'veteran', 'label' => __( 'Vétéran', 'ufsc-licence-competition' ), 'age_min' => 40, 'age_max' => 99 ),
 		);
 
-		$defaults = array(
-			'default' => array(
-				'age_groups' => $age_groups,
-				'weights' => array(
-					'neutral' => $tatami_weights,
-					'm' => $tatami_weights,
-					'f' => $tatami_weights,
-				),
-				'table' => 'tatami',
-			),
-			'ring' => array(
-				'age_groups' => $age_groups,
+		$assaut_rules = array(
+			'age_groups' => $assaut_age_groups,
+			'weights'    => $assaut_tatami_weights,
+			'table'      => 'tatami',
+		);
+
+		return array(
+			'default' => $assaut_rules,
+			'assaut'  => $assaut_rules,
+			'tatami'  => $assaut_rules,
+			'ring'    => array(
+				'age_groups' => $ring_age_groups,
 				'weights' => array(
 					'neutral' => $ring_weights,
-					'm' => $ring_weights,
-					'f' => $ring_weights,
+					'm'       => $ring_weights,
+					'f'       => $ring_weights,
 				),
 				'table' => 'ring',
 			),
-			'tatami' => array(
-				'age_groups' => $age_groups,
-				'weights' => array(
-					'neutral' => $tatami_weights,
-					'm' => $tatami_weights,
-					'f' => $tatami_weights,
-				),
-				'table' => 'tatami',
-			),
 		);
-
-		return $defaults;
 	}
 
-	private static function resolve_age_group( int $age, array $groups ): array {
+	private static function resolve_age_group( int $age, array $groups, string $sex = '' ): array {
 		foreach ( $groups as $group ) {
 			$min = isset( $group['age_min'] ) ? (int) $group['age_min'] : null;
 			$max = isset( $group['age_max'] ) ? (int) $group['age_max'] : null;
@@ -204,6 +218,10 @@ class WeightCategoryResolver {
 				continue;
 			}
 			if ( null !== $max && $age > $max ) {
+				continue;
+			}
+			$group_sex = isset( $group['sex'] ) ? sanitize_key( (string) $group['sex'] ) : '';
+			if ( '' !== $group_sex && '' !== $sex && $sex !== $group_sex ) {
 				continue;
 			}
 			return $group;
@@ -230,9 +248,16 @@ class WeightCategoryResolver {
 	private static function resolve_weight_label( float $weight, array $weights ): string {
 		$weights = array_values( array_map( 'floatval', $weights ) );
 		foreach ( $weights as $threshold ) {
-			$limit = abs( (float) $threshold );
-			if ( -1000.0 === (float) $threshold ) {
+			$threshold = (float) $threshold;
+			$limit = abs( $threshold );
+			if ( -1000.0 === $threshold ) {
 				return self::format_weight_label( $threshold );
+			}
+			if ( $threshold > 0 ) {
+				if ( $weight > $limit ) {
+					return self::format_weight_label( $threshold );
+				}
+				continue;
 			}
 			if ( $weight <= $limit ) {
 				return self::format_weight_label( $threshold );
@@ -249,7 +274,7 @@ class WeightCategoryResolver {
 		}
 
 		$label = rtrim( rtrim( number_format( abs( $threshold ), 1, '.', '' ), '0' ), '.' );
-		return '-' . $label;
+		return ( $threshold > 0 ? '+' : '-' ) . $label;
 	}
 
 	private static function sanitize_weight( $weight ): ?float {
