@@ -141,7 +141,9 @@ class WeighIns_Page {
 						$status_label = $this->get_status_label( $status );
 						$within_limit = $this->weighins->is_valid_weighin_row( $row, (float) ( $competition->weight_tolerance ?? 1 ), isset( $entry->weight_kg ) ? (float) $entry->weight_kg : null );
 						$reclass_pending = ! empty( $meta['reclass_pending'] );
-						$is_eligible = $within_limit && ! $reclass_pending;
+						$entry_status = EntriesWorkflow::normalize_status( (string) ( $entry->status ?? '' ) );
+						$is_entry_approved = 'approved' === $entry_status;
+						$is_eligible = $is_entry_approved && $within_limit && ! $reclass_pending;
 
 						$stats['total']++;
 						if ( $within_limit && ! $reclass_pending ) {
@@ -166,6 +168,8 @@ class WeighIns_Page {
 							'status_label' => $status_label,
 							'within_limit' => $within_limit,
 							'is_eligible' => $is_eligible,
+							'is_entry_approved' => $is_entry_approved,
+							'blocking_message' => $this->get_weighin_blocking_message( $entry, $row, $status, $within_limit, $reclass_pending, $is_entry_approved ),
 							'category_label' => $category_label,
 						);
 
@@ -181,6 +185,24 @@ class WeighIns_Page {
 					}
 				)
 			);
+		}
+
+		if ( $entries ) {
+			$eligible_by_category = array();
+			foreach ( $entries as $entry ) {
+				$weighin_data = is_array( $entry->_ufsc_weighin ?? null ) ? $entry->_ufsc_weighin : array();
+				if ( ! empty( $weighin_data['is_eligible'] ) ) {
+					$eligible_by_category[ (string) ( $weighin_data['category_label'] ?? '' ) ] = (int) ( $eligible_by_category[ (string) ( $weighin_data['category_label'] ?? '' ) ] ?? 0 ) + 1;
+				}
+			}
+			foreach ( $entries as $entry ) {
+				$weighin_data = is_array( $entry->_ufsc_weighin ?? null ) ? $entry->_ufsc_weighin : array();
+				$category_key = (string) ( $weighin_data['category_label'] ?? '' );
+				if ( ! empty( $weighin_data['is_eligible'] ) && 1 === (int) ( $eligible_by_category[ $category_key ] ?? 0 ) ) {
+					$weighin_data['single_opponent_message'] = __( 'Catégorie sans adversaire : un seul combattant éligible dans ce groupe.', 'ufsc-licence-competition' );
+					$entry->_ufsc_weighin = $weighin_data;
+				}
+			}
 		}
 
 		?>
@@ -339,12 +361,34 @@ class WeighIns_Page {
 				<td>
 					<?php submit_button( __( 'Enregistrer', 'ufsc-licence-competition' ), 'secondary', '', false ); ?>
 					<?php if ( ! $weighin['is_eligible'] ) : ?>
-						<p class="description"><?php esc_html_e( 'Non générable tant que la pesée/reclassification n’est pas validée.', 'ufsc-licence-competition' ); ?></p>
+						<p class="description"><?php echo esc_html( (string) ( $weighin['blocking_message'] ?? __( 'Non générable : contrôler les conditions de pesée.', 'ufsc-licence-competition' ) ) ); ?></p>
+					<?php elseif ( ! empty( $weighin['single_opponent_message'] ) ) : ?>
+						<p class="description"><?php echo esc_html( (string) $weighin['single_opponent_message'] ); ?></p>
 					<?php endif; ?>
 				</td>
 			</form>
 		</tr>
 		<?php
+	}
+
+	private function get_weighin_blocking_message( $entry, $row, string $status, bool $within_limit, bool $reclass_pending, bool $is_entry_approved ): string {
+		if ( ! $is_entry_approved ) {
+			return __( 'Non générable : inscription non approuvée. Valider l’inscription avant génération.', 'ufsc-licence-competition' );
+		}
+		if ( ! $row ) {
+			return __( 'Non générable : pesée non enregistrée.', 'ufsc-licence-competition' );
+		}
+		$meta = $this->extract_meta( (string) ( $row->notes ?? '' ) );
+		if ( empty( $meta['fighter_number'] ) ) {
+			return __( 'Non générable : numéro combattant manquant.', 'ufsc-licence-competition' );
+		}
+		if ( $reclass_pending ) {
+			return __( 'Non générable : reclassification proposée non validée.', 'ufsc-licence-competition' );
+		}
+		if ( in_array( $status, array( 'out_of_limit', 'over', 'hors_limite' ), true ) || ! $within_limit ) {
+			return __( 'Non générable : poids hors limite ou pesée à contrôler.', 'ufsc-licence-competition' );
+		}
+		return __( 'Non générable : pesée à enregistrer ou statut de pesée à valider.', 'ufsc-licence-competition' );
 	}
 
 	private function maybe_handle_actions( int $competition_id ): ?array {
