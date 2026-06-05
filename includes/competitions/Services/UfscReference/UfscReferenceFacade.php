@@ -162,7 +162,7 @@ class UfscReferenceFacade {
 		$age_reason = UfscReferenceDecision::REASON_NONE;
 		if ( '' === $age_group ) {
 			$age_result = self::calculate_age_with_reason( $birth_date, $context );
-			$age_group  = self::resolve_age_group_key( $age_result['age'] );
+			$age_group  = self::resolve_age_group_key( $age_result['age'], $sex );
 			$age_reason = $age_result['reason'];
 		}
 
@@ -190,8 +190,10 @@ class UfscReferenceFacade {
 
 		foreach ( (array) $thresholds as $threshold ) {
 			$threshold = (float) $threshold;
-			if ( -1000.0 === $threshold || $weight_kg <= abs( $threshold ) ) {
-				$label = -1000.0 === $threshold ? '+100' : '-' . rtrim( rtrim( number_format( abs( $threshold ), 1, '.', '' ), '0' ), '.' );
+			$is_open_category = -1000.0 === $threshold || $threshold > 0;
+			$matches = $is_open_category ? $weight_kg > abs( $threshold ) || -1000.0 === $threshold : $weight_kg <= abs( $threshold );
+			if ( $matches ) {
+				$label = self::format_weight_threshold_label( $threshold );
 				return self::finalize_decision(
 					'weight_category',
 					UfscReferenceDiagnostics::decision(
@@ -399,16 +401,37 @@ class UfscReferenceFacade {
 		}
 	}
 
-	private static function resolve_age_group_key( ?int $age ): string {
+	private static function format_weight_threshold_label( float $threshold ): string {
+		if ( -1000.0 === $threshold ) {
+			return '+100';
+		}
+
+		$label = rtrim( rtrim( number_format( abs( $threshold ), 1, '.', '' ), '0' ), '.' );
+		return ( $threshold > 0 ? '+' : '-' ) . $label;
+	}
+
+	private static function resolve_age_group_key( ?int $age, string $sex = '' ): string {
 		if ( null === $age || $age <= 0 ) {
 			return 'default';
 		}
-		if ( $age <= 15 ) {
-			return 'cadet';
+
+		$sex = UfscReferenceNormalizer::normalize_sex( $sex );
+		foreach ( self::repo()->get_age_rules() as $rule ) {
+			$min = isset( $rule['age_min'] ) ? (int) $rule['age_min'] : null;
+			$max = isset( $rule['age_max'] ) ? (int) $rule['age_max'] : null;
+			if ( null !== $min && $age < $min ) {
+				continue;
+			}
+			if ( null !== $max && $age > $max ) {
+				continue;
+			}
+			$rule_sex = isset( $rule['sex'] ) ? (string) $rule['sex'] : 'neutral';
+			if ( 'neutral' !== $rule_sex && '' !== $sex && $sex !== $rule_sex ) {
+				continue;
+			}
+			return sanitize_key( (string) ( $rule['key'] ?? 'default' ) );
 		}
-		if ( $age <= 17 ) {
-			return 'junior';
-		}
-		return 'senior';
+
+		return 'default';
 	}
 }

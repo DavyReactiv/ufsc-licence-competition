@@ -95,6 +95,10 @@ class DisciplineRegistry {
 
 	private static function get_default_disciplines() {
 		return array(
+			'assaut'         => array(
+				'label' => __( 'Assaut', 'ufsc-licence-competition' ),
+				'type'  => self::TYPE_TATAMI,
+			),
 			'light_contact'  => array(
 				'label' => __( 'Light Contact', 'ufsc-licence-competition' ),
 				'type'  => self::TYPE_TATAMI,

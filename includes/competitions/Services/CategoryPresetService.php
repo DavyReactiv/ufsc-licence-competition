@@ -40,10 +40,12 @@ class CategoryPresetService {
 		$existing       = $competition_id ? $this->categories->list( array( 'competition_id' => $competition_id, 'view' => 'all' ), 10000, 0 ) : array();
 		$existing_keys  = array();
 		$existing_names = array();
+		$existing_rows  = array();
 		foreach ( $existing as $category ) {
 			$key = $this->category_key( $category );
 			$name_key = $this->category_name_key( $category );
 			$existing_keys[ $key ] = true;
+			$existing_rows[ $key ] = $category;
 			if ( '' !== $name_key ) {
 				$existing_names[ $name_key ][ $key ] = true;
 			}
@@ -69,11 +71,28 @@ class CategoryPresetService {
 			$rows[] = $preset;
 		}
 
+		$extra_rows = array();
+		foreach ( $existing_rows as $key => $category ) {
+			if ( isset( $preset_keys[ $key ] ) ) {
+				continue;
+			}
+			$extra_rows[] = array(
+				'id'         => (int) ( $category->id ?? 0 ),
+				'name'       => sanitize_text_field( (string) ( $category->name ?? '' ) ),
+				'age_min'    => $category->age_min ?? null,
+				'age_max'    => $category->age_max ?? null,
+				'weight_min' => $category->weight_min ?? null,
+				'weight_max' => $category->weight_max ?? null,
+				'sex'        => sanitize_text_field( (string) ( $category->sex ?? '' ) ),
+			);
+		}
+
 		return array(
 			'competition_id' => $competition_id,
 			'discipline'     => $discipline,
 			'season'         => $season,
 			'rows'           => $rows,
+			'extra_rows'     => $extra_rows,
 			'existing_count' => count( $existing ),
 		);
 	}
