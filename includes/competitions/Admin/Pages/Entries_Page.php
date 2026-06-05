@@ -1370,6 +1370,13 @@ class Entries_Page {
 
 		if ( $id ) {
 			$url = add_query_arg( 'id', $id, $url );
+		} else {
+			$preserve_keys = array( 'ufsc_competition_id', 'ufsc_status', 'ufsc_discipline', 'ufsc_type', 'ufsc_category_filter', 'ufsc_category_id', 'ufsc_club_id', 'ufsc_group_label', 'ufsc_view', 's', 'paged' );
+			foreach ( $preserve_keys as $key ) {
+				if ( isset( $_REQUEST[ $key ] ) && '' !== (string) wp_unslash( $_REQUEST[ $key ] ) ) {
+					$url = add_query_arg( $key, sanitize_text_field( wp_unslash( $_REQUEST[ $key ] ) ), $url );
+				}
+			}
 		}
 		if ( '' !== $message ) {
 			$url = add_query_arg( 'ufsc_message', rawurlencode( $message ), $url );
@@ -1392,13 +1399,17 @@ class Entries_Page {
 			'duplicate'       => __( 'Ce licencié est déjà inscrit à cette compétition.', 'ufsc-licence-competition' ),
 			'not_found'       => __( 'Inscription introuvable.', 'ufsc-licence-competition' ),
 			'weight_required' => __( 'Veuillez renseigner le poids avant validation.', 'ufsc-licence-competition' ),
+			'bulk_no_selection' => __( 'Action groupée impossible : aucune inscription cochée.', 'ufsc-licence-competition' ),
+			'bulk_group_required' => __( 'Action groupée impossible : renseignez un libellé de groupe.', 'ufsc-licence-competition' ),
+			'bulk_unknown_action' => __( 'Action groupée non reconnue.', 'ufsc-licence-competition' ),
+			'bulk_scope_error' => __( 'Action groupée bloquée : une inscription cochée est hors de la compétition sélectionnée.', 'ufsc-licence-competition' ),
 		);
 
 		if ( ! $notice || ! isset( $messages[ $notice ] ) ) {
 			return;
 		}
 
-		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required', 'db_error' ), true ) ? 'error' : 'success';
+		$type = in_array( $notice, array( 'error_required', 'not_found', 'duplicate', 'weight_required', 'db_error', 'bulk_no_selection', 'bulk_group_required', 'bulk_unknown_action', 'bulk_scope_error' ), true ) ? 'error' : 'success';
 		$custom_message = isset( $_GET['ufsc_message'] ) ? wp_kses_post( wp_unslash( $_GET['ufsc_message'] ) ) : '';
 		printf( '<div class="notice notice-%s is-dismissible"><p>%s</p></div>', esc_attr( $type ), '' !== $custom_message ? wp_kses_post( $custom_message ) : esc_html( $messages[ $notice ] ) );
 	}
@@ -1484,14 +1495,33 @@ class Entries_Page {
 		check_admin_referer( 'bulk-' . $list_table->_args['plural'] );
 
 		$ids = isset( $_POST['ids'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['ids'] ) ) : array();
-		$ids = array_filter( $ids );
+		$ids = array_values( array_filter( array_unique( $ids ) ) );
 		if ( ! $ids ) {
-			return;
+			$this->redirect_with_notice( $page_slug, 'bulk_no_selection' );
 		}
 
+		$allowed_actions = array_keys( $list_table->get_bulk_actions() );
+		if ( ! in_array( $action, $allowed_actions, true ) ) {
+			$this->redirect_with_notice( $page_slug, 'bulk_unknown_action' );
+		}
+
+		$bulk_group_label = isset( $_POST['ufsc_group_name'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_group_name'] ) ) : '';
+		if ( 'set_group' === $action && '' === $bulk_group_label ) {
+			$this->redirect_with_notice( $page_slug, 'bulk_group_required' );
+		}
+
+		$selected_competition_id = isset( $_REQUEST['ufsc_competition_id'] ) ? absint( wp_unslash( $_REQUEST['ufsc_competition_id'] ) ) : 0;
 		if ( method_exists( $this->repository, 'assert_entry_in_scope' ) ) {
 			foreach ( $ids as $entry_id ) {
 				$this->repository->assert_entry_in_scope( (int) $entry_id );
+			}
+		}
+		if ( $selected_competition_id > 0 ) {
+			foreach ( $ids as $entry_id ) {
+				$entry = $this->repository->get( (int) $entry_id, true );
+				if ( ! $entry || (int) ( $entry->competition_id ?? 0 ) !== $selected_competition_id ) {
+					$this->redirect_with_notice( $page_slug, 'bulk_scope_error' );
+				}
 			}
 		}
 
@@ -1555,7 +1585,7 @@ class Entries_Page {
 
 		$label = $set ? ( isset( $_POST['ufsc_group_name'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_group_name'] ) ) : '' ) : '';
 		if ( $set && '' === $label ) {
-			$label = 'groupe-' . gmdate( 'Ymd-His' );
+			return;
 		}
 		$wpdb->update(
 			$table,

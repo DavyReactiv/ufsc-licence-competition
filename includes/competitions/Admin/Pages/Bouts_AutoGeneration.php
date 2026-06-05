@@ -1564,7 +1564,7 @@ class Bouts_AutoGeneration {
 			__( 'Total inscrits', 'ufsc-licence-competition' ) => (int) ( $summary['total_entries'] ?? 0 ),
 			__( 'Éligibles', 'ufsc-licence-competition' ) => (int) ( $summary['eligible'] ?? 0 ),
 			__( 'Pesées OK', 'ufsc-licence-competition' ) => (int) ( $summary['weighins']['ok'] ?? 0 ),
-			__( 'À contrôler', 'ufsc-licence-competition' ) => (int) ( $summary['non_eligible'] ?? 0 ) + (int) ( $summary['weighins']['todo'] ?? 0 ) + (int) ( $summary['weighins']['over'] ?? 0 ),
+			__( 'Anomalies à contrôler', 'ufsc-licence-competition' ) => (int) ( $summary['non_eligible'] ?? 0 ) + (int) ( $summary['weighins']['todo'] ?? 0 ) + (int) ( $summary['weighins']['over'] ?? 0 ),
 			__( 'Catégories prêtes', 'ufsc-licence-competition' ) => (int) ( $summary['ready'] ?? 0 ),
 			__( 'Sans opposant', 'ufsc-licence-competition' ) => (int) ( $summary['lone'] ?? 0 ),
 			__( 'Combats générés', 'ufsc-licence-competition' ) => (int) ( $summary['fights']['total'] ?? 0 ),
@@ -1588,11 +1588,15 @@ class Bouts_AutoGeneration {
 				<?php foreach ( (array) ( $summary['statuses'] ?? array() ) as $status => $count ) : ?>
 					<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( '%s : %d', $status, (int) $count ) ); ?></span>
 				<?php endforeach; ?>
-				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Pesées à faire : %d', 'ufsc-licence-competition' ), (int) ( $summary['weighins']['todo'] ?? 0 ) ) ); ?></span>
+				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Pesées à faire (compétition) : %d', 'ufsc-licence-competition' ), (int) ( $summary['weighins']['todo'] ?? 0 ) ) ); ?></span>
 				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Hors limite : %d', 'ufsc-licence-competition' ), (int) ( $summary['weighins']['over'] ?? 0 ) ) ); ?></span>
 				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Planifiés : %d', 'ufsc-licence-competition' ), (int) ( $summary['fights']['scheduled'] ?? 0 ) ) ); ?></span>
 				<span class="ufsc-badge ufsc-badge--muted"><?php echo esc_html( sprintf( __( 'Verrouillés : %d', 'ufsc-licence-competition' ), (int) ( $summary['fights']['locked'] ?? 0 ) ) ); ?></span>
 			</div>
+
+			<?php if ( in_array( sanitize_key( (string) ( $competition->discipline ?? '' ) ), array( 'light_contact', 'kick_light' ), true ) ) : ?>
+				<div class="notice notice-info inline"><p><?php esc_html_e( 'Discipline Light Contact / Kick Light détectée : le référentiel ASSAUT/TATAMI n’est affiché qu’en diagnostic. Aucune conversion automatique de discipline ou de catégorie n’est effectuée.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
 			<?php if ( (int) ( $summary['fights']['total'] ?? 0 ) > 0 ) : ?>
 				<div class="notice notice-warning inline"><p><?php esc_html_e( 'Des combats existent déjà pour cette compétition. Générez uniquement les catégories sans combat ou travaillez sur des données test pour éviter les doublons.', 'ufsc-licence-competition' ); ?></p></div>
 			<?php endif; ?>

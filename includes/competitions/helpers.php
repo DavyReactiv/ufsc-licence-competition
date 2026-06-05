@@ -8,6 +8,8 @@ use UFSC\Competitions\Db;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Repositories\WeighInRepository;
+use UFSC\Competitions\Services\UfscReference\UfscReferenceFacade;
 
 function ufsc_comp_get_object_value( $source, array $keys ) {
 	foreach ( $keys as $key ) {
@@ -220,27 +222,116 @@ function ufsc_comp_group_entries_by_category( array $entries ): array {
 }
 
 function ufsc_comp_get_category_diagnostics( int $competition_id ): array {
-	$groups = ufsc_comp_group_entries_by_category( ufsc_comp_get_entries_by_competition( $competition_id ) );
+	$competition_id = absint( $competition_id );
+	$competition = $competition_id ? ( new CompetitionRepository() )->get( $competition_id, true ) : null;
+	$entries = ufsc_comp_get_entries_by_competition( $competition_id );
+	$groups = ufsc_comp_group_entries_by_category( $entries );
+	$entry_ids = array_values( array_filter( array_map( 'absint', wp_list_pluck( $entries, 'id' ) ) ) );
+	$weighin_repository = new WeighInRepository();
+	$weighins = $weighin_repository->get_for_entries( $competition_id, $entry_ids );
+	$requires_weighin = $weighin_repository->has_table();
+	$tolerance = isset( $competition->weight_tolerance ) ? (float) $competition->weight_tolerance : 1.0;
+	$competition_discipline = sanitize_key( (string) ( $competition->discipline ?? '' ) );
 	$rows = array();
 	foreach ( $groups as $group ) {
 		$total = count( $group['entries'] );
-		$eligible = count( $group['eligible'] );
-		if ( $group['missing_data'] > 0 ) {
-			$status = 'missing'; $label = __( 'Données manquantes', 'ufsc-licence-competition' ); $recommendation = __( 'Compléter sexe, catégorie ou poids avant génération.', 'ufsc-licence-competition' );
-		} elseif ( 0 === $eligible ) {
-			$status = 'empty'; $label = __( 'Catégorie vide', 'ufsc-licence-competition' ); $recommendation = __( 'Aucun combattant éligible.', 'ufsc-licence-competition' );
-		} elseif ( 1 === $eligible ) {
-			$status = 'lone'; $label = __( 'Pas d’opposant', 'ufsc-licence-competition' ); $recommendation = __( 'Regrouper ou laisser en attente.', 'ufsc-licence-competition' );
-		} elseif ( 2 === $eligible ) {
-			$status = 'ready'; $label = __( 'Prête', 'ufsc-licence-competition' ); $recommendation = __( 'Combat simple possible.', 'ufsc-licence-competition' );
-		} elseif ( $eligible <= 6 ) {
-			$status = 'pool'; $label = __( 'Générable en poule', 'ufsc-licence-competition' ); $recommendation = sprintf( __( '%d combattants : poule ou tableau possible.', 'ufsc-licence-competition' ), $eligible );
-		} else {
-			$status = 'bracket'; $label = __( 'Générable en tableau', 'ufsc-licence-competition' ); $recommendation = __( 'Tableau recommandé.', 'ufsc-licence-competition' );
+		$eligible = 0;
+		$pending_entries = 0;
+		$missing_weighins = 0;
+		$invalid_weighins = 0;
+		$reference_issues = 0;
+		$discipline_reference_mismatch = false;
+
+		foreach ( $group['entries'] as $entry ) {
+			$entry_id = absint( $entry->id ?? 0 );
+			$status = sanitize_key( (string) ( $entry->status ?? '' ) );
+			$is_approved = in_array( $status, array( 'approved', 'validated', 'valid', 'confirmed' ), true );
+			if ( ! $is_approved ) {
+				$pending_entries++;
+				continue;
+			}
+
+			$row = $entry_id && isset( $weighins[ $entry_id ] ) ? $weighins[ $entry_id ] : null;
+			$declared_weight = isset( $entry->weight_kg ) && '' !== (string) $entry->weight_kg ? (float) $entry->weight_kg : null;
+			if ( $requires_weighin && ! $row ) {
+				$missing_weighins++;
+				continue;
+			}
+			if ( $requires_weighin && ! $weighin_repository->is_valid_weighin_row( $row, $tolerance, $declared_weight ) ) {
+				$invalid_weighins++;
+				continue;
+			}
+
+			$reference_check = ufsc_comp_check_entry_weight_reference( $entry, $competition_discipline );
+			if ( ! empty( $reference_check['mismatch'] ) ) {
+				$reference_issues++;
+			}
+			if ( ! empty( $reference_check['discipline_mismatch'] ) ) {
+				$discipline_reference_mismatch = true;
+			}
+			if ( empty( $reference_check['blocking'] ) ) {
+				$eligible++;
+			}
 		}
-		$rows[] = array_merge( $group, compact( 'total', 'eligible', 'status', 'label', 'recommendation' ) );
+
+		if ( 0 === $total ) {
+			$status = 'empty'; $label = __( 'Catégorie vide', 'ufsc-licence-competition' ); $recommendation = __( 'Aucune inscription dans cette catégorie.', 'ufsc-licence-competition' );
+		} elseif ( $group['missing_data'] > 0 ) {
+			$status = 'missing'; $label = __( 'À contrôler', 'ufsc-licence-competition' ); $recommendation = __( 'Contrôler le poids, le sexe ou la catégorie avant génération.', 'ufsc-licence-competition' );
+		} elseif ( 0 === $eligible && $pending_entries > 0 ) {
+			$status = 'pending_entries'; $label = __( 'Inscriptions à valider', 'ufsc-licence-competition' ); $recommendation = __( 'Valider les inscriptions avant génération.', 'ufsc-licence-competition' );
+		} elseif ( 0 === $eligible && ( $missing_weighins > 0 || $invalid_weighins > 0 ) ) {
+			$status = 'pending_weighins'; $label = __( 'Pesées à valider', 'ufsc-licence-competition' ); $recommendation = __( 'Valider les pesées avant génération.', 'ufsc-licence-competition' );
+		} elseif ( 0 === $eligible && $reference_issues > 0 ) {
+			$status = 'reference_check'; $label = __( 'À contrôler', 'ufsc-licence-competition' ); $recommendation = __( 'Poids hors référentiel strict : contrôler le poids ou la catégorie.', 'ufsc-licence-competition' );
+		} elseif ( 0 === $eligible ) {
+			$status = 'control'; $label = __( 'À contrôler', 'ufsc-licence-competition' ); $recommendation = __( 'Contrôler le poids, le sexe ou la catégorie.', 'ufsc-licence-competition' );
+		} elseif ( 1 === $eligible ) {
+			$status = 'lone'; $label = __( 'Sans opposant', 'ufsc-licence-competition' ); $recommendation = __( 'Un seul combattant éligible : aucun adversaire disponible.', 'ufsc-licence-competition' );
+		} elseif ( 2 === $eligible ) {
+			$status = 'ready'; $label = __( 'Prête', 'ufsc-licence-competition' ); $recommendation = __( 'Catégorie prête pour génération.', 'ufsc-licence-competition' );
+		} elseif ( $eligible <= 6 ) {
+			$status = 'pool'; $label = __( 'Générable en poule', 'ufsc-licence-competition' ); $recommendation = sprintf( __( '%d combattants : catégorie prête pour génération.', 'ufsc-licence-competition' ), $eligible );
+		} else {
+			$status = 'bracket'; $label = __( 'Générable en tableau', 'ufsc-licence-competition' ); $recommendation = __( 'Catégorie prête pour génération.', 'ufsc-licence-competition' );
+		}
+
+		if ( $discipline_reference_mismatch && $eligible < 2 ) {
+			$recommendation .= ' ' . __( 'Référentiel ASSAUT/TATAMI détecté alors que la discipline compétition semble Light Contact/Kick Light : vérifier sans conversion automatique.', 'ufsc-licence-competition' );
+		}
+
+		$rows[] = array_merge( $group, compact( 'total', 'eligible', 'status', 'label', 'recommendation', 'pending_entries', 'missing_weighins', 'invalid_weighins', 'reference_issues' ) );
 	}
 	return $rows;
+}
+
+function ufsc_comp_check_entry_weight_reference( $entry, string $competition_discipline = '' ): array {
+	$entry_discipline = sanitize_key( (string) ufsc_comp_get_object_value( $entry, array( 'discipline' ) ) );
+	$discipline = $competition_discipline ?: $entry_discipline;
+	if ( in_array( $discipline, array( 'light_contact', 'kick_light' ), true ) ) {
+		return array( 'mismatch' => false, 'blocking' => false, 'discipline_mismatch' => true );
+	}
+	if ( ! in_array( $discipline, array( 'assaut', 'tatami' ), true ) ) {
+		return array( 'mismatch' => false, 'blocking' => false, 'discipline_mismatch' => false );
+	}
+	$birth = (string) ufsc_comp_get_entry_birth_date( $entry );
+	$sex = sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'sex', 'sexe', 'licensee_sex', 'gender' ) ) );
+	$weight = (float) ufsc_comp_get_object_value( $entry, array( 'weight_kg', 'weight', 'poids' ) );
+	$declared_label = sanitize_text_field( (string) ufsc_comp_get_object_value( $entry, array( 'weight_class', 'weight_category', 'weight_cat', 'categorie_poids' ) ) );
+	if ( '' === $birth || '' === $sex || $weight <= 0 || '' === $declared_label || ! class_exists( UfscReferenceFacade::class ) ) {
+		return array( 'mismatch' => false, 'blocking' => false, 'discipline_mismatch' => false );
+	}
+	$resolved = UfscReferenceFacade::resolve_weight_category( $birth, $sex, $weight, array( 'discipline' => $discipline, 'age_group' => sanitize_key( (string) ufsc_comp_get_object_value( $entry, array( 'age_category', 'age_group', 'categorie_age', 'category', 'category_name' ) ) ) ) );
+	$resolved_label = is_array( $resolved ) ? (string) ( $resolved['label'] ?? $resolved['value']['label'] ?? '' ) : '';
+	if ( '' === $resolved_label ) {
+		return array( 'mismatch' => true, 'blocking' => true, 'discipline_mismatch' => false );
+	}
+	$normalize = static function ( string $label ): string {
+		$label = function_exists( 'remove_accents' ) ? remove_accents( $label ) : $label;
+		return preg_replace( '/[^0-9+-]+/', '', strtolower( $label ) );
+	};
+	$mismatch = $normalize( $declared_label ) !== $normalize( $resolved_label );
+	return array( 'mismatch' => $mismatch, 'blocking' => $mismatch, 'discipline_mismatch' => false );
 }
 
 function ufsc_comp_detect_categories_without_opponents( int $competition_id ): array {
@@ -253,12 +344,10 @@ function ufsc_comp_get_competition_summary( int $competition_id ): array {
 	$competition = $competition_id ? ( new CompetitionRepository() )->get( $competition_id, true ) : null;
 	$entries = $competition_id ? ufsc_comp_get_entries_by_competition( $competition_id ) : array();
 	$statuses = array( 'draft' => 0, 'submitted' => 0, 'approved' => 0, 'rejected' => 0, 'pending' => 0 );
-	$eligible = 0;
 	foreach ( $entries as $entry ) {
 		$status = sanitize_key( (string) ( $entry->status ?? 'draft' ) );
 		if ( ! isset( $statuses[ $status ] ) ) { $statuses[ $status ] = 0; }
 		$statuses[ $status ]++;
-		if ( in_array( $status, array( 'approved', 'validated', 'valid', 'confirmed' ), true ) ) { $eligible++; }
 	}
 	$weighins = array( 'todo' => count( $entries ), 'ok' => 0, 'over' => 0 );
 	if ( $competition_id && Db::table_exists( Db::weighins_table() ) && Db::has_table_column( Db::weighins_table(), 'status' ) ) {
@@ -284,6 +373,7 @@ function ufsc_comp_get_competition_summary( int $competition_id ): array {
 		}
 	}
 	$diagnostics = $competition_id ? ufsc_comp_get_category_diagnostics( $competition_id ) : array();
+	$eligible = array_sum( array_map( static function ( $row ) { return (int) ( $row['eligible'] ?? 0 ); }, $diagnostics ) );
 	$ready = count( array_filter( $diagnostics, static function ( $row ) { return (int) ( $row['eligible'] ?? 0 ) >= 2; } ) );
 	$lone = count( array_filter( $diagnostics, static function ( $row ) { return (int) ( $row['eligible'] ?? 0 ) === 1; } ) );
 	return compact( 'competition', 'statuses', 'eligible', 'weighins', 'fights', 'diagnostics', 'ready', 'lone' ) + array( 'total_entries' => count( $entries ), 'non_eligible' => max( 0, count( $entries ) - $eligible ) );

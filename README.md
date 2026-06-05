@@ -1,333 +1,157 @@
 # UFSC Licence Competition
 
-Plugin WordPress métier UFSC pour piloter **deux modules complémentaires** :
+`ufsc-licence-competition` est un plugin WordPress métier pour l’UFSC. Il complète l’écosystème licences et couvre désormais aussi la gestion opérationnelle des compétitions : licences officielles, synchronisation ASPTT, licences PDF nominatives, accès clubs, inscriptions, catégories, pesées, tableau de bord compétition, préparation des combats, suivi jour J, exports et diagnostics.
 
-1. **Module Licences / UFSC Licences**
-2. **Module Compétitions / Licence Competition**
-
-Le plugin est conçu pour un usage opérationnel réel (administration UFSC, organisateurs, officiels, maintenance technique), avec garde-fous de sécurité, audit et workflows prudents.
+Le plugin est conçu pour un usage réel par les administrateurs UFSC, les organisateurs, les clubs, les officiels et les développeurs de maintenance. Les diagnostics sont non destructifs et les actions sensibles restent protégées.
 
 ---
 
-## Présentation générale
+## Fonctionnalités principales
 
-Le plugin permet de gérer un cycle complet :
+- gestion des licenciés et données utiles à la compétition ;
+- gestion des clubs et accès club ;
+- synchronisation / import ASPTT ;
+- génération ou gestion de licences PDF nominatives ;
+- inscriptions aux compétitions pour licenciés UFSC et participants externes ;
+- filtres avancés d’administration : compétition, statut, discipline, type, catégorie, club, groupe / lot quand disponible ;
+- catégories par discipline et référentiels centralisés ;
+- référentiel officiel **ASSAUT / TATAMI** ;
+- prise en charge des données historiques et des anciens schémas UFSC ;
+- pesées, numéros combattants, contrôle de poids et reclassification ;
+- tableau de bord compétition avec compteurs, catégories détectées, statuts et recommandations ;
+- diagnostics de cohérence pour préparer le jour J ;
+- préparation et prévisualisation des combats selon les garde-fous disponibles ;
+- exports, impressions et documents de synthèse ;
+- sécurité, droits d’accès, nonces et logs d’audit.
 
-- licences UFSC ;
-- imports ASPTT ;
+---
+
+## Modules administratifs
+
+### Licences / UFSC Licences
+
+- consultation et suivi des licences ;
+- import / synchronisation ASPTT ;
 - statuts et paramètres licences ;
-- compétitions et catégories ;
-- inscriptions (saisie/import/validation) ;
-- pesées et contrôles ;
-- génération sécurisée des combats (diagnostic, brouillon, preview, snapshot, rollback, verrou) ;
-- pilotage terrain via **Plateau jour J** ;
-- saisie/correction sécurisée des résultats ;
-- impressions et documents de synthèse ;
-- logs d’audit des actions sensibles.
+- pages de diagnostic et de statut technique ;
+- passerelles avec les inscriptions compétition lorsque les données licenciés sont nécessaires.
 
-Le module conserve des mécanismes de fallback pour rester compatible avec des schémas UFSC historiques.
+### Compétitions / Licence Competition
 
----
-
-## Module Licences / UFSC Licences
-
-Le module Licences permet de consulter, importer, suivre et administrer les licences liées à l’écosystème UFSC. Il sert de base opérationnelle pour les licenciés, les imports ASPTT, les statuts et les passerelles avec le module compétition.
-
-### Sous-menus (Licences)
-
-- **UFSC Licences** : vue d’ensemble du module licences et accès aux outils principaux.
-- **Import ASPTT** : import/synchronisation des données ASPTT avec contrôle des colonnes et intégration des données.
-- **UFSC LC — Status** : page de statut technique (configuration, tables, dépendances, anomalies).
-- **Paramètres** : configuration générale du module licences.
-- **Licences** : consultation/gestion des licences et données licenciés utiles au module compétition.
-
-### Fonctionnalités du module Licences
-
-- consultation des licences ;
-- import ASPTT ;
-- contrôle des données importées ;
-- statuts de licences ;
-- page de diagnostic/status ;
-- paramètres dédiés ;
-- compatibilité avec données historiques ;
-- pont avec les inscriptions compétition ;
-- récupération des informations licenciés ;
-- récupération de date de naissance (si utilisée en compétition) ;
-- données de vérification pour participants/combattants.
+- **Compétitions** : création, configuration, dates, discipline, lieu, tolérance pesée et suivi ;
+- **Catégories & formats** : catégories sportives, formats, prévisualisation et diagnostics ;
+- **Inscriptions** : saisie, import, validation, filtres avancés, groupes / lots si la colonne est disponible ;
+- **Pesées** : poids pesé, numéro combattant, statut de pesée, reclassification proposée et messages de blocage ;
+- **Combats** : préparation, prévisualisation, génération encadrée, suivi et résultats selon les droits ;
+- **Plateau jour J** : suivi terrain par surface quand configuré ;
+- **Impression / exports** : listes, feuilles, résultats, podiums provisoires et rapports ;
+- **Qualité / diagnostics** : contrôles de cohérence, anomalies et logs ;
+- **Actions sensibles** : opérations protégées par capability, nonce, confirmation et périmètre explicite.
 
 ---
 
-## Relation entre Licences et Compétitions
+## Référentiel officiel ASSAUT / TATAMI
 
-Le module compétition peut s’appuyer sur les données licences pour préremplir ou vérifier certaines informations des inscrits : identité, licence, club, date de naissance, sexe, catégorie, statut, etc.
+Le plugin contient un référentiel officiel ASSAUT / TATAMI centralisé. Il couvre notamment :
 
-Lorsque certaines informations ne sont pas disponibles directement sur une inscription compétition, le plugin utilise des fallbacks vers la licence liée afin d’améliorer la fiabilité des diagnostics, des impressions et de la génération.
+- pré-poussins ;
+- poussins ;
+- benjamins ;
+- minimes filles / garçons ;
+- cadettes / cadets ;
+- juniors filles / garçons ;
+- seniors femmes / hommes ;
+- vétérans féminines / masculins ;
+- poids fermés ;
+- catégories ouvertes ;
+- séparation stricte filles / garçons quand nécessaire.
 
-Ces fallbacks sont pensés pour rester compatibles avec les schémas historiques UFSC.
+Ce référentiel est utilisé pour l’aide à la classification, les diagnostics et la cohérence des catégories. Il est **non destructif** : il ne modifie pas automatiquement les inscriptions, les pesées, les catégories historiques ou la discipline d’une compétition existante.
 
----
-
-## Module Compétitions / Licence Competition
-
-### Sous-menus (Compétitions)
-
-- **Compétitions** : création, configuration et suivi des compétitions.
-- **Catégories** : gestion des catégories sportives (poids, âge, sexe, niveau, format).
-- **Inscriptions** : gestion des participants inscrits.
-- **Import CSV** : import des fichiers d’inscription.
-- **Pesées** : contrôle poids/statuts de pesée, numéro combattant, reclassement.
-- **Combats** : gestion, suivi, génération et résultats des combats.
-- **Timing Profiles** : profils de timing de planification.
-- **Qualité** : contrôles de cohérence et diagnostics métier.
-- **Impression** : documents imprimables (inscrits, catégories, surfaces, résultats, podiums provisoires).
-- **Officiels** : gestion/affichage des officiels (selon configuration disponible).
-- **Actions sensibles** : opérations protégées (régénération, rollback, actions à risque).
-- **Estimation** : estimation de durée/volumes d’organisation.
-- **Paramètres** : configuration du module compétitions.
-- **Logs** : journal d’audit des actions importantes.
-- **Aide** : aide d’utilisation et documentation interne.
-- **Diagnostic Accès** : vérification des permissions et accès.
-- **Inscriptions (Validation)** : validation administrative des inscriptions.
-
-### Fonctionnalités actuellement présentes (Compétitions)
-
-- CRUD compétitions (discipline, saison, dates, statuts, tolérance pesée, formats autorisés) ;
-- inscriptions front/admin (licencié UFSC + participant externe) ;
-- import CSV avec dry-run et rollback du lot ;
-- pesées + numéro combattant + contrôle unicité applicatif ;
-- statuts pesée et reclassement ;
-- génération de combats par brouillon/preview (tableaux, BYE, placeholders, poules) ;
-- correction supervisée de résultats avec audit ;
-- plateau jour J par surface ;
-- impressions opérationnelles ;
-- logs/audit structurés.
+Les compétitions configurées en `light_contact` ou `kick_light` ne sont pas converties automatiquement vers `assaut`. L’administrateur doit vérifier le référentiel réellement applicable avant toute reclassification.
 
 ---
 
-## Workflow global recommandé
+## Compatibilité avec les données historiques
 
-1. Importer ou vérifier les licences.
-2. Contrôler les statuts licences.
-3. Configurer les paramètres licences.
-4. Créer une compétition.
-5. Importer ou saisir les inscriptions.
-6. Vérifier les données licenciés / participants.
-7. Valider les inscriptions.
-8. Réaliser les pesées.
-9. Générer le brouillon des combats.
-10. Vérifier la preview.
-11. Valider la génération réelle.
-12. Utiliser le Plateau jour J.
-13. Saisir les résultats.
-14. Imprimer les documents.
-15. Vérifier les podiums provisoires.
-16. Archiver / clôturer.
+Le plugin conserve la compatibilité avec les données UFSC anciennes ou importées :
+
+- inscriptions sans `category_id` ;
+- catégories stockées sous forme de texte ;
+- poids historiques ou hors référentiel strict ;
+- anciennes URLs utilisant `ufsc_category_id` ;
+- nouvelles URLs utilisant `ufsc_category_filter` ;
+- libellés hérités de disciplines ou d’anciens référentiels ;
+- champs de fallback pour sexe, poids, date de naissance, club et catégorie.
+
+Les poids historiques comme `-70`, `-75`, `-85` ou `-90` peuvent rester affichables et filtrables même s’ils sont signalés comme “hors référentiel strict” ou “poids à contrôler”. L’administrateur décide d’une éventuelle reclassification.
 
 ---
 
 ## Sécurité et garde-fous
 
-- nonces sur actions sensibles ;
-- capabilities fines (génération, régénération, pesées, résultats, plateau, suppressions sensibles) ;
-- snapshots avant opérations destructrices ;
-- rollback ciblé en cas d’échec ;
-- soft-delete pour éviter les pertes irréversibles ;
-- logs d’audit structurés ;
-- corrections de résultats supervisées ;
-- génération directe non previewée désactivée ;
-- preview/brouillon obligatoire ;
-- podiums affichés en mode provisoire quand les données sont incertaines.
-
-### Module Compétitions — Génération sécurisée
-
-- Diagnostic avant génération (bloquants + warnings).
-- Preview / brouillon obligatoire avant création réelle.
-- Snapshot avant application réelle du brouillon.
-- Rollback ciblé tenté en cas d’échec SQL partiel.
-- Verrou post-génération pour éviter des modifications dangereuses.
-- BYE et placeholders lisibles en preview (ex: « Vainqueur combat X »).
-- Poules round-robin simples (3 à 6 combattants) avec warnings métier.
-- Warnings même club (best effort, non bloquant).
-- Warnings repos athlète quand des combats sont rapprochés.
-- Sandbox de test maintenue pour scénarios de génération.
-- Aucune génération directe non prévisualisée.
-
-### Formats actuellement pris en charge
-
-- Combat simple.
-- Tableau avec BYE.
-- Tableau multi-tours avec placeholders.
-- Poule round-robin simple.
-- Formats supérieurs/avancés signalés par warning si non supportés.
-
-### Sécurité des données
-
-- Les combats réels sont créés uniquement après validation d’un brouillon.
-- Un snapshot est créé avant application.
-- Un rollback ciblé est tenté en cas d’erreur.
-- Les suppressions définitives sont protégées par capability + confirmation.
-- Les pesées validées et résultats terminés sont protégés par des garde-fous dédiés.
-
-### Régénération contrôlée
-
-Le module permet de préparer une régénération ciblée par catégorie ou groupe. Cette action est protégée par capability, preview obligatoire, snapshot ciblé, confirmation forte, motif obligatoire et rollback ciblé. Les combats terminés, en cours ou verrouillés bloquent la régénération.
-
-La régénération globale reste protégée et ne doit pas être utilisée sans action sensible explicite.
-
-En cas d’échec d’une tentative ciblée, le rollback tente de restaurer les anciens combats mis en corbeille pendant cette tentative et d’annuler les nouveaux combats éventuellement insérés. Les logs d’audit détaillent les IDs planifiés/trashed/restaurés/insérés, le motif, le snapshot et le scope utilisé (category_id, avec préparation group_key si disponible). Le scope applicatif reste category_id tant que group_key n’est pas fiable partout.
-
-La régénération ciblée complète insère désormais les nouveaux combats du scope après mise en corbeille des anciens combats candidats. Les IDs insérés sont trackés ; en cas d’échec, ces nouveaux combats sont annulés et les anciens combats de la tentative sont restaurés.
+- aucune suppression automatique de données réelles ;
+- pas de modification automatique des inscriptions existantes ;
+- pas de modification automatique des pesées existantes ;
+- pas de génération, régénération, suppression ou remplacement automatique des combats ;
+- pas de modification automatique des résultats ;
+- diagnostics non destructifs ;
+- actions sensibles protégées par droits WordPress, nonce, IDs explicites et périmètre compétition ;
+- requêtes préparées pour les filtres et lectures SQL directes ;
+- actions de groupe limitées aux inscriptions explicitement cochées ;
+- conservation des filtres d’administration quand c’est possible ;
+- logs d’audit pour les opérations importantes.
 
 ---
 
-## Résultats sécurisés
+## Workflow recommandé avant jour J
 
-Le module propose une saisie de résultats encadrée et une correction supervisée. Les combats BYE, placeholders, supprimés (trashed) ou verrouillés sont protégés. Toute correction d’un combat terminé nécessite une capability dédiée, un motif et un log d’audit.
-
-Les actions de résultat sont traitées via un service central (`ResultService`) qui valide les payloads, enregistre/corrige les résultats, peut verrouiller un résultat terminé, et produit des traces d’audit structurées.
-
-## Podiums provisoires et classements
-
-Le module peut produire des synthèses de résultats, classements de poules et podiums provisoires. Les données sont affichées avec prudence : en cas de résultat manquant, litige, égalité ou bracket incomplet, le document indique “à vérifier” ou “provisoire”. Les podiums ne doivent être considérés comme officiels qu’après validation manuelle.
-
-## Documents résultats
-
-Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.
-
-## Mode test / Sandbox
-
-Le module inclut un mode Sandbox dédié aux tests end-to-end sans impacter les compétitions réelles.
-
-- Scénarios générables : test simple, test tableaux/BYE, test poules, test complet OPEN150.
-- Scénario anomalies : “Créer test anomalies” (volontairement incomplet pour tester le diagnostic).
-- Données fictives marquées `[TEST]`, `sandbox`, `fixture`, `created_by_sandbox`, `test_batch_id`.
-- Athlètes fictifs complets (identité, sexe, naissance, club, licence, poids, catégorie, discipline, statut, numéro combattant).
-- Pesées test injectées en statut OK pour les scénarios générables.
-- Surfaces configurées automatiquement pour permettre preview, génération, impressions et plateau.
-- Action “Créer + générer test complet” pour créer le brouillon puis lancer la génération test.
-- Liens et parcours compatibles avec les impressions test, plateau jour J, tableaux/poules/BYE.
-- Action optionnelle “Ajouter résultats fictifs au test” pour tester synthèse résultats, litiges/absences et podiums provisoires.
-- Réinitialisation et suppression sécurisées limitées aux données test suivies.
-
-Les scénarios Sandbox générables sont conçus pour produire un diagnostic sans bloquant. Les scénarios anomalies sont volontairement incomplets pour tester les alertes du diagnostic.
+1. Tester le parcours sur une compétition de test.
+2. Vérifier les licences et imports ASPTT.
+3. Créer ou contrôler la compétition : discipline, date, lieu, tolérance pesée.
+4. Importer ou saisir les inscriptions.
+5. Contrôler les filtres et catégories détectées.
+6. Valider explicitement les inscriptions prêtes.
+7. Réaliser les pesées et enregistrer poids, statut, numéro combattant et reclassification si nécessaire.
+8. Consulter les diagnostics de cohérence et les catégories hors référentiel.
+9. Prévisualiser la préparation des combats selon les garde-fous disponibles.
+10. N’appliquer aucune action sensible sur une compétition réelle sans sauvegarde et validation administrative.
 
 ---
 
-## Limites connues
+## Tests et contrôles développeur
 
-- Certains podiums restent provisoires et nécessitent validation humaine.
-- Les égalités de poule complexes ne sont pas encore toutes départagées automatiquement.
-- La propagation bracket complète reste prudente.
-- `group_key` est préparé mais le scope applicatif principal reste `category_id`.
-- Certains champs historiques nécessitent des fallbacks.
-- Les tests runtime WordPress restent indispensables avant production.
+Commandes utiles après modification :
 
----
-
-## Déploiement recommandé
-
-1. Déployer d’abord en préproduction.
-2. Tester le module licences.
-3. Tester le module compétitions.
-4. Tester Sandbox / OPEN150.
-5. Tester les rôles et permissions.
-6. Tester les impressions.
-7. Tester les résultats.
-8. Passer en production seulement après recette complète.
+```bash
+php -l path/to/modified-file.php
+php tests/assaut-tatami-reference-test.php
+git diff --check
+rg "TRUNCATE|DROP TABLE|DELETE FROM|UPDATE .*inscriptions|UPDATE .*entries|DELETE .*fights|DELETE .*combats" .
+git diff --unified=0 | rg "TRUNCATE|DROP TABLE|DELETE FROM|UPDATE .*inscriptions|UPDATE .*entries|DELETE .*fights|DELETE .*combats" || true
+```
 
 ---
 
-## Notes de mise en production
+## Notes développeur
 
-### Prérequis
-- WordPress >= 6.x.
-- PHP >= 7.4 (8.x recommandé).
-- Tables UFSC licences/clubs disponibles si pont licences activé.
+Chemins principaux :
 
-### Vérifications pré-prod recommandées
-- Unicité numéro combattant en pesée.
-- Présence numéro combattant sur vues combats/impressions.
-- Lisibilité placeholders avant résultat.
-- Remplacement cohérent après saisie/correction résultat.
-- Contrôle des logs d’audit sur actions sensibles.
-- Vérification de non-régression des impressions existantes.
-
-### Vigilances
-- Éviter les modifications de structure lourdes juste avant événement.
-- Prioriser les correctifs additifs/reversibles.
-- Conserver les conventions de nommage/status existantes pour éviter les ruptures de workflow terrain.
+- `includes/competitions/` : socle du module compétition ;
+- `includes/competitions/Admin/` : pages, tables et contrôleurs admin ;
+- `includes/competitions/Repositories/` : accès données et requêtes ;
+- `includes/competitions/Services/` : services métier, génération, diagnostics, sécurité ;
+- `includes/competitions/Services/UfscReference/` : référentiel ASSAUT / TATAMI et règles UFSC ;
+- `tests/` : tests et scripts de vérification.
 
 ---
 
-## FAQ technique rapide
+## Limites et précautions
 
-**Où gérer la pesée ?**
-- Admin `Compétitions > Pesées`.
-
-**Comment se propage le numéro combattant ?**
-- Résolution prioritaire sur l’objet courant (`fighter_number` / `competition_number`), fallback via pesée (`weighins.notes`), puis fallback d’affichage explicite selon la vue.
-
-**Comment fonctionnent les placeholders de combats futurs ?**
-- `FightDisplayService` calcule la phase et les références de combats précédents pour afficher « Vainqueur combat X » et variantes.
-
-**Comment corriger un résultat ?**
-- Action `Corriger le résultat` dans la liste des combats, motif obligatoire, supervision si impacts joués, journalisation automatique.
-
-**Qu’est-ce qui est strict vs heuristique ?**
-- Strict : permissions, nonces, contrôle saisie, unicité numéro combattant.
-- Heuristique contrôlée : certaines dépendances bracket déduites par `round_no/fight_no`.
-
-## Plateau jour J
-
-Le module propose une vue admin dédiée au pilotage live des combats par surface. Les organisateurs peuvent suivre les combats prévus, appelés, en cours, terminés, retardés, absents ou en litige, puis déclencher des actions rapides (appel, lancement, clôture, retard, absence, litige, annulation, changement de surface).
-
-Toutes les actions passent par nonce + capability + contrôles de cohérence métier et sont journalisées dans l’audit. Les combats terminés/verrouillés/trashed, ainsi que les BYE et placeholders, sont protégés contre les transitions incohérentes.
-
-## Statuts plateau
-
-- `scheduled` : combat prévu ;
-- `called` : combat appelé ;
-- `running` : combat en cours ;
-- `completed` : combat terminé ;
-- `delayed` : combat retardé ;
-- `absent` : combattant absent ;
-- `disputed` : litige ;
-- `cancelled` : combat annulé ;
-- `locked` : combat verrouillé.
-
-## Résultats sécurisés
-
-Le module propose une saisie de résultats encadrée et une correction supervisée. Les combats BYE, placeholders, supprimés (trashed) ou verrouillés sont protégés. Toute correction d’un combat terminé nécessite une capability dédiée, un motif et un log d’audit.
-
-Les actions de résultat sont traitées via un service central (`ResultService`) qui valide les payloads, enregistre/corrige les résultats, peut verrouiller un résultat terminé, et produit des traces d’audit structurées.
-
-## Podiums et documents
-
-Les podiums et documents officiels sont générés de manière prudente. Les sorties peuvent être marquées provisoires quand les données de bracket/poule nécessitent une vérification manuelle (propagation incomplète, litiges, absences).
-
-Les impressions existantes restent compatibles; la consolidation automatique avancée des podiums reste progressive par lots.
-
-## Podiums provisoires et classements
-
-Le module peut produire des synthèses de résultats, classements de poules et podiums provisoires. Les données sont affichées avec prudence : en cas de résultat manquant, litige, égalité ou bracket incomplet, le document indique “à vérifier” ou “provisoire”. Les podiums ne doivent être considérés comme officiels qu’après validation manuelle.
-
-## Documents résultats
-
-Des documents HTML imprimables peuvent être générés : résultats par catégorie, podiums provisoires, classements de poules, rapport des litiges, absences, forfaits et combats sans résultat.
-
-## Impressions et documents terrain
-
-- Les documents tabulaires larges (liste des inscrits, répartition des combats par surface, combattants sans adversaire) sont recommandés en **paysage**.
-- Les impressions surface exploitent désormais les informations combattant/club/département, numéro combattant et licence quand disponibles.
-- Les synthèses résultats / podiums restent **provisoires** tant que toutes les données officielles ne sont pas consolidées.
-- Les impressions terrain doivent être validées en préproduction (lisibilité A4/A3, sauts de page, entêtes de tableau).
-
-## Aide Sandbox
-
-- **Sandbox** : environnement isolé de fausses données (compétitions, clubs, combattants) sans impact sur les vraies données.
-- **BYE** : qualification automatique au tour suivant sans adversaire au tour courant.
-- **Brouillon / preview** : prévisualisation avant validation; aucun combat n’est écrit tant que la validation n’est pas faite.
-- **Surface** : ring, tatami ou aire d’affectation des combats.
-- **Régénération** : remplacement protégé des combats d’une catégorie (snapshot, motif, rollback).
-- **Scénarios générables** : jeux de test complets pour dérouler la génération sans blocage.
-- **Scénarios anomalies** : jeux de test volontairement incomplets pour vérifier le diagnostic.
+- Toujours tester sur une compétition de test avant une compétition réelle.
+- Ne jamais importer, corriger ou reclassifier des catégories sur une compétition réelle sans sauvegarde.
+- Vérifier manuellement les catégories hors référentiel avant toute reclassification.
+- Ne pas confondre ASSAUT, Light Contact, Kick Light et Tatami.
+- Les données historiques peuvent être affichées même si elles ne correspondent pas au référentiel strict actuel.
+- Les podiums, résultats ou diagnostics peuvent nécessiter une validation humaine finale.
+- Les compétitions réelles avec combats existants doivent être manipulées avec une prudence maximale.
