@@ -8,49 +8,36 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class UfscWeightRules {
 	public static function all(): array {
-		$tatami = array( -30, -35, -40, -45, -50, -55, -60, -65, -70, -75, -80, -85, -90, -95, -100, -1000 );
-		$ring   = array( -48, -51, -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, -100, -1000 );
+		$assaut = array(
+			'pre_poussins'        => array( 'neutral' => array( -18, -23, -28, -32, -37, -42, -47, 47 ) ),
+			'poussins'            => array( 'm' => array( -18, -23, -28, -32, -37, -42, -47, 47 ), 'f' => array( -18, -23, -28, -32, -37, -42, -47, 47 ) ),
+			'benjamins'           => array( 'm' => array( -23, -28, -32, -37, -42, -47, -52, 52 ), 'f' => array( -23, -28, -32, -37, -42, -47, -52, 52 ) ),
+			'minimes_filles'      => array( 'f' => array( -28, -32, -37, -42, -46, -50, -55, -60, 60 ) ),
+			'minimes_garcons'     => array( 'm' => array( -28, -32, -37, -42, -47, -52, -57, -63, -69, 69 ) ),
+			'cadettes'            => array( 'f' => array( -37, -42, -46, -50, -55, -60, -65, 65 ) ),
+			'cadets'              => array( 'm' => array( -37, -42, -47, -52, -57, -63, -69, -74, 74 ) ),
+			'juniors_filles'      => array( 'f' => array( -42, -46, -50, -55, -60, -65, -70, 70 ) ),
+			'juniors_garcons'     => array( 'm' => array( -47, -52, -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+			'seniors_femmes'      => array( 'f' => array( -50, -55, -60, -65, -70, 70 ) ),
+			'veterans_feminines' => array( 'f' => array( -50, -55, -60, -65, -70, 70 ) ),
+			'seniors_hommes'      => array( 'm' => array( -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+			'veterans_masculins' => array( 'm' => array( -57, -63, -69, -74, -79, -84, -89, -94, 94 ) ),
+		);
+		$ring = array( -48, -51, -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, -100, -1000 );
+		$senior_ring_m = array( -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, -100, -1000 );
+		$senior_ring_f = array( -48, -52, -56, -60, -65, -70, -75, -1000 );
 
-		$junior_tatami_m = array( -42, -47, -52, -57, -63, -69, -74, -79, -84, -89, -94, -100, -1000 );
-		$junior_tatami_f = array( -40, -45, -50, -55, -60, -65, -70, -75, -80, -85, -90, -1000 );
-		$senior_ring_m   = array( -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, -100, -1000 );
-		$senior_ring_f   = array( -48, -52, -56, -60, -65, -70, -75, -1000 );
+		$assaut_set = array(
+			'neutral'    => array(),
+			'm'          => array(),
+			'f'          => array(),
+			'age_groups' => $assaut,
+		);
 
 		return array(
-			'default' => array(
-				'neutral'    => $tatami,
-				'm'          => $tatami,
-				'f'          => $tatami,
-				'age_groups' => array(
-					'default' => array(
-						'neutral' => $tatami,
-						'm'       => $tatami,
-						'f'       => $tatami,
-					),
-				),
-			),
-			'tatami'  => array(
-				'neutral'    => $tatami,
-				'm'          => $tatami,
-				'f'          => $tatami,
-				'age_groups' => array(
-					'cadet' => array(
-						'neutral' => $tatami,
-						'm'       => $tatami,
-						'f'       => $tatami,
-					),
-					'junior' => array(
-						'neutral' => $tatami,
-						'm'       => $junior_tatami_m,
-						'f'       => $junior_tatami_f,
-					),
-					'senior' => array(
-						'neutral' => $tatami,
-						'm'       => $tatami,
-						'f'       => $tatami,
-					),
-				),
-			),
+			'default' => $assaut_set,
+			'assaut'  => $assaut_set,
+			'tatami'  => $assaut_set,
 			'ring'    => array(
 				'neutral'    => $ring,
 				'm'          => $ring,
