@@ -375,7 +375,7 @@ class UFSC_LC_Settings_Page {
 	const PAGE_SLUG = 'ufsc-lc-settings';
 	const DEFAULT_SEASON_END_YEAR = 2026;
 	const DEFAULT_SEASON_RULE = 'split';
-	const DEFAULT_SEASON_START_MONTH = 9;
+	const DEFAULT_SEASON_START_MONTH = 8;
 	const DEFAULT_ASPTT_AUTO_VALIDATE_THRESHOLD = 0;
 	const DEFAULT_LICENCES_PER_PAGE = 25;
 	private $menu_missing = false;
@@ -1053,6 +1053,32 @@ class UFSC_LC_Settings_Page {
 		update_option( self::LEGACY_OPTION_PDF_REQUIRE_CLUB_MATCH, $settings[ self::SETTING_PDF_REQUIRE_CLUB_MATCH ] );
 		update_option( self::LEGACY_OPTION_PDF_ALLOW_DOWNLOAD, $settings[ self::SETTING_PDF_ALLOW_DOWNLOAD ] );
 		update_option( self::LEGACY_OPTION_ENABLE_LOGGING, $settings[ self::SETTING_ENABLE_LOGS ] );
+	}
+
+	public static function maybe_migrate_season_start_month_default() {
+		$migration_option = 'ufsc_lc_season_start_month_default_8_migrated';
+		if ( get_option( $migration_option, false ) ) {
+			return;
+		}
+
+		$settings = get_option( self::SETTINGS_OPTION, array() );
+		if ( is_array( $settings ) && array_key_exists( self::SETTING_SEASON_START_MONTH, $settings ) && 9 === absint( $settings[ self::SETTING_SEASON_START_MONTH ] ) ) {
+			$should_migrate = (bool) apply_filters( 'ufsc_lc_migrate_season_start_month_old_default', true, $settings );
+			if ( $should_migrate ) {
+				$settings[ self::SETTING_SEASON_START_MONTH ] = self::DEFAULT_SEASON_START_MONTH;
+				update_option( self::SETTINGS_OPTION, $settings, false );
+			}
+		}
+
+		$legacy_month = get_option( self::LEGACY_OPTION_SEASON_START_MONTH, null );
+		if ( null !== $legacy_month && 9 === absint( $legacy_month ) ) {
+			$should_migrate_legacy = (bool) apply_filters( 'ufsc_lc_migrate_legacy_season_start_month_old_default', true, $legacy_month );
+			if ( $should_migrate_legacy ) {
+				update_option( self::LEGACY_OPTION_SEASON_START_MONTH, self::DEFAULT_SEASON_START_MONTH, false );
+			}
+		}
+
+		update_option( $migration_option, 1, false );
 	}
 
 	private static function get_setting( $key, $default = null ) {

@@ -130,6 +130,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$items       = isset( $results['items'] ) ? $results['items'] : array();
 		$total_pages = isset( $results['total_pages'] ) ? (int) $results['total_pages'] : 1;
+		$active_season = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+		$season_label  = $this->get_season_filter_label( $filters['season'] );
+		$available_seasons = function_exists( 'ufsc_lc_get_available_licence_seasons' ) ? ufsc_lc_get_available_licence_seasons( $club_id ) : array();
 
 		$filters['paged'] = isset( $results['current_page'] )
 			? (int) $results['current_page']
@@ -210,7 +213,25 @@ class UFSC_LC_Club_Licences_Shortcode {
 				font-size: 12px;
 				padding: 2px 10px;
 			}
+			.ufsc-licence-season-summary {
+				margin: 0 0 16px;
+				padding: 10px 12px;
+				background: #f6f7f7;
+				border-left: 4px solid #2271b1;
+			}
+			.ufsc-licence-badge--archived {
+				background: #fcf0d4;
+				color: #5f3b00;
+			}
 			@media (max-width: 782px) {
+				.ufsc-licence-filters > div,
+				.ufsc-licence-filters input,
+				.ufsc-licence-filters select,
+				.ufsc-licence-filters button,
+				.ufsc-licence-filters .button {
+					width: 100%;
+					min-height: 44px;
+				}
 				.ufsc-licence-actions {
 					flex-direction: column;
 					align-items: flex-start;
@@ -241,6 +262,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			</div>
 		</div>
 
+		<p class="ufsc-licence-season-summary">
+			<strong><?php esc_html_e( 'Saison affichée :', 'ufsc-licence-competition' ); ?></strong>
+			<?php echo esc_html( $season_label ); ?>
+		</p>
+
 		<form method="get" class="ufsc-licence-filters" id="ufsc-licence-filters">
 			<?php if ( $this->can_render_debug_notice() && $this->is_debug_enabled() ) : ?>
 				<p style="margin:0 0 8px 0;color:#50575e;font-size:12px;">
@@ -262,6 +288,32 @@ class UFSC_LC_Club_Licences_Shortcode {
 			<div>
 				<label for="ufsc-licence-search"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label>
 				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom, N° ASPTT', 'ufsc-licence-competition' ); ?>" />
+			</div>
+
+			<div>
+				<label for="ufsc-licence-season"><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></label>
+				<select id="ufsc-licence-season" name="ufsc_season">
+					<option value="<?php echo esc_attr( (string) $active_season ); ?>" <?php selected( $filters['season'], (string) $active_season ); ?>>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: season label. */
+								__( 'Saison active — %s', 'ufsc-licence-competition' ),
+								function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $active_season ) : (string) $active_season
+							)
+						);
+						?>
+					</option>
+					<?php foreach ( $available_seasons as $season_year ) : ?>
+						<?php if ( (int) $season_year === (int) $active_season ) { continue; } ?>
+						<option value="<?php echo esc_attr( (string) $season_year ); ?>" <?php selected( $filters['season'], (string) $season_year ); ?>>
+							<?php echo esc_html( function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $season_year ) : (string) $season_year ); ?>
+						</option>
+					<?php endforeach; ?>
+					<option value="previous" <?php selected( $filters['season'], 'previous' ); ?>><?php esc_html_e( 'Saisons précédentes', 'ufsc-licence-competition' ); ?></option>
+					<option value="unspecified" <?php selected( $filters['season'], 'unspecified' ); ?>><?php esc_html_e( 'Sans saison', 'ufsc-licence-competition' ); ?></option>
+					<option value="all" <?php selected( $filters['season'], 'all' ); ?>><?php esc_html_e( 'Toutes les saisons', 'ufsc-licence-competition' ); ?></option>
+				</select>
 			</div>
 
 			<div>
@@ -337,6 +389,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 			<div>
 				<button type="submit"><?php esc_html_e( 'Appliquer', 'ufsc-licence-competition' ); ?></button>
+				<a class="button" href="<?php echo esc_url( remove_query_arg( array( 'ufsc_q', 'q', 'ufsc_season', 'season', 'ufsc_statut', 'statut', 'ufsc_categorie', 'categorie', 'ufsc_competition', 'competition', 'ufsc_pdf', 'pdf', 'ufsc_orderby', 'orderby', 'ufsc_order', 'order', 'ufsc_page', 'paged', 'ufsc_per_page', 'per_page' ) ) ); ?>"><?php esc_html_e( 'Réinitialiser', 'ufsc-licence-competition' ); ?></a>
 			</div>
 		</form>
 
@@ -348,6 +401,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 						<th><?php esc_html_e( 'Prénom', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
@@ -356,10 +410,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 				<tbody>
 					<?php if ( empty( $items ) ) : ?>
 						<tr>
-							<td colspan="7">
+							<td colspan="8">
 								<?php
-								if ( '' !== trim( (string) ( $filters['q'] ?? '' ) ) ) {
+								if ( 'previous' === $filters['season'] ) {
+									esc_html_e( 'Aucune licence historique trouvée pour ces filtres.', 'ufsc-licence-competition' );
+								} elseif ( 'unspecified' === $filters['season'] ) {
+									esc_html_e( 'Aucune licence sans saison trouvée pour ces filtres.', 'ufsc-licence-competition' );
+								} elseif ( '' !== trim( (string) ( $filters['q'] ?? '' ) ) ) {
 									esc_html_e( 'Aucune licence trouvée pour cette recherche. Vérifiez le nom, le prénom ou le N° ASPTT saisi.', 'ufsc-licence-competition' );
+								} elseif ( 'all' !== $filters['season'] && '' === $filters['statut'] && '' === $filters['categorie'] && '' === $filters['competition'] && '' === $filters['pdf'] ) {
+									esc_html_e( 'Aucune licence enregistrée pour cette saison.', 'ufsc-licence-competition' );
 								} else {
 									esc_html_e( 'Aucune licence trouvée pour les filtres sélectionnés.', 'ufsc-licence-competition' );
 								}
@@ -372,6 +432,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 							$nom_affiche = function_exists( 'ufsc_lc_get_nom_affiche' ) ? ufsc_lc_get_nom_affiche( $item ) : ( $item->nom_affiche ?? '' );
 							$birthdate   = $this->format_birthdate( $item->date_naissance ?? '' );
 							$category    = $this->get_category_display( $item );
+							$item_season = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $item->season_end_year ?? '' ) : null;
+							$item_season_label = null === $item_season
+								? __( 'Non renseignée', 'ufsc-licence-competition' )
+								: ( function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $item_season ) : (string) $item_season );
+							$is_archived = function_exists( 'ufsc_lc_is_historical_season' ) && ufsc_lc_is_historical_season( $item->season_end_year ?? '' );
 
 							$pdf_attachment_id = ! empty( $item->attachment_id ) ? (int) $item->attachment_id : 0;
 							if ( ! $pdf_attachment_id && function_exists( 'ufsc_lc_licence_get_pdf_attachment_id' ) ) {
@@ -383,6 +448,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 								<td><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td>
+									<?php echo esc_html( $item_season_label ); ?>
+									<?php if ( $is_archived ) : ?>
+										<span class="ufsc-licence-badge ufsc-licence-badge--archived"><?php esc_html_e( 'Saison archivée', 'ufsc-licence-competition' ); ?></span>
+									<?php endif; ?>
+								</td>
 								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( $this->get_asptt_display_number( $item ) ); ?></td>
 								<td>
@@ -578,6 +649,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$filters = array(
 			'q'           => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_q', 'q' ) ) ),
+			'season'      => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_season', 'season' ) ) ),
 			'statut'      => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_statut', 'statut' ) ) ),
 			'categorie'   => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_categorie', 'categorie' ) ) ),
 			'competition' => sanitize_text_field( $this->normalize_text_input( $get_value( 'ufsc_competition', 'competition' ) ) ),
@@ -596,6 +668,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 		$filters['per_page'] = in_array( $filters['per_page'], array( 10, 25, 50, 100 ), true ) ? $filters['per_page'] : $default_per_page;
 		$filters['pdf']      = in_array( $filters['pdf'], array( '0', '1' ), true ) ? $filters['pdf'] : '';
+		$filters['season']   = $this->sanitize_season_filter( $filters['season'] );
 
 		return $filters;
 	}
@@ -603,6 +676,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function get_filters_cache_parts( array $filters ): array {
 		return array(
 			'q'        => $filters['q'] ?? '',
+			'season'   => $filters['season'] ?? '',
 			'statut'   => $filters['statut'] ?? '',
 			'categorie'=> $filters['categorie'] ?? '',
 			'competition' => $filters['competition'] ?? '',
@@ -645,6 +719,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 					),
 					'filters' => array(
 						'q'           => $filters['q'] ?? '',
+						'season'      => $filters['season'] ?? '',
 						'statut'      => $filters['statut'] ?? '',
 						'categorie'   => $filters['categorie'] ?? '',
 						'competition' => $filters['competition'] ?? '',
@@ -714,6 +789,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'] );
+		$this->append_season_filter( $where, $params, $filters['season'], $club_id );
 
 		if ( '' !== $filters['categorie'] ) {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
@@ -829,6 +905,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		}
 
 		$this->append_default_licence_visibility_filters( $where, $params, $filters['statut'] );
+		$this->append_season_filter( $where, $params, $filters['season'], $club_id );
 
 		if ( '' !== $filters['categorie'] ) {
 			$this->append_category_filter( $where, $params, $filters['categorie'] );
@@ -860,7 +937,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 			: 'COALESCE(' . implode( ', ', $category_select_parts ) . ') AS categorie_affiche';
 
 		$nom_affiche_sql      = $this->get_nom_affiche_sql( 'l', $has_nom, $has_nom_licence );
-		$season_end_year_sql  = '' !== $schema['season_col'] ? "l.{$schema['season_col']} AS season_end_year" : 'NULL AS season_end_year';
+		$season_columns       = function_exists( 'ufsc_lc_get_licence_season_columns' ) ? ufsc_lc_get_licence_season_columns( $licences_table ) : array();
+		$season_sql_expr      = function_exists( 'ufsc_lc_build_licence_season_sql' ) ? ufsc_lc_build_licence_season_sql( 'l', $season_columns ) : ( '' !== $schema['season_col'] ? "l.{$schema['season_col']}" : 'NULL' );
+		$season_end_year_sql  = "{$season_sql_expr} AS season_end_year";
 
 		$select_document_columns = 'NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
@@ -1005,6 +1084,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function get_pagination_query_args( $filters ) {
 		$args = array(
 			'ufsc_q'           => $filters['q'],
+			'ufsc_season'      => $filters['season'],
 			'ufsc_statut'      => $filters['statut'],
 			'ufsc_categorie'   => $filters['categorie'],
 			'ufsc_competition' => $filters['competition'],
@@ -1432,6 +1512,112 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$params[] = 'valide';
 	}
 
+	private function sanitize_season_filter( string $value ): string {
+		$value = sanitize_text_field( $value );
+		if ( in_array( $value, array( 'all', 'previous', 'unspecified' ), true ) ) {
+			return $value;
+		}
+
+		$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $value ) : absint( $value );
+		if ( $year ) {
+			return (string) $year;
+		}
+
+		$active = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+		return $active ? (string) $active : 'all';
+	}
+
+	private function get_season_filter_label( string $value ): string {
+		if ( 'all' === $value ) {
+			return __( 'Toutes les saisons', 'ufsc-licence-competition' );
+		}
+		if ( 'previous' === $value ) {
+			return __( 'Saisons précédentes', 'ufsc-licence-competition' );
+		}
+		if ( 'unspecified' === $value ) {
+			return __( 'Sans saison', 'ufsc-licence-competition' );
+		}
+
+		return function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $value ) : $value;
+	}
+
+	private function get_season_match_values( int $end_year ): array {
+		if ( ! $end_year ) {
+			return array();
+		}
+
+		return array_values(
+			array_unique(
+				array(
+					(string) $end_year,
+					sprintf( '%d-%d', $end_year - 1, $end_year ),
+					sprintf( '%d/%d', $end_year - 1, $end_year ),
+					sprintf( '%d – %d', $end_year - 1, $end_year ),
+					sprintf( '%d–%d', $end_year - 1, $end_year ),
+				)
+			)
+		);
+	}
+
+	private function append_season_filter( array &$where, array &$params, string $season_filter, int $club_id ): void {
+		if ( 'all' === $season_filter ) {
+			return;
+		}
+
+		$table = $this->get_licences_table();
+		$columns = function_exists( 'ufsc_lc_get_licence_season_columns' )
+			? ufsc_lc_get_licence_season_columns( $table )
+			: array_filter( array( $this->get_licence_schema_compat()['season_col'] ) );
+
+		if ( empty( $columns ) ) {
+			return;
+		}
+
+		if ( 'unspecified' === $season_filter ) {
+			$parts = array();
+			foreach ( $columns as $column ) {
+				$parts[] = "(l.{$column} IS NULL OR l.{$column} = '')";
+			}
+			$where[] = '(' . implode( ' AND ', $parts ) . ')';
+			return;
+		}
+
+		$years = array();
+		if ( 'previous' === $season_filter ) {
+			$active = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+			$available = function_exists( 'ufsc_lc_get_available_licence_seasons' ) ? ufsc_lc_get_available_licence_seasons( $club_id ) : array();
+			foreach ( $available as $year ) {
+				if ( $active && (int) $year < $active ) {
+					$years[] = (int) $year;
+				}
+			}
+			if ( empty( $years ) ) {
+				$where[] = '1=0';
+				return;
+			}
+		} else {
+			$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
+			if ( ! $year ) {
+				return;
+			}
+			$years[] = (int) $year;
+		}
+
+		$season_clauses = array();
+		foreach ( $years as $year ) {
+			$values = $this->get_season_match_values( (int) $year );
+			foreach ( $columns as $column ) {
+				$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+				$season_clauses[] = "l.{$column} IN ({$placeholders})";
+				$params = array_merge( $params, $values );
+			}
+		}
+
+		if ( ! empty( $season_clauses ) ) {
+			$where[] = '(' . implode( ' OR ', $season_clauses ) . ')';
+		}
+	}
+
 	private function get_distinct_visibility_sql( string $alias ): string {
 		$schema = $this->get_licence_schema_compat();
 		$parts  = array();
@@ -1678,7 +1864,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 				: ( in_array( 'numero_asptt', $columns, true ) ? 'numero_asptt' : '' ),
 			'season_col' => in_array( 'season_end_year', $columns, true )
 				? 'season_end_year'
-				: ( in_array( 'saison', $columns, true ) ? 'saison' : '' ),
+				: ( in_array( 'paid_season', $columns, true )
+					? 'paid_season'
+					: ( in_array( 'saison', $columns, true ) ? 'saison' : ( in_array( 'season', $columns, true ) ? 'season' : '' ) ) ),
 			'deleted_col' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
 			'status_expr' => $status_expr,
 		);

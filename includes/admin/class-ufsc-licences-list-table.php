@@ -188,6 +188,106 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->render_admin_debug_block();
 	}
 
+	public function render_non_destructive_diagnostics(): void {
+		global $wpdb;
+
+		$table = $this->get_licences_table();
+		if ( ! $this->table_exists( $table ) ) {
+			return;
+		}
+
+		$diagnostics = array();
+		$season_sql  = $this->get_season_end_year_sql( 'l' );
+		$deleted_sql = $this->get_soft_delete_where_sql( 'l' );
+
+		if ( "''" !== $season_sql ) {
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$season_sql} IS NULL OR {$season_sql} = ''){$deleted_sql}" );
+			$diagnostics[] = array(
+				'label' => __( 'Licences sans saison', 'ufsc-licence-competition' ),
+				'count' => $count,
+				'url'   => add_query_arg( array( 'page' => UFSC_LC_Licences_Admin::PAGE_SLUG, 'season_end_year' => 'unspecified' ), admin_url( 'admin.php' ) ),
+			);
+
+			$raw_values = $wpdb->get_col( "SELECT DISTINCT {$season_sql} FROM {$table} l WHERE {$season_sql} IS NOT NULL AND {$season_sql} <> ''{$deleted_sql}" );
+			$invalid_values = array();
+			foreach ( (array) $raw_values as $raw_value ) {
+				$normalized = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $raw_value ) : absint( $raw_value );
+				if ( ! $normalized ) {
+					$invalid_values[] = (string) $raw_value;
+				}
+			}
+			$invalid_count = 0;
+			if ( ! empty( $invalid_values ) ) {
+				$placeholders = implode( ', ', array_fill( 0, count( $invalid_values ), '%s' ) );
+				$invalid_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} l WHERE {$season_sql} IN ({$placeholders}){$deleted_sql}", $invalid_values ) );
+			}
+			$diagnostics[] = array(
+				'label' => __( 'Licences avec saison non normalisable', 'ufsc-licence-competition' ),
+				'count' => $invalid_count,
+				'url'   => '',
+			);
+		}
+
+		$category_sql = $this->get_category_affiche_sql( 'l' );
+		if ( "''" !== $category_sql ) {
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$category_sql} IS NULL OR {$category_sql} = ''){$deleted_sql}" );
+			$diagnostics[] = array(
+				'label' => __( 'Licences sans catégorie', 'ufsc-licence-competition' ),
+				'count' => $count,
+				'url'   => '',
+			);
+		}
+
+		$asptt_sql = $this->get_asptt_number_sql( 'l', '' );
+		if ( "''" !== $asptt_sql ) {
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$asptt_sql} IS NULL OR {$asptt_sql} = ''){$deleted_sql}" );
+			$diagnostics[] = array(
+				'label' => __( 'Licences sans numéro ASPTT', 'ufsc-licence-competition' ),
+				'count' => $count,
+				'url'   => '',
+			);
+		}
+
+		if ( $this->has_documents_table ) {
+			$documents_table = $this->get_documents_table();
+			$count = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$table} l
+						LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
+						WHERE d.attachment_id IS NULL{$deleted_sql}",
+					'ASPTT'
+				)
+			);
+			$diagnostics[] = array(
+				'label' => __( 'Licences sans PDF', 'ufsc-licence-competition' ),
+				'count' => $count,
+				'url'   => add_query_arg( array( 'page' => UFSC_LC_Licences_Admin::PAGE_SLUG, 'pdf_filter' => 'without' ), admin_url( 'admin.php' ) ),
+			);
+		}
+
+		echo '<div class="notice notice-info ufsc-lc-diagnostics"><p><strong>' . esc_html__( 'Diagnostics non destructifs', 'ufsc-licence-competition' ) . '</strong></p><ul>';
+		foreach ( $diagnostics as $diagnostic ) {
+			$count = (int) $diagnostic['count'];
+			echo '<li>';
+			if ( $count > 0 && ! empty( $diagnostic['url'] ) ) {
+				printf(
+					'<a href="%s">%s</a> : %s',
+					esc_url( $diagnostic['url'] ),
+					esc_html( $diagnostic['label'] ),
+					esc_html( number_format_i18n( $count ) )
+				);
+			} else {
+				printf(
+					'%s : %s',
+					esc_html( $diagnostic['label'] ),
+					esc_html( number_format_i18n( $count ) )
+				);
+			}
+			echo '</li>';
+		}
+		echo '</ul></div>';
+	}
+
 	public function column_default( $item, $column_name ) {
 		$value = is_array( $item ) ? ( $item[ $column_name ] ?? '' ) : ( $item->{$column_name} ?? '' );
 		switch ( $column_name ) {
@@ -214,13 +314,15 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 			case 'season_end_year':
 				$season_end_year = is_array( $item ) ? ( $item['season_end_year'] ?? '' ) : ( $item->season_end_year ?? '' );
-				if ( ! empty( $season_end_year ) ) {
-					return esc_html( $season_end_year );
+				$normalized = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_end_year ) : absint( $season_end_year );
+				if ( $normalized ) {
+					$label = function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $normalized ) : (string) $normalized;
+					if ( function_exists( 'ufsc_lc_is_historical_season' ) && ufsc_lc_is_historical_season( $normalized ) ) {
+						$label .= ' — ' . __( 'Archivée', 'ufsc-licence-competition' );
+					}
+					return esc_html( $label );
 				}
-				if ( function_exists( 'ufsc_lc_get_current_season_label' ) ) {
-					return esc_html( ufsc_lc_get_current_season_label() );
-				}
-				return esc_html__( '—', 'ufsc-licence-competition' );
+				return esc_html__( 'Non renseignée', 'ufsc-licence-competition' );
 
 			case 'category':
 				$category = is_array( $item ) ? ( $item['categorie_affiche'] ?? '' ) : ( $item->categorie_affiche ?? '' );
@@ -424,7 +526,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		// season_end_year only if supported (coalesced)
 		if ( ! empty( $this->get_season_columns() ) ) {
-			$season_end_year = $this->sanitize_filter_value( 'season_end_year', $season_end_year );
+			if ( in_array( $season_end_year, array( 'all', 'previous', 'unspecified' ), true ) ) {
+				// Keep logical season views.
+			} else {
+				$normalized_year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_end_year ) : absint( $season_end_year );
+				$season_end_year = $normalized_year ? (string) $normalized_year : '';
+			}
 		} else {
 			$season_end_year = '';
 		}
@@ -578,15 +685,28 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( ! empty( $this->get_season_columns() ) ) {
 			echo '<label class="screen-reader-text" for="ufsc-season-end-year-filter">' . esc_html__( 'Filtrer par saison', 'ufsc-licence-competition' ) . '</label>';
 			echo '<select name="season_end_year" id="ufsc-season-end-year-filter">';
-			echo '<option value="">' . esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' ) . '</option>';
+			$active = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+			printf(
+				'<option value="%s" %s>%s</option>',
+				esc_attr( (string) $active ),
+				selected( $season_end_year, (string) $active, false ),
+				esc_html( sprintf( __( 'Saison active — %s', 'ufsc-licence-competition' ), function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $active ) : (string) $active ) )
+			);
 			foreach ( $this->get_distinct_values( 'season_end_year' ) as $value ) {
+				if ( (string) $value === (string) $active ) {
+					continue;
+				}
+				$label = function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $value ) : (string) $value;
 				printf(
 					'<option value="%s" %s>%s</option>',
 					esc_attr( $value ),
 					selected( $season_end_year, $value, false ),
-					esc_html( $value )
+					esc_html( '' !== $label ? $label : $value )
 				);
 			}
+			printf( '<option value="previous" %s>%s</option>', selected( $season_end_year, 'previous', false ), esc_html__( 'Saisons précédentes', 'ufsc-licence-competition' ) );
+			printf( '<option value="unspecified" %s>%s</option>', selected( $season_end_year, 'unspecified', false ), esc_html__( 'Sans saison', 'ufsc-licence-competition' ) );
+			printf( '<option value="all" %s>%s</option>', selected( $season_end_year, 'all', false ), esc_html__( 'Toutes les saisons', 'ufsc-licence-competition' ) );
 			echo '</select>';
 		}
 
@@ -771,22 +891,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$params[] = $competition;
 		}
 
-		// Season filter (prefer season_end_year if present and used)
-		if ( '' !== $season_end_year || '' !== $saison ) {
-			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
-			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
-			if ( "''" !== $season_filter_sql ) {
-				$season_clauses = array( "{$season_filter_sql} = %s" );
-				$season_params  = array( $season_filter_value );
-				if ( preg_match( '/^\d{4}$/', (string) $season_filter_value ) ) {
-					$season_like = '%' . $wpdb->esc_like( (string) $season_filter_value ) . '%';
-					$season_clauses[] = "{$season_filter_sql} LIKE %s";
-					$season_params[]  = $season_like;
-				}
-				$where[] = '(' . implode( ' OR ', $season_clauses ) . ')';
-				$params  = array_merge( $params, $season_params );
-			}
-		}
+		$this->append_admin_season_filter( $where, $params, '' !== $season_end_year ? $season_end_year : $saison );
 
 		$join_documents    = '';
 		$document_params   = array();
@@ -1034,21 +1139,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$params[] = $competition;
 		}
 
-		if ( '' !== $season_end_year || '' !== $saison ) {
-			$season_filter_value = '' !== $season_end_year ? $season_end_year : $saison;
-			$season_filter_sql = $this->get_season_end_year_sql( 'l' );
-			if ( "''" !== $season_filter_sql ) {
-				$season_clauses = array( "{$season_filter_sql} = %s" );
-				$season_params  = array( $season_filter_value );
-				if ( preg_match( '/^\d{4}$/', (string) $season_filter_value ) ) {
-					$season_like = '%' . $wpdb->esc_like( (string) $season_filter_value ) . '%';
-					$season_clauses[] = "{$season_filter_sql} LIKE %s";
-					$season_params[]  = $season_like;
-				}
-				$where[] = '(' . implode( ' OR ', $season_clauses ) . ')';
-				$params  = array_merge( $params, $season_params );
-			}
-		}
+		$this->append_admin_season_filter( $where, $params, '' !== $season_end_year ? $season_end_year : $saison );
 
 		$join_documents   = '';
 		$document_params  = array();
@@ -1570,7 +1661,15 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				$this->refresh_schema_cache( $table );
 				return $this->get_distinct_values( $column, false );
 			}
-			$values = array_filter( array_map( 'strval', array_map( 'trim', $results ) ) );
+			$values = array();
+			foreach ( (array) $results as $result ) {
+				$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $result ) : absint( $result );
+				if ( $year ) {
+					$values[ $year ] = (string) $year;
+				}
+			}
+			krsort( $values, SORT_NUMERIC );
+			$values = array_values( $values );
 			$runtime_cache[ $cache_key ] = $values;
 			wp_cache_set( $cache_key, $values, 'ufsc_licence_competition', 10 * MINUTE_IN_SECONDS );
 			set_transient( $cache_key, $values, 10 * MINUTE_IN_SECONDS );
@@ -1918,6 +2017,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function get_filter_defaults() {
 		$default_per_page = class_exists( 'UFSC_LC_Settings_Page' ) ? UFSC_LC_Settings_Page::get_licences_per_page() : 25;
+		$active_season = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (string) ufsc_lc_get_active_season_end_year() : '';
 		return array(
 			'per_page'        => $default_per_page,
 			'orderby'         => 'nom_licence',
@@ -1929,7 +2029,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			'categorie'       => '',
 			'competition'     => '',
 			'saison'          => '',
-			'season_end_year' => '',
+			'season_end_year' => $active_season,
 			'pdf_filter'      => '',
 			'tab'             => 'all',
 		);
@@ -2026,8 +2126,12 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function get_season_columns() {
 		$table = $this->get_licences_table();
+		if ( function_exists( 'ufsc_lc_get_licence_season_columns' ) ) {
+			return ufsc_lc_get_licence_season_columns( $table );
+		}
+
 		$columns = array();
-		foreach ( array( 'season_end_year', 'season', 'saison' ) as $column ) {
+		foreach ( array( 'season_end_year', 'paid_season', 'saison', 'season' ) as $column ) {
 			if ( $this->has_column( $table, $column ) ) {
 				$columns[] = $column;
 			}
@@ -2037,6 +2141,10 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 	private function get_season_end_year_sql( $alias ) {
 		$columns = $this->get_season_columns();
+		if ( function_exists( 'ufsc_lc_build_licence_season_sql' ) ) {
+			return ufsc_lc_build_licence_season_sql( $alias, $columns );
+		}
+
 		if ( empty( $columns ) ) {
 			return "''";
 		}
@@ -2047,6 +2155,74 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		}
 
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
+	}
+
+	private function get_season_match_values( int $end_year ): array {
+		return array_values(
+			array_unique(
+				array(
+					(string) $end_year,
+					sprintf( '%d-%d', $end_year - 1, $end_year ),
+					sprintf( '%d/%d', $end_year - 1, $end_year ),
+					sprintf( '%d – %d', $end_year - 1, $end_year ),
+					sprintf( '%d–%d', $end_year - 1, $end_year ),
+				)
+			)
+		);
+	}
+
+	private function append_admin_season_filter( array &$where, array &$params, string $season_filter ): void {
+		if ( '' === $season_filter || 'all' === $season_filter ) {
+			return;
+		}
+
+		$columns = $this->get_season_columns();
+		if ( empty( $columns ) ) {
+			return;
+		}
+
+		if ( 'unspecified' === $season_filter ) {
+			$parts = array();
+			foreach ( $columns as $column ) {
+				$parts[] = "(l.{$column} IS NULL OR l.{$column} = '')";
+			}
+			$where[] = '(' . implode( ' AND ', $parts ) . ')';
+			return;
+		}
+
+		$years = array();
+		if ( 'previous' === $season_filter ) {
+			$active = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+			$available = function_exists( 'ufsc_lc_get_available_licence_seasons' ) ? ufsc_lc_get_available_licence_seasons( 0 ) : array();
+			foreach ( $available as $year ) {
+				if ( $active && (int) $year < $active ) {
+					$years[] = (int) $year;
+				}
+			}
+			if ( empty( $years ) ) {
+				$where[] = '1=0';
+				return;
+			}
+		} else {
+			$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
+			if ( ! $year ) {
+				return;
+			}
+			$years[] = (int) $year;
+		}
+
+		$clauses = array();
+		foreach ( $years as $year ) {
+			$values = $this->get_season_match_values( (int) $year );
+			foreach ( $columns as $column ) {
+				$clauses[] = 'l.' . $column . ' IN (' . implode( ', ', array_fill( 0, count( $values ), '%s' ) ) . ')';
+				$params = array_merge( $params, $values );
+			}
+		}
+
+		if ( $clauses ) {
+			$where[] = '(' . implode( ' OR ', $clauses ) . ')';
+		}
 	}
 
 	private function get_licence_number_sql( $alias ) {
@@ -2139,7 +2315,9 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				: ( in_array( 'numero_asptt', $columns, true ) ? 'numero_asptt' : '' ),
 			'season_col'  => in_array( 'season_end_year', $columns, true )
 				? 'season_end_year'
-				: ( in_array( 'saison', $columns, true ) ? 'saison' : '' ),
+				: ( in_array( 'paid_season', $columns, true )
+					? 'paid_season'
+					: ( in_array( 'saison', $columns, true ) ? 'saison' : ( in_array( 'season', $columns, true ) ? 'season' : '' ) ) ),
 			'deleted_col' => in_array( 'deleted_at', $columns, true ) ? 'deleted_at' : '',
 			'status_expr' => $status_expr,
 		);
