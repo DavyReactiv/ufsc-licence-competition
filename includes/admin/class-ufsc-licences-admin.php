@@ -84,6 +84,7 @@ class UFSC_LC_Licences_Admin {
 			<?php endif; ?>
 			<hr class="wp-header-end">
 			<?php $list_table->views(); ?>
+			<?php $list_table->render_non_destructive_diagnostics(); ?>
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>" />
 				<?php $filters = $list_table->get_sanitized_filters(); ?>
