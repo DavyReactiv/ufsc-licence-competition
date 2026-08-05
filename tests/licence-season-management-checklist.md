@@ -36,3 +36,9 @@
 - [ ] Aucune nouvelle colonne n’est créée.
 - [ ] Aucune licence n’est supprimée, dupliquée ou changée de statut.
 - [ ] Le plugin reste compatible si `season_end_year` est absente et si seules les colonnes historiques existent.
+
+## Calcul central de saison active
+
+- [x] `php tests/season-active-calculation-test.php` couvre les dates de bascule UFSC au 1er août.
+- [x] Le calcul central ignore une valeur UFSC Gestion simulée à `2026` au 5 août 2026 lorsque la règle UFSC locale calcule `2027`.
+- [ ] Vérifier sur site que l’ancienne valeur enregistrée `season_start_month=9` a bien été migrée vers `8` lorsqu’elle correspond à l’ancien défaut.

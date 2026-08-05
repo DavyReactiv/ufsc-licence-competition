@@ -906,26 +906,27 @@ if ( ! function_exists( 'ufsc_lc_format_season_label' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_get_active_season_end_year' ) ) {
 	function ufsc_lc_get_active_season_end_year() {
-		$master_value = null;
-		if ( function_exists( 'ufsc_get_current_season_end_year' ) ) {
-			$master_value = ufsc_lc_normalize_season_end_year( ufsc_get_current_season_end_year() );
-		}
-		if ( null !== $master_value ) {
-			return $master_value;
+		$settings = function_exists( 'ufsc_lc_get_settings' ) ? ufsc_lc_get_settings() : array();
+		$month    = isset( $settings['season_start_month'] ) ? absint( $settings['season_start_month'] ) : 8;
+		$month    = ( $month >= 1 && $month <= 12 ) ? $month : 8;
+
+		if ( function_exists( 'current_datetime' ) ) {
+			$now = current_datetime();
+		} else {
+			$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
+			$now      = new DateTimeImmutable( 'now', $timezone );
 		}
 
-		$settings = function_exists( 'ufsc_lc_get_settings' ) ? ufsc_lc_get_settings() : array();
-		$default  = isset( $settings['default_season_end_year'] ) ? ufsc_lc_normalize_season_end_year( $settings['default_season_end_year'] ) : null;
-		if ( null !== $default ) {
-			return $default;
+		if ( function_exists( 'apply_filters' ) ) {
+			$now = apply_filters( 'ufsc_lc_active_season_datetime', $now );
+		}
+
+		if ( ! $now instanceof DateTimeInterface ) {
+			$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
+			$now      = new DateTimeImmutable( 'now', $timezone );
 		}
 
 		$rule     = isset( $settings['season_rule'] ) ? sanitize_key( (string) $settings['season_rule'] ) : 'split';
-		$month    = isset( $settings['season_start_month'] ) ? absint( $settings['season_start_month'] ) : 9;
-		$month    = ( $month >= 1 && $month <= 12 ) ? $month : 9;
-
-		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new DateTimeZone( 'UTC' );
-		$now      = new DateTimeImmutable( 'now', $timezone );
 		$year     = (int) $now->format( 'Y' );
 		$current_month = (int) $now->format( 'n' );
 

@@ -69,6 +69,9 @@ class UFSC_LC_Plugin {
 			ufsc_lc_add_fallback_admin_caps();
 		}
 		$this->create_tables_and_indexes();
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) && method_exists( 'UFSC_LC_Settings_Page', 'maybe_migrate_season_start_month_default' ) ) {
+			UFSC_LC_Settings_Page::maybe_migrate_season_start_month_default();
+		}
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 
 		if ( class_exists( '\\UFSC\\Competitions\\Front\\Front' ) ) {
@@ -99,6 +102,9 @@ class UFSC_LC_Plugin {
 		}
 
 		if ( is_admin() ) {
+			if ( class_exists( 'UFSC_LC_Settings_Page' ) && method_exists( 'UFSC_LC_Settings_Page', 'maybe_migrate_season_start_month_default' ) ) {
+				UFSC_LC_Settings_Page::maybe_migrate_season_start_month_default();
+			}
 			$this->maybe_upgrade();
 		}
 
@@ -151,6 +157,9 @@ class UFSC_LC_Plugin {
 		set_transient( 'ufsc_lc_upgrading', 1, 60 );
 
 		$this->create_tables_and_indexes();
+		if ( class_exists( 'UFSC_LC_Settings_Page' ) && method_exists( 'UFSC_LC_Settings_Page', 'maybe_migrate_season_start_month_default' ) ) {
+			UFSC_LC_Settings_Page::maybe_migrate_season_start_month_default();
+		}
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 
 		delete_transient( 'ufsc_lc_upgrading' );
