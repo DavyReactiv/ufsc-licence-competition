@@ -54,8 +54,10 @@ require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceRefe
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Front/PremiumRegistrationExperience.php';
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
 \UFSC\Competitions\Admin\PremiumExperience::register();
+\UFSC\Competitions\Front\PremiumRegistrationExperience::register();
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
