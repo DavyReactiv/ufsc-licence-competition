@@ -50,13 +50,16 @@ if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventProgramRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationScopePresenter.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionDuplicationService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/EventLifecycleAdmin.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Front/PremiumRegistrationExperience.php';
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
 \UFSC\Competitions\Admin\PremiumExperience::register();
+\UFSC\Competitions\Admin\EventLifecycleAdmin::register();
 \UFSC\Competitions\Front\PremiumRegistrationExperience::register();
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
