@@ -45,6 +45,11 @@ class CompetitionMeta {
 			return false;
 		}
 
+		$data = apply_filters( 'ufsc_competition_meta_before_save', $data, $competition_id );
+		if ( ! is_array( $data ) ) {
+			$data = array();
+		}
+
 		$clean = self::sanitize_fields( $data );
 
 		return (bool) update_option( self::option_key( $competition_id ), $clean, false );
@@ -66,30 +71,35 @@ class CompetitionMeta {
 
 	private static function defaults(): array {
 		return array(
-			'lieu_name'               => '',
-			'lieu_address'            => '',
-			'photo_evenement_id'      => 0,
-			'weighin_start'           => '',
-			'weighin_end'             => '',
-			'briefing_time'           => '',
-			'fights_start'            => '',
-			'event_end_estimated'     => '',
-			'registration_deadline'   => '',
-			'organizer_contact_name'  => '',
-			'organizer_phone'         => '',
-			'organizer_email'         => '',
-			'club_notes'              => '',
-			'notes_club_format'       => 'auto',
-			'access_mode'             => 'affiliated',
-			'allowed_regions'         => array(),
-			'allowed_regions_keys'    => array(),
-			'allowed_disciplines'     => array(),
-			'allowed_club_ids'        => array(),
-			'public_read'             => false,
-			'require_affiliated'      => true,
-			'require_logged_in_club'  => true,
-			'require_valid_license'   => false,
-			'allow_external_non_licensed' => false,
+			'lieu_name'                    => '',
+			'lieu_address'                 => '',
+			'photo_evenement_id'           => 0,
+			'weighin_start'                => '',
+			'weighin_end'                  => '',
+			'briefing_time'                => '',
+			'fights_start'                 => '',
+			'event_end_estimated'          => '',
+			'registration_deadline'        => '',
+			'organizer_contact_name'       => '',
+			'organizer_phone'              => '',
+			'organizer_email'              => '',
+			'club_notes'                   => '',
+			'notes_club_format'            => 'auto',
+			'access_mode'                  => 'affiliated',
+			'allowed_regions'              => array(),
+			'allowed_regions_keys'         => array(),
+			'allowed_disciplines'          => array(),
+			'allowed_club_ids'             => array(),
+			'public_read'                  => false,
+			'require_affiliated'           => true,
+			'require_logged_in_club'       => true,
+			'require_valid_license'        => false,
+			'allow_external_non_licensed'  => false,
+			'requirements_mode'            => 'auto',
+			'check_medical_document'       => true,
+			'check_parental_authorization' => true,
+			'check_sport_passport'         => false,
+			'requirements_note'            => '',
 		);
 	}
 
@@ -177,6 +187,22 @@ class CompetitionMeta {
 		}
 		if ( isset( $data['allow_external_non_licensed'] ) ) {
 			$out['allow_external_non_licensed'] = (bool) $data['allow_external_non_licensed'];
+		}
+		if ( isset( $data['requirements_mode'] ) ) {
+			$requirements_mode = sanitize_key( (string) $data['requirements_mode'] );
+			$out['requirements_mode'] = in_array( $requirements_mode, array( 'auto', 'custom' ), true ) ? $requirements_mode : 'auto';
+		}
+		if ( isset( $data['check_medical_document'] ) ) {
+			$out['check_medical_document'] = (bool) $data['check_medical_document'];
+		}
+		if ( isset( $data['check_parental_authorization'] ) ) {
+			$out['check_parental_authorization'] = (bool) $data['check_parental_authorization'];
+		}
+		if ( isset( $data['check_sport_passport'] ) ) {
+			$out['check_sport_passport'] = (bool) $data['check_sport_passport'];
+		}
+		if ( isset( $data['requirements_note'] ) ) {
+			$out['requirements_note'] = mb_substr( sanitize_textarea_field( (string) $data['requirements_note'] ), 0, 1000 );
 		}
 
 		return $out;
