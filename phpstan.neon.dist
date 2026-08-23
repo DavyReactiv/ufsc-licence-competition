@@ -8,6 +8,7 @@ parameters:
         - includes/competitions/Services/EventProgramRegistry.php
         - includes/competitions/Services/RegistrationScopePresenter.php
         - includes/competitions/Services/RegistrationWindowService.php
+        - includes/competitions/Services/CompetitionMeta.php
         - includes/competitions/Services/CompetitionRequirementService.php
         - includes/competitions/Services/CompetitionDuplicationService.php
         - includes/competitions/Services/DatabaseTransaction.php
@@ -16,6 +17,7 @@ parameters:
         - includes/competitions/Services/CompetitionIntegrityService.php
         - includes/competitions/Services/DatabaseSchemaGuard.php
         - includes/competitions/Services/ResultService.php
+        - includes/competitions/Services/ResultSummaryService.php
         - includes/competitions/Services/Pancrace
         - includes/competitions/Admin/PremiumExperience.php
         - includes/competitions/Admin/EventLifecycleAdmin.php
