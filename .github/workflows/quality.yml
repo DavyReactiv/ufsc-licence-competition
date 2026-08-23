@@ -35,6 +35,8 @@ jobs:
         run: php tests/event-program-registry-test.php
       - name: Regional registration scope
         run: php tests/registration-scope-presenter-test.php
+      - name: Registration opening and forclusion
+        run: php tests/registration-window-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
