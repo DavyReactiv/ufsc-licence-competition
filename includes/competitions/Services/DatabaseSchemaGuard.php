@@ -37,7 +37,6 @@ class DatabaseSchemaGuard {
 			return $new_value;
 		}
 
-		error_log( 'UFSC Competitions DB version not advanced: schema verification failed. ' . wp_json_encode( $report ) );
 		return $old_value;
 	}
 
@@ -80,7 +79,7 @@ class DatabaseSchemaGuard {
 		$missing_indexes = array();
 
 		foreach ( $requirements as $name => $requirement ) {
-			$table = (string) $requirement['table'];
+			$table  = (string) $requirement['table'];
 			$schema = self::read_table_schema( $table );
 			if ( empty( $schema['exists'] ) ) {
 				$missing_tables[] = $name;
@@ -99,7 +98,7 @@ class DatabaseSchemaGuard {
 			}
 		}
 
-		$entries_schema = self::read_table_schema( Db::entries_table() );
+		$entries_schema  = self::read_table_schema( Db::entries_table() );
 		$has_license_key = in_array( 'licensee_id', $entries_schema['columns'], true ) || in_array( 'licence_id', $entries_schema['columns'], true );
 		if ( ! $has_license_key && ! in_array( 'entries', $missing_tables, true ) ) {
 			$missing_columns[] = 'entries.licensee_id|licence_id';
@@ -159,16 +158,18 @@ class DatabaseSchemaGuard {
 
 		$column_rows = $wpdb->get_results( "SHOW COLUMNS FROM {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		$index_rows  = $wpdb->get_results( "SHOW INDEX FROM {$table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$columns = array();
-		$indexes = array();
+		$columns     = array();
+		$indexes     = array();
 		foreach ( (array) $column_rows as $row ) {
-			$field = isset( $row->Field ) ? (string) $row->Field : '';
+			$row_data = (array) $row;
+			$field    = isset( $row_data['Field'] ) ? (string) $row_data['Field'] : '';
 			if ( '' !== $field ) {
 				$columns[] = $field;
 			}
 		}
 		foreach ( (array) $index_rows as $row ) {
-			$key = isset( $row->Key_name ) ? (string) $row->Key_name : '';
+			$row_data = (array) $row;
+			$key      = isset( $row_data['Key_name'] ) ? (string) $row_data['Key_name'] : '';
 			if ( '' !== $key ) {
 				$indexes[] = $key;
 			}
