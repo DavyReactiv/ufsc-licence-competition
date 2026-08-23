@@ -102,11 +102,18 @@ class CompetitionDuplicationService {
 
 	public static function current_season( ?int $timestamp = null ): string {
 		if ( null === $timestamp ) {
-			$timestamp = function_exists( 'current_time' ) ? (int) current_time( 'timestamp' ) : time();
+			if ( function_exists( 'wp_date' ) ) {
+				$year  = (int) wp_date( 'Y' );
+				$month = (int) wp_date( 'n' );
+			} else {
+				$year  = (int) gmdate( 'Y' );
+				$month = (int) gmdate( 'n' );
+			}
+		} else {
+			$year  = (int) gmdate( 'Y', $timestamp );
+			$month = (int) gmdate( 'n', $timestamp );
 		}
 
-		$year  = (int) gmdate( 'Y', $timestamp );
-		$month = (int) gmdate( 'n', $timestamp );
 		$start = $month >= 8 ? $year : $year - 1;
 
 		return sprintf( '%d-%d', $start, $start + 1 );
