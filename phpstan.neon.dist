@@ -5,7 +5,11 @@ parameters:
     level: 2
     paths:
         - includes/competitions/Services/EventFormatRegistry.php
+        - includes/competitions/Services/EventProgramRegistry.php
+        - includes/competitions/Services/RegistrationScopePresenter.php
         - includes/competitions/Services/Pancrace
+        - includes/competitions/Admin/PremiumExperience.php
+        - includes/competitions/Admin/Pages/EventProgram_Page.php
     excludePaths:
         analyse:
             - vendor
