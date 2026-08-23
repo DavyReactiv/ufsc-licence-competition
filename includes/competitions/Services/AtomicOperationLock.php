@@ -1,0 +1,70 @@
+<?php
+
+namespace UFSC\Competitions\Services;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Atomic short-lived lock based on WordPress option-name uniqueness.
+ * Prevents double generation / simultaneous result writes without a new table.
+ */
+class AtomicOperationLock {
+	private const PREFIX = 'ufsc_comp_lock_';
+
+	public static function acquire( string $resource, int $ttl = 30 ): string {
+		$resource = trim( $resource );
+		if ( '' === $resource ) {
+			return '';
+		}
+
+		$ttl   = max( 5, min( 300, $ttl ) );
+		$key   = self::option_key( $resource );
+		$token = wp_generate_uuid4();
+		$data  = array(
+			'token'      => $token,
+			'expires_at' => time() + $ttl,
+			'user_id'    => get_current_user_id() ?: 0,
+			'created_at' => gmdate( 'Y-m-d H:i:s' ),
+		);
+
+		if ( add_option( $key, $data, '', false ) ) {
+			return $token;
+		}
+
+		$existing = get_option( $key, array() );
+		$expires  = is_array( $existing ) ? absint( $existing['expires_at'] ?? 0 ) : 0;
+		if ( $expires > 0 && $expires < time() ) {
+			delete_option( $key );
+			if ( add_option( $key, $data, '', false ) ) {
+				return $token;
+			}
+		}
+
+		return '';
+	}
+
+	public static function release( string $resource, string $token ): void {
+		if ( '' === trim( $resource ) || '' === trim( $token ) ) {
+			return;
+		}
+
+		$key      = self::option_key( $resource );
+		$existing = get_option( $key, array() );
+		if ( ! is_array( $existing ) || ! hash_equals( (string) ( $existing['token'] ?? '' ), $token ) ) {
+			return;
+		}
+
+		delete_option( $key );
+	}
+
+	public static function describe( string $resource ): array {
+		$data = get_option( self::option_key( $resource ), array() );
+		return is_array( $data ) ? $data : array();
+	}
+
+	private static function option_key( string $resource ): string {
+		return self::PREFIX . md5( $resource );
+	}
+}
