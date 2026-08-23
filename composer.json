@@ -1,0 +1,38 @@
+{
+  "name": "studioreactiv/ufsc-licence-competition",
+  "description": "Development and QA tooling for the UFSC Licence Competition WordPress plugin.",
+  "type": "wordpress-plugin",
+  "license": "proprietary",
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "php-parallel-lint/php-parallel-lint": "^1.4",
+    "phpstan/phpstan": "^1.12",
+    "szepeviktor/phpstan-wordpress": "^1.3",
+    "wp-coding-standards/wpcs": "^3.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  },
+  "scripts": {
+    "lint": "parallel-lint --exclude vendor .",
+    "test:references": [
+      "@php tests/assaut-tatami-reference-test.php",
+      "@php tests/pancrace-reference-test.php",
+      "@php tests/event-format-registry-test.php"
+    ],
+    "phpcs": "phpcs --standard=phpcs.xml.dist",
+    "phpstan": "phpstan analyse -c phpstan.neon.dist --no-progress",
+    "qa": [
+      "@lint",
+      "@test:references",
+      "@phpcs",
+      "@phpstan"
+    ]
+  }
+}
