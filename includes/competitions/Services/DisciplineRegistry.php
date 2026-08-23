@@ -56,6 +56,11 @@ class DisciplineRegistry {
 			}
 
 			if ( $clean ) {
+				// Pancrace is a core supported discipline. Keep it available even on
+				// installations that saved a custom discipline registry in the past.
+				if ( ! isset( $clean['pancrace'] ) ) {
+					$clean['pancrace'] = self::pancrace_definition();
+				}
 				return $clean;
 			}
 		}
@@ -139,6 +144,7 @@ class DisciplineRegistry {
 				'label' => __( 'MMA', 'ufsc-licence-competition' ),
 				'type'  => self::TYPE_OTHER,
 			),
+			'pancrace'       => self::pancrace_definition(),
 			'cardio_boxing'  => array(
 				'label' => __( 'Cardio boxing', 'ufsc-licence-competition' ),
 				'type'  => self::TYPE_OTHER,
@@ -147,6 +153,13 @@ class DisciplineRegistry {
 				'label' => __( 'Autre', 'ufsc-licence-competition' ),
 				'type'  => self::TYPE_OTHER,
 			),
+		);
+	}
+
+	private static function pancrace_definition(): array {
+		return array(
+			'label' => __( 'Pancrace', 'ufsc-licence-competition' ),
+			'type'  => self::TYPE_OTHER,
 		);
 	}
 
