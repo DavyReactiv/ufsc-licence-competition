@@ -37,6 +37,8 @@ jobs:
         run: php tests/registration-scope-presenter-test.php
       - name: Registration opening and forclusion
         run: php tests/registration-window-test.php
+      - name: Club competition requirements
+        run: php tests/competition-requirements-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
