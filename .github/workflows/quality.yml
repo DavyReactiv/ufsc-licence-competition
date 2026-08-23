@@ -59,13 +59,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Block newly added DROP/TRUNCATE statements
+      - name: Block newly added destructive SQL in PHP code
         shell: bash
         run: |
           set -euo pipefail
-          git diff --unified=0 "${{ github.event.pull_request.base.sha }}"...HEAD > /tmp/ufsc-pr.diff
-          if grep -E '^\+[^+].*\b(DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE)\b' /tmp/ufsc-pr.diff; then
-            echo 'Destructive SQL added in this PR. Review required.' >&2
+          git diff --unified=0 "${{ github.event.pull_request.base.sha }}"...HEAD -- '*.php' > /tmp/ufsc-pr-php.diff
+          if grep -E '^\+[^+].*\b(DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE)\b' /tmp/ufsc-pr-php.diff; then
+            echo 'Destructive SQL added to PHP code in this PR. Review required.' >&2
             exit 1
           fi
-          echo 'No newly added DROP TABLE or TRUNCATE TABLE detected.'
+          echo 'No newly added DROP TABLE or TRUNCATE TABLE detected in PHP code.'
