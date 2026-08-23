@@ -10,6 +10,7 @@ parameters:
         - includes/competitions/Services/Pancrace
         - includes/competitions/Admin/PremiumExperience.php
         - includes/competitions/Admin/Pages/EventProgram_Page.php
+        - includes/competitions/Front/PremiumRegistrationExperience.php
     excludePaths:
         analyse:
             - vendor
