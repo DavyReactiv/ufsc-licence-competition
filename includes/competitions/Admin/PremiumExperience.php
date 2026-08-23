@@ -44,9 +44,6 @@ class PremiumExperience {
 		$css_file      = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.css';
 		$js_file       = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.js';
 
-		// The new Programme page is registered outside the legacy page registry.
-		// Enqueueing the shared base style here also guarantees visual consistency
-		// without duplicating style declarations or page-specific setup.
 		if ( file_exists( $base_css_file ) && ! wp_style_is( 'ufsc-competitions-admin', 'enqueued' ) ) {
 			$base_css_mtime   = filemtime( $base_css_file );
 			$base_css_version = false !== $base_css_mtime ? (string) $base_css_mtime : '1.0.0';
@@ -121,7 +118,7 @@ class PremiumExperience {
 			<div class="ufsc-premium-workflow__steps">
 				<?php foreach ( $links as $link ) : ?>
 					<?php $active = in_array( $page, (array) $link['pages'], true ); ?>
-					<a class="ufsc-premium-workflow__step<?php echo $active ? ' is-active' : ''; ?>" href="<?php echo esc_url( (string) $link['url'] ); ?>"<?php echo $active ? ' aria-current="page"' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+					<a class="ufsc-premium-workflow__step<?php echo $active ? ' is-active' : ''; ?>" href="<?php echo esc_url( (string) $link['url'] ); ?>"<?php echo $active ? ' aria-current="page"' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 						<span class="ufsc-premium-workflow__index"><?php echo esc_html( (string) $link['index'] ); ?></span>
 						<span>
 							<strong><?php echo esc_html( (string) $link['label'] ); ?></strong>
@@ -192,6 +189,14 @@ class PremiumExperience {
 		$event_type = CompetitionFilters::normalize_type_key( (string) ( $competition->type ?? '' ) );
 		$program    = EventProgramRegistry::get( $competition_id, $event_type );
 		$summary    = EventProgramRegistry::get_summary( $program );
+		/* translators: 1: active program blocks, 2: tournament blocks, 3: direct-fight blocks. */
+		$summary_format = __( '%1$d bloc(s) actif(s) · %2$d mini-tournoi(s) · %3$d bloc(s) de combats directs.', 'ufsc-licence-competition' );
+		$summary_text   = sprintf(
+			$summary_format,
+			(int) ( $summary['active_blocks'] ?? 0 ),
+			(int) ( $summary['tournament_blocks'] ?? 0 ),
+			(int) ( $summary['direct_blocks'] ?? 0 )
+		);
 		?>
 		<section class="ufsc-premium-context-card is-program" aria-label="<?php esc_attr_e( 'Programme de l’événement', 'ufsc-licence-competition' ); ?>">
 			<div class="ufsc-premium-context-card__icon"><span class="dashicons dashicons-editor-ol" aria-hidden="true"></span></div>
@@ -202,19 +207,7 @@ class PremiumExperience {
 						<span class="ufsc-premium-tag is-accent"><?php esc_html_e( 'Hybride', 'ufsc-licence-competition' ); ?></span>
 					<?php endif; ?>
 				</div>
-				<p>
-					<?php
-					/* translators: 1: active program blocks, 2: tournament blocks, 3: direct-fight blocks. */
-					echo esc_html(
-						sprintf(
-							__( '%1$d bloc(s) actif(s) · %2$d mini-tournoi(s) · %3$d bloc(s) de combats directs.', 'ufsc-licence-competition' ),
-							(int) ( $summary['active_blocks'] ?? 0 ),
-							(int) ( $summary['tournament_blocks'] ?? 0 ),
-							(int) ( $summary['direct_blocks'] ?? 0 )
-						)
-					);
-					?>
-				</p>
+				<p><?php echo esc_html( $summary_text ); ?></p>
 			</div>
 			<a class="button button-primary" href="<?php echo esc_url( self::program_url( $competition_id ) ); ?>"><?php esc_html_e( 'Ouvrir le programme', 'ufsc-licence-competition' ); ?></a>
 		</section>
