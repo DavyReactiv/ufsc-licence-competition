@@ -40,35 +40,54 @@ class PremiumExperience {
 			return;
 		}
 
-		$css_file = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.css';
-		$js_file  = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.js';
+		$base_css_file = UFSC_LC_DIR . 'includes/competitions/assets/admin.css';
+		$css_file      = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.css';
+		$js_file       = UFSC_LC_DIR . 'includes/competitions/assets/premium-admin.js';
+
+		// The new Programme page is registered outside the legacy page registry.
+		// Enqueueing the shared base style here also guarantees visual consistency
+		// without duplicating style declarations or page-specific setup.
+		if ( file_exists( $base_css_file ) && ! wp_style_is( 'ufsc-competitions-admin', 'enqueued' ) ) {
+			$base_css_mtime   = filemtime( $base_css_file );
+			$base_css_version = false !== $base_css_mtime ? (string) $base_css_mtime : '1.0.0';
+			wp_enqueue_style(
+				'ufsc-competitions-admin',
+				UFSC_LC_URL . 'includes/competitions/assets/admin.css',
+				array(),
+				$base_css_version
+			);
+		}
 
 		if ( file_exists( $css_file ) ) {
+			$css_mtime   = filemtime( $css_file );
+			$css_version = false !== $css_mtime ? (string) $css_mtime : '1.0.0';
 			wp_enqueue_style(
 				'ufsc-competitions-premium-admin',
 				UFSC_LC_URL . 'includes/competitions/assets/premium-admin.css',
 				array( 'ufsc-competitions-admin' ),
-				(string) ( filemtime( $css_file ) ?: '1.0.0' )
+				$css_version
 			);
 		}
 
 		if ( file_exists( $js_file ) ) {
+			$js_mtime   = filemtime( $js_file );
+			$js_version = false !== $js_mtime ? (string) $js_mtime : '1.0.0';
 			wp_enqueue_script(
 				'ufsc-competitions-premium-admin',
 				UFSC_LC_URL . 'includes/competitions/assets/premium-admin.js',
 				array(),
-				(string) ( filemtime( $js_file ) ?: '1.0.0' ),
+				$js_version,
 				true
 			);
 			wp_localize_script(
 				'ufsc-competitions-premium-admin',
 				'ufscPremiumAdmin',
 				array(
-					'regionModeLabel' => __( 'Les inscriptions sont limitées par région.', 'ufsc-licence-competition' ),
+					'regionModeLabel'              => __( 'Les inscriptions sont limitées par région.', 'ufsc-licence-competition' ),
 					'regionAndDisciplineModeLabel' => __( 'Le club doit respecter la région ET la discipline.', 'ufsc-licence-competition' ),
-					'clubModeLabel' => __( 'Seuls les clubs sélectionnés peuvent inscrire.', 'ufsc-licence-competition' ),
-					'affiliatedModeLabel' => __( 'Tous les clubs affiliés qui remplissent les conditions peuvent inscrire.', 'ufsc-licence-competition' ),
-					'emptyProgramLabel' => __( 'Ajoutez au moins un bloc au programme.', 'ufsc-licence-competition' ),
+					'clubModeLabel'                => __( 'Seuls les clubs sélectionnés peuvent inscrire.', 'ufsc-licence-competition' ),
+					'affiliatedModeLabel'          => __( 'Tous les clubs affiliés qui remplissent les conditions peuvent inscrire.', 'ufsc-licence-competition' ),
+					'emptyProgramLabel'            => __( 'Ajoutez au moins un bloc au programme.', 'ufsc-licence-competition' ),
 				)
 			);
 		}
@@ -102,7 +121,7 @@ class PremiumExperience {
 			<div class="ufsc-premium-workflow__steps">
 				<?php foreach ( $links as $link ) : ?>
 					<?php $active = in_array( $page, (array) $link['pages'], true ); ?>
-					<a class="ufsc-premium-workflow__step<?php echo $active ? ' is-active' : ''; ?>" href="<?php echo esc_url( (string) $link['url'] ); ?>"<?php echo $active ? ' aria-current="page"' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+					<a class="ufsc-premium-workflow__step<?php echo $active ? ' is-active' : ''; ?>" href="<?php echo esc_url( (string) $link['url'] ); ?>"<?php echo $active ? ' aria-current="page"' : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 						<span class="ufsc-premium-workflow__index"><?php echo esc_html( (string) $link['index'] ); ?></span>
 						<span>
 							<strong><?php echo esc_html( (string) $link['label'] ); ?></strong>
@@ -183,7 +202,19 @@ class PremiumExperience {
 						<span class="ufsc-premium-tag is-accent"><?php esc_html_e( 'Hybride', 'ufsc-licence-competition' ); ?></span>
 					<?php endif; ?>
 				</div>
-				<p><?php echo esc_html( sprintf( __( '%1$d bloc(s) actif(s) · %2$d mini-tournoi(s) · %3$d bloc(s) de combats directs.', 'ufsc-licence-competition' ), (int) ( $summary['active_blocks'] ?? 0 ), (int) ( $summary['tournament_blocks'] ?? 0 ), (int) ( $summary['direct_blocks'] ?? 0 ) ) ); ?></p>
+				<p>
+					<?php
+					/* translators: 1: active program blocks, 2: tournament blocks, 3: direct-fight blocks. */
+					echo esc_html(
+						sprintf(
+							__( '%1$d bloc(s) actif(s) · %2$d mini-tournoi(s) · %3$d bloc(s) de combats directs.', 'ufsc-licence-competition' ),
+							(int) ( $summary['active_blocks'] ?? 0 ),
+							(int) ( $summary['tournament_blocks'] ?? 0 ),
+							(int) ( $summary['direct_blocks'] ?? 0 )
+						)
+					);
+					?>
+				</p>
 			</div>
 			<a class="button button-primary" href="<?php echo esc_url( self::program_url( $competition_id ) ); ?>"><?php esc_html_e( 'Ouvrir le programme', 'ufsc-licence-competition' ); ?></a>
 		</section>
