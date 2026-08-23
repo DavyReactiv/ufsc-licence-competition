@@ -3,7 +3,7 @@
 namespace UFSC\Competitions\Admin;
 
 use UFSC\Competitions\Capabilities;
-use UFSC\Competitions\Services\CompetitionMeta;
+use UFSC\Competitions\Services\LiveCompetitionService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -35,7 +35,7 @@ class LiveCompetitionAdmin {
 			return $data;
 		}
 
-		$data['live_enabled'] = isset( $_POST['live_enabled'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		update_option( 'ufsc_competition_live_enabled_' . $competition_id, isset( $_POST['live_enabled'] ) ? '1' : '0', false ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		return $data;
 	}
 
@@ -56,7 +56,7 @@ class LiveCompetitionAdmin {
 		}
 
 		$competition_id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-		$meta           = CompetitionMeta::get( $competition_id );
+		$live_enabled   = $competition_id > 0 && LiveCompetitionService::is_enabled( $competition_id );
 		?>
 		<div id="ufsc-competition-live-fields" hidden>
 			<h2><?php esc_html_e( 'UFSC LIVE', 'ufsc-licence-competition' ); ?></h2>
@@ -66,12 +66,13 @@ class LiveCompetitionAdmin {
 						<th scope="row"><?php esc_html_e( 'Diffusion publique', 'ufsc-licence-competition' ); ?></th>
 						<td>
 							<label>
-								<input type="checkbox" name="live_enabled" value="1" <?php checked( ! empty( $meta['live_enabled'] ) ); ?> />
+								<input type="checkbox" name="live_enabled" value="1" <?php checked( $live_enabled ); ?> />
 								<?php esc_html_e( 'Activer les combats et résultats en direct', 'ufsc-licence-competition' ); ?>
 							</label>
 							<p class="description"><?php esc_html_e( 'Lecture seule. Aucune donnée de contact, date de naissance, poids de pesée ou note administrative n’est exposée.', 'ufsc-licence-competition' ); ?></p>
 							<?php if ( $competition_id > 0 ) : ?>
 								<p class="description"><code>[ufsc_competition_live id="<?php echo esc_attr( (string) $competition_id ); ?>"]</code></p>
+								<p class="description"><code>[ufsc_competition_live id="<?php echo esc_attr( (string) $competition_id ); ?>" mode="screen"]</code> — <?php esc_html_e( 'mode écran / TV', 'ufsc-licence-competition' ); ?></p>
 							<?php endif; ?>
 						</td>
 					</tr>
