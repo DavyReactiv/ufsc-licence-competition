@@ -18,6 +18,7 @@ parameters:
         - includes/competitions/Services/DatabaseTransaction.php
         - includes/competitions/Services/AtomicOperationLock.php
         - includes/competitions/Services/FightResultPersistence.php
+        - includes/competitions/Services/FighterNumberAuditService.php
         - includes/competitions/Services/CompetitionIntegrityService.php
         - includes/competitions/Services/DatabaseSchemaGuard.php
         - includes/competitions/Services/ResultService.php
@@ -26,6 +27,7 @@ parameters:
         - includes/competitions/Admin/PremiumExperience.php
         - includes/competitions/Admin/EventLifecycleAdmin.php
         - includes/competitions/Admin/CompetitionRequirementsAdmin.php
+        - includes/competitions/Admin/EventOperationsPanel.php
         - includes/competitions/Admin/IntegrityHealthNotice.php
         - includes/competitions/Admin/ResultConcurrencyAdmin.php
         - includes/competitions/Admin/Pages/EventProgram_Page.php
