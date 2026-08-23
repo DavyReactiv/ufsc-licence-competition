@@ -32,11 +32,13 @@ class PremiumRegistrationExperience {
 			return;
 		}
 
+		$mtime   = filemtime( $file );
+		$version = false !== $mtime ? (string) $mtime : '1.0.0';
 		wp_enqueue_style(
 			'ufsc-competitions-premium-front',
 			UFSC_LC_URL . 'includes/competitions/assets/premium-front.css',
 			array(),
-			(string) ( filemtime( $file ) ?: '1.0.0' )
+			$version
 		);
 	}
 
@@ -73,15 +75,15 @@ class PremiumRegistrationExperience {
 	}
 
 	private static function render_scope_card( array $scope ): string {
-		$allowed     = ! empty( $scope['allowed'] );
-		$region_mode = ! empty( $scope['is_region_scoped'] );
-		$regions     = isset( $scope['regions'] ) && is_array( $scope['regions'] ) ? $scope['regions'] : array();
-		$requirements= isset( $scope['requirements'] ) && is_array( $scope['requirements'] ) ? $scope['requirements'] : array();
-		$status      = $allowed ? 'allowed' : 'restricted';
-		$status_text = $allowed
+		$allowed      = ! empty( $scope['allowed'] );
+		$region_mode  = ! empty( $scope['is_region_scoped'] );
+		$regions      = isset( $scope['regions'] ) && is_array( $scope['regions'] ) ? $scope['regions'] : array();
+		$requirements = isset( $scope['requirements'] ) && is_array( $scope['requirements'] ) ? $scope['requirements'] : array();
+		$status       = $allowed ? 'allowed' : 'restricted';
+		$status_text  = $allowed
 			? __( 'Votre club peut inscrire', 'ufsc-licence-competition' )
 			: __( 'Inscription non disponible pour votre club', 'ufsc-licence-competition' );
-		$message     = (string) ( $scope['message'] ?? $scope['summary'] ?? '' );
+		$message      = (string) ( $scope['message'] ?? $scope['summary'] ?? '' );
 
 		ob_start();
 		?>
