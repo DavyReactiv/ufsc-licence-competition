@@ -8,6 +8,7 @@ use UFSC\Competitions\Repositories\CategoryRepository;
 use UFSC\Competitions\Repositories\CompetitionRepository;
 use UFSC\Competitions\Repositories\EntryRepository;
 use UFSC\Competitions\Repositories\FightRepository;
+use UFSC\Competitions\Services\FightResultPersistence;
 use UFSC\Competitions\Services\ResultService;
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -229,8 +230,9 @@ class Results_Page {
 		}
 		echo '</select> ';
 		echo '<select name="result_type" aria-label="' . esc_attr__( 'Méthode', 'ufsc-licence-competition' ) . '">';
+		$current_method = FightResultPersistence::get_method( $fight );
 		foreach ( $this->get_result_methods() as $value => $label ) {
-			echo '<option value="' . esc_attr( $value ) . '" ' . selected( (string) ( $fight->result_method ?? '' ), $value, false ) . '>' . esc_html( $label ) . '</option>';
+			echo '<option value="' . esc_attr( $value ) . '" ' . selected( $current_method, $value, false ) . '>' . esc_html( $label ) . '</option>';
 		}
 		echo '</select> ';
 		echo '<input type="text" size="3" name="score_red" value="' . esc_attr( (string) ( $fight->score_red ?? '' ) ) . '" placeholder="R" />';
@@ -337,7 +339,7 @@ class Results_Page {
 	}
 
 	private function fight_has_result_payload( $fight ): bool {
-		return absint( $fight->winner_entry_id ?? 0 ) > 0 || '' !== trim( (string) ( $fight->result_method ?? '' ) ) || '' !== trim( (string) ( $fight->score_red ?? '' ) ) || '' !== trim( (string) ( $fight->score_blue ?? '' ) );
+		return absint( $fight->winner_entry_id ?? 0 ) > 0 || '' !== FightResultPersistence::get_method( $fight ) || '' !== trim( (string) ( $fight->score_red ?? '' ) ) || '' !== trim( (string) ( $fight->score_blue ?? '' ) );
 	}
 
 	private function format_order( $fight ): string {
@@ -419,7 +421,7 @@ class Results_Page {
 		}
 		$winner_id = absint( $fight->winner_entry_id ?? 0 );
 		$winner = $winner_id > 0 ? $this->format_entry_label( $entry_map[ $winner_id ] ?? null ) : __( 'Sans vainqueur', 'ufsc-licence-competition' );
-		$method = trim( (string) ( $fight->result_method ?? '' ) );
+		$method = FightResultPersistence::get_method( $fight );
 		$scores = trim( (string) ( $fight->score_red ?? '' ) . ' - ' . (string) ( $fight->score_blue ?? '' ), ' -' );
 		return trim( $winner . ( '' !== $method ? ' · ' . $method : '' ) . ( '' !== $scores ? ' · ' . $scores : '' ) );
 	}
