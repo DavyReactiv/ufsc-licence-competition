@@ -62,7 +62,7 @@ class FighterNumberAuditService {
 			$is_number_ready = 'approved' === $entry_status && in_array( $status, array( 'weighed', 'validated', 'reclassified' ), true );
 
 			if ( $number > 0 ) {
-				$assigned++;
+				++$assigned;
 				if ( ! isset( $numbers[ $number ] ) ) {
 					$numbers[ $number ] = array();
 				}
