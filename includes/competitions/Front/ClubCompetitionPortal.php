@@ -19,8 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Club-facing competition workspace.
  *
- * It reuses EntryFormRenderer for the actual registration list/form and only
- * adds orchestration, deadlines and non-binding document reminders.
+ * Reuses the existing entry renderer and repositories. This class only adds
+ * orchestration, deadline visibility and configurable compliance reminders.
  */
 class ClubCompetitionPortal {
 	private static $registered = false;
@@ -80,18 +80,19 @@ class ClubCompetitionPortal {
 		$counts          = self::count_statuses( $entries, $repo );
 		$checklist       = self::build_checklist( $competition );
 		$details_url     = Front::get_competition_details_url( $competition_id );
-		$entries_url     = ( $details_url ?: '#' ) . '#ufsc-inscriptions';
+		$base_url        = $details_url ? $details_url : home_url( '/' );
+		$entries_url     = $details_url ? $details_url . '#ufsc-inscriptions' : '#ufsc-inscriptions';
 		$engaged_url     = add_query_arg(
 			array(
 				'ufsc_engaged_view'   => 1,
 				'ufsc_engaged_status' => 'approved',
 			),
-			$details_url ?: home_url( '/' )
+			$base_url
 		) . '#ufsc-engaged-list';
 
 		$is_mutable = $register_result->allowed && ! empty( $window['is_open'] );
 		?>
-		<section class="ufsc-club-event-portal <?php echo $is_mutable ? 'is-open' : 'is-readonly'; ?>" aria-label="<?php esc_attr_e( 'Espace compétition du club', 'ufsc-licence-competition' ); ?>">
+		<section class="ufsc-club-event-portal <?php echo esc_attr( $is_mutable ? 'is-open' : 'is-readonly' ); ?>" aria-label="<?php esc_attr_e( 'Espace compétition du club', 'ufsc-licence-competition' ); ?>">
 			<div class="ufsc-club-event-portal__hero">
 				<div>
 					<p class="ufsc-club-event-portal__eyebrow"><?php esc_html_e( 'Espace club · Compétition', 'ufsc-licence-competition' ); ?></p>
@@ -118,14 +119,7 @@ class ClubCompetitionPortal {
 			<div class="ufsc-club-event-portal__grid">
 				<div class="ufsc-club-event-portal__panel">
 					<h4><?php esc_html_e( 'Modification avant validation', 'ufsc-licence-competition' ); ?></h4>
-					<p>
-						<?php
-						echo esc_html__(
-							'Tant que l’inscription n’est pas approuvée et que la forclusion n’est pas dépassée, le club peut retirer une inscription soumise, la corriger puis la soumettre à nouveau.',
-							'ufsc-licence-competition'
-						);
-						?>
-					</p>
+					<p><?php esc_html_e( 'Tant que l’inscription n’est pas approuvée et que la forclusion n’est pas dépassée, le club peut retirer une inscription soumise, la corriger puis la soumettre à nouveau.', 'ufsc-licence-competition' ); ?></p>
 					<?php if ( ! empty( $window['closes_at'] ) ) : ?>
 						<p class="ufsc-club-event-portal__deadline"><strong><?php esc_html_e( 'Forclusion :', 'ufsc-licence-competition' ); ?></strong> <?php echo esc_html( self::format_sql_datetime( (string) $window['closes_at'] ) ); ?></p>
 					<?php endif; ?>
@@ -146,9 +140,8 @@ class ClubCompetitionPortal {
 	}
 
 	/**
-	 * EntriesModule historically exits when registration is closed. Keep its
-	 * renderer, but switch it to read-only mode so clubs retain access to their
-	 * own entries and the engaged list after forclusion.
+	 * Keep club data visible after forclusion while reusing the existing entry
+	 * renderer in read-only mode. No second registration/list implementation.
 	 */
 	public static function render_read_only_workspace( $competition ): void {
 		if ( ! is_object( $competition ) || ! is_user_logged_in() ) {
@@ -171,10 +164,10 @@ class ClubCompetitionPortal {
 
 		remove_action( 'ufsc_competitions_front_registration_box', array( EntriesModule::class, 'render' ), 10 );
 
-		$repo    = new EntryFrontRepository();
-		$entries = $repo->list_by_competition_and_club( $competition_id, $club_id );
-		$club_repo = new ClubRepository();
-		$club      = $club_repo->get( $club_id );
+		$repo       = new EntryFrontRepository();
+		$entries    = $repo->list_by_competition_and_club( $competition_id, $club_id );
+		$club_repo  = new ClubRepository();
+		$club       = $club_repo->get( $club_id );
 		$club_label = $club_repo->get_region_label( $club );
 
 		$read_access = AccessResult::allow(
@@ -191,26 +184,28 @@ class ClubCompetitionPortal {
 			)
 		);
 
-		echo EntryFormRenderer::render(
+		$workspace_html = EntryFormRenderer::render(
 			array(
-				'competition'      => $competition,
-				'club_id'          => $club_id,
-				'entries'          => $entries,
-				'editing_entry'    => null,
-				'club_label'       => $club_label,
-				'registration_open'=> false,
-				'access_result'    => $read_access,
-				'license_results'  => array(),
-				'selected_license' => null,
-				'license_term'     => '',
-				'license_number'   => '',
-				'license_birthdate'=> '',
-				'return_url'       => Front::get_competition_details_url( $competition_id ),
-				'license_id'       => 0,
-				'prefill'          => array(),
-				'entry_repo'       => $repo,
+				'competition'       => $competition,
+				'club_id'           => $club_id,
+				'entries'           => $entries,
+				'editing_entry'     => null,
+				'club_label'        => $club_label,
+				'registration_open' => false,
+				'access_result'     => $read_access,
+				'license_results'   => array(),
+				'selected_license'  => null,
+				'license_term'      => '',
+				'license_number'    => '',
+				'license_birthdate' => '',
+				'return_url'        => Front::get_competition_details_url( $competition_id ),
+				'license_id'        => 0,
+				'prefill'           => array(),
+				'entry_repo'        => $repo,
 			)
 		);
+
+		echo $workspace_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- EntryFormRenderer escapes user-controlled fields before returning trusted module markup.
 	}
 
 	private static function count_statuses( array $entries, EntryFrontRepository $repo ): array {
@@ -268,7 +263,7 @@ class ClubCompetitionPortal {
 		}
 
 		$timezone = function_exists( 'wp_timezone' ) ? wp_timezone() : new \DateTimeZone( 'UTC' );
-		$date = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $value, $timezone );
+		$date     = \DateTimeImmutable::createFromFormat( '!Y-m-d H:i:s', $value, $timezone );
 		if ( ! $date instanceof \DateTimeImmutable ) {
 			return $value;
 		}
