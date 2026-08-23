@@ -12,6 +12,7 @@ parameters:
         - includes/competitions/Services/DatabaseTransaction.php
         - includes/competitions/Services/AtomicOperationLock.php
         - includes/competitions/Services/CompetitionIntegrityService.php
+        - includes/competitions/Services/DatabaseSchemaGuard.php
         - includes/competitions/Services/ResultService.php
         - includes/competitions/Services/Pancrace
         - includes/competitions/Admin/PremiumExperience.php
