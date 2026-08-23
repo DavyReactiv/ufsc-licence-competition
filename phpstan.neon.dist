@@ -3,6 +3,10 @@ includes:
 
 parameters:
     level: 2
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    scanDirectories:
+        - includes/competitions
     paths:
         - includes/competitions/Services/EventFormatRegistry.php
         - includes/competitions/Services/EventProgramRegistry.php
