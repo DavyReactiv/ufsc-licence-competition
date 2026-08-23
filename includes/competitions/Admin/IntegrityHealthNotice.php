@@ -56,7 +56,11 @@ class IntegrityHealthNotice {
 			<?php if ( $total > 0 && ! empty( $report['issues'] ) ) : ?>
 				<ul style="margin-left:18px;list-style:disc;">
 					<?php foreach ( (array) $report['issues'] as $key => $count ) : ?>
-						<?php if ( (int) $count <= 0 ) : continue; endif; ?>
+						<?php
+						if ( (int) $count <= 0 ) {
+							continue;
+						}
+						?>
 						<li><?php echo esc_html( self::label( (string) $key ) . ' : ' . (int) $count ); ?></li>
 					<?php endforeach; ?>
 				</ul>
@@ -68,14 +72,14 @@ class IntegrityHealthNotice {
 
 	private static function label( string $key ): string {
 		$labels = array(
-			'entries_without_competition'       => __( 'Inscriptions sans événement', 'ufsc-licence-competition' ),
-			'categories_without_competition'    => __( 'Catégories sans événement', 'ufsc-licence-competition' ),
-			'weighins_without_entry'             => __( 'Pesées sans inscription', 'ufsc-licence-competition' ),
-			'fights_without_competition'         => __( 'Combats sans événement', 'ufsc-licence-competition' ),
-			'fights_with_missing_red_entry'      => __( 'Coins rouges liés à une inscription absente', 'ufsc-licence-competition' ),
-			'fights_with_missing_blue_entry'     => __( 'Coins bleus liés à une inscription absente', 'ufsc-licence-competition' ),
-			'invalid_fight_winner'               => __( 'Vainqueurs incohérents', 'ufsc-licence-competition' ),
-			'duplicate_active_entries'           => __( 'Licenciés inscrits plusieurs fois au même événement', 'ufsc-licence-competition' ),
+			'entries_without_competition'    => __( 'Inscriptions sans événement', 'ufsc-licence-competition' ),
+			'categories_without_competition' => __( 'Catégories sans événement', 'ufsc-licence-competition' ),
+			'weighins_without_entry'          => __( 'Pesées sans inscription', 'ufsc-licence-competition' ),
+			'fights_without_competition'      => __( 'Combats sans événement', 'ufsc-licence-competition' ),
+			'fights_with_missing_red_entry'   => __( 'Coins rouges liés à une inscription absente', 'ufsc-licence-competition' ),
+			'fights_with_missing_blue_entry'  => __( 'Coins bleus liés à une inscription absente', 'ufsc-licence-competition' ),
+			'invalid_fight_winner'            => __( 'Vainqueurs incohérents', 'ufsc-licence-competition' ),
+			'duplicate_active_entries'        => __( 'Licenciés inscrits plusieurs fois au même événement', 'ufsc-licence-competition' ),
 		);
 		return $labels[ $key ] ?? $key;
 	}
