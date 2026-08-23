@@ -40,22 +40,22 @@ class EventProgramRegistry {
 
 		if ( ! is_array( $stored ) || empty( $stored['blocks'] ) || ! is_array( $stored['blocks'] ) ) {
 			return array(
-				'version'       => self::VERSION,
-				'configured'    => false,
-				'event_type'    => $event_type,
-				'blocks'        => self::get_default_blocks( $event_type ),
-				'updated_at'    => '',
-				'updated_by'    => 0,
+				'version'    => self::VERSION,
+				'configured' => false,
+				'event_type' => $event_type,
+				'blocks'     => self::get_default_blocks( $event_type ),
+				'updated_at' => '',
+				'updated_by' => 0,
 			);
 		}
 
 		return array(
-			'version'       => self::VERSION,
-			'configured'    => true,
-			'event_type'    => sanitize_key( (string) ( $stored['event_type'] ?? $event_type ) ),
-			'blocks'        => self::sanitize_blocks( $stored['blocks'], $event_type ),
-			'updated_at'    => sanitize_text_field( (string) ( $stored['updated_at'] ?? '' ) ),
-			'updated_by'    => absint( $stored['updated_by'] ?? 0 ),
+			'version'    => self::VERSION,
+			'configured' => true,
+			'event_type' => sanitize_key( (string) ( $stored['event_type'] ?? $event_type ) ),
+			'blocks'     => self::sanitize_blocks( $stored['blocks'], $event_type ),
+			'updated_at' => sanitize_text_field( (string) ( $stored['updated_at'] ?? '' ) ),
+			'updated_by' => absint( $stored['updated_by'] ?? 0 ),
 		);
 	}
 
@@ -159,6 +159,7 @@ class EventProgramRegistry {
 
 			$label = sanitize_text_field( (string) ( $block['label'] ?? '' ) );
 			if ( '' === $label ) {
+				/* translators: %d: one-based program block number. */
 				$label = sprintf( __( 'Bloc %d', 'ufsc-licence-competition' ), (int) $index + 1 );
 			}
 
@@ -173,7 +174,7 @@ class EventProgramRegistry {
 			$suffix  = 2;
 			while ( isset( $used_ids[ $id ] ) ) {
 				$id = $base_id . '-' . $suffix;
-				$suffix++;
+				++$suffix;
 			}
 			$used_ids[ $id ] = true;
 
@@ -250,10 +251,31 @@ class EventProgramRegistry {
 	}
 
 	public static function get_summary( array $program ): array {
-		$blocks             = isset( $program['blocks'] ) && is_array( $program['blocks'] ) ? $program['blocks'] : array();
-		$active_blocks      = array_values( array_filter( $blocks, static function ( array $block ): bool { return ! empty( $block['active'] ); } ) );
-		$tournament_blocks  = array_values( array_filter( $active_blocks, static function ( array $block ): bool { return self::MODE_TOURNAMENT === ( $block['mode'] ?? '' ); } ) );
-		$direct_blocks      = array_values( array_filter( $active_blocks, static function ( array $block ): bool { return self::MODE_DIRECT_FIGHTS === ( $block['mode'] ?? '' ); } ) );
+		$blocks = isset( $program['blocks'] ) && is_array( $program['blocks'] ) ? $program['blocks'] : array();
+		$active_blocks = array_values(
+			array_filter(
+				$blocks,
+				static function ( array $block ): bool {
+					return ! empty( $block['active'] );
+				}
+			)
+		);
+		$tournament_blocks = array_values(
+			array_filter(
+				$active_blocks,
+				static function ( array $block ): bool {
+					return self::MODE_TOURNAMENT === ( $block['mode'] ?? '' );
+				}
+			)
+		);
+		$direct_blocks = array_values(
+			array_filter(
+				$active_blocks,
+				static function ( array $block ): bool {
+					return self::MODE_DIRECT_FIGHTS === ( $block['mode'] ?? '' );
+				}
+			)
+		);
 
 		return array(
 			'active_blocks'     => count( $active_blocks ),
