@@ -6,15 +6,18 @@
     <file>includes/competitions/Services/EventProgramRegistry.php</file>
     <file>includes/competitions/Services/RegistrationScopePresenter.php</file>
     <file>includes/competitions/Services/RegistrationWindowService.php</file>
+    <file>includes/competitions/Services/CompetitionRequirementService.php</file>
     <file>includes/competitions/Services/CompetitionDuplicationService.php</file>
     <file>includes/competitions/Services/DatabaseTransaction.php</file>
     <file>includes/competitions/Services/AtomicOperationLock.php</file>
+    <file>includes/competitions/Services/FightResultPersistence.php</file>
     <file>includes/competitions/Services/CompetitionIntegrityService.php</file>
     <file>includes/competitions/Services/DatabaseSchemaGuard.php</file>
     <file>includes/competitions/Services/ResultService.php</file>
     <file>includes/competitions/Services/Pancrace</file>
     <file>includes/competitions/Admin/PremiumExperience.php</file>
     <file>includes/competitions/Admin/EventLifecycleAdmin.php</file>
+    <file>includes/competitions/Admin/CompetitionRequirementsAdmin.php</file>
     <file>includes/competitions/Admin/IntegrityHealthNotice.php</file>
     <file>includes/competitions/Admin/ResultConcurrencyAdmin.php</file>
     <file>includes/competitions/Admin/Pages/EventProgram_Page.php</file>
