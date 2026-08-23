@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<ruleset name="UFSC Licence Competition incremental quality">
+    <description>Strict checks are initially scoped to the new competition-domain services and tests.</description>
+
+    <file>includes/competitions/Services/EventFormatRegistry.php</file>
+    <file>includes/competitions/Services/Pancrace</file>
+    <file>tests/pancrace-reference-test.php</file>
+    <file>tests/event-format-registry-test.php</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+    <arg name="colors" />
+    <arg value="sp" />
+
+    <rule ref="WordPress-Core" />
+    <rule ref="WordPress-Extra" />
+    <rule ref="WordPress.PHP.YodaConditions.NotYoda"><severity>0</severity></rule>
+
+    <config name="minimum_supported_wp_version" value="6.0" />
+</ruleset>
