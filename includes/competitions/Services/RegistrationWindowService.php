@@ -51,7 +51,7 @@ class RegistrationWindowService {
 
 		$status = sanitize_key( (string) ( $competition->status ?? '' ) );
 		if ( 'open' !== $status ) {
-			$result['state'] = 'competition_closed';
+			$result['state']   = 'competition_closed';
 			$result['message'] = __( 'Les inscriptions sont fermées par l’organisateur.', 'ufsc-licence-competition' );
 			return $result;
 		}
@@ -67,17 +67,17 @@ class RegistrationWindowService {
 
 		$competition_id = absint( $competition->id ?? 0 );
 		if ( $competition_id && class_exists( CompetitionMeta::class ) ) {
-			$meta = CompetitionMeta::get( $competition_id );
+			$meta                 = CompetitionMeta::get( $competition_id );
 			$closing_candidates[] = self::parse_datetime( (string) ( $meta['registration_deadline'] ?? '' ), $timezone, true );
 		}
 
 		$closes_at = self::earliest_datetime( $closing_candidates );
 
-		$result['opens_at'] = $opens_at ? $opens_at->format( 'Y-m-d H:i:s' ) : '';
+		$result['opens_at']  = $opens_at ? $opens_at->format( 'Y-m-d H:i:s' ) : '';
 		$result['closes_at'] = $closes_at ? $closes_at->format( 'Y-m-d H:i:s' ) : '';
 
 		if ( $opens_at && $now < $opens_at ) {
-			$result['state'] = 'not_open_yet';
+			$result['state']   = 'not_open_yet';
 			$result['message'] = sprintf(
 				/* translators: %s: date/time */
 				__( 'Les inscriptions ouvriront le %s.', 'ufsc-licence-competition' ),
@@ -87,7 +87,7 @@ class RegistrationWindowService {
 		}
 
 		if ( $closes_at && $now > $closes_at ) {
-			$result['state'] = 'deadline_passed';
+			$result['state']   = 'deadline_passed';
 			$result['message'] = sprintf(
 				/* translators: %s: date/time */
 				__( 'La date de forclusion est dépassée depuis le %s. Les inscriptions restent consultables mais ne sont plus modifiables par les clubs.', 'ufsc-licence-competition' ),
@@ -97,7 +97,7 @@ class RegistrationWindowService {
 		}
 
 		$result['is_open'] = true;
-		$result['state'] = 'open';
+		$result['state']   = 'open';
 		$result['message'] = $closes_at
 			? sprintf(
 				/* translators: %s: date/time */
@@ -136,7 +136,7 @@ class RegistrationWindowService {
 		$valid = array_values(
 			array_filter(
 				$dates,
-				static function( $date ) {
+				static function ( $date ) {
 					return $date instanceof \DateTimeImmutable;
 				}
 			)
@@ -147,7 +147,7 @@ class RegistrationWindowService {
 
 		usort(
 			$valid,
-			static function( \DateTimeImmutable $a, \DateTimeImmutable $b ): int {
+			static function ( \DateTimeImmutable $a, \DateTimeImmutable $b ): int {
 				return $a->getTimestamp() <=> $b->getTimestamp();
 			}
 		);
