@@ -70,9 +70,9 @@ class ResultService {
 		return $this->with_fight_lock(
 			$fight_id,
 			'record_result',
-			function() use ( $fight_id, $payload ) {
+			function () use ( $fight_id, $payload ) {
 				return DatabaseTransaction::run(
-					function() use ( $fight_id, $payload ) {
+					function () use ( $fight_id, $payload ) {
 						$fight = $this->fights->get( $fight_id, true );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
@@ -116,9 +116,9 @@ class ResultService {
 		return $this->with_fight_lock(
 			$fight_id,
 			'correct_result',
-			function() use ( $fight_id, $payload ) {
+			function () use ( $fight_id, $payload ) {
 				return DatabaseTransaction::run(
-					function() use ( $fight_id, $payload ) {
+					function () use ( $fight_id, $payload ) {
 						$fight = $this->fights->get( $fight_id, true );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
@@ -161,9 +161,9 @@ class ResultService {
 		return $this->with_fight_lock(
 			$fight_id,
 			'lock_result',
-			function() use ( $fight_id, $reason ) {
+			function () use ( $fight_id, $reason ) {
 				return DatabaseTransaction::run(
-					function() use ( $fight_id, $reason ) {
+					function () use ( $fight_id, $reason ) {
 						$fight = $this->fights->get( $fight_id, true );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
@@ -212,8 +212,8 @@ class ResultService {
 	}
 
 	private function with_fight_lock( int $fight_id, string $action, callable $callback ): array {
-		$resource = 'fight_result:' . absint( $fight_id );
-		$token = AtomicOperationLock::acquire( $resource, 30 );
+		$lock_name = 'fight_result:' . absint( $fight_id );
+		$token     = AtomicOperationLock::acquire( $lock_name, 30 );
 		if ( '' === $token ) {
 			return array(
 				'ok'      => false,
@@ -242,7 +242,7 @@ class ResultService {
 				'message' => __( 'Le résultat n’a pas été enregistré. Aucune modification partielle n’a été conservée.', 'ufsc-licence-competition' ),
 			);
 		} finally {
-			AtomicOperationLock::release( $resource, $token );
+			AtomicOperationLock::release( $lock_name, $token );
 		}
 	}
 
