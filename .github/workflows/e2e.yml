@@ -8,29 +8,68 @@ on:
 permissions:
   contents: read
 
+env:
+  UFSC_PARENT_REPOSITORY: DavyReactiv/PLUGIN-UFSC-GESTION-SEPT2025
+  UFSC_PARENT_REF: 32f7baeb020cbd0d4169b775b1e9680e314847cf
+
 jobs:
   playwright:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
       - name: Install Node QA dependencies
         run: npm install
+
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+
+      - name: Prepare UFSC parent plugin dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --no-checkout "https://github.com/${UFSC_PARENT_REPOSITORY}.git" ufsc-parent-plugin
+          git -C ufsc-parent-plugin fetch --depth 1 origin "${UFSC_PARENT_REF}"
+          git -C ufsc-parent-plugin checkout --detach FETCH_HEAD
+          composer install --working-dir=ufsc-parent-plugin --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
+          cat > .wp-env.override.json <<'JSON'
+          {
+            "plugins": [
+              "./ufsc-parent-plugin",
+              "."
+            ]
+          }
+          JSON
+
       - name: Start disposable WordPress environment
         run: npx wp-env start
+
       - name: Wait for WordPress
         run: curl --retry 20 --retry-delay 3 --retry-connrefused --fail http://localhost:8888/wp-login.php --output /dev/null
+
+      - name: Verify UFSC plugins are active
+        run: |
+          npx wp-env run cli wp plugin activate ufsc-parent-plugin ufsc-licence-competition
+          npx wp-env run cli wp plugin list
+
       - name: Run Playwright workflow and visual checks
         run: npm run test:e2e
         env:
           WP_BASE_URL: http://localhost:8888
           WP_ADMIN_USER: admin
           WP_ADMIN_PASSWORD: password
+
       - name: Upload Playwright report and screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -41,6 +80,7 @@ jobs:
             test-results
           if-no-files-found: ignore
           retention-days: 14
+
       - name: Stop WordPress environment
         if: always()
         run: npx wp-env stop || true
