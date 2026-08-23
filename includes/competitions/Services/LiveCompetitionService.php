@@ -141,12 +141,12 @@ class LiveCompetitionService {
 	}
 
 	private static function serialize_fight( $fight, array $entries, array $categories ): array {
-		$red_id       = absint( $fight->red_entry_id ?? 0 );
-		$blue_id      = absint( $fight->blue_entry_id ?? 0 );
-		$winner_id    = absint( $fight->winner_entry_id ?? 0 );
-		$category_id  = absint( $fight->category_id ?? 0 );
-		$status       = self::normalize_status( (string) ( $fight->status ?? '' ), $fight );
-		$result       = FightResultPersistence::get_method( $fight );
+		$red_id      = absint( $fight->red_entry_id ?? 0 );
+		$blue_id     = absint( $fight->blue_entry_id ?? 0 );
+		$winner_id   = absint( $fight->winner_entry_id ?? 0 );
+		$category_id = absint( $fight->category_id ?? 0 );
+		$status      = self::normalize_status( (string) ( $fight->status ?? '' ), $fight );
+		$result      = FightResultPersistence::get_method( $fight );
 
 		return array(
 			'id'       => absint( $fight->id ?? 0 ),
@@ -234,6 +234,7 @@ class LiveCompetitionService {
 			if ( in_array( $candidate, $columns, true ) ) {
 				return $candidate;
 			}
+		}
 		return 'id';
 	}
 }
