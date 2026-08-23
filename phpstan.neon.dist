@@ -1,0 +1,13 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 2
+    paths:
+        - includes/competitions/Services/EventFormatRegistry.php
+        - includes/competitions/Services/Pancrace
+    excludePaths:
+        analyse:
+            - vendor
+            - node_modules
+    reportUnmatchedIgnoredErrors: false
