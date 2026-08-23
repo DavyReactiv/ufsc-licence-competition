@@ -52,9 +52,11 @@ require_once UFSC_LC_DIR . 'includes/competitions/Services/EventProgramRegistry.
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationScopePresenter.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationWindowService.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionRequirementService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionDuplicationService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/DatabaseTransaction.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/AtomicOperationLock.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/FightResultPersistence.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionIntegrityService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/DatabaseSchemaGuard.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
@@ -62,16 +64,19 @@ require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDoma
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/EventLifecycleAdmin.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/CompetitionRequirementsAdmin.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/IntegrityHealthNotice.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/ResultConcurrencyAdmin.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Front/PremiumRegistrationExperience.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Front/ClubCompetitionPortal.php';
 
 \UFSC\Competitions\Services\RegistrationWindowService::register();
+\UFSC\Competitions\Services\CompetitionRequirementService::register();
 \UFSC\Competitions\Services\DatabaseSchemaGuard::register();
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
 \UFSC\Competitions\Admin\PremiumExperience::register();
 \UFSC\Competitions\Admin\EventLifecycleAdmin::register();
+\UFSC\Competitions\Admin\CompetitionRequirementsAdmin::register();
 \UFSC\Competitions\Admin\IntegrityHealthNotice::register();
 \UFSC\Competitions\Admin\ResultConcurrencyAdmin::register();
 \UFSC\Competitions\Front\PremiumRegistrationExperience::register();
