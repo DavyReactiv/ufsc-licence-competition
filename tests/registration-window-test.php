@@ -5,6 +5,13 @@ define( 'ABSPATH', __DIR__ . '/' );
 function __( $text, $domain = null ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 	return $text;
 }
+function sanitize_key( $key ) {
+	$key = strtolower( (string) $key );
+	return (string) preg_replace( '/[^a-z0-9_\-]/', '', $key );
+}
+function absint( $value ) {
+	return abs( (int) $value );
+}
 function wp_timezone() {
 	return new DateTimeZone( 'UTC' );
 }
@@ -37,11 +44,11 @@ $past_close   = gmdate( 'Y-m-d H:i:s', time() - 3600 );
 $later_close  = gmdate( 'Y-m-d H:i:s', time() + 14400 );
 
 $open = (object) array(
-	'id'                          => 0,
-	'status'                      => 'open',
-	'registration_open_datetime' => '',
-	'registration_close_datetime'=> $future_close,
-	'registration_deadline'       => '',
+	'id'                           => 0,
+	'status'                       => 'open',
+	'registration_open_datetime'  => '',
+	'registration_close_datetime' => $future_close,
+	'registration_deadline'        => '',
 );
 $result = RegistrationWindowService::evaluate( $open );
 assert_true( true === $result['is_open'], 'Open competition with future close date must accept registrations.' );
