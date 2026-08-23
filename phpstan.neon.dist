@@ -8,15 +8,18 @@ parameters:
         - includes/competitions/Services/EventProgramRegistry.php
         - includes/competitions/Services/RegistrationScopePresenter.php
         - includes/competitions/Services/RegistrationWindowService.php
+        - includes/competitions/Services/CompetitionRequirementService.php
         - includes/competitions/Services/CompetitionDuplicationService.php
         - includes/competitions/Services/DatabaseTransaction.php
         - includes/competitions/Services/AtomicOperationLock.php
+        - includes/competitions/Services/FightResultPersistence.php
         - includes/competitions/Services/CompetitionIntegrityService.php
         - includes/competitions/Services/DatabaseSchemaGuard.php
         - includes/competitions/Services/ResultService.php
         - includes/competitions/Services/Pancrace
         - includes/competitions/Admin/PremiumExperience.php
         - includes/competitions/Admin/EventLifecycleAdmin.php
+        - includes/competitions/Admin/CompetitionRequirementsAdmin.php
         - includes/competitions/Admin/IntegrityHealthNotice.php
         - includes/competitions/Admin/ResultConcurrencyAdmin.php
         - includes/competitions/Admin/Pages/EventProgram_Page.php
