@@ -46,6 +46,12 @@ if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 	define( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL', 'https://ufsc-france.fr/wp-content/uploads/2026/04/AGES-CATEGORIES-DE-POIDS-TATAMI-SAISON-2025-2026-V2_2026.pdf' );
 }
 
+// Competition domain extensions that must be available before the module boots.
+require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
+\UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
+
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 
