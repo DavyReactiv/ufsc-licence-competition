@@ -101,17 +101,17 @@ class RegistrationScopePresenter {
 		}
 
 		return array(
-			'mode'             => $mode,
-			'title'            => $title,
-			'summary'          => $summary,
-			'tone'             => $tone,
-			'regions'          => $regions,
-			'disciplines'      => $disciplines,
-			'discipline_labels'=> self::discipline_labels( $disciplines ),
-			'club_ids'         => $club_ids,
-			'requirements'     => $requirements,
-			'public_read'      => ! empty( $settings['public_read'] ),
-			'is_region_scoped' => in_array( $mode, array( 'regions', 'region_discipline' ), true ),
+			'mode'              => $mode,
+			'title'             => $title,
+			'summary'           => $summary,
+			'tone'              => $tone,
+			'regions'           => $regions,
+			'disciplines'       => $disciplines,
+			'discipline_labels' => self::discipline_labels( $disciplines ),
+			'club_ids'          => $club_ids,
+			'requirements'      => $requirements,
+			'public_read'       => ! empty( $settings['public_read'] ),
+			'is_region_scoped'  => in_array( $mode, array( 'regions', 'region_discipline' ), true ),
 		);
 	}
 
