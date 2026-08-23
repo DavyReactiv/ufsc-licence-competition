@@ -7,8 +7,10 @@ parameters:
         - includes/competitions/Services/EventFormatRegistry.php
         - includes/competitions/Services/EventProgramRegistry.php
         - includes/competitions/Services/RegistrationScopePresenter.php
+        - includes/competitions/Services/CompetitionDuplicationService.php
         - includes/competitions/Services/Pancrace
         - includes/competitions/Admin/PremiumExperience.php
+        - includes/competitions/Admin/EventLifecycleAdmin.php
         - includes/competitions/Admin/Pages/EventProgram_Page.php
         - includes/competitions/Front/PremiumRegistrationExperience.php
     excludePaths:
