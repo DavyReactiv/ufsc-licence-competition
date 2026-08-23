@@ -8,6 +8,7 @@
     <file>includes/competitions/Services/Pancrace</file>
     <file>includes/competitions/Admin/PremiumExperience.php</file>
     <file>includes/competitions/Admin/Pages/EventProgram_Page.php</file>
+    <file>includes/competitions/Front/PremiumRegistrationExperience.php</file>
 
     <exclude-pattern>*/vendor/*</exclude-pattern>
     <exclude-pattern>*/node_modules/*</exclude-pattern>
