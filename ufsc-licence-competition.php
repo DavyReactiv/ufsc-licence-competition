@@ -50,17 +50,29 @@ if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventProgramRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationScopePresenter.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationWindowService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionDuplicationService.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/DatabaseTransaction.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/AtomicOperationLock.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/CompetitionIntegrityService.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/EventLifecycleAdmin.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/IntegrityHealthNotice.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/ResultConcurrencyAdmin.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Front/PremiumRegistrationExperience.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Front/ClubCompetitionPortal.php';
+
+\UFSC\Competitions\Services\RegistrationWindowService::register();
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
 \UFSC\Competitions\Admin\PremiumExperience::register();
 \UFSC\Competitions\Admin\EventLifecycleAdmin::register();
+\UFSC\Competitions\Admin\IntegrityHealthNotice::register();
+\UFSC\Competitions\Admin\ResultConcurrencyAdmin::register();
 \UFSC\Competitions\Front\PremiumRegistrationExperience::register();
+\UFSC\Competitions\Front\ClubCompetitionPortal::register();
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
