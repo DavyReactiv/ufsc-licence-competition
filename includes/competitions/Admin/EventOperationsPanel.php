@@ -126,7 +126,7 @@ class EventOperationsPanel {
 		$active = 0;
 		foreach ( $items as $item ) {
 			if ( is_array( $item ) && ! empty( $item['active'] ) ) {
-				$active++;
+				++$active;
 			}
 		}
 
