@@ -109,7 +109,8 @@ class LiveCompetitionService {
 	private static function get_competition( int $competition_id ) {
 		global $wpdb;
 		$table = Db::competitions_table();
-		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $competition_id ) );
+		// Table name comes exclusively from the plugin's internal Db helper.
+		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $competition_id ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 	}
 
 	private static function get_fights( int $competition_id ): array {
@@ -118,8 +119,9 @@ class LiveCompetitionService {
 		$columns = Db::get_table_columns( $table );
 		$where   = in_array( 'deleted_at', $columns, true ) ? " AND (deleted_at IS NULL OR deleted_at = '')" : '';
 		$order   = self::first_existing_column( $columns, array( 'scheduled_order', 'surface_order', 'fight_no', 'id' ) );
-		$sql     = $wpdb->prepare( "SELECT * FROM {$table} WHERE competition_id = %d{$where} ORDER BY {$order} ASC, id ASC", $competition_id );
-		$rows    = $wpdb->get_results( $sql );
+		// Dynamic identifiers are constrained to internal table names and the allow-list above.
+		$sql  = $wpdb->prepare( "SELECT * FROM {$table} WHERE competition_id = %d{$where} ORDER BY {$order} ASC, id ASC", $competition_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$rows = $wpdb->get_results( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- query was prepared immediately above.
 		return is_array( $rows ) ? $rows : array();
 	}
 
@@ -131,9 +133,10 @@ class LiveCompetitionService {
 		}
 
 		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-		$sql          = $wpdb->prepare( "SELECT * FROM {$table} WHERE id IN ({$placeholders})", $ids );
-		$rows         = $wpdb->get_results( $sql );
-		$indexed      = array();
+		// Table is an existing plugin table and IDs are normalized with absint() above.
+		$sql  = $wpdb->prepare( "SELECT * FROM {$table} WHERE id IN ({$placeholders})", $ids ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		$rows = $wpdb->get_results( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- query was prepared immediately above.
+		$indexed = array();
 		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
 			$indexed[ absint( $row->id ?? 0 ) ] = $row;
 		}
@@ -165,6 +168,7 @@ class LiveCompetitionService {
 		$last  = self::first_value( $entry, array( 'licensee_last_name', 'last_name', 'lastname', 'nom' ) );
 		$name  = trim( $first . ' ' . $last );
 		if ( '' === $name ) {
+			/* translators: %d is the internal public participant entry number. */
 			$name = $entry_id > 0 ? sprintf( __( 'Participant #%d', 'ufsc-licence-competition' ), $entry_id ) : __( 'À déterminer', 'ufsc-licence-competition' );
 		}
 		$club = self::first_value( $entry, array( 'club_nom', 'club_name', 'structure_name' ) );
@@ -179,6 +183,7 @@ class LiveCompetitionService {
 
 	private static function category_label( $category, int $category_id ): string {
 		$label = self::first_value( $category, array( 'name', 'label', 'category_name', 'title' ) );
+		/* translators: %d is the internal category number. */
 		return '' !== $label ? sanitize_text_field( $label ) : ( $category_id > 0 ? sprintf( __( 'Catégorie #%d', 'ufsc-licence-competition' ), $category_id ) : '' );
 	}
 
@@ -202,6 +207,7 @@ class LiveCompetitionService {
 			}
 		}
 		$number = absint( $fight->surface_no ?? 0 );
+		/* translators: %d is the competition surface number. */
 		return $number > 0 ? sprintf( __( 'Surface %d', 'ufsc-licence-competition' ), $number ) : __( 'Surface principale', 'ufsc-licence-competition' );
 	}
 
