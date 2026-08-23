@@ -58,10 +58,84 @@ jobs:
       - name: Wait for WordPress
         run: curl --retry 20 --retry-delay 3 --retry-connrefused --fail http://localhost:8888/wp-login.php --output /dev/null
 
-      - name: Verify UFSC plugins are active
+      - name: Prepare historical UFSC base tables and admin account
+        shell: bash
         run: |
-          npx wp-env run cli wp plugin activate ufsc-parent-plugin ufsc-licence-competition
+          set -euo pipefail
+          npx wp-env run cli wp plugin deactivate --all --skip-plugins --skip-themes || true
+          cat > /tmp/ufsc-base-schema.sql <<'SQL'
+          CREATE TABLE IF NOT EXISTS wp_ufsc_clubs (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            nom varchar(191) NOT NULL DEFAULT '',
+            region varchar(191) NOT NULL DEFAULT '',
+            email varchar(191) NOT NULL DEFAULT '',
+            telephone varchar(50) NOT NULL DEFAULT '',
+            adresse varchar(255) NOT NULL DEFAULT '',
+            code_postal varchar(20) NOT NULL DEFAULT '',
+            ville varchar(191) NOT NULL DEFAULT '',
+            statut varchar(50) NOT NULL DEFAULT '',
+            status varchar(50) NOT NULL DEFAULT '',
+            date_affiliation date NULL DEFAULT NULL,
+            numero_affiliation varchar(100) NULL DEFAULT NULL,
+            numero_affiliation_ufsc varchar(100) NULL DEFAULT NULL,
+            numero_affiliation_asptt varchar(100) NULL DEFAULT NULL,
+            disciplines text NULL,
+            created_at datetime NULL DEFAULT NULL,
+            updated_at datetime NULL DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY region (region)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+          CREATE TABLE IF NOT EXISTS wp_ufsc_licences (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            club_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            nom varchar(191) NOT NULL DEFAULT '',
+            prenom varchar(191) NOT NULL DEFAULT '',
+            date_naissance date NULL DEFAULT NULL,
+            sexe varchar(20) NOT NULL DEFAULT '',
+            email varchar(191) NOT NULL DEFAULT '',
+            status varchar(50) NOT NULL DEFAULT '',
+            statut varchar(50) NOT NULL DEFAULT '',
+            saison varchar(20) NOT NULL DEFAULT '',
+            numero_licence varchar(100) NULL DEFAULT NULL,
+            numero_licence_ufsc varchar(100) NULL DEFAULT NULL,
+            numero_licence_asptt varchar(100) NULL DEFAULT NULL,
+            poids decimal(5,2) NULL DEFAULT NULL,
+            categorie_age_detectee varchar(100) NULL DEFAULT NULL,
+            categorie_poids_detectee varchar(50) NULL DEFAULT NULL,
+            categorie_updated_at datetime NULL DEFAULT NULL,
+            fighter_level varchar(20) NULL DEFAULT NULL,
+            pays varchar(100) NOT NULL DEFAULT 'France',
+            role varchar(100) NOT NULL DEFAULT '',
+            created_at datetime NULL DEFAULT NULL,
+            updated_at datetime NULL DEFAULT NULL,
+            deleted_at datetime NULL DEFAULT NULL,
+            deleted_by bigint(20) unsigned NULL DEFAULT NULL,
+            previous_licence_id bigint(20) unsigned NULL DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY club_id (club_id),
+            KEY saison (saison),
+            KEY status (status)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          SQL
+          npx wp-env run cli wp db query "$(cat /tmp/ufsc-base-schema.sql)" --skip-plugins --skip-themes
+          npx wp-env run cli wp user update admin --user_pass=password --user_email=admin@example.test --skip-plugins --skip-themes
+
+      - name: Activate UFSC plugins and run additive migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wp-env run cli wp plugin activate ufsc-parent-plugin
+          npx wp-env run cli wp eval 'if ( class_exists("UFSC_DB_Migrations") ) { UFSC_DB_Migrations::run_migrations(); }'
+          npx wp-env run cli wp plugin activate ufsc-licence-competition
           npx wp-env run cli wp plugin list
+
+      - name: Verify UFSC database prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wp-env run cli wp db query "SHOW TABLES LIKE 'wp_ufsc_clubs'; SHOW TABLES LIKE 'wp_ufsc_licences';" --skip-plugins --skip-themes
+          npx wp-env run cli wp eval 'global $wpdb; foreach (["ufsc_clubs","ufsc_licences"] as $suffix) { $table=$wpdb->prefix.$suffix; if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s",$table)) !== $table) { fwrite(STDERR,"Missing $table\n"); exit(1); } } echo "UFSC base tables ready\n";'
 
       - name: Run Playwright workflow and visual checks
         run: npm run test:e2e
