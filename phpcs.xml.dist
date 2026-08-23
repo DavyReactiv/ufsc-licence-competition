@@ -3,7 +3,11 @@
     <description>WordPress coding checks scoped to new competition-domain services while respecting the repository's existing class-file conventions.</description>
 
     <file>includes/competitions/Services/EventFormatRegistry.php</file>
+    <file>includes/competitions/Services/EventProgramRegistry.php</file>
+    <file>includes/competitions/Services/RegistrationScopePresenter.php</file>
     <file>includes/competitions/Services/Pancrace</file>
+    <file>includes/competitions/Admin/PremiumExperience.php</file>
+    <file>includes/competitions/Admin/Pages/EventProgram_Page.php</file>
 
     <exclude-pattern>*/vendor/*</exclude-pattern>
     <exclude-pattern>*/node_modules/*</exclude-pattern>
