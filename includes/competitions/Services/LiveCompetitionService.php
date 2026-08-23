@@ -11,10 +11,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 /** Builds a strictly whitelisted, read-only public snapshot for competition live pages. */
 class LiveCompetitionService {
 	private const CACHE_TTL = 5;
+	private const ENABLED_OPTION_PREFIX = 'ufsc_competition_live_enabled_';
 
 	public static function is_enabled( int $competition_id ): bool {
-		$meta = CompetitionMeta::get( $competition_id );
-		return ! empty( $meta['live_enabled'] );
+		$competition_id = absint( $competition_id );
+		return $competition_id > 0 && '1' === (string) get_option( self::ENABLED_OPTION_PREFIX . $competition_id, '0' );
 	}
 
 	public static function get_snapshot( int $competition_id, string $surface = '' ): array {
