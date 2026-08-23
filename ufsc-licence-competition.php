@@ -47,10 +47,15 @@ if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 }
 
 // Competition domain extensions that must be available before the module boots.
+require_once UFSC_LC_DIR . 'includes/competitions/Services/EventProgramRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationScopePresenter.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
+\UFSC\Competitions\Admin\PremiumExperience::register();
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
