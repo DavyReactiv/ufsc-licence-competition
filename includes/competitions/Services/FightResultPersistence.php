@@ -86,8 +86,33 @@ class FightResultPersistence {
 		);
 	}
 
+	/** Update only a fight status without passing through legacy result fields. */
+	public static function update_status( int $fight_id, string $status ) {
+		global $wpdb;
+
+		$fight_id = absint( $fight_id );
+		$table    = Db::fights_table();
+		if ( ! $fight_id || ! Db::table_exists( $table ) || ! Db::has_table_column( $table, 'status' ) ) {
+			return false;
+		}
+
+		$columns = Db::get_table_columns( $table );
+		$payload = array( 'status' => sanitize_key( $status ) );
+		$formats = array( '%s' );
+		self::add_if_column( $payload, $formats, $columns, 'updated_at', current_time( 'mysql' ), '%s' );
+		self::add_if_column( $payload, $formats, $columns, 'updated_by', absint( get_current_user_id() ), '%d' );
+
+		return $wpdb->update(
+			$table,
+			$payload,
+			array( 'id' => $fight_id ),
+			$formats,
+			array( '%d' )
+		);
+	}
+
 	private static function add_if_column( array &$payload, array &$formats, array $columns, string $column, $value, string $format ): void {
-		if ( ! in_array( $column, $columns, true ) ) {
+		if ( ! in_array( $column, $columns, true ) || array_key_exists( $column, $payload ) ) {
 			return;
 		}
 
