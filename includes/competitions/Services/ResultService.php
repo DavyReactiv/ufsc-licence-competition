@@ -19,6 +19,7 @@ class ResultService {
 	}
 
 	public function validate_result_payload( $fight, array $payload, bool $is_correction = false ): array {
+		$fight  = FightResultPersistence::normalize( $fight );
 		$status = $this->fights->get_effective_fight_status( $fight );
 		if ( in_array( $status, array( FightRepository::STATUS_BYE, FightRepository::STATUS_PLACEHOLDER, FightRepository::STATUS_TRASHED ), true ) ) {
 			return array( 'ok' => false, 'error' => 'unsupported_fight_status' );
@@ -31,15 +32,15 @@ class ResultService {
 		}
 
 		$result_type = sanitize_key( (string) ( $payload['result_type'] ?? $payload['result_method'] ?? '' ) );
-		$allowed = array( 'points', 'arret_arbitre', 'forfait', 'abandon', 'disqualification', 'absence', 'no_contest', 'litige', 'annule' );
+		$allowed     = array( 'points', 'arret_arbitre', 'forfait', 'abandon', 'disqualification', 'absence', 'no_contest', 'litige', 'annule' );
 		if ( '' !== $result_type && ! in_array( $result_type, $allowed, true ) ) {
 			return array( 'ok' => false, 'error' => 'invalid_result_type' );
 		}
 
 		$winner_entry_id = absint( $payload['winner_entry_id'] ?? 0 );
-		$red_entry_id = absint( $fight->red_entry_id ?? 0 );
-		$blue_entry_id = absint( $fight->blue_entry_id ?? 0 );
-		$reason = trim( (string) ( $payload['reason'] ?? '' ) );
+		$red_entry_id    = absint( $fight->red_entry_id ?? 0 );
+		$blue_entry_id   = absint( $fight->blue_entry_id ?? 0 );
+		$reason          = trim( (string) ( $payload['reason'] ?? '' ) );
 		$winner_optional = in_array( $result_type, array( 'no_contest', 'litige', 'annule' ), true );
 		if ( ! $winner_optional && $winner_entry_id <= 0 ) {
 			return array( 'ok' => false, 'error' => 'winner_required' );
@@ -73,7 +74,7 @@ class ResultService {
 			function () use ( $fight_id, $payload ) {
 				return DatabaseTransaction::run(
 					function () use ( $fight_id, $payload ) {
-						$fight = $this->fights->get( $fight_id, true );
+						$fight = FightResultPersistence::normalize( $this->fights->get( $fight_id, true ) );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
 						}
@@ -85,7 +86,11 @@ class ResultService {
 
 						$safety = ( new CompetitionSafetyService() )->guard_fight_result_mutation( (int) $fight->competition_id, $fight_id, 'record_result', false );
 						if ( empty( $safety['ok'] ) ) {
-							return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+							return array(
+								'ok'      => false,
+								'error'   => (string) ( $safety['reason'] ?? 'safety_blocked' ),
+								'message' => (string) ( $safety['message'] ?? '' ),
+							);
 						}
 
 						$check = $this->validate_result_payload( $fight, $payload, false );
@@ -93,14 +98,15 @@ class ResultService {
 							return $check;
 						}
 
-						$new = $this->build_update_payload( $fight, $payload, false );
-						$write = $this->fights->update( $fight_id, $new );
+						$new   = $this->build_update_payload( $fight, $payload, false );
+						$write = FightResultPersistence::update_result( $fight_id, $new );
 						if ( false === $write ) {
 							throw new \RuntimeException( 'result_write_failed' );
 						}
 
 						$fresh = $this->verify_result_write( $fight_id, $new );
 						$this->logger->audit( 'result_recorded', (int) $fight->competition_id, 'fight', $fight_id, $this->build_result_audit_payload( $fight, $fresh, $payload ) );
+
 						return array( 'ok' => true, 'fight' => $fresh );
 					}
 				);
@@ -119,7 +125,7 @@ class ResultService {
 			function () use ( $fight_id, $payload ) {
 				return DatabaseTransaction::run(
 					function () use ( $fight_id, $payload ) {
-						$fight = $this->fights->get( $fight_id, true );
+						$fight = FightResultPersistence::normalize( $this->fights->get( $fight_id, true ) );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
 						}
@@ -133,7 +139,11 @@ class ResultService {
 						$safety = ( new CompetitionSafetyService() )->guard_fight_result_mutation( (int) $fight->competition_id, $fight_id, 'correct_result', true );
 						if ( empty( $safety['ok'] ) ) {
 							$this->logger->audit( 'result_correction_blocked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => (string) ( $safety['reason'] ?? 'safety_blocked' ) ) );
-							return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+							return array(
+								'ok'      => false,
+								'error'   => (string) ( $safety['reason'] ?? 'safety_blocked' ),
+								'message' => (string) ( $safety['message'] ?? '' ),
+							);
 						}
 
 						$check = $this->validate_result_payload( $fight, $payload, true );
@@ -142,14 +152,15 @@ class ResultService {
 							return $check;
 						}
 
-						$new = $this->build_update_payload( $fight, $payload, true );
-						$write = $this->fights->update( $fight_id, $new );
+						$new   = $this->build_update_payload( $fight, $payload, true );
+						$write = FightResultPersistence::update_result( $fight_id, $new );
 						if ( false === $write ) {
 							throw new \RuntimeException( 'result_correction_write_failed' );
 						}
 
 						$fresh = $this->verify_result_write( $fight_id, $new );
 						$this->logger->audit( 'result_corrected', (int) $fight->competition_id, 'fight', $fight_id, $this->build_result_audit_payload( $fight, $fresh, $payload ) );
+
 						return array( 'ok' => true, 'fight' => $fresh );
 					}
 				);
@@ -164,14 +175,18 @@ class ResultService {
 			function () use ( $fight_id, $reason ) {
 				return DatabaseTransaction::run(
 					function () use ( $fight_id, $reason ) {
-						$fight = $this->fights->get( $fight_id, true );
+						$fight = FightResultPersistence::normalize( $this->fights->get( $fight_id, true ) );
 						if ( ! $fight ) {
 							return array( 'ok' => false, 'error' => 'fight_not_found' );
 						}
 
 						$safety = ( new CompetitionSafetyService() )->assert_competition_ready( (int) $fight->competition_id, 'lock_result', array( 'fight_id' => $fight_id ) );
 						if ( empty( $safety['ok'] ) ) {
-							return array( 'ok' => false, 'error' => (string) ( $safety['reason'] ?? 'safety_blocked' ), 'message' => (string) ( $safety['message'] ?? '' ) );
+							return array(
+								'ok'      => false,
+								'error'   => (string) ( $safety['reason'] ?? 'safety_blocked' ),
+								'message' => (string) ( $safety['message'] ?? '' ),
+							);
 						}
 
 						$status = $this->fights->get_effective_fight_status( $fight );
@@ -182,16 +197,18 @@ class ResultService {
 							return array( 'ok' => false, 'error' => 'not_completed' );
 						}
 
-						$write = $this->fights->update( $fight_id, array( 'status' => FightRepository::STATUS_LOCKED ) );
+						$write = FightResultPersistence::update_status( $fight_id, FightRepository::STATUS_LOCKED );
 						if ( false === $write ) {
 							throw new \RuntimeException( 'result_lock_write_failed' );
 						}
-						$fresh = $this->fights->get( $fight_id, true );
+
+						$fresh = FightResultPersistence::normalize( $this->fights->get( $fight_id, true ) );
 						if ( ! $fresh || FightRepository::STATUS_LOCKED !== $this->fights->get_effective_fight_status( $fresh ) ) {
 							throw new \RuntimeException( 'result_lock_verification_failed' );
 						}
 
 						$this->logger->audit( 'result_locked', (int) $fight->competition_id, 'fight', $fight_id, array( 'reason' => sanitize_text_field( $reason ) ) );
+
 						return array( 'ok' => true, 'fight' => $fresh );
 					}
 				);
@@ -203,11 +220,11 @@ class ResultService {
 		return array(
 			'old_status' => (string) ( $old_fight->status ?? '' ),
 			'new_status' => (string) ( $new_fight->status ?? '' ),
-			'old_result' => (string) ( $old_fight->result_method ?? '' ),
-			'new_result' => (string) ( $new_fight->result_method ?? '' ),
+			'old_result' => FightResultPersistence::get_method( $old_fight ),
+			'new_result' => FightResultPersistence::get_method( $new_fight ),
 			'old_winner' => (int) ( $old_fight->winner_entry_id ?? 0 ),
 			'new_winner' => (int) ( $new_fight->winner_entry_id ?? 0 ),
-			'reason' => sanitize_textarea_field( (string) ( $context['reason'] ?? '' ) ),
+			'reason'     => sanitize_textarea_field( (string) ( $context['reason'] ?? '' ) ),
 		);
 	}
 
@@ -269,7 +286,7 @@ class ResultService {
 	}
 
 	private function verify_result_write( int $fight_id, array $expected ) {
-		$fresh = $this->fights->get( $fight_id, true );
+		$fresh = FightResultPersistence::normalize( $this->fights->get( $fight_id, true ) );
 		if ( ! $fresh ) {
 			throw new \RuntimeException( 'result_verification_fight_missing' );
 		}
@@ -283,8 +300,8 @@ class ResultService {
 			throw new \RuntimeException( 'result_verification_winner_mismatch' );
 		}
 
-		$expected_method = sanitize_key( (string) ( $expected['result_method'] ?? '' ) );
-		$current_method  = sanitize_key( (string) ( $fresh->result_method ?? '' ) );
+		$expected_method = sanitize_key( (string) ( $expected['result_method'] ?? $expected['result_type'] ?? '' ) );
+		$current_method  = FightResultPersistence::get_method( $fresh );
 		if ( $expected_method !== $current_method ) {
 			throw new \RuntimeException( 'result_verification_method_mismatch' );
 		}
@@ -294,22 +311,16 @@ class ResultService {
 
 	private function build_update_payload( $fight, array $payload, bool $is_correction ): array { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 		$result_type = sanitize_key( (string) ( $payload['result_type'] ?? $payload['result_method'] ?? '' ) );
+
 		return array(
-			'competition_id' => (int) $fight->competition_id,
-			'category_id' => (int) $fight->category_id,
-			'fight_no' => (int) $fight->fight_no,
-			'ring' => (string) ( $fight->ring ?? '' ),
-			'round_no' => (int) ( $fight->round_no ?? 0 ),
-			'red_entry_id' => (int) ( $fight->red_entry_id ?? 0 ),
-			'blue_entry_id' => (int) ( $fight->blue_entry_id ?? 0 ),
 			'winner_entry_id' => absint( $payload['winner_entry_id'] ?? 0 ),
-			'status' => FightRepository::STATUS_COMPLETED,
-			'result_method' => $result_type,
-			'score_red' => sanitize_text_field( (string) ( $payload['score_red'] ?? '' ) ),
-			'score_blue' => sanitize_text_field( (string) ( $payload['score_blue'] ?? '' ) ),
-			'scheduled_at' => (string) ( $fight->scheduled_at ?? '' ),
-			'completed_at' => current_time( 'mysql' ),
-			'result_note' => sanitize_textarea_field( (string) ( $payload['note'] ?? '' ) ),
+			'status'          => FightRepository::STATUS_COMPLETED,
+			'result_method'   => $result_type,
+			'result_type'     => $result_type,
+			'score_red'       => sanitize_text_field( (string) ( $payload['score_red'] ?? '' ) ),
+			'score_blue'      => sanitize_text_field( (string) ( $payload['score_blue'] ?? '' ) ),
+			'completed_at'    => current_time( 'mysql' ),
+			'result_note'     => sanitize_textarea_field( (string) ( $payload['note'] ?? '' ) ),
 		);
 	}
 }
