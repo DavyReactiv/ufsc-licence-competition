@@ -10,6 +10,7 @@
     <file>includes/competitions/Services/DatabaseTransaction.php</file>
     <file>includes/competitions/Services/AtomicOperationLock.php</file>
     <file>includes/competitions/Services/CompetitionIntegrityService.php</file>
+    <file>includes/competitions/Services/DatabaseSchemaGuard.php</file>
     <file>includes/competitions/Services/ResultService.php</file>
     <file>includes/competitions/Services/Pancrace</file>
     <file>includes/competitions/Admin/PremiumExperience.php</file>
