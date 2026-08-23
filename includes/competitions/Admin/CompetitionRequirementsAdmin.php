@@ -24,7 +24,11 @@ class CompetitionRequirementsAdmin {
 	}
 
 	public static function capture_posted_requirements( $data, $competition_id ): array {
-		$data = is_array( $data ) ? $data : array();
+		$data           = is_array( $data ) ? $data : array();
+		$competition_id = absint( $competition_id );
+		if ( $competition_id <= 0 ) {
+			return $data;
+		}
 
 		$action = isset( $_POST['action'] ) ? sanitize_key( wp_unslash( $_POST['action'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- the competition controller verifies its nonce before CompetitionMeta::save().
 		if ( 'ufsc_competitions_save_competition' !== $action ) {
@@ -36,11 +40,11 @@ class CompetitionRequirementsAdmin {
 			$mode = 'auto';
 		}
 
-		$data['requirements_mode']             = $mode;
-		$data['check_medical_document']        = isset( $_POST['check_medical_document'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$data['check_parental_authorization']  = isset( $_POST['check_parental_authorization'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$data['check_sport_passport']          = isset( $_POST['check_sport_passport'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$data['requirements_note']             = isset( $_POST['requirements_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['requirements_note'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$data['requirements_mode']            = $mode;
+		$data['check_medical_document']       = isset( $_POST['check_medical_document'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$data['check_parental_authorization'] = isset( $_POST['check_parental_authorization'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$data['check_sport_passport']         = isset( $_POST['check_sport_passport'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$data['requirements_note']            = isset( $_POST['requirements_note'] ) ? sanitize_textarea_field( wp_unslash( $_POST['requirements_note'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
 
 		return $data;
 	}
