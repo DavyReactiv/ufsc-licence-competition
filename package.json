@@ -1,0 +1,15 @@
+{
+  "name": "ufsc-licence-competition-qa",
+  "private": true,
+  "scripts": {
+    "wp-env:start": "wp-env start",
+    "wp-env:stop": "wp-env stop",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:visual": "playwright test tests/e2e/visual-capture.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@wordpress/env": "^10.0.0"
+  }
+}
