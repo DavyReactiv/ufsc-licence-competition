@@ -41,11 +41,12 @@ class EventProgram_Page {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ) );
 		}
 
-		$repository     = new CompetitionRepository();
-		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0;
+		$repository = new CompetitionRepository();
+		// Read-only navigation state; no mutation is performed from these GET values.
+		$competition_id = isset( $_GET['competition_id'] ) ? absint( wp_unslash( $_GET['competition_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		$competitions   = $repository->list( array( 'view' => 'all' ), 300, 0 );
 		$competition    = $competition_id ? $repository->get( $competition_id, true ) : null;
-		$notice         = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : '';
+		$notice         = isset( $_GET['ufsc_notice'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_notice'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		if ( $notice ) {
 			self::render_notice( $notice );
@@ -99,12 +100,13 @@ class EventProgram_Page {
 		$allowed_modes  = EventFormatRegistry::get_supported_program_modes( $event_type );
 		$disciplines    = DisciplineRegistry::get_disciplines();
 		$event_label    = CompetitionFilters::get_type_label( $event_type );
+		$event_label    = '' !== $event_label ? $event_label : __( 'Événement', 'ufsc-licence-competition' );
 		$can_edit       = class_exists( '\\UFSC\\Competitions\\Capabilities' ) && \UFSC\Competitions\Capabilities::user_can_edit();
 
 		?>
 		<section class="ufsc-program-hero ufsc-admin-surface">
 			<div>
-				<span class="ufsc-premium-eyebrow"><?php echo esc_html( $event_label ?: __( 'Événement', 'ufsc-licence-competition' ) ); ?></span>
+				<span class="ufsc-premium-eyebrow"><?php echo esc_html( $event_label ); ?></span>
 				<h2><?php echo esc_html( (string) ( $competition->name ?? '' ) ); ?></h2>
 				<p><?php esc_html_e( 'Chaque bloc possède sa propre logique. Les combattants et catégories restent rattachés à une seule compétition.', 'ufsc-licence-competition' ); ?></p>
 			</div>
@@ -188,6 +190,8 @@ class EventProgram_Page {
 		$disabled           = $can_edit ? '' : ' disabled';
 		$row_index          = $is_template ? '__INDEX__' : (string) $index;
 		$field_prefix       = 'program_blocks[' . $row_index . ']';
+		$display_label      = '' !== $label ? $label : __( 'Nouveau bloc', 'ufsc-licence-competition' );
+		$participant_value  = $participant_target > 0 ? (string) $participant_target : '';
 
 		?>
 		<article class="ufsc-program-block<?php echo $is_template ? ' is-template' : ''; ?>" data-ufsc-program-block>
@@ -196,7 +200,7 @@ class EventProgram_Page {
 				<div class="ufsc-program-block__heading">
 					<span class="ufsc-program-block__number" data-ufsc-program-number><?php echo esc_html( (string) ( $index + 1 ) ); ?></span>
 					<div>
-						<strong data-ufsc-program-title><?php echo esc_html( $label ?: __( 'Nouveau bloc', 'ufsc-licence-competition' ) ); ?></strong>
+						<strong data-ufsc-program-title><?php echo esc_html( $display_label ); ?></strong>
 						<span><?php echo esc_html( $mode_choices[ $mode ] ?? __( 'Bloc', 'ufsc-licence-competition' ) ); ?></span>
 					</div>
 				</div>
@@ -219,7 +223,9 @@ class EventProgram_Page {
 					<span><?php esc_html_e( 'Format', 'ufsc-licence-competition' ); ?></span>
 					<select name="<?php echo esc_attr( $field_prefix . '[mode]' ); ?>" data-ufsc-field="mode"<?php echo $disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
 						<?php foreach ( $mode_choices as $mode_key => $mode_label ) : ?>
-							<?php if ( ! empty( $allowed_modes ) && ! in_array( $mode_key, $allowed_modes, true ) ) { continue; } ?>
+							<?php if ( ! empty( $allowed_modes ) && ! in_array( $mode_key, $allowed_modes, true ) ) : ?>
+								<?php continue; ?>
+							<?php endif; ?>
 							<option value="<?php echo esc_attr( $mode_key ); ?>" <?php selected( $mode, $mode_key ); ?>><?php echo esc_html( $mode_label ); ?></option>
 						<?php endforeach; ?>
 					</select>
@@ -243,7 +249,7 @@ class EventProgram_Page {
 				</label>
 				<label class="ufsc-premium-field">
 					<span><?php esc_html_e( 'Combattants prévus', 'ufsc-licence-competition' ); ?></span>
-					<input type="number" min="2" max="256" name="<?php echo esc_attr( $field_prefix . '[participant_target]' ); ?>" value="<?php echo esc_attr( $participant_target ?: '' ); ?>" placeholder="6" data-ufsc-field="participant_target"<?php echo $disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> />
+					<input type="number" min="2" max="256" name="<?php echo esc_attr( $field_prefix . '[participant_target]' ); ?>" value="<?php echo esc_attr( $participant_value ); ?>" placeholder="6" data-ufsc-field="participant_target"<?php echo $disabled; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> />
 				</label>
 				<label class="ufsc-premium-field span-2">
 					<span><?php esc_html_e( 'Titre / enjeu', 'ufsc-licence-competition' ); ?></span>
@@ -276,8 +282,8 @@ class EventProgram_Page {
 			self::redirect( $competition_id, 'program_invalid' );
 		}
 
-		if ( method_exists( $repository, 'assert_competition_in_scope' ) ) {
-			$repository->assert_competition_in_scope( $competition_id );
+		if ( function_exists( 'ufsc_lc_enforce_competition_access' ) ) {
+			ufsc_lc_enforce_competition_access( $competition_id );
 		}
 
 		$event_type = CompetitionFilters::normalize_type_key( (string) ( $competition->type ?? '' ) );
