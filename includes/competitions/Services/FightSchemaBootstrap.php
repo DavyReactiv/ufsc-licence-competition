@@ -12,8 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Restores critical competition tables omitted by the current additive schema
  * bootstrap on fresh or incomplete installations.
  *
- * Legacy installations already containing these tables are left untouched and
- * continue to use Db migrations for additive schema upgrades.
+ * Existing data is preserved. The logs schema deliberately keeps legacy
+ * level/meta columns while adding the current action/context/user_id fields.
  */
 class FightSchemaBootstrap {
 	private static $registered = false;
@@ -112,22 +112,26 @@ class FightSchemaBootstrap {
 	private static function ensure_logs_table( string $charset_collate ): void {
 		global $wpdb;
 
-		$table  = Db::logs_table();
-		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		if ( $exists === $table ) {
-			return;
-		}
+		$table = Db::logs_table();
 
+		// Run dbDelta even when the table already exists: this is intentionally
+		// additive so legacy log rows stay intact while current audit columns are
+		// restored when missing.
 		$sql = "CREATE TABLE {$table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			action varchar(100) NOT NULL DEFAULT '',
 			object_type varchar(100) NOT NULL,
-			object_id bigint(20) unsigned NOT NULL,
-			level varchar(20) NOT NULL,
+			object_id bigint(20) unsigned NULL,
+			level varchar(20) NOT NULL DEFAULT 'info',
 			message text NOT NULL,
+			context longtext NULL,
 			meta longtext NULL,
+			user_id bigint(20) unsigned NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (id),
 			KEY idx_object (object_type, object_id),
+			KEY idx_action (action),
+			KEY idx_user_id (user_id),
 			KEY idx_created_at (created_at)
 		) {$charset_collate};";
 
