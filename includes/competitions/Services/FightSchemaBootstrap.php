@@ -9,10 +9,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Restores the canonical fights table on fresh or incomplete installations.
+ * Restores critical competition tables omitted by the current additive schema
+ * bootstrap on fresh or incomplete installations.
  *
- * Legacy installations already containing the table are left untouched and
- * continue to use Db::maybe_upgrade_fights_table() for additive migrations.
+ * Legacy installations already containing these tables are left untouched and
+ * continue to use Db migrations for additive schema upgrades.
  */
 class FightSchemaBootstrap {
 	private static $registered = false;
@@ -32,14 +33,21 @@ class FightSchemaBootstrap {
 	public static function ensure_table(): void {
 		global $wpdb;
 
-		$table = Db::fights_table();
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		$charset_collate = $wpdb->get_charset_collate();
+
+		self::ensure_fights_table( $charset_collate );
+		self::ensure_logs_table( $charset_collate );
+	}
+
+	private static function ensure_fights_table( string $charset_collate ): void {
+		global $wpdb;
+
+		$table  = Db::fights_table();
 		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		if ( $exists === $table ) {
 			return;
 		}
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-		$charset_collate = $wpdb->get_charset_collate();
 
 		$sql = "CREATE TABLE {$table} (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -98,6 +106,36 @@ class FightSchemaBootstrap {
 		$created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 		if ( $created !== $table ) {
 			error_log( 'UFSC Competitions: failed to create fights table: ' . $wpdb->last_error );
+		}
+	}
+
+	private static function ensure_logs_table( string $charset_collate ): void {
+		global $wpdb;
+
+		$table  = Db::logs_table();
+		$exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( $exists === $table ) {
+			return;
+		}
+
+		$sql = "CREATE TABLE {$table} (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			object_type varchar(100) NOT NULL,
+			object_id bigint(20) unsigned NOT NULL,
+			level varchar(20) NOT NULL,
+			message text NOT NULL,
+			meta longtext NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_object (object_type, object_id),
+			KEY idx_created_at (created_at)
+		) {$charset_collate};";
+
+		dbDelta( $sql );
+
+		$created = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( $created !== $table ) {
+			error_log( 'UFSC Competitions: failed to create competition logs table: ' . $wpdb->last_error );
 		}
 	}
 }
