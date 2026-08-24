@@ -64,8 +64,8 @@ class DatabaseSchemaGuard {
 			),
 			'logs' => array(
 				'table'   => Db::logs_table(),
-				'columns' => array( 'id', 'object_type', 'object_id', 'level', 'message', 'created_at' ),
-				'indexes' => array( 'PRIMARY', 'idx_object', 'idx_created_at' ),
+				'columns' => array( 'id', 'action', 'object_type', 'object_id', 'level', 'message', 'context', 'meta', 'user_id', 'created_at' ),
+				'indexes' => array( 'PRIMARY', 'idx_object', 'idx_action', 'idx_user_id', 'idx_created_at' ),
 			),
 			'timing_profiles' => array(
 				'table'   => Db::timing_profiles_table(),
