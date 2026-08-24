@@ -1,0 +1,43 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 2
+    bootstrapFiles:
+        - phpstan-bootstrap.php
+    scanDirectories:
+        - includes/competitions
+    paths:
+        - includes/competitions/Services/EventFormatRegistry.php
+        - includes/competitions/Services/EventProgramRegistry.php
+        - includes/competitions/Services/RegistrationScopePresenter.php
+        - includes/competitions/Services/RegistrationWindowService.php
+        - includes/competitions/Services/CompetitionMeta.php
+        - includes/competitions/Services/CompetitionRequirementService.php
+        - includes/competitions/Services/CompetitionDuplicationService.php
+        - includes/competitions/Services/DatabaseTransaction.php
+        - includes/competitions/Services/AtomicOperationLock.php
+        - includes/competitions/Services/FightResultPersistence.php
+        - includes/competitions/Services/LiveCompetitionService.php
+        - includes/competitions/Services/FighterNumberAuditService.php
+        - includes/competitions/Services/CompetitionIntegrityService.php
+        - includes/competitions/Services/DatabaseSchemaGuard.php
+        - includes/competitions/Services/ResultService.php
+        - includes/competitions/Services/ResultSummaryService.php
+        - includes/competitions/Services/Pancrace
+        - includes/competitions/Admin/PremiumExperience.php
+        - includes/competitions/Admin/EventLifecycleAdmin.php
+        - includes/competitions/Admin/CompetitionRequirementsAdmin.php
+        - includes/competitions/Admin/LiveCompetitionAdmin.php
+        - includes/competitions/Admin/EventOperationsPanel.php
+        - includes/competitions/Admin/IntegrityHealthNotice.php
+        - includes/competitions/Admin/ResultConcurrencyAdmin.php
+        - includes/competitions/Admin/Pages/EventProgram_Page.php
+        - includes/competitions/Front/PremiumRegistrationExperience.php
+        - includes/competitions/Front/ClubCompetitionPortal.php
+        - includes/competitions/Front/LiveCompetitionExperience.php
+    excludePaths:
+        analyse:
+            - vendor
+            - node_modules
+    reportUnmatchedIgnoredErrors: false

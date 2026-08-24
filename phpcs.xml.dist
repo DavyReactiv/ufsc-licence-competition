@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<ruleset name="UFSC Licence Competition incremental quality">
+    <description>WordPress coding checks scoped to new competition-domain services while respecting the repository's existing class-file conventions.</description>
+
+    <file>includes/competitions/Services/EventFormatRegistry.php</file>
+    <file>includes/competitions/Services/EventProgramRegistry.php</file>
+    <file>includes/competitions/Services/RegistrationScopePresenter.php</file>
+    <file>includes/competitions/Services/RegistrationWindowService.php</file>
+    <file>includes/competitions/Services/CompetitionMeta.php</file>
+    <file>includes/competitions/Services/CompetitionRequirementService.php</file>
+    <file>includes/competitions/Services/CompetitionDuplicationService.php</file>
+    <file>includes/competitions/Services/DatabaseTransaction.php</file>
+    <file>includes/competitions/Services/AtomicOperationLock.php</file>
+    <file>includes/competitions/Services/FightResultPersistence.php</file>
+    <file>includes/competitions/Services/LiveCompetitionService.php</file>
+    <file>includes/competitions/Services/FighterNumberAuditService.php</file>
+    <file>includes/competitions/Services/CompetitionIntegrityService.php</file>
+    <file>includes/competitions/Services/DatabaseSchemaGuard.php</file>
+    <file>includes/competitions/Services/ResultService.php</file>
+    <file>includes/competitions/Services/ResultSummaryService.php</file>
+    <file>includes/competitions/Services/Pancrace</file>
+    <file>includes/competitions/Admin/PremiumExperience.php</file>
+    <file>includes/competitions/Admin/EventLifecycleAdmin.php</file>
+    <file>includes/competitions/Admin/CompetitionRequirementsAdmin.php</file>
+    <file>includes/competitions/Admin/LiveCompetitionAdmin.php</file>
+    <file>includes/competitions/Admin/EventOperationsPanel.php</file>
+    <file>includes/competitions/Admin/IntegrityHealthNotice.php</file>
+    <file>includes/competitions/Admin/ResultConcurrencyAdmin.php</file>
+    <file>includes/competitions/Admin/Pages/EventProgram_Page.php</file>
+    <file>includes/competitions/Front/PremiumRegistrationExperience.php</file>
+    <file>includes/competitions/Front/ClubCompetitionPortal.php</file>
+    <file>includes/competitions/Front/LiveCompetitionExperience.php</file>
+
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+
+    <arg name="colors" />
+    <arg value="sp" />
+
+    <rule ref="WordPress-Core" />
+    <rule ref="WordPress-Extra" />
+
+    <!-- The existing plugin uses PSR-style class file names and non-aligned arrays. -->
+    <rule ref="WordPress.Files.FileName"><severity>0</severity></rule>
+    <rule ref="WordPress.Arrays.ArrayDeclarationSpacing"><severity>0</severity></rule>
+    <rule ref="WordPress.Arrays.MultipleStatementAlignment"><severity>0</severity></rule>
+    <rule ref="Generic.Formatting.MultipleStatementAlignment"><severity>0</severity></rule>
+    <rule ref="WordPress.PHP.YodaConditions.NotYoda"><severity>0</severity></rule>
+
+    <config name="minimum_supported_wp_version" value="6.0" />
+</ruleset>

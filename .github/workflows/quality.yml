@@ -1,0 +1,79 @@
+name: Competition Quality
+
+on:
+  push:
+    branches: [main, 'fix/*', 'codex/*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  php-compatibility:
+    name: PHP ${{ matrix.php }} syntax and reference tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2', '8.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint all PHP files
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+      - name: ASSAUT / TATAMI reference
+        run: php tests/assaut-tatami-reference-test.php
+      - name: Pancrace reference
+        run: php tests/pancrace-reference-test.php
+      - name: Event format registry
+        run: php tests/event-format-registry-test.php
+      - name: Hybrid event program
+        run: php tests/event-program-registry-test.php
+      - name: Regional registration scope
+        run: php tests/registration-scope-presenter-test.php
+      - name: Registration opening and forclusion
+        run: php tests/registration-window-test.php
+      - name: Club competition requirements
+        run: php tests/competition-requirements-test.php
+
+  static-analysis:
+    name: WordPress coding standards and PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+      - name: Install QA dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+      - name: PHPCS (incremental competition scope)
+        run: composer phpcs
+      - name: PHPStan (incremental competition scope)
+        run: composer phpstan
+
+  destructive-sql-guard:
+    name: Destructive SQL guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block newly added destructive SQL in PHP code
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --unified=0 "${{ github.event.pull_request.base.sha }}"...HEAD -- '*.php' > /tmp/ufsc-pr-php.diff
+          if grep -E '^\+[^+].*\b(DROP[[:space:]]+TABLE|TRUNCATE[[:space:]]+TABLE)\b' /tmp/ufsc-pr-php.diff; then
+            echo 'Destructive SQL added to PHP code in this PR. Review required.' >&2
+            exit 1
+          fi
+          echo 'No newly added DROP TABLE or TRUNCATE TABLE detected in PHP code.'

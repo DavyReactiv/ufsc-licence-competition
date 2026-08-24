@@ -1,0 +1,108 @@
+.ufsc-registration-scope-card {
+	box-sizing: border-box;
+	margin: 0 0 22px;
+	padding: 16px 18px;
+	border: 1px solid #d0d5dd;
+	border-radius: 14px;
+	background: #fff;
+	display: flex;
+	align-items: flex-start;
+	gap: 13px;
+	box-shadow: 0 6px 18px rgba(16, 24, 40, .05);
+}
+
+.ufsc-registration-scope-card.is-allowed {
+	border-color: #abefc6;
+	background: #f6fef9;
+}
+
+.ufsc-registration-scope-card.is-restricted {
+	border-color: #fedf89;
+	background: #fffcf5;
+}
+
+.ufsc-registration-scope-card__status {
+	width: 36px;
+	height: 36px;
+	flex: 0 0 36px;
+	border-radius: 50%;
+	display: grid;
+	place-items: center;
+	font-weight: 800;
+	font-size: 16px;
+	background: #f2f4f7;
+	color: #475467;
+}
+
+.ufsc-registration-scope-card.is-allowed .ufsc-registration-scope-card__status {
+	background: #dcfae6;
+	color: #067647;
+}
+
+.ufsc-registration-scope-card.is-restricted .ufsc-registration-scope-card__status {
+	background: #fef0c7;
+	color: #b54708;
+}
+
+.ufsc-registration-scope-card__content {
+	min-width: 0;
+	flex: 1;
+}
+
+.ufsc-registration-scope-card__heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.ufsc-registration-scope-card__heading strong {
+	font-size: 15px;
+	line-height: 1.35;
+	color: #172033;
+}
+
+.ufsc-registration-scope-card__badge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 21px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	border: 1px solid #b2ddff;
+	background: #eff8ff;
+	font-size: 10px;
+	font-weight: 750;
+	text-transform: uppercase;
+	letter-spacing: .04em;
+	color: #175cd3;
+}
+
+.ufsc-registration-scope-card p {
+	margin: 5px 0 0;
+	font-size: 13px;
+	line-height: 1.55;
+	color: #475467;
+}
+
+.ufsc-registration-scope-card__row {
+	margin-top: 8px;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.ufsc-registration-scope-card__row span {
+	color: #667085;
+}
+
+.ufsc-registration-scope-card__row strong {
+	color: #344054;
+}
+
+@media (max-width: 640px) {
+	.ufsc-registration-scope-card {
+		padding: 14px;
+	}
+}
