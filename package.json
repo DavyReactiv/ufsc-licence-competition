@@ -10,6 +10,6 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
-    "@wordpress/env": "^10.0.0"
+    "@wordpress/env": "^11.13.0"
   }
 }
