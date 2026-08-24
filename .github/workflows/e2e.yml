@@ -53,7 +53,27 @@ jobs:
           JSON
 
       - name: Start disposable WordPress environment
-        run: npx wp-env start
+        shell: bash
+        run: |
+          set -euo pipefail
+          max_attempts=3
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Starting wp-env (attempt ${attempt}/${max_attempts})..."
+            if npx wp-env start; then
+              echo "wp-env started successfully."
+              exit 0
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "wp-env failed after ${max_attempts} attempts." >&2
+              exit 1
+            fi
+
+            echo "Transient wp-env/Docker dependency failure. Cleaning stopped containers before retry..." >&2
+            npx wp-env stop || true
+            docker container prune -f || true
+            sleep $((attempt * 15))
+          done
 
       - name: Wait for WordPress
         run: curl --retry 20 --retry-delay 3 --retry-connrefused --fail http://localhost:8888/wp-login.php --output /dev/null
