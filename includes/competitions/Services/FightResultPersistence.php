@@ -41,6 +41,28 @@ class FightResultPersistence {
 	}
 
 	/**
+	 * Detect whether a fight already contains result data.
+	 *
+	 * Historical rows may store the method in result_type instead of
+	 * result_method, including no-contest style results without a winner.
+	 */
+	public static function has_result_payload( $fight ): bool {
+		if ( ! is_array( $fight ) && ! is_object( $fight ) ) {
+			return false;
+		}
+
+		$winner_entry_id = absint( is_array( $fight ) ? ( $fight['winner_entry_id'] ?? 0 ) : ( $fight->winner_entry_id ?? 0 ) );
+		if ( $winner_entry_id > 0 || '' !== self::get_method( $fight ) ) {
+			return true;
+		}
+
+		$score_red  = trim( (string) ( is_array( $fight ) ? ( $fight['score_red'] ?? '' ) : ( $fight->score_red ?? '' ) ) );
+		$score_blue = trim( (string) ( is_array( $fight ) ? ( $fight['score_blue'] ?? '' ) : ( $fight->score_blue ?? '' ) ) );
+
+		return '' !== $score_red || '' !== $score_blue;
+	}
+
+	/**
 	 * Persist a complete result update using only columns present in the table.
 	 */
 	public static function update_result( int $fight_id, array $data ) {
