@@ -21,17 +21,20 @@ class UFSC_LC_Schema_Cache {
 			return false;
 		}
 
-		if ( array_key_exists( $table, self::$tables_cache ) ) {
+		// Positive table lookups are stable enough to cache. A negative lookup is
+		// deliberately revalidated because activation/migration code can create a
+		// table later in the same request or while the persistent cache is alive.
+		if ( array_key_exists( $table, self::$tables_cache ) && self::$tables_cache[ $table ] ) {
 			self::$hits++;
-			return (bool) self::$tables_cache[ $table ];
+			return true;
 		}
 
 		$cache_key = self::get_tables_cache_key();
 		$cached    = self::get_persistent_cache( $cache_key );
-		if ( is_array( $cached ) && array_key_exists( $table, $cached ) ) {
-			self::$tables_cache[ $table ] = (bool) $cached[ $table ];
+		if ( is_array( $cached ) && ! empty( $cached[ $table ] ) ) {
+			self::$tables_cache[ $table ] = true;
 			self::$hits++;
-			return (bool) self::$tables_cache[ $table ];
+			return true;
 		}
 
 		self::$misses++;
