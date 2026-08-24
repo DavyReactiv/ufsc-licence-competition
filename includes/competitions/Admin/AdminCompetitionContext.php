@@ -125,6 +125,7 @@ class AdminCompetitionContext {
 				if ( $id > 0 ) {
 					return $id;
 				}
+			}
 		}
 
 		// On the pilotage edit screen `id` is the competition id. On other
@@ -187,6 +188,8 @@ class AdminCompetitionContext {
 			if ( $competition_id === absint( $competition->id ?? 0 ) ) {
 				return true;
 			}
+		}
+
 		return false;
 	}
 
@@ -196,6 +199,8 @@ class AdminCompetitionContext {
 			if ( $id > 0 ) {
 				return $id;
 			}
+		}
+
 		return 0;
 	}
 
