@@ -65,6 +65,7 @@ require_once UFSC_LC_DIR . 'includes/competitions/Services/DatabaseSchemaGuard.p
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceReference2025.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/Pancrace/PancraceDomainBootstrap.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/Pages/EventProgram_Page.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Admin/AdminCompetitionContext.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/PremiumExperience.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/EventLifecycleAdmin.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Admin/CompetitionRequirementsAdmin.php';
@@ -81,6 +82,7 @@ require_once UFSC_LC_DIR . 'includes/competitions/Front/LiveCompetitionExperienc
 \UFSC\Competitions\Services\CompetitionRequirementService::register();
 \UFSC\Competitions\Services\DatabaseSchemaGuard::register();
 \UFSC\Competitions\Services\Pancrace\PancraceDomainBootstrap::register();
+\UFSC\Competitions\Admin\AdminCompetitionContext::register();
 \UFSC\Competitions\Admin\PremiumExperience::register();
 \UFSC\Competitions\Admin\EventLifecycleAdmin::register();
 \UFSC\Competitions\Admin\CompetitionRequirementsAdmin::register();
