@@ -57,6 +57,11 @@ class DatabaseSchemaGuard {
 				'columns' => array( 'id', 'competition_id', 'category_id', 'status', 'assigned_at', 'updated_at' ),
 				'indexes' => array( 'PRIMARY', 'idx_competition_status' ),
 			),
+			'fights' => array(
+				'table'   => Db::fights_table(),
+				'columns' => array( 'id', 'competition_id', 'category_id', 'fight_no', 'red_entry_id', 'blue_entry_id', 'status', 'updated_at', 'deleted_at' ),
+				'indexes' => array( 'PRIMARY', 'idx_competition_id', 'idx_status', 'idx_fight_no' ),
+			),
 			'timing_profiles' => array(
 				'table'   => Db::timing_profiles_table(),
 				'columns' => array( 'id', 'name', 'round_duration', 'rounds', 'break_duration' ),
