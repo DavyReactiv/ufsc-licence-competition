@@ -48,6 +48,7 @@ if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 
 // Competition domain extensions that must be available before the module boots.
 require_once UFSC_LC_DIR . 'includes/competitions/Db.php';
+require_once UFSC_LC_DIR . 'includes/competitions/Services/FightSchemaBootstrap.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventProgramRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/EventFormatRegistry.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Services/RegistrationScopePresenter.php';
@@ -75,6 +76,7 @@ require_once UFSC_LC_DIR . 'includes/competitions/Front/PremiumRegistrationExper
 require_once UFSC_LC_DIR . 'includes/competitions/Front/ClubCompetitionPortal.php';
 require_once UFSC_LC_DIR . 'includes/competitions/Front/LiveCompetitionExperience.php';
 
+\UFSC\Competitions\Services\FightSchemaBootstrap::register();
 \UFSC\Competitions\Services\RegistrationWindowService::register();
 \UFSC\Competitions\Services\CompetitionRequirementService::register();
 \UFSC\Competitions\Services\DatabaseSchemaGuard::register();
