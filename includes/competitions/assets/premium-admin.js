@@ -198,6 +198,124 @@
     updateHeadings();
   }
 
+  function initCompetitionEditor() {
+    const editor = document.querySelector('[data-ufsc-competition-editor]');
+    if (!(editor instanceof HTMLFormElement)) {
+      return;
+    }
+
+    const steps = Array.from(editor.querySelectorAll('[data-ufsc-editor-step]'));
+    const panels = Array.from(editor.querySelectorAll('[data-ufsc-editor-panel]'));
+    const previousButton = editor.querySelector('[data-ufsc-editor-previous]');
+    const nextButton = editor.querySelector('[data-ufsc-editor-next]');
+    const position = editor.querySelector('[data-ufsc-editor-position]');
+    const status = editor.querySelector('[data-ufsc-editor-status]');
+    if (!steps.length || steps.length !== panels.length) {
+      return;
+    }
+
+    let activeIndex = 0;
+    editor.classList.add('is-ufsc-enhanced');
+
+    function updateReview() {
+      const name = editor.querySelector('#name');
+      const discipline = editor.querySelector('#discipline');
+      const date = editor.querySelector('#event_start_datetime');
+      const competitionStatus = editor.querySelector('#status');
+      const nameOutput = editor.querySelector('[data-ufsc-review-name]');
+      const disciplineOutput = editor.querySelector('[data-ufsc-review-discipline]');
+      const dateOutput = editor.querySelector('[data-ufsc-review-date]');
+      const statusOutput = editor.querySelector('[data-ufsc-review-status]');
+
+      if (nameOutput && name instanceof HTMLInputElement) {
+        nameOutput.textContent = name.value.trim() || 'À renseigner';
+      }
+      if (disciplineOutput && discipline instanceof HTMLSelectElement) {
+        disciplineOutput.textContent = discipline.selectedOptions[0]?.textContent?.trim() || 'Non définie';
+      }
+      if (dateOutput && date instanceof HTMLInputElement) {
+        if (date.value) {
+          const parsedDate = new Date(date.value);
+          dateOutput.textContent = Number.isNaN(parsedDate.getTime())
+            ? date.value
+            : new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(parsedDate);
+        } else {
+          dateOutput.textContent = 'Non défini';
+        }
+      }
+      if (statusOutput && competitionStatus instanceof HTMLSelectElement) {
+        statusOutput.textContent = competitionStatus.selectedOptions[0]?.textContent?.trim() || 'Non défini';
+      }
+    }
+
+    function showStep(index, focusHeading = false) {
+      activeIndex = Math.max(0, Math.min(index, panels.length - 1));
+      steps.forEach((step, stepIndex) => {
+        const isActive = stepIndex === activeIndex;
+        step.classList.toggle('is-active', isActive);
+        if (isActive) step.setAttribute('aria-current', 'step');
+        else step.removeAttribute('aria-current');
+      });
+      panels.forEach((panel, panelIndex) => {
+        const isActive = panelIndex === activeIndex;
+        panel.classList.toggle('is-active', isActive);
+        panel.hidden = !isActive;
+      });
+
+      if (previousButton instanceof HTMLButtonElement) previousButton.hidden = activeIndex === 0;
+      if (nextButton instanceof HTMLButtonElement) nextButton.hidden = activeIndex === panels.length - 1;
+      const message = `Étape ${activeIndex + 1} sur ${panels.length}`;
+      if (position) position.textContent = message;
+      if (status) status.textContent = message;
+      if (activeIndex === panels.length - 1) updateReview();
+
+      if (focusHeading) {
+        const heading = panels[activeIndex].querySelector('h2');
+        if (heading instanceof HTMLElement) {
+          heading.setAttribute('tabindex', '-1');
+          heading.focus({ preventScroll: true });
+          panels[activeIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }
+
+    function validateCurrentStep() {
+      const fields = Array.from(panels[activeIndex].querySelectorAll('input, select, textarea'));
+      const invalidField = fields.find((field) => typeof field.checkValidity === 'function' && !field.checkValidity());
+      if (invalidField instanceof HTMLElement) {
+        invalidField.reportValidity();
+        invalidField.focus();
+        return false;
+      }
+      return true;
+    }
+
+    steps.forEach((step, index) => {
+      step.addEventListener('click', () => showStep(index, true));
+    });
+    if (previousButton instanceof HTMLButtonElement) {
+      previousButton.addEventListener('click', () => showStep(activeIndex - 1, true));
+    }
+    if (nextButton instanceof HTMLButtonElement) {
+      nextButton.addEventListener('click', () => {
+        if (validateCurrentStep()) showStep(activeIndex + 1, true);
+      });
+    }
+
+    editor.addEventListener('input', updateReview);
+    editor.addEventListener('change', updateReview);
+    editor.addEventListener('invalid', (event) => {
+      const field = event.target;
+      if (!(field instanceof HTMLElement)) return;
+      const panel = field.closest('[data-ufsc-editor-panel]');
+      const panelIndex = panels.indexOf(panel);
+      if (panelIndex >= 0 && panelIndex !== activeIndex) showStep(panelIndex);
+    }, true);
+
+    showStep(0);
+    updateReview();
+  }
+
   function enhanceLegacyForms() {
     document.querySelectorAll('.ufsc-competitions-admin form > .form-table').forEach((table) => {
       table.classList.add('ufsc-premium-form-table');
@@ -214,6 +332,7 @@
   function init() {
     enhanceLegacyForms();
     initAccessModeExperience();
+    initCompetitionEditor();
     initProgramEditor();
   }
 
