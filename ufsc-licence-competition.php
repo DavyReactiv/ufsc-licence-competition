@@ -108,6 +108,8 @@ require_once UFSC_LC_DIR . 'includes/competitions/Front/LiveCompetitionExperienc
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-licence-pdf-generator.php';
+require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-licence-pdf-hooks.php';
 
 UFSC_LC_Plugin::init( UFSC_LC_FILE );
 UFSC_LC_Licence_Pdf_Generator::register();
+UFSC_LC_Licence_Pdf_Hooks::register();
