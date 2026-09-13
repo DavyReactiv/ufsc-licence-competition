@@ -37,6 +37,32 @@ final class UFSC_LC_Licence_Pdf_Hooks {
 		}
 
 		add_action( 'wp_ajax_ufsc_update_licence_status', array( __CLASS__, 'arm_from_request' ), 1 );
+		add_action( 'admin_head', array( __CLASS__, 'protect_admin_preview_styles' ), 99 );
+	}
+
+	/**
+	 * The PDF markup contains document-level body defaults for Dompdf. On the
+	 * browser preview page, restore the WordPress admin shell with a more
+	 * specific selector so the card CSS cannot restyle the surrounding admin UI.
+	 */
+	public static function protect_admin_preview_styles() {
+		$page = isset( $_GET['page'] ) && ! is_array( $_GET['page'] )
+			? sanitize_key( wp_unslash( $_GET['page'] ) )
+			: '';
+		if ( UFSC_LC_Licence_Pdf_Generator::ADMIN_PAGE_SLUG !== $page ) {
+			return;
+		}
+		?>
+		<style id="ufsc-lc-license-preview-admin-guard">
+			body.wp-admin {
+				margin: 0;
+				padding: 0;
+				background: #f0f0f1;
+				color: #3c434a;
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+			}
+		</style>
+		<?php
 	}
 
 	/**
