@@ -3,7 +3,7 @@
  * Plugin Name: UFSC Licence Competition
  * Description: Add-on UFSC pour associer des PDF nominatives aux licences officielles et préparer les évolutions compétitions.
  * Plugin URI: https://studioreactiv.fr/
- * Version: 1.5.1
+ * Version: 1.6.0
  * Author: StudioReactiv
  * Author URI: https://studioreactiv.fr/
  * Requires at least: 6.0
@@ -40,6 +40,17 @@ if ( ! defined( 'UFSC_LC_PLUGIN_DIR' ) ) {
 }
 if ( ! defined( 'UFSC_LC_DEBUG_PERF' ) ) {
 	define( 'UFSC_LC_DEBUG_PERF', false );
+}
+
+/**
+ * Composer is optional at bootstrap time: the plugin must keep loading even on
+ * an installation where the release package has not bundled vendor/. PDF
+ * generation will then fail softly with an admin diagnostic instead of
+ * blocking licence validation or the competition module.
+ */
+$ufsc_lc_composer_autoload = UFSC_LC_DIR . 'vendor/autoload.php';
+if ( file_exists( $ufsc_lc_composer_autoload ) ) {
+	require_once $ufsc_lc_composer_autoload;
 }
 
 if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
@@ -96,5 +107,7 @@ require_once UFSC_LC_DIR . 'includes/competitions/Front/LiveCompetitionExperienc
 
 require_once UFSC_LC_DIR . 'includes/ufsc-lc-helpers.php';
 require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-plugin.php';
+require_once UFSC_LC_DIR . 'includes/class-ufsc-lc-licence-pdf-generator.php';
 
 UFSC_LC_Plugin::init( UFSC_LC_FILE );
+UFSC_LC_Licence_Pdf_Generator::register();
