@@ -97,8 +97,22 @@ final class UFSC_LC_Licence_Pdf_Hooks {
 
 	/**
 	 * Resolve the id names used by the existing UFSC Gestion endpoints.
+	 * The identifier service uses entity_type/entity_id, so only accept that
+	 * shape when the entity is explicitly a licence (never a club identifier).
 	 */
 	private static function request_licence_id() {
+		if (
+			isset( $_REQUEST['entity_type'], $_REQUEST['entity_id'] )
+			&& ! is_array( $_REQUEST['entity_type'] )
+			&& ! is_array( $_REQUEST['entity_id'] )
+			&& 'licence' === sanitize_key( wp_unslash( $_REQUEST['entity_type'] ) )
+		) {
+			$id = absint( wp_unslash( $_REQUEST['entity_id'] ) );
+			if ( $id > 0 ) {
+				return $id;
+			}
+		}
+
 		foreach ( array( 'licence_id', 'id' ) as $key ) {
 			if ( isset( $_REQUEST[ $key ] ) && ! is_array( $_REQUEST[ $key ] ) ) {
 				$id = absint( wp_unslash( $_REQUEST[ $key ] ) );
