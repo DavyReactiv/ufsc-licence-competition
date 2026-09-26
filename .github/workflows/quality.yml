@@ -47,6 +47,8 @@ jobs:
         run: php tests/licence-pdf-premium-ffst-integration-guard-test.php
       - name: Current-season FFST admin guard
         run: php tests/current-season-ffst-admin-guard-test.php
+      - name: FFST admin edit guard
+        run: php tests/ffst-admin-edit-guard-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
