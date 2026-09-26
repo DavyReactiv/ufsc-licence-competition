@@ -16,6 +16,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_source_created_at = false;
 	private $has_licence_number = false;
 	private $has_ffst_number = false;
+	private $has_asptt_number = false;
 	private $has_licence_number_alt = false;
 	private $has_asptt_number_alt = false;
 	private $has_asptt_number_legacy = false;
@@ -58,6 +59,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$this->has_created_at            = $this->has_column( $this->get_licences_table(), 'created_at' );
 		$this->has_licence_number        = $this->has_column( $this->get_licences_table(), 'numero_licence_delegataire' );
 		$this->has_ffst_number           = $this->has_column( $this->get_licences_table(), 'numero_licence_ffst' );
+		$this->has_asptt_number          = $this->has_column( $this->get_licences_table(), 'numero_licence_asptt' );
 		$this->has_licence_number_alt    = $this->has_column( $this->get_licences_table(), 'licence_number' );
 		$this->has_asptt_number_alt      = $this->has_column( $this->get_licences_table(), 'asptt_number' );
 		$this->has_asptt_number_legacy   = $this->has_column( $this->get_licences_table(), 'numero_asptt' );
@@ -617,14 +619,18 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$args = $this->get_filter_query_args();
 		$args['ufsc_lc_tab'] = $tab;
 
+		$active_season = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (string) ufsc_lc_get_active_season_end_year() : '';
+
 		if ( 'all' === $tab ) {
 			$args['statut'] = '';
 			$args['saison'] = '';
-			$args['season_end_year'] = '';
+			$args['season_end_year'] = $active_season;
 		}
 		if ( 'status' === $tab ) {
 			$args['saison'] = '';
-			$args['season_end_year'] = '';
+			if ( empty( $args['season_end_year'] ) || 'all' === $args['season_end_year'] ) {
+				$args['season_end_year'] = $active_season;
+			}
 		}
 		if ( 'season' === $tab ) {
 			$args['statut'] = '';
@@ -1162,7 +1168,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
-			$document_params  = array( 'ASPTT' );
+			$document_params  = array( 'UFSC' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
 			$select_documents = "{$date_asptt_sql} AS date_asptt, CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
 
@@ -1180,7 +1186,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$where_sql = 'WHERE ' . implode( ' AND ', $where );
 		}
 
-		$asptt_number_sql = $this->get_asptt_number_sql( 'l', $this->has_documents_table ? 'd' : '' );
+		$ffst_number_sql = $this->get_ffst_number_sql( 'l' );
 		if ( $this->has_category ) {
 			$category_column = 'l.category';
 		} elseif ( $this->has_legacy_category ) {
@@ -1196,7 +1202,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		$competition_column = $this->has_competition ? 'l.competition' : 'NULL AS competition';
 		$region_column      = $this->has_club_region ? 'c.region' : 'NULL';
 		$created_at_column  = $this->has_created_at ? 'l.created_at' : 'NULL';
-		$select_columns = "c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$asptt_number_sql} AS asptt_number, {$select_documents}";
+		$select_columns = "c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$age_ref_column}, {$competition_column}, {$ffst_number_sql} AS ffst_number, {$select_documents}";
 
 		$orderby_sql = ( 'source_created_at' === $orderby && $this->has_source_created_at ) ? 'd.source_created_at' : 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -1443,7 +1449,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 
 		$documents_table = $this->get_documents_table();
 		$placeholders = implode( ',', array_fill( 0, count( $licence_ids ), '%d' ) );
-		$params = array_merge( array( 'ASPTT' ), $licence_ids );
+		$params = array_merge( array( 'UFSC' ), $licence_ids );
 
 		$wpdb->query(
 			$wpdb->prepare(
@@ -1456,7 +1462,7 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			$meta_table = $this->get_documents_meta_table();
 			$meta_keys  = array( 'ufsc_licence_pdf_attachment_id', 'pdf_attachment_id' );
 			$key_placeholders = implode( ',', array_fill( 0, count( $meta_keys ), '%s' ) );
-			$meta_params = array_merge( $meta_keys, array( 'ASPTT' ), $licence_ids );
+			$meta_params = array_merge( $meta_keys, array( 'UFSC' ), $licence_ids );
 
 			$wpdb->query(
 				$wpdb->prepare(
