@@ -373,7 +373,7 @@ class UFSC_LC_Settings_Page {
 	const LEGACY_OPTION_PDF_ALLOW_DOWNLOAD = 'ufsc_lc_pdf_allow_download';
 	const LEGACY_OPTION_ENABLE_LOGGING = 'ufsc_lc_enable_logging';
 	const PAGE_SLUG = 'ufsc-lc-settings';
-	const DEFAULT_SEASON_END_YEAR = 2026;
+	const DEFAULT_SEASON_END_YEAR = 2027;
 	const DEFAULT_SEASON_RULE = 'split';
 	const DEFAULT_SEASON_START_MONTH = 8;
 	const DEFAULT_ASPTT_AUTO_VALIDATE_THRESHOLD = 0;
@@ -470,8 +470,8 @@ class UFSC_LC_Settings_Page {
 		add_settings_field(
 			self::SETTING_DEFAULT_SEASON_END_YEAR,
 			$this->get_label_with_tooltip(
-				__( 'Année de fin de saison par défaut', 'ufsc-licence-competition' ),
-				__( 'Utilisée pour les imports qui ne précisent pas de saison.', 'ufsc-licence-competition' )
+				__( 'Saison de secours pour les imports', 'ufsc-licence-competition' ),
+				__( 'Utilisée uniquement lorsqu’un import ne fournit aucune saison. La saison active reste calculée automatiquement.', 'ufsc-licence-competition' )
 			),
 			array( $this, 'render_default_season_field' ),
 			$this->get_tab_page_slug( 'general' ),
@@ -513,7 +513,7 @@ class UFSC_LC_Settings_Page {
 	private function register_asptt_settings() {
 		add_settings_section(
 			'ufsc_lc_settings_asptt',
-			__( 'Import ASPTT', 'ufsc-licence-competition' ),
+			__( 'Import FFST', 'ufsc-licence-competition' ),
 			'__return_false',
 			$this->get_tab_page_slug( 'asptt' )
 		);
@@ -533,7 +533,7 @@ class UFSC_LC_Settings_Page {
 			self::SETTING_ALLOW_IMPORT_ROLLBACK,
 			$this->get_label_with_tooltip(
 				__( 'Annulation (rollback)', 'ufsc-licence-competition' ),
-				__( 'Autorise l’annulation du dernier import ASPTT.', 'ufsc-licence-competition' )
+				__( 'Autorise l’annulation du dernier import FFST.', 'ufsc-licence-competition' )
 			),
 			array( $this, 'render_asptt_rollback_field' ),
 			$this->get_tab_page_slug( 'asptt' ),
@@ -604,7 +604,7 @@ class UFSC_LC_Settings_Page {
 			self::SETTING_IMPORT_CAPABILITY,
 			$this->get_label_with_tooltip(
 				__( 'Capacité import', 'ufsc-licence-competition' ),
-				__( 'Capacité minimale pour exécuter un import ASPTT.', 'ufsc-licence-competition' )
+				__( 'Capacité minimale pour exécuter un import FFST.', 'ufsc-licence-competition' )
 			),
 			array( $this, 'render_import_capability_field' ),
 			$this->get_tab_page_slug( 'security' ),
@@ -693,8 +693,55 @@ class UFSC_LC_Settings_Page {
 		$tabs       = $this->get_tabs();
 		$active_tab = $this->get_active_tab( $tabs );
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Paramètres', 'ufsc-licence-competition' ); ?></h1>
+		<div class="wrap ufsc-lc-settings-pro">
+			<h1><?php esc_html_e( 'Paramètres UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
+			<p class="description"><?php esc_html_e( 'Configuration centralisée des licences, saisons, imports FFST, accès clubs et documents PDF.', 'ufsc-licence-competition' ); ?></p>
+			<?php
+			global $wpdb;
+			$active_year   = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+			$active_label  = $active_year && function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $active_year ) : (string) $active_year;
+			$pdf_ready     = class_exists( 'Dompdf\\Dompdf' );
+			$licence_table = $wpdb->prefix . 'ufsc_licences';
+			$ffst_ready    = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$licence_table} LIKE %s", 'numero_licence_ffst' ) );
+			$template_ready = defined( 'UFSC_LC_DIR' ) && is_readable( UFSC_LC_DIR . 'templates/licence-sportive-a6.html' );
+			?>
+			<style>
+			.ufsc-lc-settings-pro{max-width:1280px}
+			.ufsc-lc-settings-grid{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:14px;margin:20px 0}
+			.ufsc-lc-settings-card{background:#fff;border:1px solid #dcdcde;border-radius:10px;padding:16px 18px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+			.ufsc-lc-settings-card__label{display:block;color:#646970;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+			.ufsc-lc-settings-card__value{display:block;color:#1d2327;font-size:20px;font-weight:700;line-height:1.25}
+			.ufsc-lc-settings-card__state{display:inline-block;margin-top:9px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700}
+			.ufsc-lc-state-ok{background:#edfaef;color:#116329}
+			.ufsc-lc-state-warn{background:#fff4ce;color:#704b00}
+			.ufsc-lc-settings-pro .nav-tab-wrapper{margin-top:18px}
+			.ufsc-lc-settings-pro form{background:#fff;border:1px solid #dcdcde;border-radius:10px;padding:20px 24px;margin-top:18px}
+			.ufsc-lc-settings-pro .form-table th{width:260px}
+			@media(max-width:960px){.ufsc-lc-settings-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}
+			@media(max-width:600px){.ufsc-lc-settings-grid{grid-template-columns:1fr}.ufsc-lc-settings-pro form{padding:14px}}
+			</style>
+			<div class="ufsc-lc-settings-grid">
+				<div class="ufsc-lc-settings-card">
+					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Saison active', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__value"><?php echo esc_html( $active_label ?: '—' ); ?></span>
+					<span class="ufsc-lc-settings-card__state ufsc-lc-state-ok"><?php esc_html_e( 'Calcul automatique 01/08 → 31/07', 'ufsc-licence-competition' ); ?></span>
+				</div>
+				<div class="ufsc-lc-settings-card">
+					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Numéro FFST', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__value"><?php echo $ffst_ready ? esc_html__( 'Champ disponible', 'ufsc-licence-competition' ) : esc_html__( 'Champ manquant', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__state <?php echo $ffst_ready ? 'ufsc-lc-state-ok' : 'ufsc-lc-state-warn'; ?>"><?php echo $ffst_ready ? esc_html__( 'Prêt', 'ufsc-licence-competition' ) : esc_html__( 'À corriger dans UFSC Gestion', 'ufsc-licence-competition' ); ?></span>
+				</div>
+				<div class="ufsc-lc-settings-card">
+					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Gabarit licence', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__value"><?php echo $template_ready ? esc_html__( 'A6 premium actif', 'ufsc-licence-competition' ) : esc_html__( 'Gabarit manquant', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__state <?php echo $template_ready ? 'ufsc-lc-state-ok' : 'ufsc-lc-state-warn'; ?>"><?php echo $template_ready ? esc_html__( 'Recto / verso', 'ufsc-licence-competition' ) : esc_html__( 'Vérifier le déploiement', 'ufsc-licence-competition' ); ?></span>
+				</div>
+				<div class="ufsc-lc-settings-card">
+					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Moteur PDF', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__value"><?php echo $pdf_ready ? 'Dompdf' : esc_html__( 'Dompdf absent', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__state <?php echo $pdf_ready ? 'ufsc-lc-state-ok' : 'ufsc-lc-state-warn'; ?>"><?php echo $pdf_ready ? esc_html__( 'Génération disponible', 'ufsc-licence-competition' ) : esc_html__( 'Installer le package Composer', 'ufsc-licence-competition' ); ?></span>
+				</div>
+			</div>
 			<?php $this->render_tabs( $tabs, $active_tab ); ?>
 			<?php settings_errors( self::SETTINGS_OPTION ); ?>
 			<form method="post" action="options.php">
@@ -746,6 +793,10 @@ class UFSC_LC_Settings_Page {
 	}
 
 	private function render_tab_footer( $active_tab ) {
+		if ( 'asptt' === $active_tab ) {
+			echo '<p class="description"><strong>' . esc_html__( 'Compatibilité :', 'ufsc-licence-competition' ) . '</strong> ' . esc_html__( 'les anciennes clés techniques ASPTT sont conservées en interne uniquement pour préserver les données historiques. L’interface et les nouveaux imports utilisent la terminologie FFST.', 'ufsc-licence-competition' ) . '</p>';
+			return;
+		}
 		if ( 'logs' !== $active_tab ) {
 			return;
 		}
@@ -765,7 +816,7 @@ class UFSC_LC_Settings_Page {
 		$tabs = array(
 			'general'  => __( 'Général', 'ufsc-licence-competition' ),
 			'seasons'  => __( 'Saisons & Catégories', 'ufsc-licence-competition' ),
-			'asptt'    => __( 'Import ASPTT', 'ufsc-licence-competition' ),
+			'asptt'    => __( 'Import FFST', 'ufsc-licence-competition' ),
 			'licences' => __( 'Licences', 'ufsc-licence-competition' ),
 			'clubs'    => __( 'Clubs', 'ufsc-licence-competition' ),
 			'security' => __( 'Sécurité & droits', 'ufsc-licence-competition' ),
@@ -817,7 +868,7 @@ class UFSC_LC_Settings_Page {
 			value="<?php echo esc_attr( $value ); ?>"
 		>
 		<p class="description">
-			<?php esc_html_e( 'Année de fin de saison utilisée quand le CSV ne fournit pas la saison.', 'ufsc-licence-competition' ); ?>
+			<?php esc_html_e( 'Année de fin utilisée uniquement si le fichier importé ne fournit aucune saison. Une valeur ancienne est automatiquement alignée sur la saison active.', 'ufsc-licence-competition' ); ?>
 		</p>
 		<?php
 	}
@@ -1017,6 +1068,11 @@ class UFSC_LC_Settings_Page {
 	public static function get_default_season_end_year() {
 		$settings = ufsc_lc_get_settings();
 		$year     = UFSC_LC_Categories::sanitize_season_end_year( $settings[ self::SETTING_DEFAULT_SEASON_END_YEAR ] );
+		$active   = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+
+		if ( $active && ( ! $year || (int) $year < $active ) ) {
+			return $active;
+		}
 
 		return $year ? $year : self::DEFAULT_SEASON_END_YEAR;
 	}
