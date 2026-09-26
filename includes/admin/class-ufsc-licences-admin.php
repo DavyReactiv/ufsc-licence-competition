@@ -140,9 +140,10 @@ class UFSC_LC_Licences_Admin {
 
 		$licences_table = $wpdb->prefix . 'ufsc_licences';
 		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
+		$club_region_sql = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$clubs_table} LIKE %s", 'region' ) ) ? 'c.region' : "''";
 		$licence = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT l.*, c.nom AS club_name, c.region AS club_region
+				"SELECT l.*, c.nom AS club_name, {$club_region_sql} AS club_region
 				 FROM {$licences_table} l
 				 LEFT JOIN {$clubs_table} c ON c.id = l.club_id
 				 WHERE l.id = %d LIMIT 1",
