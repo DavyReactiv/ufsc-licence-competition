@@ -201,6 +201,12 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$diagnostics = array();
 		$season_sql  = $this->get_season_end_year_sql( 'l' );
 		$deleted_sql = $this->get_soft_delete_where_sql( 'l' );
+		$active_year = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+		$active_values = $active_year ? $this->get_season_match_values( $active_year ) : array();
+		$active_sql = '';
+		if ( "''" !== $season_sql && $active_values ) {
+			$active_sql = " AND {$season_sql} IN ('" . implode( "','", array_map( 'esc_sql', $active_values ) ) . "')";
+		}
 
 		if ( "''" !== $season_sql ) {
 			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$season_sql} IS NULL OR {$season_sql} = ''){$deleted_sql}" );
@@ -232,7 +238,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$category_sql = $this->get_category_affiche_sql( 'l' );
 		if ( "''" !== $category_sql ) {
-			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$category_sql} IS NULL OR {$category_sql} = ''){$deleted_sql}" );
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$category_sql} IS NULL OR {$category_sql} = ''){$deleted_sql}{$active_sql}" );
 			$diagnostics[] = array(
 				'label' => __( 'Licences sans catégorie', 'ufsc-licence-competition' ),
 				'count' => $count,
@@ -242,7 +248,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$ffst_sql = $this->get_ffst_number_sql( 'l' );
 		if ( "''" !== $ffst_sql ) {
-			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$ffst_sql} IS NULL OR {$ffst_sql} = ''){$deleted_sql}" );
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$ffst_sql} IS NULL OR {$ffst_sql} = ''){$deleted_sql}{$active_sql}" );
 			$diagnostics[] = array(
 				'label' => __( 'Licences sans numéro FFST', 'ufsc-licence-competition' ),
 				'count' => $count,
@@ -256,7 +262,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$wpdb->prepare(
 					"SELECT COUNT(*) FROM {$table} l
 						LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
-						WHERE d.attachment_id IS NULL{$deleted_sql}",
+						WHERE d.attachment_id IS NULL{$deleted_sql}{$active_sql}",
 					'UFSC'
 				)
 			);
@@ -295,9 +301,20 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		switch ( $column_name ) {
 			case 'ffst_number':
 				$ffst_number = is_array( $item ) ? ( $item['ffst_number'] ?? '' ) : ( $item->ffst_number ?? '' );
-				return ! empty( $ffst_number )
-					? esc_html( $ffst_number )
-					: esc_html__( 'En attente', 'ufsc-licence-competition' );
+				$licence_id  = is_array( $item ) ? absint( $item['id'] ?? 0 ) : absint( $item->id ?? 0 );
+				if ( ! UFSC_LC_Capabilities::user_can_edit() || ! $licence_id ) {
+					return ! empty( $ffst_number )
+						? esc_html( $ffst_number )
+						: esc_html__( 'En attente', 'ufsc-licence-competition' );
+				}
+				return sprintf(
+					'<div class="ufsc-lc-inline-ffst" data-licence-id="%1$d"><input type="text" class="small-text ufsc-lc-inline-ffst-input" value="%2$s" placeholder="%3$s" maxlength="64" aria-label="%4$s"><button type="button" class="button button-small ufsc-lc-inline-ffst-save">%5$s</button><span class="spinner" style="float:none;margin:0;"></span><span class="ufsc-lc-inline-ffst-status" aria-live="polite"></span></div>',
+					$licence_id,
+					esc_attr( $ffst_number ),
+					esc_attr__( 'N° FFST', 'ufsc-licence-competition' ),
+					esc_attr__( 'Numéro de licence FFST', 'ufsc-licence-competition' ),
+					esc_html__( 'Enregistrer', 'ufsc-licence-competition' )
+				);
 
 			case 'club_name':
 			case 'region':
@@ -2197,23 +2214,19 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 
-		$columns = $this->get_season_columns();
-		if ( empty( $columns ) ) {
+		$season_sql = $this->get_season_end_year_sql( 'l' );
+		if ( "''" === $season_sql ) {
 			return;
 		}
 
 		if ( 'unspecified' === $season_filter ) {
-			$parts = array();
-			foreach ( $columns as $column ) {
-				$parts[] = "(l.{$column} IS NULL OR l.{$column} = '')";
-			}
-			$where[] = '(' . implode( ' AND ', $parts ) . ')';
+			$where[] = "({$season_sql} IS NULL OR {$season_sql} = '')";
 			return;
 		}
 
 		$years = array();
 		if ( 'previous' === $season_filter ) {
-			$active = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
+			$active    = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
 			$available = function_exists( 'ufsc_lc_get_available_licence_seasons' ) ? ufsc_lc_get_available_licence_seasons( 0 ) : array();
 			foreach ( $available as $year ) {
 				if ( $active && (int) $year < $active ) {
@@ -2227,23 +2240,25 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		} else {
 			$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
 			if ( ! $year ) {
+				$where[] = '1=0';
 				return;
 			}
 			$years[] = (int) $year;
 		}
 
-		$clauses = array();
-		foreach ( $years as $year ) {
-			$values = $this->get_season_match_values( (int) $year );
-			foreach ( $columns as $column ) {
-				$clauses[] = 'l.' . $column . ' IN (' . implode( ', ', array_fill( 0, count( $values ), '%s' ) ) . ')';
-				$params = array_merge( $params, $values );
-			}
+		$values = array();
+		foreach ( array_unique( $years ) as $year ) {
+			$values = array_merge( $values, $this->get_season_match_values( (int) $year ) );
+		}
+		$values = array_values( array_unique( $values ) );
+		if ( empty( $values ) ) {
+			$where[] = '1=0';
+			return;
 		}
 
-		if ( $clauses ) {
-			$where[] = '(' . implode( ' OR ', $clauses ) . ')';
-		}
+		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+		$where[]       = "{$season_sql} IN ({$placeholders})";
+		$params        = array_merge( $params, $values );
 	}
 
 	private function get_licence_number_sql( $alias ) {

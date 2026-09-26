@@ -172,8 +172,8 @@ class UFSC_LC_Licence_Documents {
 					<tr>
 						<th scope="row"><label for="ufsc_query"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label></th>
 						<td>
-							<input name="ufsc_query" type="text" id="ufsc_query" class="regular-text" value="<?php echo esc_attr( $search['query'] ); ?>" placeholder="<?php esc_attr_e( 'N° licence UFSC, N° ASPTT ou texte', 'ufsc-licence-competition' ); ?>">
-							<p class="description"><?php esc_html_e( 'Exemples : 123456, ASPTT 98765, Dupont.', 'ufsc-licence-competition' ); ?></p>
+							<input name="ufsc_query" type="text" id="ufsc_query" class="regular-text" value="<?php echo esc_attr( $search['query'] ); ?>" placeholder="<?php esc_attr_e( 'N° licence UFSC / FFST ou texte', 'ufsc-licence-competition' ); ?>">
+							<p class="description"><?php esc_html_e( 'Exemples : FFST-2026-001245, Dupont.', 'ufsc-licence-competition' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -279,7 +279,7 @@ class UFSC_LC_Licence_Documents {
 										<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
 										<th><?php echo esc_html( $search['season_label'] ); ?></th>
 										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
-										<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'N° FFST', 'ufsc-licence-competition' ); ?></th>
 										<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
 									</tr>
 								</thead>
@@ -309,7 +309,7 @@ class UFSC_LC_Licence_Documents {
 											<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 											<td><?php echo esc_html( $this->format_season_value( $item->season_value ?? '' ) ); ?></td>
 											<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-											<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->ffst_number ? $item->ffst_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 											<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
 										</tr>
 									<?php endforeach; ?>
@@ -363,7 +363,7 @@ class UFSC_LC_Licence_Documents {
 										<th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th>
 										<th><?php echo esc_html( $search['season_label'] ); ?></th>
 										<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
-										<th><?php esc_html_e( 'N° ASPTT', 'ufsc-licence-competition' ); ?></th>
+										<th><?php esc_html_e( 'N° FFST', 'ufsc-licence-competition' ); ?></th>
 										<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
 									</tr>
 								</thead>
@@ -392,7 +392,7 @@ class UFSC_LC_Licence_Documents {
 											<td><?php echo esc_html( $item->club_name ? $item->club_name : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 											<td><?php echo esc_html( $this->format_season_value( $item->season_value ?? '' ) ); ?></td>
 											<td><?php echo esc_html( $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-											<td><?php echo esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+											<td><?php echo esc_html( $item->ffst_number ? $item->ffst_number : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 											<td><?php echo esc_html( ! empty( $item->has_pdf ) ? __( 'Associé', 'ufsc-licence-competition' ) : __( 'Manquant', 'ufsc-licence-competition' ) ); ?></td>
 										</tr>
 									<?php endforeach; ?>
@@ -891,7 +891,7 @@ if ( headers_sent() ) {
 
 		$season_sql = $this->get_season_coalesce_sql( 'l' ) . ' AS season_value';
 		$licence_number_sql = $this->get_licence_number_sql( 'l' );
-		$asptt_number_sql   = $this->get_asptt_number_sql( 'l', $has_documents_table ? 'd' : '' );
+		$ffst_number_sql   = $this->get_ffst_number_sql( 'l' );
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
 
@@ -914,7 +914,7 @@ if ( headers_sent() ) {
 			$select_documents = "CASE WHEN d.attachment_id IS NULL THEN 0 ELSE 1 END AS has_pdf";
 		}
 
-		$sql = "SELECT l.id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
+		$sql = "SELECT l.id, {$licence_number_sql} AS licence_number, {$ffst_number_sql} AS ffst_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, l.date_naissance, {$this->get_status_select_sql( 'l' )}, l.competition, {$category_sql}, {$categorie_affiche_sql} AS categorie_affiche, {$season_sql},
 			l.club_id, c.nom AS club_name, {$select_documents}
 			FROM {$licences_table} l
 			LEFT JOIN {$clubs_table} c ON c.id = l.club_id
@@ -943,7 +943,7 @@ if ( headers_sent() ) {
 		$lines = array(
 			'<strong>' . esc_html__( 'Licence ID', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->id ),
 			'<strong>' . esc_html__( 'N° licence', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->licence_number ? $item->licence_number : __( '—', 'ufsc-licence-competition' ) ),
-			'<strong>' . esc_html__( 'N° ASPTT', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->asptt_number ? $item->asptt_number : __( '—', 'ufsc-licence-competition' ) ),
+			'<strong>' . esc_html__( 'N° FFST', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->ffst_number ? $item->ffst_number : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Nom', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ),
 			'<strong>' . esc_html__( 'Prénom', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( $item->prenom ),
 			'<strong>' . esc_html__( 'Date de naissance', 'ufsc-licence-competition' ) . '</strong>: ' . esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ),
@@ -1208,6 +1208,15 @@ if ( headers_sent() ) {
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
+	private function get_ffst_number_sql( $alias ) {
+		$table = $this->get_licences_table();
+		if ( ! $this->has_column( $table, 'numero_licence_ffst' ) ) {
+			return "''";
+		}
+		return "NULLIF({$alias}.numero_licence_ffst, '')";
+	}
+
+
 	private function get_asptt_number_sql( $alias, $documents_alias = '' ) {
 		$parts = array();
 		foreach ( $this->get_asptt_number_columns() as $column ) {
@@ -1249,25 +1258,19 @@ if ( headers_sent() ) {
 			return;
 		}
 
-		$table = $this->get_licences_table();
-		$columns = function_exists( 'ufsc_lc_get_licence_season_columns' )
-			? ufsc_lc_get_licence_season_columns( $table )
-			: array_filter( array( $this->get_season_column() ) );
-		if ( empty( $columns ) ) {
+		$season_sql = $this->get_season_coalesce_sql( 'l' );
+		if ( "''" === $season_sql ) {
 			return;
 		}
 
 		if ( 'unspecified' === $season_filter ) {
-			$parts = array();
-			foreach ( $columns as $column ) {
-				$parts[] = "(l.{$column} IS NULL OR l.{$column} = '')";
-			}
-			$where[] = '(' . implode( ' AND ', $parts ) . ')';
+			$where[] = "({$season_sql} IS NULL OR {$season_sql} = '')";
 			return;
 		}
 
 		$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
 		if ( ! $year ) {
+			$where[] = '1=0';
 			return;
 		}
 
@@ -1282,14 +1285,9 @@ if ( headers_sent() ) {
 				)
 			)
 		);
-
-		$clauses = array();
-		foreach ( $columns as $column ) {
-			$clauses[] = 'l.' . $column . ' IN (' . implode( ', ', array_fill( 0, count( $values ), '%s' ) ) . ')';
-			$params = array_merge( $params, $values );
-		}
-
-		$where[] = '(' . implode( ' OR ', $clauses ) . ')';
+		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+		$where[]       = "{$season_sql} IN ({$placeholders})";
+		$params        = array_merge( $params, $values );
 	}
 
 	private function has_column( $table, $column ) {
