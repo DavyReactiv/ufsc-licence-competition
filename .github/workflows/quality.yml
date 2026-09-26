@@ -43,6 +43,8 @@ jobs:
         run: php tests/active-licence-ffst-regional-guard-test.php
       - name: Official A6 licence template guard
         run: php tests/licence-a6-template-guard-test.php
+      - name: Premium FFST PDF integration guard
+        run: php tests/licence-pdf-premium-ffst-integration-guard-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
