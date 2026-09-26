@@ -8,6 +8,7 @@ $list     = file_get_contents( $root . '/includes/admin/class-ufsc-licences-list
 $admin    = file_get_contents( $root . '/includes/admin/class-ufsc-licences-admin.php' );
 $front    = file_get_contents( $root . '/includes/class-ufsc-club-licences-shortcode.php' );
 $settings = file_get_contents( $root . '/includes/admin/class-ufsc-lc-settings-page.php' );
+$documents = file_get_contents( $root . '/includes/class-ufsc-licence-documents.php' );
 $template = file_get_contents( $root . '/templates/licence-sportive-a6.html' );
 $build    = file_get_contents( $root . '/.github/workflows/build-production-plugin.yml' );
 $composer = file_get_contents( $root . '/composer.json' );
@@ -28,6 +29,8 @@ $checks = array(
 	'production Composer install'   => array( $build, 'composer install --no-dev' ),
 	'production Dompdf check'       => array( $build, "class_exists('Dompdf" ),
 	'Dompdf dependency'             => array( $composer, 'dompdf/dompdf' ),
+	'documents FFST label'          => array( $documents, 'N° FFST' ),
+	'documents canonical FFST SQL'  => array( $documents, 'numero_licence_ffst' ),
 );
 
 foreach ( $checks as $label => $check ) {
@@ -46,6 +49,10 @@ if ( false !== strpos( $front, "esc_html_e( 'N° ASPTT'" ) ) {
 
 if ( false !== strpos( $settings, "__( 'Import ASPTT'" ) ) {
 	$errors[] = 'settings must not expose Import ASPTT';
+}
+
+if ( false !== strpos( $documents, "esc_html_e( 'N° ASPTT'" ) ) {
+	$errors[] = 'documents admin must not expose N° ASPTT';
 }
 
 if ( false !== strpos( $template, '<div class="ffst-left">FFST</div>' ) ) {
