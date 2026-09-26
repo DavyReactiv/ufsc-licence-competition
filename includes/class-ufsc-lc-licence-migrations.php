@@ -27,7 +27,7 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 			'season_end_year'      => 'season_end_year int(4) NULL',
 			'category'             => 'category varchar(50) NULL',
 			'age_ref'              => 'age_ref int(3) NULL',
-			'numero_licence_asptt' => 'numero_licence_asptt varchar(32) NULL',
+			'numero_licence_ffst'  => 'numero_licence_ffst varchar(64) NULL',
 			'import_batch_id'      => 'import_batch_id varchar(64) NULL',
 		);
 
@@ -96,9 +96,7 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 			} else {
 				error_log( "UFSC Licence Migrations: skipping FK add for {$table} -> {$clubs_table} because engine is not InnoDB (lic: {$lic_engine}, clubs: {$club_engine})." );
 			}
-		}
-
-		$this->migrate_asptt_number_column( $table );
+		} 
 	}
 
 	public function get_missing_master_columns(): array {
@@ -111,7 +109,7 @@ if ( ! apply_filters( 'ufsc_lc_allow_master_table_alter', false ) ) {
 			'season_end_year',
 			'category',
 			'age_ref',
-			'numero_licence_asptt',
+			'numero_licence_ffst',
 			'import_batch_id',
 		);
 

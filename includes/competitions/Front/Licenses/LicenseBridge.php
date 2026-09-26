@@ -75,8 +75,8 @@ class LicenseBridge {
 		}
 
 		// Resolve schema differences across installs.
-		$license_columns    = $this->resolve_available_columns( $table, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
-		$asptt_columns      = $this->resolve_available_columns( $table, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'num_asptt' ) );
+		$license_columns    = $this->resolve_available_columns( $table, array( 'numero_licence_ufsc', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$ffst_columns       = $this->resolve_available_columns( $table, array( 'numero_licence_ffst' ) );
 		$email_columns      = $this->resolve_available_columns( $table, array( 'email', 'mail', 'email_licence', 'contact_email' ) );
 		$club_id_columns    = $this->resolve_available_columns( $table, array( 'club_id', 'association_id', 'id_club', 'club' ) );
 		$club_name_columns  = $this->resolve_available_columns( $table, array( 'club_name', 'club_nom', 'nom_club', 'association_name', 'structure_name' ) );
@@ -122,6 +122,24 @@ class LicenseBridge {
 
 		$where  = array();
 		$params = array();
+
+		// UFSC Gestion remains the source of truth: only validated/active licences
+		// can be consumed by the competition module. If no status column exists,
+		// fail closed instead of exposing drafts or pending licences.
+		if ( '' === $status_column ) {
+			$this->debug_log( 'license_search_missing_status_column', array( 'table' => $table ) );
+			return array();
+		}
+		$eligible_statuses = (array) apply_filters( 'ufsc_competitions_eligible_license_statuses', array( 'valide' ) );
+		$eligible_statuses = array_values( array_filter( array_unique( array_map( 'sanitize_key', $eligible_statuses ) ) ) );
+		if ( empty( $eligible_statuses ) ) {
+			return array();
+		}
+		$status_placeholders = implode( ',', array_fill( 0, count( $eligible_statuses ), '%s' ) );
+		$where[] = "LOWER(TRIM({$status_column})) IN ({$status_placeholders})";
+		foreach ( $eligible_statuses as $eligible_status ) {
+			$params[] = $eligible_status;
+		}
 
 		if ( ! $club_id ) {
 			$this->debug_log(
@@ -226,7 +244,7 @@ class LicenseBridge {
 					$params[] = $compact_like;
 				}
 			}
-			foreach ( array_unique( array_merge( $license_columns, $asptt_columns, $email_columns, $club_name_columns ) ) as $search_column ) {
+			foreach ( array_unique( array_merge( $license_columns, $ffst_columns, $email_columns, $club_name_columns ) ) as $search_column ) {
 				$clause[] = "{$search_column} LIKE %s";
 				$params[] = $like;
 				if ( $normalized_like ) {
@@ -256,7 +274,7 @@ class LicenseBridge {
 		}
 
 		// Dedicated license number term (only if column exists)
-		$number_columns = array_unique( array_merge( $license_columns, $asptt_columns ) );
+		$number_columns = array_unique( array_merge( $license_columns, $ffst_columns ) );
 		if ( '' !== $license_number && ! empty( $number_columns ) ) {
 			$compact_number = preg_replace( '/[^a-z0-9]/i', '', $license_number );
 			$number_clause  = array();
@@ -313,7 +331,7 @@ class LicenseBridge {
 		$select_columns[] = $birthdate_column ? "{$birthdate_column} AS birthdate" : "'' AS birthdate";
 		$select_columns[] = $sex_column ? "{$sex_column} AS sex" : "'' AS sex";
 		$select_columns[] = ! empty( $license_columns ) ? "{$license_columns[0]} AS license_number" : "'' AS license_number";
-		$select_columns[] = ! empty( $asptt_columns ) ? "{$asptt_columns[0]} AS asptt_number" : "'' AS asptt_number";
+		$select_columns[] = ! empty( $ffst_columns ) ? "{$ffst_columns[0]} AS ffst_number" : "'' AS ffst_number";
 		$select_columns[] = ! empty( $email_columns ) ? "{$email_columns[0]} AS email" : "'' AS email";
 		$select_columns[] = ! empty( $club_id_columns ) ? "{$club_id_columns[0]} AS club_id" : "0 AS club_id";
 		$select_columns[] = ! empty( $club_name_columns ) ? "{$club_name_columns[0]} AS club_name" : "'' AS club_name";
@@ -395,13 +413,13 @@ class LicenseBridge {
 				'birthdate'      => $birthdate,
 				'sex'            => sanitize_text_field( $row['sex'] ?? '' ),
 				'license_number' => sanitize_text_field( $row['license_number'] ?? '' ),
-				'asptt_number'   => sanitize_text_field( $row['asptt_number'] ?? '' ),
+				'ffst_number'    => sanitize_text_field( $row['ffst_number'] ?? '' ),
 				'email'          => sanitize_email( $row['email'] ?? '' ),
 				'club_id'        => absint( $row['club_id'] ?? 0 ),
 				'club_name'      => sanitize_text_field( $row['club_name'] ?? '' ),
 				'status'         => sanitize_text_field( $row['license_status'] ?? '' ),
-				'is_selectable'  => ! $this->is_excluded_status( (string) ( $row['license_status'] ?? '' ) ),
-				'warning'        => $this->get_status_warning( (string) ( $row['license_status'] ?? '' ) ),
+				'is_selectable'  => true,
+				'warning'        => '',
 			);
 		}
 
@@ -468,7 +486,7 @@ class LicenseBridge {
 			'club_scope' => $club_scope['summary'],
 			'search_columns' => array(
 				'license' => $license_columns,
-				'asptt' => $asptt_columns,
+				'ffst' => $ffst_columns,
 				'email' => $email_columns,
 				'club_name' => $club_name_columns,
 			),
@@ -501,7 +519,8 @@ class LicenseBridge {
 			return null;
 		}
 
-		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_asptt', 'numero_asptt', 'asptt_number', 'numero_licence_delegataire', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$license_column    = $this->resolve_first_column( $table, array( 'numero_licence_ufsc', 'numero_licence', 'num_licence', 'licence_numero', 'licence_number' ) );
+		$ffst_column       = $this->resolve_first_column( $table, array( 'numero_licence_ffst' ) );
 		$club_id_columns   = $this->resolve_available_columns( $table, array( 'club_id', 'association_id', 'id_club', 'club' ) );
 		$club_name_columns = $this->resolve_available_columns( $table, array( 'club_name', 'club_nom', 'nom_club', 'association_name', 'structure_name' ) );
 		$club_context      = $this->get_club_context( $club_id );
@@ -514,6 +533,14 @@ class LicenseBridge {
 		$birthdate_column  = $this->resolve_first_column( $table, array( 'date_naissance', 'naissance', 'birthdate' ) );
 		$sex_column        = $this->resolve_first_column( $table, array( 'sexe', 'sex', 'gender' ) );
 		$status_column     = $this->resolve_first_column( $table, array( 'statut', 'status' ) );
+		if ( '' === $status_column ) {
+			return null;
+		}
+		$eligible_statuses = (array) apply_filters( 'ufsc_competitions_eligible_license_statuses', array( 'valide' ) );
+		$eligible_statuses = array_values( array_filter( array_unique( array_map( 'sanitize_key', $eligible_statuses ) ) ) );
+		if ( empty( $eligible_statuses ) ) {
+			return null;
+		}
 
 		$select_columns   = array( 'id' );
 		$select_columns[] = $last_name_column ? "{$last_name_column} AS last_name" : "'' AS last_name";
@@ -521,14 +548,16 @@ class LicenseBridge {
 		$select_columns[] = $birthdate_column ? "{$birthdate_column} AS birthdate" : "'' AS birthdate";
 		$select_columns[] = $sex_column ? "{$sex_column} AS sex" : "'' AS sex";
 		$select_columns[] = $license_column ? "{$license_column} AS license_number" : "'' AS license_number";
-		$select_columns[] = $status_column ? "{$status_column} AS license_status" : "'' AS license_status";
+		$select_columns[] = $ffst_column ? "{$ffst_column} AS ffst_number" : "'' AS ffst_number";
+		$select_columns[] = "{$status_column} AS license_status";
 
 		$select = implode( ', ', $select_columns );
 
+		$status_placeholders = implode( ',', array_fill( 0, count( $eligible_statuses ), '%s' ) );
 		$row = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT {$select} FROM {$table} WHERE id = %d AND (" . implode( ' OR ', $club_scope['clauses'] ) . ")",
-				array_merge( array( $id ), $club_scope['params'] )
+				"SELECT {$select} FROM {$table} WHERE id = %d AND (" . implode( ' OR ', $club_scope['clauses'] ) . ") AND LOWER(TRIM({$status_column})) IN ({$status_placeholders})",
+				array_merge( array( $id ), $club_scope['params'], $eligible_statuses )
 			),
 			ARRAY_A
 		);
@@ -567,9 +596,10 @@ class LicenseBridge {
 			'birthdate'      => $birthdate,
 			'sex'            => sanitize_text_field( $row['sex'] ?? '' ),
 			'license_number' => sanitize_text_field( $row['license_number'] ?? '' ),
+			'ffst_number'    => sanitize_text_field( $row['ffst_number'] ?? '' ),
 			'status'         => sanitize_text_field( $row['license_status'] ?? '' ),
-			'is_selectable'  => ! $this->is_excluded_status( (string) ( $row['license_status'] ?? '' ) ),
-			'warning'        => $this->get_status_warning( (string) ( $row['license_status'] ?? '' ) ),
+			'is_selectable'  => true,
+			'warning'        => '',
 		);
 
 		$this->debug_log(

@@ -18,8 +18,36 @@ class UFSC_LC_Capabilities {
 	const LEGACY_CAPABILITY = 'ufsc_manage_licences';
 	const COMPETITIONS_CAPABILITY = 'ufsc_competitions_manage';
 	const COMPETITIONS_VALIDATE_ENTRIES_CAPABILITY = 'ufsc_competitions_validate_entries';
+	const REGIONAL_ROLE = 'ufsc_regional_manager';
 
 	public static function add_caps() {
+		$regional_caps = array(
+			'read' => true,
+			self::READ_CAPABILITY => true,
+			self::MANAGE_CAPABILITY => true,
+			self::COMPETITIONS_CAPABILITY => true,
+			'ufsc_competitions_read' => true,
+			'ufsc_comp_manage_region' => true,
+			'ufsc_comp_view_region' => true,
+			'ufsc_competition_entries_manage' => true,
+			'ufsc_competition_export' => true,
+			'ufsc_competition_validate' => true,
+		);
+		$regional_role = get_role( self::REGIONAL_ROLE );
+		if ( ! $regional_role ) {
+			add_role( self::REGIONAL_ROLE, __( 'Responsable régional UFSC', 'ufsc-licence-competition' ), $regional_caps );
+			$regional_role = get_role( self::REGIONAL_ROLE );
+		}
+		if ( $regional_role ) {
+			foreach ( array_keys( array_filter( $regional_caps ) ) as $capability ) {
+				if ( ! $regional_role->has_cap( $capability ) ) {
+					$regional_role->add_cap( $capability );
+				}
+			}
+			// Deliberately do not grant all-regions access.
+			$regional_role->remove_cap( self::SCOPE_ALL_REGIONS_CAPABILITY );
+		}
+
 		$role = get_role( 'administrator' );
 		if ( ! $role ) {
 			return;
