@@ -13,8 +13,8 @@ $errors = array();
 
 $required_list = array(
 	"'ffst_number'     => __( 'N° FFST'",
-	"$season_end_year = isset( $_REQUEST['season_end_year'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['season_end_year'] ) ) : $defaults['season_end_year'];",
-	"$args['season_end_year'] = $active_season;",
+	'$season_end_year = isset( $_REQUEST[\'season_end_year\'] ) ? sanitize_text_field( wp_unslash( $_REQUEST[\'season_end_year\'] ) ) : $defaults[\'season_end_year\'];',
+	'$args[\'season_end_year\'] = $active_season;',
 	"case 'actions':",
 	"'action'     => 'view'",
 	"array( 'UFSC' )",
@@ -30,12 +30,12 @@ if ( false !== strpos( $list, "__( 'N° ASPTT'" ) ) {
 	$errors[] = 'ASPTT column label must not be exposed in current licence list';
 }
 
-if ( false !== strpos( $importer, "add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );" ) ) {
+if ( false !== strpos( $importer, 'add_action( \'admin_menu\', array( $this, \'register_admin_menu\' ) );' ) ) {
 	$errors[] = 'legacy ASPTT import menu must remain hidden';
 }
 
 $required_admin = array(
-	"if ( 'view' === $action )",
+	'if ( \'view\' === $action )',
 	"render_licence_view_page",
 	"ufsc_lc_generate_licence_pdf",
 	"Générer le PDF",
@@ -50,7 +50,7 @@ foreach ( $required_admin as $needle ) {
 }
 
 $required_generator = array(
-	"self::build_pdf_html( $sample )",
+	'self::build_pdf_html( $sample )',
 	"Gabarit automatique de licence UFSC / FFST",
 	"Le document utilise le gabarit premium A6 recto/verso",
 	"'ffst_missing_class'",
