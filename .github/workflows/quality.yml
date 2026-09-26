@@ -39,6 +39,8 @@ jobs:
         run: php tests/registration-window-test.php
       - name: Club competition requirements
         run: php tests/competition-requirements-test.php
+      - name: Active licence / FFST / regional guards
+        run: php tests/active-licence-ffst-regional-guard-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
