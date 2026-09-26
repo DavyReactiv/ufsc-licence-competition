@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-card-v1-ffst';
+	const TEMPLATE_VERSION = 'ufsc-card-v2-premium-ffst';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -108,16 +108,20 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$sample = array(
 			'first_name'     => 'Alexandre',
 			'last_name'      => 'MARTIN',
-			'license_number' => 'UFSC-2026-001245',
+			'license_number' => 'FFST-2026-001245',
 			'club_name'      => 'Club UFSC Démonstration',
 			'birthdate'      => '14/03/1994',
 			'season'         => '2026–2027',
 			'category'       => 'Senior',
+			'region'         => 'Auvergne-Rhône-Alpes',
 			'profile'        => 'Compétiteur',
 			'role'           => '',
 			'photo_uri'      => '',
 			'logo_uri'       => self::get_default_logo_data_uri(),
 			'qr_uri'         => '',
+			'ffst_missing_class' => 'EN ATTENTE D’ATTRIBUTION' === $license_number ? 'ffst-number-missing' : '',
+			'logo_ufsc_url'  => 'https://ufsc-france.fr/wp-content/uploads/2025/12/cropped-cropped-UFSC-logo.jpg',
+			'logo_ffst_url'  => 'https://ufsc-france.fr/wp-content/uploads/2026/09/logo-ffst-2020.png',
 			'generated_at'   => wp_date( 'd/m/Y' ),
 			'initials'       => 'AM',
 		);
@@ -224,10 +228,15 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				return new WP_Error( 'ufsc_lc_pdf_not_validated', __( 'Le PDF n’est généré que pour une licence validée.', 'ufsc-licence-competition' ) );
 			}
 
-			$license_number = self::resolve_ufsc_license_number( $licence );
-			if ( '' === $license_number ) {
-				return new WP_Error( 'ufsc_lc_pdf_missing_number', __( 'Le numéro de licence UFSC doit être attribué avant la génération du PDF.', 'ufsc-licence-competition' ) );
+			$source_number = self::resolve_ufsc_license_number( $licence );
+			if ( '' === $source_number ) {
+				$source_number = 'UFSC-LICENCE-' . $licence_id;
 			}
+
+			$ffst_number    = self::resolve_ffst_license_number( $licence );
+			$display_number = '' !== $ffst_number
+				? $ffst_number
+				: __( 'EN ATTENTE D’ATTRIBUTION', 'ufsc-licence-competition' );
 
 			if ( ! self::documents_tables_exist() ) {
 				return new WP_Error( 'ufsc_lc_pdf_tables_missing', __( 'Les tables de documents du plugin Licence Compétition sont indisponibles.', 'ufsc-licence-competition' ) );
@@ -253,7 +262,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				return new WP_Error( 'ufsc_lc_pdf_engine_missing', __( 'Dompdf est indisponible : installez les dépendances Composer du plugin pour activer la génération automatique.', 'ufsc-licence-competition' ) );
 			}
 
-			$data     = self::build_template_data( $licence, $license_number );
+			$data     = self::build_template_data( $licence, $display_number );
 			$html     = self::build_pdf_html( $data );
 			$pdf      = self::render_pdf( $html );
 			$snapshot = hash( 'sha256', wp_json_encode( $data ) );
@@ -262,19 +271,20 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				return $pdf;
 			}
 
-			$attachment_id = self::store_pdf_attachment( $licence_id, $license_number, $data['season'], $pdf );
+			$attachment_id = self::store_pdf_attachment( $licence_id, $source_number, $data['season'], $pdf );
 			if ( is_wp_error( $attachment_id ) ) {
 				return $attachment_id;
 			}
 
 			$old_attachment_id = $current && ! empty( $current->attachment_id ) ? absint( $current->attachment_id ) : 0;
-			self::upsert_document( $licence_id, $license_number, $attachment_id );
+			self::upsert_document( $licence_id, $source_number, $attachment_id );
 			self::set_document_meta( $licence_id, 'ufsc_licence_pdf_attachment_id', $attachment_id );
 			self::set_document_meta( $licence_id, 'pdf_attachment_id', $attachment_id );
 			self::set_document_meta( $licence_id, 'pdf_generator', self::TEMPLATE_VERSION );
 			self::set_document_meta( $licence_id, 'pdf_template_version', self::TEMPLATE_VERSION );
 			self::set_document_meta( $licence_id, 'pdf_generated_at', current_time( 'mysql' ) );
 			self::set_document_meta( $licence_id, 'pdf_snapshot_hash', $snapshot );
+			self::set_document_meta( $licence_id, 'ffst_display_number', $ffst_number );
 
 			update_post_meta( $attachment_id, '_ufsc_lc_licence_id', $licence_id );
 			update_post_meta( $attachment_id, '_ufsc_lc_pdf_generator', self::TEMPLATE_VERSION );
@@ -332,6 +342,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			'birthdate'      => $birthdate,
 			'season'         => $season,
 			'category'       => $category,
+			'region'         => trim( (string) ( $licence->region ?? ( $licence->club_region ?? '' ) ) ),
 			'profile'        => $profile,
 			'role'           => $role,
 			'photo_uri'      => self::image_value_to_data_uri( $licence->photo_identite ?? '' ),
@@ -358,7 +369,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		try {
 			$options = class_exists( 'Dompdf\\Options' ) ? new \Dompdf\Options() : null;
 			if ( $options ) {
-				$options->set( 'isRemoteEnabled', false );
+				$options->set( 'isRemoteEnabled', true );
 				$options->set( 'isHtml5ParserEnabled', true );
 				$dompdf = new \Dompdf\Dompdf( $options );
 			} else {
@@ -384,8 +395,32 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	 * Complete HTML document passed to Dompdf.
 	 */
 	private static function build_pdf_html( array $data ) {
-		$markup = self::build_card_markup( $data, false );
-		$html   = '<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Licence UFSC</title></head><body>' . $markup . '</body></html>';
+		$template_path = UFSC_LC_DIR . 'templates/licence-sportive-a6.html';
+		if ( ! is_readable( $template_path ) ) {
+			return self::build_card_markup( $data, false );
+		}
+
+		$html = file_get_contents( $template_path );
+		if ( false === $html || '' === trim( $html ) ) {
+			return self::build_card_markup( $data, false );
+		}
+
+		$replacements = array(
+			'{{logo_ufsc}}'            => esc_url( (string) ( $data['logo_ufsc_url'] ?? '' ) ),
+			'{{logo_ffst}}'            => esc_url( (string) ( $data['logo_ffst_url'] ?? '' ) ),
+			'{{photo_licencie}}'       => esc_attr( (string) ( $data['photo_uri'] ?? '' ) ),
+			'{{saison}}'                => esc_html( (string) ( $data['season'] ?? '' ) ),
+			'{{nom}}'                   => esc_html( (string) ( $data['last_name'] ?? '' ) ),
+			'{{prenom}}'                => esc_html( (string) ( $data['first_name'] ?? '' ) ),
+			'{{date_naissance}}'        => esc_html( (string) ( $data['birthdate'] ?? '' ) ),
+			'{{categorie}}'             => esc_html( (string) ( $data['category'] ?? '' ) ),
+			'{{club}}'                  => esc_html( (string) ( $data['club_name'] ?? '' ) ),
+			'{{region}}'                => esc_html( (string) ( $data['region'] ?? '' ) ),
+			'{{numero_licence_ffst}}'   => esc_html( (string) ( $data['license_number'] ?? '' ) ),
+			'{{ffst_missing_class}}'    => esc_attr( (string) ( $data['ffst_missing_class'] ?? '' ) ),
+		);
+
+		$html = strtr( $html, $replacements );
 
 		return (string) apply_filters( 'ufsc_lc_license_pdf_html', $html, $data );
 	}
@@ -580,6 +615,17 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		}
 
 		foreach ( array( 'numero_licence', 'num_licence', 'licence_number', 'numero_licence_delegataire' ) as $field ) {
+			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
+				return trim( (string) $licence->{$field} );
+			}
+		}
+
+		return '';
+	}
+
+
+	private static function resolve_ffst_license_number( $licence ) {
+		foreach ( array( 'numero_licence_ffst', 'licence_ffst', 'ffst_number', 'numero_ffst' ) as $field ) {
 			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
 				return trim( (string) $licence->{$field} );
 			}
