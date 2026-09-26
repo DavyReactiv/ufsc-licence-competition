@@ -308,7 +308,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 						: esc_html__( 'En attente', 'ufsc-licence-competition' );
 				}
 				return sprintf(
-					'<div class="ufsc-lc-inline-ffst" data-licence-id="%1$d"><input type="text" class="small-text ufsc-lc-inline-ffst-input" value="%2$s" placeholder="%3$s" maxlength="64" aria-label="%4$s"><button type="button" class="button button-small ufsc-lc-inline-ffst-save">%5$s</button><span class="spinner" style="float:none;margin:0;"></span><span class="ufsc-lc-inline-ffst-status" aria-live="polite"></span></div>',
+					'<div class="ufsc-lc-inline-ffst" data-licence-id="%1$d"><input type="text" class="ufsc-lc-inline-ffst-input" value="%2$s" placeholder="%3$s" maxlength="64" aria-label="%4$s"><button type="button" class="button button-small ufsc-lc-inline-ffst-save">%5$s</button><span class="spinner" style="float:none;margin:0;"></span><span class="ufsc-lc-inline-ffst-status" aria-live="polite"></span></div>',
 					$licence_id,
 					esc_attr( $ffst_number ),
 					esc_attr__( 'N° FFST', 'ufsc-licence-competition' ),
@@ -660,6 +660,14 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		if ( 'top' !== $which ) {
 			return;
 		}
+
+		echo '<style>
+			.wp-list-table .column-ffst_number{width:245px;min-width:245px}
+			.ufsc-lc-inline-ffst{display:grid;grid-template-columns:minmax(135px,1fr) auto;gap:6px;align-items:center;min-width:225px}
+			.ufsc-lc-inline-ffst-input{width:100%;min-width:135px;box-sizing:border-box}
+			.ufsc-lc-inline-ffst-status{grid-column:1 / -1;font-size:11px;line-height:1.2}
+			@media(max-width:1200px){.wp-list-table .column-ffst_number{width:210px;min-width:210px}.ufsc-lc-inline-ffst{min-width:195px;grid-template-columns:minmax(110px,1fr) auto}}
+		</style>';
 
 		$filters     = $this->get_sanitized_filters();
 		$club_id     = $filters['club_id'];
@@ -2214,13 +2222,18 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 
-		$season_sql = $this->get_season_end_year_sql( 'l' );
-		if ( "''" === $season_sql ) {
+		$columns = $this->get_season_columns();
+		if ( empty( $columns ) ) {
+			$where[] = '1=0';
 			return;
 		}
 
 		if ( 'unspecified' === $season_filter ) {
-			$where[] = "({$season_sql} IS NULL OR {$season_sql} = '')";
+			$empty_parts = array();
+			foreach ( $columns as $column ) {
+				$empty_parts[] = "(l.{$column} IS NULL OR TRIM(CAST(l.{$column} AS CHAR)) = '')";
+			}
+			$where[] = '(' . implode( ' AND ', $empty_parts ) . ')';
 			return;
 		}
 
@@ -2233,17 +2246,16 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 					$years[] = (int) $year;
 				}
 			}
-			if ( empty( $years ) ) {
-				$where[] = '1=0';
-				return;
-			}
 		} else {
 			$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
-			if ( ! $year ) {
-				$where[] = '1=0';
-				return;
+			if ( $year ) {
+				$years[] = (int) $year;
 			}
-			$years[] = (int) $year;
+		}
+
+		if ( empty( $years ) ) {
+			$where[] = '1=0';
+			return;
 		}
 
 		$values = array();
@@ -2256,9 +2268,23 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 			return;
 		}
 
-		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
-		$where[]       = "{$season_sql} IN ({$placeholders})";
-		$params        = array_merge( $params, $values );
+		$match_parts      = array();
+		$consistent_parts = array();
+		foreach ( $columns as $column ) {
+			$cast = "TRIM(CAST(l.{$column} AS CHAR))";
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$match_parts[] = "{$cast} IN ({$placeholders})";
+			$params = array_merge( $params, $values );
+
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$consistent_parts[] = "(l.{$column} IS NULL OR {$cast} = '' OR {$cast} IN ({$placeholders}))";
+			$params = array_merge( $params, $values );
+		}
+
+		// Require at least one explicit match and reject rows whose other populated
+		// season columns contradict the selected season. This is deliberately
+		// fail-closed for inconsistent legacy rows.
+		$where[] = '((' . implode( ' OR ', $match_parts ) . ') AND ' . implode( ' AND ', $consistent_parts ) . ')';
 	}
 
 	private function get_licence_number_sql( $alias ) {
