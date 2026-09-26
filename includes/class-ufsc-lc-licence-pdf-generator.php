@@ -131,7 +131,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Aperçu du document généré automatiquement lorsqu’une licence est validée et possède un numéro de licence UFSC. Le PDF reste associé à la licence dans le système existant.', 'ufsc-licence-competition' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le numéro affiché « Licence UFSC / FFST » correspond au numéro FFST ; s’il n’est pas encore importé, le document affiche « En attente d’attribution » et pourra être régénéré ensuite.', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
 				<div class="notice notice-<?php echo esc_attr( 'success' === $status ? 'success' : ( 'warning' === $status ? 'warning' : 'error' ) ); ?> is-dismissible"><p><?php echo esc_html( $message ); ?></p></div>
@@ -157,8 +157,8 @@ final class UFSC_LC_Licence_Pdf_Generator {
 
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
 				<h2 style="margin-top:0;"><?php esc_html_e( 'Règles de génération', 'ufsc-licence-competition' ); ?></h2>
-				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base et si son numéro UFSC est renseigné. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
-				<p><?php esc_html_e( 'Le document n’affiche ni adresse, ni téléphone, ni e-mail. Les anciennes références ASPTT restent utilisables en compatibilité interne mais ne figurent pas sur le gabarit.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le document utilise le gabarit premium A6 recto/verso et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
 			</div>
 		</div>
 		<?php
