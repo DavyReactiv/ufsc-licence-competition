@@ -14,9 +14,10 @@ $html = file_get_contents( $template );
 
 $required = array(
 	'@page{size:A6 landscape;margin:0}',
-	'{{numero_licence_ufsc}}',
+	'LICENCE UFSC / FFST',
 	'{{numero_licence_ffst}}',
-	'N° FFST associé à la couverture d’assurance du licencié.',
+	'{{ffst_missing_class}}',
+	'Numéro associé à la couverture d’assurance FFST',
 	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence — France',
 	'RNA : W596010570',
 	'06 27 85 80 20',
@@ -25,6 +26,12 @@ $required = array(
 	'{{logo_ufsc}}',
 	'{{logo_ffst}}',
 	'{{photo_licencie}}',
+	'{{saison}}',
+	'{{nom}} {{prenom}}',
+	'{{date_naissance}}',
+	'{{categorie}}',
+	'{{club}}',
+	'{{region}}',
 );
 
 $missing = array();
@@ -36,6 +43,10 @@ foreach ( $required as $needle ) {
 
 if ( 2 !== substr_count( $html, 'class="ufsc-legal-footer"' ) ) {
 	$missing[] = 'footer institutionnel recto + verso';
+}
+
+if ( false !== strpos( $html, '{{numero_licence_ufsc}}' ) ) {
+	$missing[] = 'le numéro UFSC ne doit plus être affiché séparément sur la carte';
 }
 
 if ( false !== stripos( $html, 'ASPTT' ) ) {
