@@ -15,7 +15,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	private $has_documents_table = false;
 	private $has_source_created_at = false;
 	private $has_licence_number = false;
-	private $has_asptt_number = false;
+	private $has_ffst_number = false;
 	private $has_licence_number_alt = false;
 	private $has_asptt_number_alt = false;
 	private $has_asptt_number_legacy = false;
@@ -57,7 +57,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		$this->has_created_at            = $this->has_column( $this->get_licences_table(), 'created_at' );
 		$this->has_licence_number        = $this->has_column( $this->get_licences_table(), 'numero_licence_delegataire' );
-		$this->has_asptt_number          = $this->has_column( $this->get_licences_table(), 'numero_licence_asptt' );
+		$this->has_ffst_number           = $this->has_column( $this->get_licences_table(), 'numero_licence_ffst' );
 		$this->has_licence_number_alt    = $this->has_column( $this->get_licences_table(), 'licence_number' );
 		$this->has_asptt_number_alt      = $this->has_column( $this->get_licences_table(), 'asptt_number' );
 		$this->has_asptt_number_legacy   = $this->has_column( $this->get_licences_table(), 'numero_asptt' );
@@ -94,7 +94,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		return array(
 			'cb'              => '<input type="checkbox" />',
 			'licence_number'  => __( 'N° licence', 'ufsc-licence-competition' ),
-			'asptt_number'    => __( 'N° ASPTT', 'ufsc-licence-competition' ),
+			'ffst_number'     => __( 'N° FFST', 'ufsc-licence-competition' ),
 			'nom_licence'     => __( 'Nom', 'ufsc-licence-competition' ),
 			'prenom'          => __( 'Prénom', 'ufsc-licence-competition' ),
 			'date'            => __( 'Date de naissance', 'ufsc-licence-competition' ),
@@ -238,11 +238,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			);
 		}
 
-		$asptt_sql = $this->get_asptt_number_sql( 'l', '' );
-		if ( "''" !== $asptt_sql ) {
-			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$asptt_sql} IS NULL OR {$asptt_sql} = ''){$deleted_sql}" );
+		$ffst_sql = $this->get_ffst_number_sql( 'l' );
+		if ( "''" !== $ffst_sql ) {
+			$count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} l WHERE ({$ffst_sql} IS NULL OR {$ffst_sql} = ''){$deleted_sql}" );
 			$diagnostics[] = array(
-				'label' => __( 'Licences sans numéro ASPTT', 'ufsc-licence-competition' ),
+				'label' => __( 'Licences sans numéro FFST', 'ufsc-licence-competition' ),
 				'count' => $count,
 				'url'   => '',
 			);
@@ -255,7 +255,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 					"SELECT COUNT(*) FROM {$table} l
 						LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s
 						WHERE d.attachment_id IS NULL{$deleted_sql}",
-					'ASPTT'
+					'UFSC'
 				)
 			);
 			$diagnostics[] = array(
@@ -291,11 +291,11 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		$value = is_array( $item ) ? ( $item[ $column_name ] ?? '' ) : ( $item->{$column_name} ?? '' );
 		switch ( $column_name ) {
-			case 'asptt_number':
-				$asptt_number = is_array( $item ) ? ( $item['asptt_number'] ?? '' ) : ( $item->asptt_number ?? '' );
-				return ! empty( $asptt_number )
-					? esc_html( $asptt_number )
-					: esc_html__( '—', 'ufsc-licence-competition' );
+			case 'ffst_number':
+				$ffst_number = is_array( $item ) ? ( $item['ffst_number'] ?? '' ) : ( $item->ffst_number ?? '' );
+				return ! empty( $ffst_number )
+					? esc_html( $ffst_number )
+					: esc_html__( 'En attente', 'ufsc-licence-competition' );
 
 			case 'club_name':
 			case 'region':
@@ -342,7 +342,19 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				return $created_at ? esc_html( $created_at ) : esc_html__( '—', 'ufsc-licence-competition' );
 
 			case 'actions':
-				return esc_html__( 'Consulter', 'ufsc-licence-competition' );
+				$licence_id = is_array( $item ) ? absint( $item['id'] ?? 0 ) : absint( $item->id ?? 0 );
+				if ( ! $licence_id ) {
+					return esc_html__( '—', 'ufsc-licence-competition' );
+				}
+				$url = add_query_arg(
+					array(
+						'page'       => UFSC_LC_Licences_Admin::PAGE_SLUG,
+						'action'     => 'view',
+						'licence_id' => $licence_id,
+					),
+					admin_url( 'admin.php' )
+				);
+				return sprintf( '<a class="button button-small" href="%s">%s</a>', esc_url( $url ), esc_html__( 'Consulter', 'ufsc-licence-competition' ) );
 
 			case 'date':
 				$birthdate_raw = is_array( $item ) ? ( $item['date_naissance'] ?? '' ) : ( $item->date_naissance ?? '' );
@@ -368,19 +380,23 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			return $licence_label;
 		}
 
-		$actions = array();
-		if ( UFSC_LC_Capabilities::user_can_edit() ) {
-			$actions['edit_asptt'] = sprintf(
-				'<a href="%s">%s</a>',
-				esc_url( $this->get_edit_asptt_url( (int) $licence_id ) ),
-				esc_html__( 'Modifier N° ASPTT', 'ufsc-licence-competition' )
-			);
-		}
+		$view_url = add_query_arg(
+			array(
+				'page'       => UFSC_LC_Licences_Admin::PAGE_SLUG,
+				'action'     => 'view',
+				'licence_id' => (int) $licence_id,
+			),
+			admin_url( 'admin.php' )
+		);
 
 		return sprintf(
 			'%1$s %2$s',
 			$licence_label,
-			$this->row_actions( $actions )
+			$this->row_actions(
+				array(
+					'view' => sprintf( '<a href="%s">%s</a>', esc_url( $view_url ), esc_html__( 'Consulter', 'ufsc-licence-competition' ) ),
+				)
+			)
 		);
 	}
 
@@ -485,7 +501,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 			$saison = sanitize_text_field( $persisted['saison'] );
 		}
 
-		$season_end_year = isset( $_REQUEST['season_end_year'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['season_end_year'] ) ) : '';
+		$season_end_year = isset( $_REQUEST['season_end_year'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['season_end_year'] ) ) : $defaults['season_end_year'];
 		if ( ! isset( $_REQUEST['season_end_year'] ) && isset( $persisted['season_end_year'] ) ) {
 			$season_end_year = sanitize_text_field( $persisted['season_end_year'] );
 		}
@@ -826,9 +842,8 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 				$this->append_like_clauses( 'l.email', $search_likes, $search_clauses, $params );
 			}
 
-			$asptt_column = $this->get_status_or_number_column( 'asptt' );
-			if ( '' !== $asptt_column ) {
-				$this->append_like_clauses( "l.{$asptt_column}", $search_likes, $search_clauses, $params );
+			if ( $this->has_ffst_number ) {
+				$this->append_like_clauses( 'l.numero_licence_ffst', $search_likes, $search_clauses, $params );
 			}
 
 			if ( $this->has_licence_number ) {
@@ -899,7 +914,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 
 		if ( $this->has_documents_table ) {
 			$join_documents   = "LEFT JOIN {$documents_table} d ON d.licence_id = l.id AND d.source = %s";
-			$document_params  = array( 'ASPTT' );
+			$document_params  = array( 'UFSC' );
 			$date_asptt_sql   = $this->has_source_created_at ? 'd.source_created_at' : 'NULL';
 			$select_documents = "{$date_asptt_sql} AS date_asptt, d.attachment_id";
 
@@ -918,7 +933,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		}
 
 		$licence_number_sql = $this->get_licence_number_sql( 'l' );
-		$asptt_number_sql   = $this->get_asptt_number_sql( 'l', $this->has_documents_table ? 'd' : '' );
+		$ffst_number_sql    = $this->get_ffst_number_sql( 'l' );
 		if ( $this->has_category ) {
 			$category_column = 'l.category';
 		} elseif ( $this->has_legacy_category ) {
@@ -936,7 +951,7 @@ class UFSC_LC_Competition_Licences_List_Table extends WP_List_Table {
 		$birthdate_column   = $this->has_column( $licences_table, 'date_naissance' ) ? 'l.date_naissance' : 'NULL AS date_naissance';
 		$region_column      = $this->has_club_region ? 'c.region' : 'NULL';
 		$created_at_column  = $this->has_created_at ? 'l.created_at' : 'NULL';
-		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$asptt_number_sql} AS asptt_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, l.{$this->date_column} AS date_value";
+		$select_columns = "l.id, l.club_id, {$licence_number_sql} AS licence_number, {$ffst_number_sql} AS ffst_number, {$nom_affiche_sql} AS nom_affiche, l.prenom, {$birthdate_column}, {$this->get_status_select_sql( 'l' )}, {$category_column} AS category, {$category_affiche_sql} AS categorie_affiche, {$season_column_sql}, {$competition_column}, {$select_documents}, c.nom AS club_name, {$region_column} AS region, {$created_at_column} AS created_at, l.{$this->date_column} AS date_value";
 
 		$orderby_sql = 'l.' . $orderby;
 		if ( 'nom_licence' === $orderby ) {
@@ -2238,17 +2253,21 @@ if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 		return 'COALESCE(' . implode( ', ', $parts ) . ')';
 	}
 
+	private function get_ffst_number_sql( string $alias ): string {
+		if ( $this->has_ffst_number ) {
+			return "NULLIF({$alias}.numero_licence_ffst, '')";
+		}
+		return "''";
+	}
+
 	private function get_status_or_number_column( string $type ): string {
 		if ( 'status' === $type ) {
 			$schema = $this->get_licence_schema_compat( 'l' );
 			return '' !== $schema['status_expr'] ? 'status_expr' : '';
 		}
 
-		if ( $this->has_asptt_number ) {
-			return 'numero_licence_asptt';
-		}
-		if ( $this->has_asptt_number_legacy ) {
-			return 'numero_asptt';
+		if ( 'ffst' === $type && $this->has_ffst_number ) {
+			return 'numero_licence_ffst';
 		}
 
 		return '';
