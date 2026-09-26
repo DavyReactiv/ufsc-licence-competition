@@ -1,6 +1,6 @@
 # UFSC Licence Competition
 
-`ufsc-licence-competition` est un plugin WordPress métier pour l’UFSC. Il complète l’écosystème licences et couvre désormais aussi la gestion opérationnelle des compétitions : licences officielles, synchronisation ASPTT, licences PDF nominatives, accès clubs, inscriptions, catégories, pesées, tableau de bord compétition, préparation des combats, suivi jour J, exports et diagnostics.
+`ufsc-licence-competition` est un plugin WordPress métier pour l’UFSC. Il complète l’écosystème licences et couvre désormais aussi la gestion opérationnelle des compétitions : licences officielles, corrélation FFST, licences PDF nominatives, accès clubs, inscriptions, catégories, pesées, tableau de bord compétition, préparation des combats, suivi jour J, exports et diagnostics.
 
 Le plugin est conçu pour un usage réel par les administrateurs UFSC, les organisateurs, les clubs, les officiels et les développeurs de maintenance. Les diagnostics sont non destructifs et les actions sensibles restent protégées.
 
@@ -10,7 +10,7 @@ Le plugin est conçu pour un usage réel par les administrateurs UFSC, les organ
 
 - gestion des licenciés et données utiles à la compétition ;
 - gestion des clubs et accès club ;
-- synchronisation / import ASPTT ;
+- synchronisation / données FFST ;
 - génération ou gestion de licences PDF nominatives ;
 - inscriptions aux compétitions pour licenciés UFSC et participants externes ;
 - filtres avancés d’administration : compétition, statut, discipline, type, catégorie, club, groupe / lot quand disponible ;
@@ -31,7 +31,7 @@ Le plugin est conçu pour un usage réel par les administrateurs UFSC, les organ
 ### Licences / UFSC Licences
 
 - consultation et suivi des licences ;
-- import / synchronisation ASPTT ;
+- import / corrélation FFST ;
 - statuts et paramètres licences ;
 - pages de diagnostic et de statut technique ;
 - passerelles avec les inscriptions compétition lorsque les données licenciés sont nécessaires.
@@ -107,7 +107,7 @@ Les poids historiques comme `-70`, `-75`, `-85` ou `-90` peuvent rester affichab
 ## Workflow recommandé avant jour J
 
 1. Tester le parcours sur une compétition de test.
-2. Vérifier les licences et imports ASPTT.
+2. Vérifier les licences et identifiants FFST.
 3. Créer ou contrôler la compétition : discipline, date, lieu, tolérance pesée.
 4. Importer ou saisir les inscriptions.
 5. Contrôler les filtres et catégories détectées.
