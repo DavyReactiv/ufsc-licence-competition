@@ -71,8 +71,8 @@ final class UFSC_LC_Licence_Pdf_Generator {
 
 		add_submenu_page(
 			UFSC_LC_Plugin::PARENT_SLUG,
-			__( 'Gabarit licence PDF', 'ufsc-licence-competition' ),
-			__( 'Gabarit licence PDF', 'ufsc-licence-competition' ),
+			__( 'Gabarit licence UFSC / FFST', 'ufsc-licence-competition' ),
+			__( 'Gabarit licence UFSC / FFST', 'ufsc-licence-competition' ),
 			$capability,
 			self::ADMIN_PAGE_SLUG,
 			array( __CLASS__, 'render_admin_page' )
@@ -130,7 +130,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$message = isset( $_GET['ufsc_pdf_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_pdf_message'] ) ) : '';
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
-			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC', 'ufsc-licence-competition' ); ?></h1>
+			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
 			<p class="description"><?php esc_html_e( 'Aperçu du document généré automatiquement lorsqu’une licence est validée et possède un numéro de licence UFSC. Le PDF reste associé à la licence dans le système existant.', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
