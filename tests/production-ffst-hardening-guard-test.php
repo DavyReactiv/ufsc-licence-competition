@@ -16,17 +16,19 @@ $composer = file_get_contents( $root . '/composer.json' );
 $errors = array();
 
 $checks = array(
-	'admin canonical season filter' => array( $list, 'get_season_end_year_sql' ),
+	'admin strict season filter'    => array( $list, 'consistent_parts' ),
 	'admin inline FFST editor'      => array( $list, 'ufsc-lc-inline-ffst-save' ),
 	'admin inline FFST AJAX'        => array( $admin, 'wp_ajax_ufsc_lc_update_ffst_inline' ),
 	'front UFSC document source'    => array( $front, "const SOURCE = 'UFSC';" ),
 	'front PDF generation'          => array( $front, 'ufsc_lc_generate_club_pdf' ),
+	'front strict season filter'    => array( $front, 'consistent_parts' ),
 	'front FFST label'              => array( $front, 'N° FFST' ),
 	'FFST settings tab'             => array( $settings, 'FFST & imports' ),
 	'professional settings cards'  => array( $settings, 'ufsc-lc-settings-grid' ),
 	'recto FFST logo'               => array( $template, 'class="recto-logo-ffst"' ),
 	'recto FFST logo variable'      => array( $template, 'src="{{logo_ffst}}"' ),
 	'production Composer install'   => array( $build, 'composer install --no-dev' ),
+	'PR production build'           => array( $build, 'pull_request:' ),
 	'production Dompdf check'       => array( $build, "class_exists('Dompdf" ),
 	'Dompdf dependency'             => array( $composer, 'dompdf/dompdf' ),
 	'documents FFST label'          => array( $documents, 'N° FFST' ),
