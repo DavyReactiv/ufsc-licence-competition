@@ -9,9 +9,15 @@ test('competition creation exposes Pancrace, premium workflow and regional acces
   await page.goto('/wp-admin/admin.php?page=ufsc-competitions&ufsc_action=add');
   await expectNoFatalError(page);
 
-  await expect(page.getByRole('heading', { name: /Ajouter une compétition/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Créer une compétition/i })).toBeVisible();
   await expect(page.locator('.ufsc-premium-workflow')).toBeVisible();
   await expect(page.locator('.ufsc-premium-workflow__step')).toHaveCount(6);
+
+  const editor = page.locator('[data-ufsc-competition-editor]');
+  await expect(editor).toBeVisible();
+  await expect(editor.locator('[data-ufsc-editor-step]')).toHaveCount(4);
+  await expect(editor.locator('[data-ufsc-editor-panel="0"]')).toBeVisible();
+  await expect(editor.locator('[data-ufsc-editor-panel="1"]')).toBeHidden();
 
   const discipline = page.locator('#discipline');
   await expect(discipline.locator('option[value="pancrace"]')).toHaveText(/Pancrace/i);
@@ -21,6 +27,7 @@ test('competition creation exposes Pancrace, premium workflow and regional acces
     await expect(eventType.locator(`option[value="${value}"]`)).toHaveCount(1);
   }
 
+  await editor.locator('[data-ufsc-editor-step="2"]').click();
   const accessMode = page.locator('select[name="access_mode"]');
   await accessMode.selectOption('regions');
   const regions = page.locator('select[name="allowed_regions[]"]');
@@ -48,7 +55,9 @@ test('a gala can contain a six-fighter belt tournament without changing gala typ
   if (await status.count()) {
     await status.selectOption('open');
   }
-  await page.getByRole('button', { name: /^Créer$/i }).click();
+  await page.locator('[data-ufsc-editor-step="3"]').click();
+  await expect(page.locator('[data-ufsc-review-name]')).toHaveText(galaName);
+  await page.getByRole('button', { name: /Créer la compétition/i }).click();
   await expectNoFatalError(page);
 
   await page.goto('/wp-admin/admin.php?page=ufsc-competitions-program');

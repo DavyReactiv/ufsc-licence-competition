@@ -392,17 +392,46 @@ class Competitions_Page {
 
 		?>
 		<div class="wrap ufsc-competitions-admin">
-			<h1><?php echo esc_html( $is_edit ? __( 'Modifier une compétition', 'ufsc-licence-competition' ) : __( 'Ajouter une compétition', 'ufsc-licence-competition' ) ); ?></h1>
+			<div class="ufsc-admin-page-header ufsc-competition-editor-header">
+				<div>
+					<p class="ufsc-admin-page-kicker"><?php esc_html_e( 'Administration des compétitions', 'ufsc-licence-competition' ); ?></p>
+					<h1><?php echo esc_html( $is_edit ? __( 'Modifier une compétition', 'ufsc-licence-competition' ) : __( 'Créer une compétition', 'ufsc-licence-competition' ) ); ?></h1>
+					<p class="ufsc-admin-page-description"><?php esc_html_e( 'Renseignez l’essentiel, organisez l’événement puis vérifiez les règles d’accès avant l’enregistrement.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+				<div class="ufsc-admin-page-actions">
+					<a class="button" href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( 'Retour aux compétitions', 'ufsc-licence-competition' ); ?></a>
+				</div>
+			</div>
 
-			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( 'Retour à la liste', 'ufsc-licence-competition' ); ?></a></p>
-
-			<form method="post" action="<?php echo esc_url( $action_url ); ?>">
+			<form method="post" action="<?php echo esc_url( $action_url ); ?>" class="ufsc-competition-editor" data-ufsc-competition-editor>
 				<input type="hidden" name="action" value="ufsc_competitions_save_competition" />
 				<?php wp_nonce_field( 'ufsc_competitions_save_competition' ); ?>
 
 				<?php if ( $is_edit ) : ?>
 					<input type="hidden" name="id" value="<?php echo esc_attr( (int) $item->id ); ?>" />
 				<?php endif; ?>
+
+				<nav class="ufsc-editor-stepper" aria-label="<?php esc_attr_e( 'Étapes de création de la compétition', 'ufsc-licence-competition' ); ?>">
+					<button type="button" class="ufsc-editor-step is-active" data-ufsc-editor-step="0" aria-controls="ufsc-editor-panel-essential" aria-current="step">
+						<span class="ufsc-editor-step__number">1</span><span><strong><?php esc_html_e( 'Essentiel', 'ufsc-licence-competition' ); ?></strong><small><?php esc_html_e( 'Identité et dates', 'ufsc-licence-competition' ); ?></small></span>
+					</button>
+					<button type="button" class="ufsc-editor-step" data-ufsc-editor-step="1" aria-controls="ufsc-editor-panel-organization">
+						<span class="ufsc-editor-step__number">2</span><span><strong><?php esc_html_e( 'Organisation', 'ufsc-licence-competition' ); ?></strong><small><?php esc_html_e( 'Lieu et horaires', 'ufsc-licence-competition' ); ?></small></span>
+					</button>
+					<button type="button" class="ufsc-editor-step" data-ufsc-editor-step="2" aria-controls="ufsc-editor-panel-access">
+						<span class="ufsc-editor-step__number">3</span><span><strong><?php esc_html_e( 'Accès clubs', 'ufsc-licence-competition' ); ?></strong><small><?php esc_html_e( 'Visibilité et conditions', 'ufsc-licence-competition' ); ?></small></span>
+					</button>
+					<button type="button" class="ufsc-editor-step" data-ufsc-editor-step="3" aria-controls="ufsc-editor-panel-review">
+						<span class="ufsc-editor-step__number">4</span><span><strong><?php esc_html_e( 'Vérification', 'ufsc-licence-competition' ); ?></strong><small><?php esc_html_e( 'Résumé et validation', 'ufsc-licence-competition' ); ?></small></span>
+					</button>
+				</nav>
+				<p class="screen-reader-text" data-ufsc-editor-status aria-live="polite"></p>
+
+				<section id="ufsc-editor-panel-essential" class="ufsc-editor-panel is-active" data-ufsc-editor-panel="0" aria-labelledby="ufsc-editor-title-essential">
+					<header class="ufsc-editor-panel__header">
+						<span class="dashicons dashicons-calendar-alt" aria-hidden="true"></span>
+						<div><h2 id="ufsc-editor-title-essential"><?php esc_html_e( 'Informations essentielles', 'ufsc-licence-competition' ); ?></h2><p><?php esc_html_e( 'Commencez par les informations nécessaires pour identifier et planifier la compétition.', 'ufsc-licence-competition' ); ?></p></div>
+					</header>
 
 				<table class="form-table" role="presentation">
 					<tbody>
@@ -508,9 +537,13 @@ class Competitions_Page {
 						</tr>
 					</tbody>
 				</table>
+				</section>
 
-				<h2><?php esc_html_e( 'Informations événement', 'ufsc-licence-competition' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Tous ces champs sont optionnels. Ils sont affichés sur la page détail compétition.', 'ufsc-licence-competition' ); ?></p>
+				<section id="ufsc-editor-panel-organization" class="ufsc-editor-panel" data-ufsc-editor-panel="1" aria-labelledby="ufsc-editor-title-organization">
+					<header class="ufsc-editor-panel__header">
+						<span class="dashicons dashicons-location-alt" aria-hidden="true"></span>
+						<div><h2 id="ufsc-editor-title-organization"><?php esc_html_e( 'Organisation de l’événement', 'ufsc-licence-competition' ); ?></h2><p><?php esc_html_e( 'Ajoutez le lieu, le déroulé et les informations pratiques visibles par les clubs.', 'ufsc-licence-competition' ); ?></p></div>
+					</header>
 				<table class="form-table" role="presentation">
 					<tbody>
 						<tr>
@@ -632,11 +665,13 @@ class Competitions_Page {
 						</tr>
 					</tbody>
 				</table>
+				</section>
 
-				<h2><?php esc_html_e( 'Accès & éligibilité', 'ufsc-licence-competition' ); ?></h2>
-				<p class="description">
-					<?php esc_html_e( 'Définissez qui peut voir la compétition et qui peut s’inscrire. Les administrateurs UFSC conservent toujours l’accès total.', 'ufsc-licence-competition' ); ?>
-				</p>
+				<section id="ufsc-editor-panel-access" class="ufsc-editor-panel" data-ufsc-editor-panel="2" aria-labelledby="ufsc-editor-title-access">
+					<header class="ufsc-editor-panel__header">
+						<span class="dashicons dashicons-groups" aria-hidden="true"></span>
+						<div><h2 id="ufsc-editor-title-access"><?php esc_html_e( 'Accès et éligibilité', 'ufsc-licence-competition' ); ?></h2><p><?php esc_html_e( 'Définissez qui peut consulter la compétition et inscrire des participants. Les administrateurs conservent toujours l’accès total.', 'ufsc-licence-competition' ); ?></p></div>
+					</header>
 				<table class="form-table" role="presentation">
 					<tbody>
 						<tr>
@@ -737,8 +772,21 @@ class Competitions_Page {
 						</tr>
 					</tbody>
 				</table>
+				</section>
 
-				<h2><?php esc_html_e( 'Aperçu accès', 'ufsc-licence-competition' ); ?></h2>
+				<section id="ufsc-editor-panel-review" class="ufsc-editor-panel" data-ufsc-editor-panel="3" aria-labelledby="ufsc-editor-title-review">
+					<header class="ufsc-editor-panel__header">
+						<span class="dashicons dashicons-yes-alt" aria-hidden="true"></span>
+						<div><h2 id="ufsc-editor-title-review"><?php esc_html_e( 'Vérification avant enregistrement', 'ufsc-licence-competition' ); ?></h2><p><?php esc_html_e( 'Relisez les informations clés. Vous pouvez revenir à chaque étape sans perdre vos saisies.', 'ufsc-licence-competition' ); ?></p></div>
+					</header>
+					<div class="ufsc-editor-review" data-ufsc-editor-review>
+						<div><span><?php esc_html_e( 'Compétition', 'ufsc-licence-competition' ); ?></span><strong data-ufsc-review-name><?php echo esc_html( $name ? $name : __( 'À renseigner', 'ufsc-licence-competition' ) ); ?></strong></div>
+						<div><span><?php esc_html_e( 'Discipline', 'ufsc-licence-competition' ); ?></span><strong data-ufsc-review-discipline><?php echo esc_html( $discipline ? $discipline : __( 'Non définie', 'ufsc-licence-competition' ) ); ?></strong></div>
+						<div><span><?php esc_html_e( 'Début', 'ufsc-licence-competition' ); ?></span><strong data-ufsc-review-date><?php echo esc_html( $event_start_local ? $event_start_local : __( 'Non défini', 'ufsc-licence-competition' ) ); ?></strong></div>
+						<div><span><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></span><strong data-ufsc-review-status><?php echo esc_html( $status ); ?></strong></div>
+					</div>
+
+					<h3><?php esc_html_e( 'Aperçu des règles d’accès', 'ufsc-licence-competition' ); ?></h3>
 				<?php if ( $clubs_mode_empty_warning ) : ?>
 					<div class="notice notice-warning inline">
 						<p><?php esc_html_e( 'Mode “clubs sélectionnés” sans club : accès refusé pour tous (hors administrateurs).', 'ufsc-licence-competition' ); ?></p>
@@ -765,7 +813,17 @@ class Competitions_Page {
 					</tbody>
 				</table>
 
-				<?php submit_button( $is_edit ? __( 'Mettre à jour', 'ufsc-licence-competition' ) : __( 'Créer', 'ufsc-licence-competition' ) ); ?>
+					<div class="ufsc-editor-submit">
+						<p><strong><?php esc_html_e( 'Prêt à enregistrer ?', 'ufsc-licence-competition' ); ?></strong><br /><span><?php esc_html_e( 'L’enregistrement utilise les mêmes contrôles et règles métier que précédemment.', 'ufsc-licence-competition' ); ?></span></p>
+						<?php submit_button( $is_edit ? __( 'Mettre à jour la compétition', 'ufsc-licence-competition' ) : __( 'Créer la compétition', 'ufsc-licence-competition' ), 'primary button-hero', 'submit', false ); ?>
+					</div>
+				</section>
+
+				<div class="ufsc-editor-actions" data-ufsc-editor-actions>
+					<button type="button" class="button" data-ufsc-editor-previous>&larr; <?php esc_html_e( 'Étape précédente', 'ufsc-licence-competition' ); ?></button>
+					<span data-ufsc-editor-position><?php esc_html_e( 'Étape 1 sur 4', 'ufsc-licence-competition' ); ?></span>
+					<button type="button" class="button button-primary" data-ufsc-editor-next><?php esc_html_e( 'Continuer', 'ufsc-licence-competition' ); ?> &rarr;</button>
+				</div>
 			</form>
 		</div>
 		<?php

@@ -399,6 +399,337 @@ body.ufsc-competitions-premium-ui .wp-list-table thead td {
 	letter-spacing: .035em;
 }
 
+/* Guided competition editor. The form remains fully usable when JavaScript is unavailable. */
+.ufsc-competition-editor {
+	max-width: 1120px;
+	margin: 0 auto;
+}
+
+.ufsc-competition-editor-header {
+	max-width: 1064px;
+	margin-inline: auto !important;
+}
+
+.ufsc-editor-stepper {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 8px;
+	padding: 8px;
+	margin: 0 0 18px;
+	border: 1px solid var(--ufsc-premium-line);
+	border-radius: 16px;
+	background: rgba(255, 255, 255, .92);
+	box-shadow: 0 4px 18px rgba(16, 24, 40, .04);
+}
+
+.ufsc-editor-step {
+	appearance: none;
+	min-height: 66px;
+	padding: 10px 12px;
+	border: 1px solid transparent;
+	border-radius: 11px;
+	background: transparent;
+	color: var(--ufsc-premium-muted);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	text-align: left;
+	transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.ufsc-editor-step:hover,
+.ufsc-editor-step:focus-visible {
+	background: var(--ufsc-premium-soft);
+	border-color: var(--ufsc-premium-line);
+	outline: none;
+}
+
+.ufsc-editor-step.is-active {
+	background: var(--ufsc-premium-accent-soft);
+	border-color: #f5b7b1;
+	color: var(--ufsc-premium-accent);
+}
+
+.ufsc-editor-step__number {
+	width: 32px;
+	height: 32px;
+	flex: 0 0 32px;
+	border-radius: 10px;
+	background: #f2f4f7;
+	color: #475467;
+	font-size: 13px;
+	font-weight: 800;
+	line-height: 32px;
+	text-align: center;
+}
+
+.ufsc-editor-step.is-active .ufsc-editor-step__number {
+	background: var(--ufsc-premium-accent);
+	color: #fff;
+}
+
+.ufsc-editor-step strong,
+.ufsc-editor-step small {
+	display: block;
+}
+
+.ufsc-editor-step strong {
+	font-size: 13px;
+	line-height: 1.3;
+	color: var(--ufsc-premium-ink);
+}
+
+.ufsc-editor-step small {
+	margin-top: 2px;
+	font-size: 11px;
+	color: var(--ufsc-premium-muted);
+}
+
+.ufsc-editor-panel {
+	box-sizing: border-box;
+	margin-bottom: 18px;
+	padding: 24px 26px;
+	border: 1px solid var(--ufsc-premium-line);
+	border-radius: 18px;
+	background: var(--ufsc-premium-surface);
+	box-shadow: var(--ufsc-premium-shadow);
+}
+
+.ufsc-competition-editor.is-ufsc-enhanced .ufsc-editor-panel:not(.is-active) {
+	display: none;
+}
+
+.ufsc-editor-panel__header {
+	display: flex;
+	align-items: flex-start;
+	gap: 14px;
+	padding-bottom: 18px;
+	margin-bottom: 4px;
+	border-bottom: 1px solid #eaecf0;
+}
+
+.ufsc-editor-panel__header > .dashicons {
+	box-sizing: border-box;
+	width: 42px;
+	height: 42px;
+	padding: 10px;
+	border-radius: 12px;
+	background: var(--ufsc-premium-accent-soft);
+	color: var(--ufsc-premium-accent);
+	font-size: 22px;
+}
+
+.ufsc-editor-panel__header h2 {
+	margin: 0 0 5px !important;
+	font-size: 20px;
+	line-height: 1.3;
+}
+
+.ufsc-editor-panel__header p {
+	margin: 0;
+	color: var(--ufsc-premium-muted);
+	line-height: 1.55;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table {
+	box-sizing: border-box;
+	margin: 8px 0 0;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table th,
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table td {
+	padding-top: 15px;
+	padding-bottom: 15px;
+	border-bottom: 1px solid #f0f2f5;
+	vertical-align: top;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table tr:last-child th,
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table tr:last-child td {
+	border-bottom: 0;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table th {
+	width: 250px;
+	padding-left: 0;
+	font-weight: 650;
+	color: #344054;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table td {
+	padding-right: 0;
+}
+
+body.ufsc-competitions-premium-ui .ufsc-competition-editor .regular-text,
+body.ufsc-competitions-premium-ui .ufsc-competition-editor textarea.large-text {
+	width: min(100%, 620px);
+}
+
+.ufsc-editor-review {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	margin: 20px 0 24px;
+}
+
+.ufsc-editor-review > div {
+	padding: 16px;
+	border: 1px solid #e4e7ec;
+	border-radius: 12px;
+	background: #f9fafb;
+}
+
+.ufsc-editor-review span,
+.ufsc-editor-review strong {
+	display: block;
+}
+
+.ufsc-editor-review span {
+	margin-bottom: 5px;
+	font-size: 11px;
+	font-weight: 750;
+	letter-spacing: .05em;
+	text-transform: uppercase;
+	color: var(--ufsc-premium-muted);
+}
+
+.ufsc-editor-review strong {
+	font-size: 15px;
+	color: var(--ufsc-premium-ink);
+	overflow-wrap: anywhere;
+}
+
+.ufsc-editor-submit {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	padding: 18px 20px;
+	margin-top: 18px;
+	border: 1px solid #abefc6;
+	border-radius: 14px;
+	background: var(--ufsc-premium-green-soft);
+}
+
+.ufsc-editor-submit p {
+	margin: 0;
+	color: #475467;
+}
+
+.ufsc-editor-submit strong {
+	color: var(--ufsc-premium-green);
+}
+
+.ufsc-editor-actions {
+	display: none;
+}
+
+.ufsc-competition-editor.is-ufsc-enhanced .ufsc-editor-actions {
+	position: sticky;
+	bottom: 12px;
+	z-index: 30;
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--ufsc-premium-line);
+	border-radius: 14px;
+	background: rgba(255, 255, 255, .96);
+	box-shadow: 0 10px 30px rgba(16, 24, 40, .13);
+	backdrop-filter: blur(12px);
+}
+
+.ufsc-editor-actions [data-ufsc-editor-previous] {
+	justify-self: start;
+}
+
+.ufsc-editor-actions [data-ufsc-editor-next] {
+	justify-self: end;
+}
+
+.ufsc-editor-actions [data-ufsc-editor-position] {
+	font-size: 12px;
+	font-weight: 650;
+	color: var(--ufsc-premium-muted);
+}
+
+@media (max-width: 900px) {
+	.ufsc-editor-stepper {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table th {
+		width: 200px;
+	}
+}
+
+@media (max-width: 782px) {
+	.ufsc-competition-editor-header {
+		margin-inline: 0 !important;
+	}
+
+	.ufsc-editor-stepper {
+		display: flex;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+	}
+
+	.ufsc-editor-step {
+		min-width: 180px;
+		scroll-snap-align: start;
+	}
+
+	.ufsc-editor-panel {
+		padding: 18px 16px;
+	}
+
+	body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table th,
+	body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table td {
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+		padding: 10px 0;
+		border: 0;
+	}
+
+	body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table th {
+		padding-top: 16px;
+	}
+
+	body.ufsc-competitions-premium-ui .ufsc-competition-editor .form-table td {
+		padding-top: 0;
+		border-bottom: 1px solid #f0f2f5;
+	}
+
+	.ufsc-editor-review {
+		grid-template-columns: 1fr;
+	}
+
+	.ufsc-editor-submit {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.ufsc-editor-submit .button {
+		width: 100%;
+	}
+
+	.ufsc-competition-editor.is-ufsc-enhanced .ufsc-editor-actions {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.ufsc-editor-actions [data-ufsc-editor-position] {
+		grid-column: 1 / -1;
+		grid-row: 1;
+		text-align: center;
+	}
+}
+
 /* Access-mode progressive disclosure, controlled by premium-admin.js. */
 .ufsc-access-dependent-row.is-ufsc-hidden {
 	display: none;
