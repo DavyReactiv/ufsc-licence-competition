@@ -34,7 +34,8 @@ class UFSC_LC_ASPTT_Importer {
 	}
 
 	public function register() {
-		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
+		// Legacy ASPTT import remains available internally for data compatibility,
+		// but is intentionally no longer exposed in the current UFSC/FFST admin UI.
 		add_action( 'admin_post_ufsc_lc_asptt_upload', array( $this, 'handle_upload' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_import', array( $this, 'handle_import' ) );
 		add_action( 'admin_post_ufsc_lc_asptt_cancel_import', array( $this, 'handle_cancel_import' ) );

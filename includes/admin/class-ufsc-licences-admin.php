@@ -60,6 +60,12 @@ class UFSC_LC_Licences_Admin {
 			exit;
 		}
 
+		$action = isset( $_GET['action'] ) ? sanitize_key( wp_unslash( $_GET['action'] ) ) : '';
+		if ( 'view' === $action ) {
+			$this->render_licence_view_page();
+			return;
+		}
+
 		if ( $this->is_edit_asptt_action() ) {
 			$this->render_asptt_edit_page();
 			return;
@@ -115,6 +121,111 @@ class UFSC_LC_Licences_Admin {
 				);
 			}
 		}
+	}
+
+	private function render_licence_view_page() {
+		global $wpdb;
+
+		$licence_id = isset( $_GET['licence_id'] ) ? absint( $_GET['licence_id'] ) : 0;
+		if ( ! $licence_id ) {
+			wp_die( esc_html__( 'Licence invalide.', 'ufsc-licence-competition' ) );
+		}
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			ufsc_lc_safe_enforce_object_scope( $licence_id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( $licence_id );
+		}
+
+		$licences_table = $wpdb->prefix . 'ufsc_licences';
+		$clubs_table    = $wpdb->prefix . 'ufsc_clubs';
+		$club_region_sql = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$clubs_table} LIKE %s", 'region' ) ) ? 'c.region' : "''";
+		$licence = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT l.*, c.nom AS club_name, {$club_region_sql} AS club_region
+				 FROM {$licences_table} l
+				 LEFT JOIN {$clubs_table} c ON c.id = l.club_id
+				 WHERE l.id = %d LIMIT 1",
+				$licence_id
+			)
+		);
+
+		if ( ! $licence ) {
+			wp_die( esc_html__( 'Licence introuvable.', 'ufsc-licence-competition' ) );
+		}
+
+		$name = trim( (string) ( $licence->prenom ?? '' ) . ' ' . (string) ( $licence->nom ?? ( $licence->nom_licence ?? '' ) ) );
+		$ffst = isset( $licence->numero_licence_ffst ) ? trim( (string) $licence->numero_licence_ffst ) : '';
+		$status = trim( (string) ( $licence->statut ?? ( $licence->status ?? '' ) ) );
+		$season = '';
+		foreach ( array( 'season_end_year', 'paid_season', 'saison', 'season' ) as $field ) {
+			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
+				$raw = trim( (string) $licence->{$field} );
+				$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $raw ) : absint( $raw );
+				$season = $year && function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $year ) : $raw;
+				break;
+			}
+		}
+
+		$documents_table = $wpdb->prefix . 'ufsc_licence_documents';
+		$attachment_id = 0;
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $documents_table ) ) === $documents_table ) {
+			$attachment_id = absint(
+				$wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT attachment_id FROM {$documents_table} WHERE licence_id = %d AND source = %s LIMIT 1",
+						$licence_id,
+						'UFSC'
+					)
+				)
+			);
+		}
+
+		$back_url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		?>
+		<div class="wrap">
+			<h1><?php echo esc_html( $name ? $name : sprintf( __( 'Licence #%d', 'ufsc-licence-competition' ), $licence_id ) ); ?></h1>
+			<p><a href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( 'Retour aux licences', 'ufsc-licence-competition' ); ?></a></p>
+
+			<table class="widefat striped" style="max-width:900px;margin-top:16px;">
+				<tbody>
+					<tr><th style="width:240px;"><?php esc_html_e( 'Licence UFSC / FFST', 'ufsc-licence-competition' ); ?></th><td><strong><?php echo esc_html( $ffst ? $ffst : __( 'En attente d’attribution', 'ufsc-licence-competition' ) ); ?></strong></td></tr>
+					<tr><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( $status ? $status : '—' ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( $season ? $season : '—' ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( (string) ( $licence->club_name ?? '—' ) ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Région', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( (string) ( $licence->club_region ?? '—' ) ); ?></td></tr>
+					<tr><th><?php esc_html_e( 'Date de naissance', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( function_exists( 'ufsc_lc_format_birthdate' ) ? ufsc_lc_format_birthdate( $licence->date_naissance ?? '' ) : (string) ( $licence->date_naissance ?? '—' ) ); ?></td></tr>
+				</tbody>
+			</table>
+
+			<div style="margin-top:20px;display:flex;gap:10px;align-items:center;">
+				<?php if ( $attachment_id ) : ?>
+					<a class="button button-primary" href="<?php echo esc_url( wp_get_attachment_url( $attachment_id ) ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Voir / télécharger le PDF', 'ufsc-licence-competition' ); ?></a>
+				<?php endif; ?>
+
+				<?php if ( 'valide' === strtolower( $status ) && UFSC_LC_Capabilities::user_can_edit() ) : ?>
+					<?php
+					$generate_url = wp_nonce_url(
+						add_query_arg(
+							array(
+								'action'     => 'ufsc_lc_generate_licence_pdf',
+								'licence_id' => $licence_id,
+							),
+							admin_url( 'admin-post.php' )
+						),
+						'ufsc_lc_generate_licence_pdf_' . $licence_id
+					);
+					?>
+					<a class="button" href="<?php echo esc_url( $generate_url ); ?>"><?php echo esc_html( $attachment_id ? __( 'Régénérer le PDF', 'ufsc-licence-competition' ) : __( 'Générer le PDF', 'ufsc-licence-competition' ) ); ?></a>
+				<?php endif; ?>
+			</div>
+
+			<?php if ( ! class_exists( 'Dompdf\\Dompdf' ) ) : ?>
+				<div class="notice notice-warning inline" style="margin-top:18px;"><p><?php esc_html_e( 'Le moteur Dompdf n’est pas installé dans cette version du plugin. Le bouton de génération restera sans effet utile tant que les dépendances Composer ne sont pas incluses dans le déploiement.', 'ufsc-licence-competition' ); ?></p></div>
+			<?php endif; ?>
+		</div>
+		<?php
 	}
 
 	public function render_notices() {
