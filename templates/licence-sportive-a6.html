@@ -36,8 +36,8 @@ body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .recto .topbar-accent{position:absolute;left:0;top:22.8mm;width:63mm;height:1.2mm;background:var(--ufsc-red);z-index:3}
 .recto .header-grid{
   position:absolute;top:4mm;left:6mm;right:6mm;
-  display:grid;grid-template-columns:34mm minmax(0,1fr) 25mm;
-  align-items:center;column-gap:5mm;z-index:4
+  display:grid;grid-template-columns:34mm minmax(0,1fr) 29mm;
+  align-items:center;column-gap:3.5mm;z-index:4
 }
 .recto .logo-box{
   height:14mm;border-radius:2mm;background:#fff;
@@ -45,12 +45,12 @@ body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   padding:1.5mm 2mm;overflow:hidden
 }
 .recto .logo-box img{max-width:100%;max-height:100%;object-fit:contain;display:block}
-.recto .title-block{color:#fff;min-width:0}
+.recto .title-block{color:#fff;min-width:0;padding-right:1mm}
 .recto .federation-line{
-  font-size:1.7mm;font-weight:700;letter-spacing:1mm;text-transform:uppercase;
+  font-size:1.55mm;font-weight:700;letter-spacing:.72mm;text-transform:uppercase;
   opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
-.recto .main-title{margin-top:1mm;font-size:6.1mm;line-height:1;font-weight:900;letter-spacing:.5mm;text-transform:uppercase;white-space:nowrap}
+.recto .main-title{margin-top:1mm;font-size:5.35mm;line-height:1;font-weight:900;letter-spacing:.32mm;text-transform:uppercase;white-space:nowrap;overflow:hidden}
 .recto .season-pill{
   border:.35mm solid rgba(255,255,255,.55);border-radius:20mm;
   padding:1.6mm 2.2mm;color:#fff;text-align:center;min-height:13mm;
@@ -80,7 +80,7 @@ body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
     radial-gradient(ellipse at center 25mm,#aeb7c7 0 7mm,transparent 7.1mm),
     #dfe4ec
 }
-.recto .ffst-left{margin-top:12mm;font-size:5mm;font-weight:900;color:var(--ufsc-red);letter-spacing:.2mm}
+.recto .recto-logo-ffst{margin-top:9.5mm;width:23mm;max-height:11mm;object-fit:contain;display:block}
 .recto .info-column{min-width:0}
 .recto .member-role{font-size:1.8mm;font-weight:900;letter-spacing:1mm;color:var(--ufsc-red);text-transform:uppercase}
 .recto .member-name{margin-top:1mm;font-size:6.2mm;line-height:1.05;font-weight:900;color:var(--ufsc-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -192,7 +192,7 @@ body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
         <img src="{{photo_licencie}}" alt="Photo du licencié" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
         <div class="photo-placeholder" style="display:none;"></div>
       </div>
-      <div class="ffst-left">FFST</div>
+      <img class="recto-logo-ffst" src="{{logo_ffst}}" alt="FFST">
     </div>
 
     <div class="info-column">
