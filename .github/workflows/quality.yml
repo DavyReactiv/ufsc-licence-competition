@@ -89,3 +89,41 @@ jobs:
             exit 1
           fi
           echo 'No newly added DROP TABLE or TRUNCATE TABLE detected in PHP code.'
+
+  production-package:
+    name: Production ZIP with Dompdf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+      - name: Install production dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+      - name: Verify Dompdf
+        run: |
+          test -f vendor/autoload.php
+          php -r "require 'vendor/autoload.php'; exit(class_exists('Dompdf\\Dompdf') ? 0 : 1);"
+      - name: Build installable plugin ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p build/ufsc-licence-competition
+          rsync -a ./ build/ufsc-licence-competition/ \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="build" \
+            --exclude="node_modules" \
+            --exclude="tests" \
+            --exclude=".env" \
+            --exclude="*.log"
+          cd build
+          zip -qr ufsc-licence-competition-production.zip ufsc-licence-competition
+      - name: Upload installable plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: ufsc-licence-competition-production
+          path: build/ufsc-licence-competition-production.zip
+          if-no-files-found: error
+          retention-days: 14
