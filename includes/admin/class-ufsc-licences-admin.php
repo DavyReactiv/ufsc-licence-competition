@@ -23,6 +23,7 @@ class UFSC_LC_Licences_Admin {
 		add_action( 'admin_post_ufsc_lc_update_asptt_number', array( $this, 'handle_update_asptt_number' ) );
 		add_action( 'admin_post_ufsc_lc_update_club_responsable', array( $this, 'handle_update_club_responsable' ) );
 		add_action( 'admin_post_ufsc_lc_update_ffst_number', array( $this, 'handle_update_ffst_number' ) );
+		add_action( 'wp_ajax_ufsc_lc_update_ffst_inline', array( $this, 'handle_ajax_update_ffst_inline' ) );
 	}
 
 	public function register_menu() {
@@ -102,6 +103,58 @@ class UFSC_LC_Licences_Admin {
 				<?php $list_table->display(); ?>
 			</form>
 		</div>
+		<?php if ( UFSC_LC_Capabilities::user_can_edit() ) : ?>
+			<script>
+			(function() {
+				var nonce = <?php echo wp_json_encode( wp_create_nonce( 'ufsc_lc_inline_ffst' ) ); ?>;
+				document.addEventListener('click', function(event) {
+					var button = event.target.closest('.ufsc-lc-inline-ffst-save');
+					if (!button) return;
+					event.preventDefault();
+					var wrap = button.closest('.ufsc-lc-inline-ffst');
+					if (!wrap) return;
+					var input = wrap.querySelector('.ufsc-lc-inline-ffst-input');
+					var spinner = wrap.querySelector('.spinner');
+					var status = wrap.querySelector('.ufsc-lc-inline-ffst-status');
+					var licenceId = wrap.getAttribute('data-licence-id');
+					if (!input || !licenceId) return;
+					button.disabled = true;
+					if (spinner) spinner.classList.add('is-active');
+					if (status) status.textContent = '';
+					var body = new URLSearchParams();
+					body.set('action', 'ufsc_lc_update_ffst_inline');
+					body.set('licence_id', licenceId);
+					body.set('numero_licence_ffst', input.value);
+					body.set('_ajax_nonce', nonce);
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+						credentials: 'same-origin',
+						body: body.toString()
+					}).then(function(response) {
+						return response.json();
+					}).then(function(payload) {
+						if (!payload.success) {
+							throw new Error(payload.data && payload.data.message ? payload.data.message : 'Erreur');
+						}
+						input.value = payload.data.value || '';
+						if (status) {
+							status.textContent = <?php echo wp_json_encode( __( 'Enregistré', 'ufsc-licence-competition' ) ); ?>;
+							status.style.color = '#188038';
+						}
+					}).catch(function(error) {
+						if (status) {
+							status.textContent = error.message;
+							status.style.color = '#b32d2e';
+						}
+					}).finally(function() {
+						button.disabled = false;
+						if (spinner) spinner.classList.remove('is-active');
+					});
+				});
+			})();
+			</script>
+		<?php endif; ?>
 		<?php
 
 		if ( function_exists( 'ufsc_lc_log_query_count' ) ) {
@@ -187,6 +240,14 @@ class UFSC_LC_Licences_Admin {
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( $name ? $name : sprintf( __( 'Licence #%d', 'ufsc-licence-competition' ), $licence_id ) ); ?></h1>
+			<?php
+			$pdf_status  = isset( $_GET['ufsc_pdf_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_pdf_status'] ) ) : '';
+			$pdf_message = isset( $_GET['ufsc_pdf_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_pdf_message'] ) ) : '';
+			if ( $pdf_message ) {
+				$notice_class = 'success' === $pdf_status ? 'notice-success' : ( 'warning' === $pdf_status ? 'notice-warning' : 'notice-error' );
+				printf( '<div class="notice %1$s inline"><p>%2$s</p></div>', esc_attr( $notice_class ), esc_html( $pdf_message ) );
+			}
+			?>
 			<p><a href="<?php echo esc_url( $back_url ); ?>">&larr; <?php esc_html_e( 'Retour aux licences', 'ufsc-licence-competition' ); ?></a></p>
 
 			<table class="widefat striped" style="max-width:900px;margin-top:16px;">
@@ -232,19 +293,23 @@ class UFSC_LC_Licences_Admin {
 				<?php endif; ?>
 
 				<?php if ( 'valide' === strtolower( $status ) && UFSC_LC_Capabilities::user_can_edit() ) : ?>
-					<?php
-					$generate_url = wp_nonce_url(
-						add_query_arg(
-							array(
-								'action'     => 'ufsc_lc_generate_licence_pdf',
-								'licence_id' => $licence_id,
+					<?php if ( class_exists( 'Dompdf\\Dompdf' ) ) : ?>
+						<?php
+						$generate_url = wp_nonce_url(
+							add_query_arg(
+								array(
+									'action'     => 'ufsc_lc_generate_licence_pdf',
+									'licence_id' => $licence_id,
+								),
+								admin_url( 'admin-post.php' )
 							),
-							admin_url( 'admin-post.php' )
-						),
-						'ufsc_lc_generate_licence_pdf_' . $licence_id
-					);
-					?>
-					<a class="button" href="<?php echo esc_url( $generate_url ); ?>"><?php echo esc_html( $attachment_id ? __( 'Régénérer le PDF', 'ufsc-licence-competition' ) : __( 'Générer le PDF', 'ufsc-licence-competition' ) ); ?></a>
+							'ufsc_lc_generate_licence_pdf_' . $licence_id
+						);
+						?>
+						<a class="button" href="<?php echo esc_url( $generate_url ); ?>"><?php echo esc_html( $attachment_id ? __( 'Régénérer le PDF', 'ufsc-licence-competition' ) : __( 'Générer le PDF', 'ufsc-licence-competition' ) ); ?></a>
+					<?php else : ?>
+						<button type="button" class="button" disabled><?php esc_html_e( 'Génération PDF indisponible', 'ufsc-licence-competition' ); ?></button>
+					<?php endif; ?>
 				<?php endif; ?>
 			</div>
 
@@ -254,6 +319,64 @@ class UFSC_LC_Licences_Admin {
 		</div>
 		<?php
 	}
+
+	public function handle_ajax_update_ffst_inline() {
+		global $wpdb;
+
+		check_ajax_referer( 'ufsc_lc_inline_ffst' );
+
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
+			wp_send_json_error( array( 'message' => __( 'Accès refusé.', 'ufsc-licence-competition' ) ), 403 );
+		}
+
+		$licence_id = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
+		if ( ! $licence_id ) {
+			wp_send_json_error( array( 'message' => __( 'Licence invalide.', 'ufsc-licence-competition' ) ), 400 );
+		}
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			ufsc_lc_safe_enforce_object_scope( $licence_id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( $licence_id );
+		}
+
+		$table = $wpdb->prefix . 'ufsc_licences';
+		if ( ! $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", 'numero_licence_ffst' ) ) ) {
+			wp_send_json_error( array( 'message' => __( 'Champ FFST indisponible.', 'ufsc-licence-competition' ) ), 500 );
+		}
+
+		$value = isset( $_POST['numero_licence_ffst'] )
+			? trim( sanitize_text_field( wp_unslash( $_POST['numero_licence_ffst'] ) ) )
+			: '';
+
+		if ( strlen( $value ) > 64 ) {
+			wp_send_json_error( array( 'message' => __( 'Le N° FFST ne doit pas dépasser 64 caractères.', 'ufsc-licence-competition' ) ), 400 );
+		}
+
+		$updated = $wpdb->update(
+			$table,
+			array( 'numero_licence_ffst' => $value ),
+			array( 'id' => $licence_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			wp_send_json_error( array( 'message' => __( 'La mise à jour du N° FFST a échoué.', 'ufsc-licence-competition' ) ), 500 );
+		}
+
+		if ( function_exists( 'ufsc_lc_bump_cache_version' ) ) {
+			ufsc_lc_bump_cache_version( 'club_all', 0 );
+		}
+		wp_send_json_success(
+			array(
+				'value'   => $value,
+				'message' => __( 'N° FFST enregistré.', 'ufsc-licence-competition' ),
+			)
+		);
+	}
+
 
 	public function handle_update_ffst_number() {
 		global $wpdb;
