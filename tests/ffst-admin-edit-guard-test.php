@@ -25,7 +25,7 @@ foreach ( $required as $needle ) {
 	}
 }
 
-if ( false === strpos( $admin, "maxlength="64"" ) ) {
+if ( false === strpos( $admin, 'maxlength="64"' ) ) {
 	$errors[] = 'FFST input maxlength must be 64';
 }
 
