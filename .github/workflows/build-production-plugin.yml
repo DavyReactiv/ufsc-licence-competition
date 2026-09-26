@@ -1,0 +1,65 @@
+name: Build production plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "composer.json"
+      - "composer.lock"
+      - "ufsc-licence-competition.php"
+      - "includes/**"
+      - "templates/**"
+      - ".github/workflows/build-production-plugin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Production ZIP with Composer dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+
+      - name: Install production dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
+
+      - name: Verify Dompdf is bundled
+        run: |
+          test -f vendor/autoload.php
+          php -r "require 'vendor/autoload.php'; exit(class_exists('Dompdf\\Dompdf') ? 0 : 1);"
+
+      - name: Build plugin archive
+        run: |
+          mkdir -p build/ufsc-licence-competition
+          rsync -a ./ build/ufsc-licence-competition/ \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="build" \
+            --exclude="node_modules" \
+            --exclude="tests" \
+            --exclude=".env" \
+            --exclude="*.log"
+          cd build
+          zip -qr ufsc-licence-competition-production.zip ufsc-licence-competition
+
+      - name: Upload production ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ufsc-licence-competition-production
+          path: build/ufsc-licence-competition-production.zip
+          if-no-files-found: error
+          retention-days: 14
