@@ -46,8 +46,8 @@ class UFSC_LC_Exporter {
 				'saison',
 				'age_ref',
 				'competition',
-				'n_asptt',
-				'date_asptt',
+				'n_ffst',
+				'date_pdf',
 				'has_pdf',
 			)
 		);
@@ -78,7 +78,7 @@ class UFSC_LC_Exporter {
 						$row['season_end_year'],
 						$row['age_ref'],
 						$row['competition'],
-						$row['asptt_number'],
+						$row['ffst_number'],
 						$row['date_asptt'],
 						$row['has_pdf'],
 					)
@@ -109,8 +109,8 @@ class UFSC_LC_Exporter {
 			'statut'      => array( 'label' => 'statut', 'key' => 'statut' ),
 			'categorie'   => array( 'label' => 'categorie', 'key' => 'categorie_affiche' ),
 			'competition' => array( 'label' => 'competition', 'key' => 'competition' ),
-			'n_asptt'     => array( 'label' => 'n_asptt', 'key' => 'asptt_number' ),
-			'date_asptt'  => array( 'label' => 'date_asptt', 'key' => 'date_asptt' ),
+			'n_ffst'      => array( 'label' => 'n_ffst', 'key' => 'ffst_number' ),
+			'date_pdf'    => array( 'label' => 'date_pdf', 'key' => 'date_asptt' ),
 			'has_pdf'     => array( 'label' => 'has_pdf', 'key' => 'has_pdf' ),
 		);
 
