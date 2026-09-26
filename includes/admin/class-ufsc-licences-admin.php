@@ -22,6 +22,7 @@ class UFSC_LC_Licences_Admin {
 		add_action( 'admin_post_ufsc_lc_export_licences_csv', array( $this, 'handle_export_csv' ) );
 		add_action( 'admin_post_ufsc_lc_update_asptt_number', array( $this, 'handle_update_asptt_number' ) );
 		add_action( 'admin_post_ufsc_lc_update_club_responsable', array( $this, 'handle_update_club_responsable' ) );
+		add_action( 'admin_post_ufsc_lc_update_ffst_number', array( $this, 'handle_update_ffst_number' ) );
 	}
 
 	public function register_menu() {
@@ -190,7 +191,33 @@ class UFSC_LC_Licences_Admin {
 
 			<table class="widefat striped" style="max-width:900px;margin-top:16px;">
 				<tbody>
-					<tr><th style="width:240px;"><?php esc_html_e( 'Licence UFSC / FFST', 'ufsc-licence-competition' ); ?></th><td><strong><?php echo esc_html( $ffst ? $ffst : __( 'En attente d’attribution', 'ufsc-licence-competition' ) ); ?></strong></td></tr>
+					<tr>
+						<th style="width:240px;"><?php esc_html_e( 'Licence UFSC / FFST', 'ufsc-licence-competition' ); ?></th>
+						<td>
+							<?php if ( UFSC_LC_Capabilities::user_can_edit() ) : ?>
+								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+									<input type="hidden" name="action" value="ufsc_lc_update_ffst_number">
+									<input type="hidden" name="licence_id" value="<?php echo esc_attr( $licence_id ); ?>">
+									<?php wp_nonce_field( 'ufsc_lc_update_ffst_number_' . $licence_id, 'ufsc_lc_ffst_nonce' ); ?>
+									<input
+										type="text"
+										name="numero_licence_ffst"
+										value="<?php echo esc_attr( $ffst ); ?>"
+										placeholder="<?php echo esc_attr__( 'Saisir le N° FFST', 'ufsc-licence-competition' ); ?>"
+										class="regular-text"
+										maxlength="64"
+										autocomplete="off"
+									>
+									<button type="submit" class="button button-primary"><?php esc_html_e( 'Enregistrer le N° FFST', 'ufsc-licence-competition' ); ?></button>
+									<?php if ( '' === $ffst ) : ?>
+										<span class="description"><?php esc_html_e( 'En attente d’attribution', 'ufsc-licence-competition' ); ?></span>
+									<?php endif; ?>
+								</form>
+							<?php else : ?>
+								<strong><?php echo esc_html( $ffst ? $ffst : __( 'En attente d’attribution', 'ufsc-licence-competition' ) ); ?></strong>
+							<?php endif; ?>
+						</td>
+					</tr>
 					<tr><th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( $status ? $status : '—' ); ?></td></tr>
 					<tr><th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( $season ? $season : '—' ); ?></td></tr>
 					<tr><th><?php esc_html_e( 'Club', 'ufsc-licence-competition' ); ?></th><td><?php echo esc_html( (string) ( $licence->club_name ?? '—' ) ); ?></td></tr>
@@ -228,6 +255,76 @@ class UFSC_LC_Licences_Admin {
 		<?php
 	}
 
+	public function handle_update_ffst_number() {
+		global $wpdb;
+
+		if ( ! UFSC_LC_Capabilities::user_can_edit() ) {
+			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		$licence_id = isset( $_POST['licence_id'] ) ? absint( $_POST['licence_id'] ) : 0;
+		$nonce      = isset( $_POST['ufsc_lc_ffst_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ufsc_lc_ffst_nonce'] ) ) : '';
+
+		if ( ! $licence_id || ! wp_verify_nonce( $nonce, 'ufsc_lc_update_ffst_number_' . $licence_id ) ) {
+			wp_die( esc_html__( 'Requête invalide.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( class_exists( 'UFSC_LC_Scope' ) ) {
+			ufsc_lc_safe_enforce_object_scope( $licence_id, 'licence' );
+		} else {
+			$repository = new UFSC_LC_Licence_Repository();
+			$repository->assert_licence_in_scope( $licence_id );
+		}
+
+		$table = $wpdb->prefix . 'ufsc_licences';
+		$has_ffst_column = $wpdb->get_var(
+			$wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", 'numero_licence_ffst' )
+		);
+
+		$redirect = add_query_arg(
+			array(
+				'page'       => self::PAGE_SLUG,
+				'action'     => 'view',
+				'licence_id' => $licence_id,
+			),
+			admin_url( 'admin.php' )
+		);
+
+		if ( ! $has_ffst_column ) {
+			wp_safe_redirect( add_query_arg( 'error', 'ffst_missing', $redirect ) );
+			exit;
+		}
+
+		$ffst_number = isset( $_POST['numero_licence_ffst'] )
+			? trim( sanitize_text_field( wp_unslash( $_POST['numero_licence_ffst'] ) ) )
+			: '';
+
+		if ( strlen( $ffst_number ) > 64 ) {
+			wp_safe_redirect( add_query_arg( 'error', 'ffst_too_long', $redirect ) );
+			exit;
+		}
+
+		$updated = $wpdb->update(
+			$table,
+			array( 'numero_licence_ffst' => $ffst_number ),
+			array( 'id' => $licence_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+
+		if ( false === $updated ) {
+			wp_safe_redirect( add_query_arg( 'error', 'ffst_update_failed', $redirect ) );
+			exit;
+		}
+
+		if ( class_exists( 'UFSC_LC_Licence_Pdf_Generator' ) ) {
+			delete_transient( 'ufsc_lc_pdf_generation_lock_' . $licence_id );
+		}
+
+		wp_safe_redirect( add_query_arg( 'success', 'ffst_updated', $redirect ) );
+		exit;
+	}
+
 	public function render_notices() {
 		if ( ! $this->is_licences_screen() ) {
 			return;
@@ -246,6 +343,7 @@ class UFSC_LC_Licences_Admin {
 				'bulk_recalculate_categories' => __( 'Catégories recalculées.', 'ufsc-licence-competition' ),
 				'bulk_change_season'          => __( 'Saison mise à jour.', 'ufsc-licence-competition' ),
 				'asptt_updated'               => __( 'N° licence ASPTT mis à jour.', 'ufsc-licence-competition' ),
+				'ffst_updated'                => __( 'N° licence FFST mis à jour.', 'ufsc-licence-competition' ),
 			),
 			'error' => array(
 				'documents_meta_missing' => __( 'Action impossible : table meta des documents manquante.', 'ufsc-licence-competition' ),
@@ -254,6 +352,9 @@ class UFSC_LC_Licences_Admin {
 				'asptt_missing'          => __( 'Impossible de mettre à jour le N° ASPTT (colonne manquante).', 'ufsc-licence-competition' ),
 				'asptt_invalid'          => __( 'Licence invalide.', 'ufsc-licence-competition' ),
 				'asptt_too_long'         => __( 'Le N° ASPTT ne doit pas dépasser 40 caractères.', 'ufsc-licence-competition' ),
+				'ffst_missing'           => __( 'Impossible de mettre à jour le N° FFST : la colonne numero_licence_ffst est absente de la table maître.', 'ufsc-licence-competition' ),
+				'ffst_too_long'          => __( 'Le N° FFST ne doit pas dépasser 64 caractères.', 'ufsc-licence-competition' ),
+				'ffst_update_failed'     => __( 'La mise à jour du N° FFST a échoué.', 'ufsc-licence-competition' ),
 			),
 			'warning' => array(
 				'bulk_recalculate_empty'   => __( 'Aucune licence valide pour recalculer les catégories.', 'ufsc-licence-competition' ),
