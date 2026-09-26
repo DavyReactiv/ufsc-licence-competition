@@ -1651,15 +1651,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 			: array_filter( array( $this->get_licence_schema_compat()['season_col'] ) );
 
 		if ( empty( $columns ) ) {
+			$where[] = '1=0';
 			return;
 		}
 
-		$season_sql = function_exists( 'ufsc_lc_build_licence_season_sql' )
-			? ufsc_lc_build_licence_season_sql( 'l', $columns )
-			: 'l.' . reset( $columns );
-
 		if ( 'unspecified' === $season_filter ) {
-			$where[] = "({$season_sql} IS NULL OR {$season_sql} = '')";
+			$parts = array();
+			foreach ( $columns as $column ) {
+				$parts[] = "(l.{$column} IS NULL OR TRIM(CAST(l.{$column} AS CHAR)) = '')";
+			}
+			$where[] = '(' . implode( ' AND ', $parts ) . ')';
 			return;
 		}
 
@@ -1672,17 +1673,16 @@ class UFSC_LC_Club_Licences_Shortcode {
 					$years[] = (int) $year;
 				}
 			}
-			if ( empty( $years ) ) {
-				$where[] = '1=0';
-				return;
-			}
 		} else {
 			$year = function_exists( 'ufsc_lc_normalize_season_end_year' ) ? ufsc_lc_normalize_season_end_year( $season_filter ) : absint( $season_filter );
-			if ( ! $year ) {
-				$where[] = '1=0';
-				return;
+			if ( $year ) {
+				$years[] = (int) $year;
 			}
-			$years[] = (int) $year;
+		}
+
+		if ( empty( $years ) ) {
+			$where[] = '1=0';
+			return;
 		}
 
 		$values = array();
@@ -1690,9 +1690,21 @@ class UFSC_LC_Club_Licences_Shortcode {
 			$values = array_merge( $values, $this->get_season_match_values( (int) $year ) );
 		}
 		$values = array_values( array_unique( $values ) );
-		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
-		$where[]       = "{$season_sql} IN ({$placeholders})";
-		$params        = array_merge( $params, $values );
+
+		$match_parts      = array();
+		$consistent_parts = array();
+		foreach ( $columns as $column ) {
+			$cast = "TRIM(CAST(l.{$column} AS CHAR))";
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$match_parts[] = "{$cast} IN ({$placeholders})";
+			$params = array_merge( $params, $values );
+
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$consistent_parts[] = "(l.{$column} IS NULL OR {$cast} = '' OR {$cast} IN ({$placeholders}))";
+			$params = array_merge( $params, $values );
+		}
+
+		$where[] = '((' . implode( ' OR ', $match_parts ) . ') AND ' . implode( ' AND ', $consistent_parts ) . ')';
 	}
 
 	private function get_distinct_visibility_sql( string $alias ): string {
