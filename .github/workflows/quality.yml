@@ -41,6 +41,8 @@ jobs:
         run: php tests/competition-requirements-test.php
       - name: Active licence / FFST / regional guards
         run: php tests/active-licence-ffst-regional-guard-test.php
+      - name: Official A6 licence template guard
+        run: php tests/licence-a6-template-guard-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
