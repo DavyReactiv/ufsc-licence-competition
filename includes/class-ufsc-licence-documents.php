@@ -891,7 +891,7 @@ if ( headers_sent() ) {
 
 		$season_sql = $this->get_season_coalesce_sql( 'l' ) . ' AS season_value';
 		$licence_number_sql = $this->get_licence_number_sql( 'l' );
-		$ffst_number_sql   = $this->get_ffst_number_sql( 'l', $has_documents_table ? 'd' : '' );
+		$ffst_number_sql   = $this->get_ffst_number_sql( 'l' );
 
 		$where_sql = 'WHERE ' . implode( ' AND ', $where );
 
