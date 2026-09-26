@@ -119,7 +119,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			'photo_uri'      => '',
 			'logo_uri'       => self::get_default_logo_data_uri(),
 			'qr_uri'         => '',
-			'ffst_missing_class' => 'EN ATTENTE D’ATTRIBUTION' === $license_number ? 'ffst-number-missing' : '',
+			'ffst_missing_class' => '',
 			'logo_ufsc_url'  => 'https://ufsc-france.fr/wp-content/uploads/2025/12/cropped-cropped-UFSC-logo.jpg',
 			'logo_ffst_url'  => 'https://ufsc-france.fr/wp-content/uploads/2026/09/logo-ffst-2020.png',
 			'generated_at'   => wp_date( 'd/m/Y' ),
@@ -148,7 +148,11 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			</div>
 
 			<div style="max-width:920px;overflow:auto;padding:18px;background:#e8eaed;border-radius:12px;">
-				<?php echo self::build_card_markup( $sample, true ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Internal escaped template. ?>
+				<iframe
+					title="<?php echo esc_attr__( 'Prévisualisation de la licence UFSC / FFST', 'ufsc-licence-competition' ); ?>"
+					srcdoc="<?php echo esc_attr( self::build_pdf_html( $sample ) ); ?>"
+					style="display:block;width:100%;max-width:760px;height:1120px;border:0;background:#fff;margin:0 auto;"
+				></iframe>
 			</div>
 
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
@@ -348,6 +352,9 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			'photo_uri'      => self::image_value_to_data_uri( $licence->photo_identite ?? '' ),
 			'logo_uri'       => self::get_default_logo_data_uri(),
 			'qr_uri'         => '',
+			'ffst_missing_class' => 'EN ATTENTE D’ATTRIBUTION' === $license_number ? 'ffst-number-missing' : '',
+			'logo_ufsc_url'  => 'https://ufsc-france.fr/wp-content/uploads/2025/12/cropped-cropped-UFSC-logo.jpg',
+			'logo_ffst_url'  => 'https://ufsc-france.fr/wp-content/uploads/2026/09/logo-ffst-2020.png',
 			'generated_at'   => wp_date( 'd/m/Y' ),
 			'initials'       => '' !== $initials ? $initials : 'UF',
 		);
