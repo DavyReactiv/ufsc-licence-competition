@@ -147,7 +147,7 @@ if ( ! function_exists( 'ufsc_lc_sanitize_settings' ) ) {
 	function ufsc_lc_sanitize_settings( $input ) {
 		// Manual test plan (not executed):
 		// - Sauver onglet Général avec année=2027 -> persiste et reste sur Général.
-		// - Sauver onglet Import ASPTT -> persiste et reste sur Import ASPTT.
+		// - Sauver l’onglet d’import historique sans modifier ses clés de stockage internes.
 		// - Laisser un champ number vide -> aucune erreur, garde la valeur précédente.
 		// - Saisir un mois hors 1..12 -> 1 erreur “Mois … invalide” et conservation de l’ancienne valeur.
 		$defaults = ufsc_lc_get_settings_defaults();
@@ -513,32 +513,20 @@ class UFSC_LC_Settings_Page {
 	private function register_asptt_settings() {
 		add_settings_section(
 			'ufsc_lc_settings_asptt',
-			__( 'Import FFST', 'ufsc-licence-competition' ),
-			'__return_false',
+			__( 'FFST & imports', 'ufsc-licence-competition' ),
+			array( $this, 'render_ffst_import_section' ),
 			$this->get_tab_page_slug( 'asptt' )
 		);
+	}
 
-		add_settings_field(
-			self::SETTING_ASPTT_AUTO_APPROVE_THRESHOLD,
-			$this->get_label_with_tooltip(
-				__( 'Seuil auto-validation', 'ufsc-licence-competition' ),
-				__( 'Pourcentage de lignes correctement associées pour proposer l’auto-validation.', 'ufsc-licence-competition' )
-			),
-			array( $this, 'render_asptt_threshold_field' ),
-			$this->get_tab_page_slug( 'asptt' ),
-			'ufsc_lc_settings_asptt'
-		);
-
-		add_settings_field(
-			self::SETTING_ALLOW_IMPORT_ROLLBACK,
-			$this->get_label_with_tooltip(
-				__( 'Annulation (rollback)', 'ufsc-licence-competition' ),
-				__( 'Autorise l’annulation du dernier import FFST.', 'ufsc-licence-competition' )
-			),
-			array( $this, 'render_asptt_rollback_field' ),
-			$this->get_tab_page_slug( 'asptt' ),
-			'ufsc_lc_settings_asptt'
-		);
+	public function render_ffst_import_section() {
+		?>
+		<div style="max-width:860px;">
+			<p><strong><?php esc_html_e( 'Gestion des numéros de licence FFST', 'ufsc-licence-competition' ); ?></strong></p>
+			<p><?php esc_html_e( 'Les numéros FFST peuvent être saisis individuellement depuis la liste des licences ou depuis la fiche « Consulter ». Les anciennes données techniques sont conservées en arrière-plan uniquement pour garantir la compatibilité historique.', 'ufsc-licence-competition' ); ?></p>
+			<p><?php esc_html_e( 'Un import de masse FFST devra utiliser le champ canonique numero_licence_ffst. Aucun ancien numéro historique n’est écrasé automatiquement.', 'ufsc-licence-competition' ); ?></p>
+		</div>
+		<?php
 	}
 
 	private function register_licence_settings() {
@@ -794,7 +782,7 @@ class UFSC_LC_Settings_Page {
 
 	private function render_tab_footer( $active_tab ) {
 		if ( 'asptt' === $active_tab ) {
-			echo '<p class="description"><strong>' . esc_html__( 'Compatibilité :', 'ufsc-licence-competition' ) . '</strong> ' . esc_html__( 'les anciennes clés techniques ASPTT sont conservées en interne uniquement pour préserver les données historiques. L’interface et les nouveaux imports utilisent la terminologie FFST.', 'ufsc-licence-competition' ) . '</p>';
+			echo '<p class="description"><strong>' . esc_html__( 'Compatibilité :', 'ufsc-licence-competition' ) . '</strong> ' . esc_html__( 'les anciennes clés techniques restent conservées uniquement pour préserver les données historiques ; elles ne sont plus exposées dans l’interface actuelle.', 'ufsc-licence-competition' ) . '</p>';
 			return;
 		}
 		if ( 'logs' !== $active_tab ) {
@@ -816,7 +804,7 @@ class UFSC_LC_Settings_Page {
 		$tabs = array(
 			'general'  => __( 'Général', 'ufsc-licence-competition' ),
 			'seasons'  => __( 'Saisons & Catégories', 'ufsc-licence-competition' ),
-			'asptt'    => __( 'Import FFST', 'ufsc-licence-competition' ),
+			'asptt'    => __( 'FFST & imports', 'ufsc-licence-competition' ),
 			'licences' => __( 'Licences', 'ufsc-licence-competition' ),
 			'clubs'    => __( 'Clubs', 'ufsc-licence-competition' ),
 			'security' => __( 'Sécurité & droits', 'ufsc-licence-competition' ),
