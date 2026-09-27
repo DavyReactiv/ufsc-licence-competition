@@ -5,297 +5,205 @@
 <title>Licence sportive UFSC / FFST</title>
 <style>
 @page{size:A6 landscape;margin:0}
+html,body{margin:0;padding:0;width:148mm;background:#fff;font-family:"DejaVu Sans",Arial,sans-serif;color:#172554}
 *{box-sizing:border-box}
-:root{
-  --ufsc-blue:#223b84;
-  --ufsc-dark:#1b2559;
-  --ufsc-red:#d71933;
-  --ufsc-light:#f4f6fb;
-  --ufsc-line:#d9dfeb;
-  --ufsc-text:#0f1b4c;
-  --ufsc-muted:#6a738b;
-}
-html,body{margin:0;padding:0;background:#dfe3ea;font-family:Arial,Helvetica,sans-serif;color:var(--ufsc-text)}
-body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.licence-page{position:relative;width:148mm;height:105mm;margin:10mm auto;overflow:hidden;background:#fff;page-break-after:always}
-.licence-page:last-child{page-break-after:auto}
-@media print{
-  html,body{margin:0;padding:0;background:#fff}
-  .licence-page{margin:0;box-shadow:none}
-}
-.recto::before,.verso::before{
-  content:"UFSC";position:absolute;right:-5mm;top:32mm;
-  font-size:34mm;font-weight:900;letter-spacing:-1.5mm;
-  color:rgba(34,59,132,.04);transform:rotate(-8deg);
-  z-index:0;pointer-events:none
-}
+.page{position:relative;width:148mm;height:104.5mm;overflow:hidden;background:#fff}
+.recto{page-break-after:always}
+.verso{page-break-after:auto}
 
-/* RECTO */
-.recto{background:linear-gradient(180deg,#fff 0%,#fbfcff 100%)}
-.recto .topbar{position:absolute;top:0;left:0;right:0;height:24mm;background:linear-gradient(90deg,#1f2f6d 0%,#2f4f97 100%);z-index:2}
-.recto .topbar-accent{position:absolute;left:0;top:22.8mm;width:63mm;height:1.2mm;background:var(--ufsc-red);z-index:3}
-.recto .header-grid{
-  position:absolute;top:4mm;left:6mm;right:6mm;
-  display:grid;grid-template-columns:34mm minmax(0,1fr) 29mm;
-  align-items:center;column-gap:3.5mm;z-index:4
-}
-.recto .logo-box{
-  height:14mm;border-radius:2mm;background:#fff;
-  display:flex;align-items:center;justify-content:center;
-  padding:1.5mm 2mm;overflow:hidden
-}
-.recto .logo-box img{max-width:100%;max-height:100%;object-fit:contain;display:block}
-.recto .title-block{color:#fff;min-width:0;padding-right:1mm}
-.recto .federation-line{
-  font-size:1.55mm;font-weight:700;letter-spacing:.72mm;text-transform:uppercase;
-  opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-}
-.recto .main-title{margin-top:1mm;font-size:5.35mm;line-height:1;font-weight:900;letter-spacing:.32mm;text-transform:uppercase;white-space:nowrap;overflow:hidden}
-.recto .season-pill{
-  border:.35mm solid rgba(255,255,255,.55);border-radius:20mm;
-  padding:1.6mm 2.2mm;color:#fff;text-align:center;min-height:13mm;
-  display:flex;flex-direction:column;justify-content:center
-}
-.recto .season-label{font-size:1.6mm;font-weight:700;letter-spacing:.55mm;text-transform:uppercase;opacity:.88}
-.recto .season-value{margin-top:.6mm;font-size:3.1mm;font-weight:900;white-space:nowrap}
-.recto .content-grid{
-  position:absolute;top:29mm;left:8mm;right:8mm;bottom:14mm;
-  display:grid;grid-template-columns:32mm minmax(0,1fr);column-gap:6mm;z-index:2
-}
-.recto .photo-column{display:flex;flex-direction:column;align-items:center}
-.recto .photo-card{
-  width:29mm;height:40mm;background:#eef1f7;border-radius:2.4mm;
-  border:.4mm solid #d7deea;padding:1mm;box-shadow:0 .9mm 1.8mm rgba(19,33,82,.08);
-  overflow:hidden;position:relative
-}
-.recto .photo-card::after{
-  content:"";position:absolute;left:0;right:0;bottom:0;height:1.6mm;
-  background:linear-gradient(90deg,var(--ufsc-dark) 0 70%,var(--ufsc-red) 70% 100%)
-}
-.recto .photo-card img{width:100%;height:100%;object-fit:cover;border-radius:1.5mm;display:block}
-.recto .photo-placeholder{
-  width:100%;height:100%;border-radius:1.5mm;
-  background:
-    radial-gradient(circle at center 10mm,#aeb7c7 0 4mm,transparent 4.1mm),
-    radial-gradient(ellipse at center 25mm,#aeb7c7 0 7mm,transparent 7.1mm),
-    #dfe4ec
-}
-.recto .recto-logo-ffst{margin-top:9.5mm;width:23mm;max-height:11mm;object-fit:contain;display:block}
-.recto .info-column{min-width:0}
-.recto .member-role{font-size:1.8mm;font-weight:900;letter-spacing:1mm;color:var(--ufsc-red);text-transform:uppercase}
-.recto .member-name{margin-top:1mm;font-size:6.2mm;line-height:1.05;font-weight:900;color:var(--ufsc-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recto .info-grid{margin-top:4mm;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.4mm 7mm}
-.recto .info-item .label{font-size:1.55mm;font-weight:800;letter-spacing:.5mm;color:var(--ufsc-muted);text-transform:uppercase}
-.recto .info-item .value{margin-top:.7mm;font-size:2.95mm;line-height:1.15;font-weight:800;color:var(--ufsc-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recto .licence-card{
-  margin-top:5mm;width:100%;border-radius:3mm;
-  background:linear-gradient(135deg,#223b84 0%,#25306e 100%);
-  color:#fff;box-shadow:0 1.3mm 3mm rgba(17,33,82,.18);overflow:hidden;position:relative
-}
-.recto .licence-card::before{
-  content:"";position:absolute;top:-10mm;right:-10mm;width:40mm;height:40mm;
-  border:3mm solid rgba(255,255,255,.05);border-radius:50%
-}
-.recto .licence-card-inner{padding:4mm 4mm 3.4mm;position:relative;z-index:2}
-.recto .licence-label{font-size:1.75mm;font-weight:800;letter-spacing:.8mm;text-transform:uppercase;opacity:.92}
-.recto .licence-number{margin-top:1.2mm;font-size:5.2mm;line-height:1;font-weight:900;letter-spacing:.35mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recto .insurance-pill{
-  display:inline-block;margin-top:2.2mm;padding:.8mm 1.7mm;border-radius:10mm;
-  background:var(--ufsc-red);color:#fff;font-size:1.45mm;line-height:1;
-  font-weight:900;letter-spacing:.22mm;text-transform:uppercase
-}
-.recto .mini-mention{margin-top:6mm;font-size:1.85mm;font-weight:700;color:var(--ufsc-dark)}
-.recto .mini-mention strong{color:var(--ufsc-red)}
-.recto .corner-stripes{position:absolute;right:0;bottom:0;width:18mm;height:10mm;overflow:hidden;z-index:1}
-.recto .corner-stripes::before,.recto .corner-stripes::after,.recto .corner-stripes .mid{
-  content:"";position:absolute;right:-2mm;width:18mm;height:1.2mm;
-  transform:rotate(-34deg);transform-origin:right center
-}
-.recto .corner-stripes::before{background:var(--ufsc-dark);bottom:3.8mm}
-.recto .corner-stripes .mid{background:#fff;bottom:2.5mm}
-.recto .corner-stripes::after{background:var(--ufsc-red);bottom:1.2mm}
+/* ===== RECTO ===== */
+.recto .topbar{position:absolute;left:0;top:0;width:148mm;height:24mm;background:#243b82}
+.recto .redline{position:absolute;left:0;top:22.8mm;width:62mm;height:1.2mm;background:#d71933}
+.recto .logo-box{position:absolute;left:6mm;top:4mm;width:32mm;height:14mm;background:#fff;border-radius:2mm;text-align:center;overflow:hidden}
+.recto .logo-box img{max-width:29mm;max-height:12mm;margin-top:1mm}
+.recto .header-copy{position:absolute;left:42mm;top:4.4mm;width:65mm;color:#fff;overflow:hidden}
+.recto .header-copy .kicker{font-size:1.45mm;line-height:1.2;font-weight:700;letter-spacing:.55mm;white-space:nowrap}
+.recto .header-copy .title{margin-top:1.1mm;font-size:5.05mm;line-height:1;font-weight:900;letter-spacing:.2mm;white-space:nowrap}
+.recto .season{position:absolute;left:111mm;top:4mm;width:30mm;height:14mm;border:.35mm solid #d7e0ff;border-radius:8mm;color:#fff;text-align:center}
+.recto .season .label{display:block;margin-top:2.2mm;font-size:1.35mm;line-height:1;font-weight:700;letter-spacing:.35mm}
+.recto .season .value{display:block;margin-top:1.4mm;font-size:2.85mm;line-height:1;font-weight:900}
+.recto .watermark{position:absolute;right:-4mm;top:37mm;font-size:26mm;line-height:1;font-weight:900;color:#f2f4fa}
 
-/* VERSO */
-.verso .topbar{position:absolute;top:0;left:0;right:0;height:24mm;background:linear-gradient(90deg,#1d2461 0%,#2b3f8b 100%);z-index:2}
-.verso .header-grid{
-  position:absolute;top:5mm;left:6mm;right:6mm;
-  display:grid;grid-template-columns:28mm minmax(0,1fr) 28mm;
-  align-items:center;column-gap:6mm;z-index:3
-}
-.verso .small-logo-box{
-  height:12.5mm;border-radius:2mm;background:#fff;padding:1.2mm 2mm;
-  display:flex;align-items:center;justify-content:center;overflow:hidden
-}
-.verso .small-logo-box img{max-width:100%;max-height:100%;object-fit:contain;display:block}
-.verso .center-title{color:#fff;text-align:center;min-width:0}
-.verso .center-title .overline{font-size:1.65mm;font-weight:700;letter-spacing:.8mm;text-transform:uppercase;opacity:.9;white-space:nowrap}
-.verso .center-title .main{margin-top:1mm;font-size:4.7mm;line-height:1;font-weight:900;text-transform:uppercase}
-.verso .center-title .underline{margin:1.8mm auto 0;width:18mm;height:.9mm;background:linear-gradient(90deg,#fff 0 65%,var(--ufsc-red) 65% 100%);border-radius:1mm}
-.verso .content{position:absolute;top:28mm;left:8mm;right:8mm;bottom:12mm;z-index:2}
-.verso .section-separator{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;column-gap:3mm}
-.verso .section-separator::before,.verso .section-separator::after{content:"";height:.3mm;background:#b7c1d6}
-.verso .section-separator span{font-size:1.9mm;font-weight:900;letter-spacing:.6mm;color:#28418d;text-transform:uppercase}
-.verso .disciplines{margin-top:3mm;display:flex;justify-content:center;gap:2.2mm;flex-wrap:wrap}
-.verso .disciplines span{padding:1mm 2.5mm;border-radius:8mm;background:#fff;border:.3mm solid #cad3e6;color:#28418d;font-size:2mm;font-weight:900;line-height:1}
-.verso .legal-box{margin-top:5mm;padding:3.4mm 3.8mm;border:.3mm solid #d2d9e8;background:linear-gradient(180deg,#f7f9fd 0%,#edf2fa 100%);border-radius:2.5mm}
-.verso .legal-box .title{font-size:1.8mm;font-weight:900;letter-spacing:.5mm;color:#28418d;text-transform:uppercase}
-.verso .legal-box p{margin:1.5mm 0 0;font-size:2.1mm;line-height:1.45;font-weight:700;color:#21305f}
-.verso .reference-card{
-  margin-top:4mm;display:grid;grid-template-columns:7mm minmax(0,1fr);
-  align-items:center;column-gap:2.6mm;border-radius:2.3mm;padding:2.6mm 3mm;
-  background:linear-gradient(135deg,#1c2462 0%,#283987 100%);color:#fff
-}
-.verso .reference-icon{
-  width:5.8mm;height:5.8mm;border-radius:50%;background:var(--ufsc-red);color:#fff;
-  display:flex;align-items:center;justify-content:center;font-size:3mm;font-weight:900
-}
-.verso .reference-text .title{font-size:1.6mm;font-weight:900;letter-spacing:.45mm;text-transform:uppercase;opacity:.92}
-.verso .reference-text .body{margin-top:.8mm;font-size:2.15mm;line-height:1.35;font-weight:800}
-.verso .values{margin-top:5mm;padding-top:2.5mm;border-top:.3mm solid #d6ddeb;display:flex;justify-content:center;gap:1.4mm;flex-wrap:wrap}
-.verso .values span{padding:.8mm 1.6mm;border-radius:6mm;background:#fff;border:.25mm solid #d7deea;color:#28418d;font-size:1.7mm;font-weight:900;text-transform:uppercase}
+.recto .photo-frame{position:absolute;left:9mm;top:31mm;width:29mm;height:40mm;background:#e7ebf2;border:.4mm solid #d3dbe8;border-radius:2mm;overflow:hidden}
+.recto .photo-placeholder{position:absolute;left:0;top:0;width:28.2mm;height:39.2mm;background:#e2e7ef}
+.recto .photo-placeholder .head{position:absolute;left:10mm;top:6mm;width:8mm;height:8mm;background:#acb7c9;border-radius:5mm}
+.recto .photo-placeholder .body{position:absolute;left:6mm;top:16mm;width:16mm;height:18mm;background:#acb7c9;border-radius:8mm}
+.recto .photo-frame img{position:absolute;left:0;top:0;width:28.2mm;height:39.2mm}
+.recto .photo-bottom-blue{position:absolute;left:0;bottom:0;width:21mm;height:1.6mm;background:#1b2559}
+.recto .photo-bottom-red{position:absolute;right:0;bottom:0;width:7mm;height:1.6mm;background:#d71933}
+.recto .recto-logo-ffst{position:absolute;left:11mm;top:75mm;width:24mm;max-height:10mm}
 
-/* FOOTER */
-.ufsc-legal-footer{
-  position:absolute;left:7mm;right:7mm;bottom:2mm;padding-top:1.4mm;
-  border-top:.25mm solid var(--ufsc-line);text-align:center;z-index:4;background:rgba(255,255,255,.97)
-}
-.ufsc-legal-footer .line1{font-size:1.6mm;line-height:1.2;font-weight:800;color:#20326b}
-.ufsc-legal-footer .line2{margin-top:.45mm;font-size:1.55mm;line-height:1.2;font-weight:700;color:#405178}
-.ffst-number-missing{font-style:italic;opacity:.75;font-size:3.5mm!important;letter-spacing:.05mm!important}
+.recto .member-role{position:absolute;left:46mm;top:30.5mm;font-size:1.65mm;font-weight:900;letter-spacing:.7mm;color:#d71933}
+.recto .member-name{position:absolute;left:46mm;top:34.2mm;width:91mm;font-size:5.15mm;line-height:1;font-weight:900;color:#18255d;white-space:nowrap;overflow:hidden}
+
+.recto .field{position:absolute}
+.recto .field .label{display:block;font-size:1.4mm;line-height:1.1;font-weight:800;letter-spacing:.38mm;color:#7a8498;text-transform:uppercase}
+.recto .field .value{display:block;margin-top:.7mm;font-size:2.55mm;line-height:1.15;font-weight:800;color:#18255d;white-space:nowrap;overflow:hidden}
+.recto .birth{left:46mm;top:43.5mm;width:40mm}
+.recto .category{left:94mm;top:43.5mm;width:42mm}
+.recto .club{left:46mm;top:53.5mm;width:40mm}
+.recto .region{left:94mm;top:53.5mm;width:42mm}
+
+.recto .licence-card{position:absolute;left:46mm;top:64mm;width:91mm;height:19.5mm;background:#24357b;border-radius:3mm;color:#fff;overflow:hidden}
+.recto .licence-label{position:absolute;left:4mm;top:3mm;font-size:1.55mm;font-weight:800;letter-spacing:.55mm}
+.recto .licence-number{position:absolute;left:4mm;top:7mm;width:82mm;font-size:4.4mm;line-height:1;font-weight:900;letter-spacing:.25mm;white-space:nowrap;overflow:hidden}
+.recto .insurance-pill{position:absolute;left:4mm;top:13.2mm;padding:.7mm 1.4mm;background:#d71933;border-radius:3mm;font-size:1.15mm;line-height:1;font-weight:900;letter-spacing:.08mm;color:#fff}
+.ffst-number-missing{font-size:3.3mm!important;font-style:italic;opacity:.78}
+.recto .mini-mention{position:absolute;left:46mm;top:86mm;font-size:1.5mm;font-weight:700;color:#18255d}
+.recto .mini-mention strong{color:#d71933}
+
+.recto .stripe-blue{position:absolute;right:-1mm;bottom:8mm;width:17mm;height:1.1mm;background:#1b2559;transform:rotate(-34deg)}
+.recto .stripe-white{position:absolute;right:-1mm;bottom:6.8mm;width:17mm;height:1mm;background:#fff;transform:rotate(-34deg)}
+.recto .stripe-red{position:absolute;right:-1mm;bottom:5.6mm;width:17mm;height:1.1mm;background:#d71933;transform:rotate(-34deg)}
+
+/* ===== VERSO ===== */
+.verso .topbar{position:absolute;left:0;top:0;width:148mm;height:24mm;background:#24357b}
+.verso .logo-left{position:absolute;left:7mm;top:5mm;width:28mm;height:13mm;background:#fff;border-radius:2mm;text-align:center;overflow:hidden}
+.verso .logo-left img{max-width:25mm;max-height:11mm;margin-top:1mm}
+.verso .logo-right{position:absolute;left:113mm;top:5mm;width:28mm;height:13mm;background:#fff;border-radius:2mm;text-align:center;overflow:hidden}
+.verso .logo-right img{max-width:25mm;max-height:11mm;margin-top:1mm}
+.verso .header-center{position:absolute;left:39mm;top:5mm;width:70mm;color:#fff;text-align:center}
+.verso .header-center .overline{font-size:1.4mm;font-weight:700;letter-spacing:.55mm}
+.verso .header-center .title{margin-top:1.2mm;font-size:4.1mm;line-height:1.05;font-weight:900}
+.verso .header-center .uline-white{position:absolute;left:24mm;top:13mm;width:12mm;height:.7mm;background:#fff}
+.verso .header-center .uline-red{position:absolute;left:36mm;top:13mm;width:6mm;height:.7mm;background:#d71933}
+.verso .watermark{position:absolute;right:-4mm;top:48mm;font-size:24mm;line-height:1;font-weight:900;color:#f3f5fa}
+
+.verso .section-line-left{position:absolute;left:8mm;top:30.5mm;width:51mm;height:.25mm;background:#b8c2d9}
+.verso .section-line-right{position:absolute;left:89mm;top:30.5mm;width:51mm;height:.25mm;background:#b8c2d9}
+.verso .section-title{position:absolute;left:59mm;top:28.4mm;width:30mm;text-align:center;font-size:1.7mm;font-weight:900;letter-spacing:.45mm;color:#28418d}
+.verso .tag{position:absolute;top:34.5mm;height:5.5mm;padding:1.2mm 2.4mm;background:#fff;border:.3mm solid #cbd4e6;border-radius:3mm;text-align:center;font-size:1.55mm;line-height:1.8mm;font-weight:900;color:#28418d}
+.verso .tag1{left:43mm;width:22mm}
+.verso .tag2{left:67mm;width:27mm}
+.verso .tag3{left:96mm;width:22mm}
+
+.verso .legal-box{position:absolute;left:9mm;top:44mm;width:130mm;height:24mm;background:#f5f8fd;border:.3mm solid #d2d9e8;border-radius:2mm;padding:3mm 4mm}
+.verso .legal-title{font-size:1.55mm;font-weight:900;letter-spacing:.4mm;color:#28418d}
+.verso .legal-copy{margin-top:2mm;font-size:1.75mm;line-height:1.42;font-weight:700;color:#253766}
+
+.verso .reference-box{position:absolute;left:9mm;top:72mm;width:130mm;height:15mm;background:#202a70;border-radius:2mm;color:#fff}
+.verso .reference-icon{position:absolute;left:4mm;top:4.2mm;width:6mm;height:6mm;border-radius:4mm;background:#d71933;text-align:center;font-size:3.3mm;line-height:6mm;font-weight:900}
+.verso .reference-title{position:absolute;left:13mm;top:2.8mm;font-size:1.45mm;font-weight:900;letter-spacing:.4mm}
+.verso .reference-copy{position:absolute;left:13mm;top:6mm;width:110mm;font-size:1.75mm;line-height:1.35;font-weight:800}
+
+.verso .values-line{position:absolute;left:9mm;top:90mm;width:130mm;height:.25mm;background:#d6ddeb}
+.verso .values{position:absolute;left:24mm;top:92mm;width:100mm;text-align:center;font-size:1.45mm;font-weight:900;color:#28418d}
+.verso .values span{display:inline-block;margin:0 .7mm;padding:.55mm 1.2mm;border:.25mm solid #d7deea;border-radius:2mm;background:#fff}
+
+/* ===== FOOTER COMMUN ===== */
+.ufsc-legal-footer{position:absolute;left:7mm;right:7mm;bottom:1.6mm;height:6mm;padding-top:.8mm;border-top:.25mm solid #d9dfeb;background:#fff;text-align:center;color:#20326b}
+.ufsc-legal-footer .line1{font-size:1.3mm;line-height:1.1;font-weight:800}
+.ufsc-legal-footer .line2{margin-top:.45mm;font-size:1.2mm;line-height:1.1;font-weight:700;color:#405178}
 </style>
 </head>
 <body>
 
-<section class="licence-page recto">
+<section class="page recto">
   <div class="topbar"></div>
-  <div class="topbar-accent"></div>
+  <div class="redline"></div>
+  <div class="logo-box"><img src="{{logo_ufsc}}" alt="UFSC"></div>
+  <div class="header-copy">
+    <div class="kicker">UNION FRANÇAISE DES SPORTS DE COMBAT</div>
+    <div class="title">LICENCE SPORTIVE</div>
+  </div>
+  <div class="season">
+    <span class="label">SAISON</span>
+    <span class="value">{{saison}}</span>
+  </div>
+  <div class="watermark">UFSC</div>
 
-  <div class="header-grid">
-    <div class="logo-box">
-      <img src="{{logo_ufsc}}" alt="UFSC">
+  <div class="photo-frame">
+    <div class="photo-placeholder">
+      <span class="head"></span>
+      <span class="body"></span>
     </div>
-
-    <div class="title-block">
-      <div class="federation-line">UNION FRANÇAISE DES SPORTS DE COMBAT</div>
-      <div class="main-title">LICENCE SPORTIVE</div>
-    </div>
-
-    <div class="season-pill">
-      <div class="season-label">Saison</div>
-      <div class="season-value">{{saison}}</div>
-    </div>
+    <img src="{{photo_licencie}}" alt="">
+    <span class="photo-bottom-blue"></span>
+    <span class="photo-bottom-red"></span>
   </div>
 
-  <div class="content-grid">
-    <div class="photo-column">
-      <div class="photo-card">
-        <img src="{{photo_licencie}}" alt="Photo du licencié" onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
-        <div class="photo-placeholder" style="display:none;"></div>
-      </div>
-      <img class="recto-logo-ffst" src="{{logo_ffst}}" alt="FFST">
-    </div>
+  <img class="recto-logo-ffst" src="{{logo_ffst}}" alt="FFST">
 
-    <div class="info-column">
-      <div class="member-role">LICENCIÉ(E)</div>
-      <div class="member-name">{{nom}} {{prenom}}</div>
+  <div class="member-role">LICENCIÉ(E)</div>
+  <div class="member-name">{{nom}} {{prenom}}</div>
 
-      <div class="info-grid">
-        <div class="info-item">
-          <div class="label">Date de naissance</div>
-          <div class="value">{{date_naissance}}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">Catégorie</div>
-          <div class="value">{{categorie}}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">Club</div>
-          <div class="value">{{club}}</div>
-        </div>
-        <div class="info-item">
-          <div class="label">Région</div>
-          <div class="value">{{region}}</div>
-        </div>
-      </div>
-
-      <div class="licence-card">
-        <div class="licence-card-inner">
-          <div class="licence-label">LICENCE UFSC / FFST</div>
-          <div class="licence-number {{ffst_missing_class}}">{{numero_licence_ffst}}</div>
-          <div class="insurance-pill">Numéro associé à la couverture d’assurance FFST</div>
-        </div>
-      </div>
-
-      <div class="mini-mention">UFSC — sous l’égide de la <strong>FFST</strong></div>
-    </div>
+  <div class="field birth">
+    <span class="label">DATE DE NAISSANCE</span>
+    <span class="value">{{date_naissance}}</span>
+  </div>
+  <div class="field category">
+    <span class="label">CATÉGORIE</span>
+    <span class="value">{{categorie}}</span>
+  </div>
+  <div class="field club">
+    <span class="label">CLUB</span>
+    <span class="value">{{club}}</span>
+  </div>
+  <div class="field region">
+    <span class="label">RÉGION</span>
+    <span class="value">{{region}}</span>
   </div>
 
-  <div class="corner-stripes"><span class="mid"></span></div>
+  <div class="licence-card">
+    <div class="licence-label">LICENCE UFSC / FFST</div>
+    <div class="licence-number {{ffst_missing_class}}">{{numero_licence_ffst}}</div>
+    <div class="insurance-pill">Numéro associé à la couverture d’assurance FFST</div>
+  </div>
+
+  <div class="mini-mention">UFSC - sous l’égide de la <strong>FFST</strong></div>
+
+  <div class="stripe-blue"></div>
+  <div class="stripe-white"></div>
+  <div class="stripe-red"></div>
 
   <div class="ufsc-legal-footer">
-    <div class="line1">UFSC — 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence — France</div>
+    <div class="line1">UFSC - 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France</div>
     <div class="line2">RNA : W596010570 &nbsp;•&nbsp; Tél. : 06 27 85 80 20 &nbsp;•&nbsp; contact@ufsc-france.org &nbsp;•&nbsp; www.ufsc-france.fr</div>
   </div>
 </section>
 
-<section class="licence-page verso">
+<section class="page verso">
   <div class="topbar"></div>
+  <div class="logo-left"><img src="{{logo_ufsc}}" alt="UFSC"></div>
+  <div class="header-center">
+    <div class="overline">LICENCE SPORTIVE DÉMATÉRIALISÉE</div>
+    <div class="title">UNION FRANÇAISE<br>DES SPORTS DE COMBAT</div>
+    <span class="uline-white"></span>
+    <span class="uline-red"></span>
+  </div>
+  <div class="logo-right"><img src="{{logo_ffst}}" alt="FFST"></div>
+  <div class="watermark">UFSC</div>
 
-  <div class="header-grid">
-    <div class="small-logo-box">
-      <img src="{{logo_ufsc}}" alt="UFSC">
-    </div>
+  <div class="section-line-left"></div>
+  <div class="section-title">DISCIPLINES UFSC</div>
+  <div class="section-line-right"></div>
 
-    <div class="center-title">
-      <div class="overline">Licence sportive dématérialisée</div>
-      <div class="main">Union Française<br>des Sports de Combat</div>
-      <div class="underline"></div>
-    </div>
+  <div class="tag tag1">KICKBOXING</div>
+  <div class="tag tag2">FULL CONTACT</div>
+  <div class="tag tag3">PANCRACE</div>
 
-    <div class="small-logo-box">
-      <img src="{{logo_ffst}}" alt="FFST">
+  <div class="legal-box">
+    <div class="legal-title">CADRE FÉDÉRAL</div>
+    <div class="legal-copy">
+      Licence personnelle et nominative, valable pour la saison sportive indiquée.
+      L’UFSC évolue dans le cadre de la Fédération Française du Sport Travailliste (FFST),
+      fédération affinitaire et multisports agréée par le ministère chargé des Sports et membre du CNOSF.
     </div>
   </div>
 
-  <div class="content">
-    <div class="section-separator"><span>Disciplines UFSC</span></div>
+  <div class="reference-box">
+    <div class="reference-icon">✓</div>
+    <div class="reference-title">RÉFÉRENCE FÉDÉRALE</div>
+    <div class="reference-copy">Le numéro de licence UFSC / FFST correspond au numéro FFST associé à la couverture d’assurance du licencié.</div>
+  </div>
 
-    <div class="disciplines">
-      <span>KICKBOXING</span>
-      <span>FULL CONTACT</span>
-      <span>PANCRACE</span>
-    </div>
-
-    <div class="legal-box">
-      <div class="title">Cadre fédéral</div>
-      <p>
-        Licence personnelle et nominative, valable pour la saison sportive indiquée.
-        L’UFSC évolue dans le cadre de la Fédération Française du Sport Travailliste (FFST),
-        fédération affinitaire et multisports agréée par le ministère chargé des Sports et membre du CNOSF.
-      </p>
-    </div>
-
-    <div class="reference-card">
-      <div class="reference-icon">✓</div>
-      <div class="reference-text">
-        <div class="title">Référence fédérale</div>
-        <div class="body">
-          Le numéro de licence UFSC / FFST correspond au numéro FFST associé à la couverture d’assurance du licencié.
-        </div>
-      </div>
-    </div>
-
-    <div class="values">
-      <span>Respect</span>
-      <span>Engagement</span>
-      <span>Fair-play</span>
-      <span>Dépassement</span>
-      <span>Solidarité</span>
-    </div>
+  <div class="values-line"></div>
+  <div class="values">
+    <span>RESPECT</span><span>ENGAGEMENT</span><span>FAIR-PLAY</span><span>DÉPASSEMENT</span><span>SOLIDARITÉ</span>
   </div>
 
   <div class="ufsc-legal-footer">
-    <div class="line1">UFSC — 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence — France</div>
+    <div class="line1">UFSC - 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France</div>
     <div class="line2">RNA : W596010570 &nbsp;•&nbsp; Tél. : 06 27 85 80 20 &nbsp;•&nbsp; contact@ufsc-france.org &nbsp;•&nbsp; www.ufsc-france.fr</div>
   </div>
 </section>
