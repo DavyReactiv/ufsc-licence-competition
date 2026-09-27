@@ -18,7 +18,7 @@ $php  = file_get_contents( $generator );
 $html = file_get_contents( $template );
 
 $required_php = array(
-	"const TEMPLATE_VERSION = 'ufsc-card-v2-premium-ffst';",
+	"const TEMPLATE_VERSION = 'ufsc-card-v3-dompdf-a6';",
 	'resolve_ffst_license_number',
 	"numero_licence_ffst",
 	"EN ATTENTE D’ATTRIBUTION",
@@ -26,6 +26,8 @@ $required_php = array(
 	"{{numero_licence_ffst}}",
 	"{{ffst_missing_class}}",
 	"ffst_display_number",
+	"defaultFont', 'DejaVu Sans",
+	"defaultMediaType', 'print",
 );
 
 $errors = array();

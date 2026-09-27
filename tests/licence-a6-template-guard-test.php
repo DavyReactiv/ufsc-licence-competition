@@ -14,11 +14,14 @@ $html = file_get_contents( $template );
 
 $required = array(
 	'@page{size:A6 landscape;margin:0}',
+	'.page{position:relative;width:148mm;height:104.5mm;',
+	'class="page recto"',
+	'class="page verso"',
 	'LICENCE UFSC / FFST',
 	'{{numero_licence_ffst}}',
 	'{{ffst_missing_class}}',
 	'Numéro associé à la couverture d’assurance FFST',
-	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence — France',
+	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France',
 	'RNA : W596010570',
 	'06 27 85 80 20',
 	'contact@ufsc-france.org',
@@ -51,6 +54,18 @@ if ( false !== strpos( $html, '{{numero_licence_ufsc}}' ) ) {
 
 if ( false !== stripos( $html, 'ASPTT' ) ) {
 	$missing[] = 'absence de référence ASPTT';
+}
+
+if ( false !== strpos( $html, 'display:grid' ) || false !== strpos( $html, 'display:flex' ) ) {
+	$missing[] = 'le gabarit PDF ne doit pas dépendre de CSS Grid/Flex';
+}
+
+if ( false !== strpos( $html, 'margin:10mm auto' ) ) {
+	$missing[] = 'aucune marge extérieure ne doit créer de page blanche Dompdf';
+}
+
+if ( 1 !== substr_count( $html, 'page-break-after:always' ) ) {
+	$missing[] = 'un seul saut de page recto -> verso est attendu';
 }
 
 if ( $missing ) {

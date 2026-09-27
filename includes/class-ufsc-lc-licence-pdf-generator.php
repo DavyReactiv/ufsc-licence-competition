@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-card-v2-premium-ffst';
+	const TEMPLATE_VERSION = 'ufsc-card-v3-dompdf-a6';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -378,6 +378,10 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			if ( $options ) {
 				$options->set( 'isRemoteEnabled', true );
 				$options->set( 'isHtml5ParserEnabled', true );
+				$options->set( 'defaultFont', 'DejaVu Sans' );
+				$options->set( 'defaultMediaType', 'print' );
+				$options->set( 'isFontSubsettingEnabled', true );
+				$options->set( 'dpi', 96 );
 				$dompdf = new \Dompdf\Dompdf( $options );
 			} else {
 				$dompdf = new \Dompdf\Dompdf();
