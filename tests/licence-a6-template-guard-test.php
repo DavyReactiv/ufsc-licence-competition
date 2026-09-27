@@ -21,7 +21,7 @@ $required = array(
 	'{{numero_licence_ffst}}',
 	'{{ffst_missing_class}}',
 	'Numéro associé à la couverture d’assurance FFST',
-	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence — France',
+	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France',
 	'RNA : W596010570',
 	'06 27 85 80 20',
 	'contact@ufsc-france.org',
