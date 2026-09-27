@@ -1258,13 +1258,22 @@ if ( headers_sent() ) {
 			return;
 		}
 
-		$season_sql = $this->get_season_coalesce_sql( 'l' );
-		if ( "''" === $season_sql ) {
+		$table   = $this->get_licences_table();
+		$columns = function_exists( 'ufsc_lc_get_licence_season_columns' )
+			? ufsc_lc_get_licence_season_columns( $table )
+			: array_filter( array( $this->get_season_column() ) );
+
+		if ( empty( $columns ) ) {
+			$where[] = '1=0';
 			return;
 		}
 
 		if ( 'unspecified' === $season_filter ) {
-			$where[] = "({$season_sql} IS NULL OR {$season_sql} = '')";
+			$parts = array();
+			foreach ( $columns as $column ) {
+				$parts[] = "(l.{$column} IS NULL OR TRIM(CAST(l.{$column} AS CHAR)) = '')";
+			}
+			$where[] = '(' . implode( ' AND ', $parts ) . ')';
 			return;
 		}
 
@@ -1285,9 +1294,21 @@ if ( headers_sent() ) {
 				)
 			)
 		);
-		$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
-		$where[]       = "{$season_sql} IN ({$placeholders})";
-		$params        = array_merge( $params, $values );
+
+		$match_parts      = array();
+		$consistent_parts = array();
+		foreach ( $columns as $column ) {
+			$cast = "TRIM(CAST(l.{$column} AS CHAR))";
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$match_parts[] = "{$cast} IN ({$placeholders})";
+			$params = array_merge( $params, $values );
+
+			$placeholders = implode( ', ', array_fill( 0, count( $values ), '%s' ) );
+			$consistent_parts[] = "(l.{$column} IS NULL OR {$cast} = '' OR {$cast} IN ({$placeholders}))";
+			$params = array_merge( $params, $values );
+		}
+
+		$where[] = '((' . implode( ' OR ', $match_parts ) . ') AND ' . implode( ' AND ', $consistent_parts ) . ')';
 	}
 
 	private function has_column( $table, $column ) {
