@@ -263,7 +263,7 @@ class CompetitionsListShortcode {
 		}
 
 		return sprintf(
-			'<div class="ufsc-panel ufsc-competitions-table-wrapper">
+			'<div class="ufsc-competitions-table-wrapper">
 				<table class="ufsc-competitions-table wp-list-table widefat striped">
 					<thead>
 						<tr>
