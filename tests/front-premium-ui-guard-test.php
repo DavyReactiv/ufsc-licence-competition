@@ -19,7 +19,7 @@ $checks = array(
 	'competition premium empty'    => array( $competitions, 'ufsc-competitions-empty' ),
 	'competition count card'       => array( $competitions, 'ufsc-competitions-hub__count' ),
 	'competition unified width'    => array( $css, '.ufsc-competitions-hub {\n\twidth: 100%;' ),
-	'competition premium palette'  => array( $css, '--ufsc-red:#df1737' ),
+	'competition premium palette'  => array( $css, '--ufsc-red: #df1737' ),
 	'competition responsive table' => array( $css, 'min-width: 920px' ),
 );
 
