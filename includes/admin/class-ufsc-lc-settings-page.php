@@ -688,7 +688,13 @@ class UFSC_LC_Settings_Page {
 			global $wpdb;
 			$active_year   = function_exists( 'ufsc_lc_get_active_season_end_year' ) ? (int) ufsc_lc_get_active_season_end_year() : 0;
 			$active_label  = $active_year && function_exists( 'ufsc_lc_format_season_label' ) ? ufsc_lc_format_season_label( $active_year ) : (string) $active_year;
-			$pdf_ready     = class_exists( 'Dompdf\\Dompdf' );
+			$pdf_ready     = defined( 'UFSC_LC_DOMPDF_READY' ) ? UFSC_LC_DOMPDF_READY : class_exists( 'Dompdf\\Dompdf' );
+			$vendor_ready  = defined( 'UFSC_LC_VENDOR_PRESENT' ) ? UFSC_LC_VENDOR_PRESENT : is_readable( UFSC_LC_DIR . 'vendor/autoload.php' );
+			$package_ready = defined( 'UFSC_LC_DISTRIBUTION_COMPLETE' ) ? UFSC_LC_DISTRIBUTION_COMPLETE : ( $vendor_ready && $pdf_ready );
+			$dompdf_version = '';
+			if ( class_exists( 'Composer\\InstalledVersions' ) && Composer\\InstalledVersions::isInstalled( 'dompdf/dompdf' ) ) {
+				$dompdf_version = (string) Composer\\InstalledVersions::getPrettyVersion( 'dompdf/dompdf' );
+			}
 			$licence_table = $wpdb->prefix . 'ufsc_licences';
 			$ffst_ready    = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$licence_table} LIKE %s", 'numero_licence_ffst' ) );
 			$template_ready = defined( 'UFSC_LC_DIR' ) && is_readable( UFSC_LC_DIR . 'templates/licence-sportive-a6.html' );
@@ -708,6 +714,12 @@ class UFSC_LC_Settings_Page {
 			@media(max-width:960px){.ufsc-lc-settings-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}}
 			@media(max-width:600px){.ufsc-lc-settings-grid{grid-template-columns:1fr}.ufsc-lc-settings-pro form{padding:14px}}
 			</style>
+			<?php if ( ! $package_ready ) : ?>
+				<div class="notice notice-error inline" style="margin:18px 0 0;">
+					<p><strong><?php esc_html_e( 'Installation incomplète du plugin.', 'ufsc-licence-competition' ); ?></strong>
+					<?php esc_html_e( 'Cette copie ne contient pas toutes les dépendances embarquées. Installez le ZIP de distribution UFSC Licence Competition ; aucune installation Composer ne doit être nécessaire sur le serveur.', 'ufsc-licence-competition' ); ?></p>
+				</div>
+			<?php endif; ?>
 			<div class="ufsc-lc-settings-grid">
 				<div class="ufsc-lc-settings-card">
 					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Saison active', 'ufsc-licence-competition' ); ?></span>
@@ -726,8 +738,9 @@ class UFSC_LC_Settings_Page {
 				</div>
 				<div class="ufsc-lc-settings-card">
 					<span class="ufsc-lc-settings-card__label"><?php esc_html_e( 'Moteur PDF', 'ufsc-licence-competition' ); ?></span>
-					<span class="ufsc-lc-settings-card__value"><?php echo $pdf_ready ? 'Dompdf' : esc_html__( 'Dompdf absent', 'ufsc-licence-competition' ); ?></span>
-					<span class="ufsc-lc-settings-card__state <?php echo $pdf_ready ? 'ufsc-lc-state-ok' : 'ufsc-lc-state-warn'; ?>"><?php echo $pdf_ready ? esc_html__( 'Génération disponible', 'ufsc-licence-competition' ) : esc_html__( 'Installer le package Composer', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__value"><?php echo $pdf_ready ? esc_html( 'Dompdf' . ( $dompdf_version ? ' ' . $dompdf_version : '' ) ) : esc_html__( 'Dompdf indisponible', 'ufsc-licence-competition' ); ?></span>
+					<span class="ufsc-lc-settings-card__state <?php echo $package_ready ? 'ufsc-lc-state-ok' : 'ufsc-lc-state-warn'; ?>"><?php echo $package_ready ? esc_html__( 'Package autonome complet', 'ufsc-licence-competition' ) : esc_html__( 'Package source incomplet', 'ufsc-licence-competition' ); ?></span>
+					<small style="display:block;margin-top:8px;color:#646970;word-break:break-all;"><?php echo esc_html( defined( 'UFSC_LC_VENDOR_AUTOLOAD' ) ? UFSC_LC_VENDOR_AUTOLOAD : UFSC_LC_DIR . 'vendor/autoload.php' ); ?></small>
 				</div>
 			</div>
 			<?php $this->render_tabs( $tabs, $active_tab ); ?>
