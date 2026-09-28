@@ -197,7 +197,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-filters{
 				display:grid;
-				grid-template-columns:repeat(6,minmax(0,1fr));
+				grid-template-columns:repeat(5,minmax(0,1fr));
 				gap:14px;
 				margin-bottom:20px;
 				padding:18px;
@@ -207,6 +207,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 				box-shadow:0 10px 30px rgba(30,41,59,.06)
 			}
 			.ufsc-licence-filters>div{min-width:0}
+			.ufsc-licence-filter-actions{
+				display:flex;
+				align-items:flex-end;
+				gap:8px
+			}
+			.ufsc-licence-filter-actions button,
+			.ufsc-licence-filter-actions .button{flex:1}
 			.ufsc-licence-filters label{
 				display:block;
 				margin-bottom:6px;
@@ -331,7 +338,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-actions .button:hover{background:var(--ufsc-red);border-color:var(--ufsc-red);color:#fff}
 			.ufsc-licence-pagination{margin-top:18px}
 			@media(max-width:1180px){
-				.ufsc-licence-filters{grid-template-columns:repeat(3,minmax(160px,1fr))}
+				.ufsc-licence-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+				.ufsc-licence-filter-actions{grid-column:1 / -1}
 			}
 			@media(max-width:782px){
 				.ufsc-licence-stats{grid-template-columns:1fr}
@@ -342,6 +350,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters button,
 				.ufsc-licence-filters .button{width:100%;min-height:46px}
 				.ufsc-licence-table{min-width:900px}
+				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column}
+				.ufsc-licence-filter-actions button,
+				.ufsc-licence-filter-actions .button{width:100%}
 				.ufsc-licence-actions{flex-direction:row;align-items:center}
 			}
 		</style>
@@ -504,7 +515,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				</select>
 			</div>
 
-			<div>
+			<div class="ufsc-licence-filter-actions">
 				<button type="submit"><?php esc_html_e( 'Appliquer', 'ufsc-licence-competition' ); ?></button>
 				<a class="button" href="<?php echo esc_url( remove_query_arg( array( 'ufsc_q', 'q', 'ufsc_season', 'season', 'ufsc_statut', 'statut', 'ufsc_categorie', 'categorie', 'ufsc_competition', 'competition', 'ufsc_pdf', 'pdf', 'ufsc_orderby', 'orderby', 'ufsc_order', 'order', 'ufsc_page', 'paged', 'ufsc_per_page', 'per_page' ) ) ); ?>"><?php esc_html_e( 'Réinitialiser', 'ufsc-licence-competition' ); ?></a>
 			</div>
