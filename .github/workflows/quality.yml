@@ -91,7 +91,7 @@ jobs:
           echo 'No newly added DROP TABLE or TRUNCATE TABLE detected in PHP code.'
 
   production-package:
-    name: Production ZIP with Dompdf
+    name: Self-contained ZIP with Dompdf
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,30 +100,23 @@ jobs:
           php-version: '8.2'
           coverage: none
           tools: composer:v2
-      - name: Install production dependencies
-        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
-      - name: Verify Dompdf
+      - name: Build verified self-contained plugin
+        id: package
+        shell: bash
         run: |
-          test -f vendor/autoload.php
-          php -r "require 'vendor/autoload.php'; exit(class_exists('Dompdf\\Dompdf') ? 0 : 1);"
-      - name: Build installable plugin ZIP
+          bash tools/build-production-package.sh | tee /tmp/ufsc-package.env
+          grep '^PACKAGE_PATH=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
+          grep '^PACKAGE_NAME=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
+      - name: Verify installable archive
+        shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p build/ufsc-licence-competition
-          rsync -a ./ build/ufsc-licence-competition/ \
-            --exclude=".git" \
-            --exclude=".github" \
-            --exclude="build" \
-            --exclude="node_modules" \
-            --exclude="tests" \
-            --exclude=".env" \
-            --exclude="*.log"
-          cd build
-          zip -qr ufsc-licence-competition-production.zip ufsc-licence-competition
+          test -f "${{ steps.package.outputs.PACKAGE_PATH }}"
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/autoload.php'
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/dompdf/dompdf/src/Dompdf.php'
       - name: Upload installable plugin
         uses: actions/upload-artifact@v4
         with:
-          name: ufsc-licence-competition-production
-          path: build/ufsc-licence-competition-production.zip
+          name: ufsc-licence-competition-self-contained
+          path: ${{ steps.package.outputs.PACKAGE_PATH }}
           if-no-files-found: error
           retention-days: 14
