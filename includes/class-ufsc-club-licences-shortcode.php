@@ -157,19 +157,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-season-summary,
 			.ufsc-licence-filters,
 			.ufsc-licence-table-wrapper,
-			.ufsc-licence-pagination{max-width:1380px;margin-left:auto;margin-right:auto}
-			@media(min-width:1100px){
-				.ufsc-licence-stats,
-				.ufsc-licence-season-summary,
-				.ufsc-licence-filters,
-				.ufsc-licence-table-wrapper,
-				.ufsc-licence-pagination{
-					width:min(1380px,calc(100vw - 56px));
-					max-width:none;
-					position:relative;
-					left:50%;
-					transform:translateX(-50%)
-				}
+			.ufsc-licence-pagination{
+				width:100%;
+				max-width:none;
+				margin-left:0;
+				margin-right:0
 			}
 			.ufsc-licence-stats{
 				display:grid;
@@ -205,7 +197,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-filters{
 				display:grid;
-				grid-template-columns:repeat(6,minmax(145px,1fr));
+				grid-template-columns:repeat(6,minmax(0,1fr));
 				gap:14px;
 				margin-bottom:20px;
 				padding:18px;
@@ -255,7 +247,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-table{
 				width:100%;
-				min-width:1040px;
+				min-width:960px;
 				border-collapse:separate;
 				border-spacing:0;
 				background:#fff
