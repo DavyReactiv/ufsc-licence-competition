@@ -158,6 +158,19 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-filters,
 			.ufsc-licence-table-wrapper,
 			.ufsc-licence-pagination{max-width:1380px;margin-left:auto;margin-right:auto}
+			@media(min-width:1100px){
+				.ufsc-licence-stats,
+				.ufsc-licence-season-summary,
+				.ufsc-licence-filters,
+				.ufsc-licence-table-wrapper,
+				.ufsc-licence-pagination{
+					width:min(1380px,calc(100vw - 56px));
+					max-width:none;
+					position:relative;
+					left:50%;
+					transform:translateX(-50%)
+				}
+			}
 			.ufsc-licence-stats{
 				display:grid;
 				grid-template-columns:repeat(3,minmax(220px,1fr));
