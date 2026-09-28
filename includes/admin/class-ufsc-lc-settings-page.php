@@ -692,8 +692,8 @@ class UFSC_LC_Settings_Page {
 			$vendor_ready  = defined( 'UFSC_LC_VENDOR_PRESENT' ) ? UFSC_LC_VENDOR_PRESENT : is_readable( UFSC_LC_DIR . 'vendor/autoload.php' );
 			$package_ready = defined( 'UFSC_LC_DISTRIBUTION_COMPLETE' ) ? UFSC_LC_DISTRIBUTION_COMPLETE : ( $vendor_ready && $pdf_ready );
 			$dompdf_version = '';
-			if ( class_exists( 'Composer\\InstalledVersions' ) && Composer\\InstalledVersions::isInstalled( 'dompdf/dompdf' ) ) {
-				$dompdf_version = (string) Composer\\InstalledVersions::getPrettyVersion( 'dompdf/dompdf' );
+			if ( class_exists( 'Composer\\InstalledVersions' ) && \Composer\InstalledVersions::isInstalled( 'dompdf/dompdf' ) ) {
+				$dompdf_version = (string) \Composer\InstalledVersions::getPrettyVersion( 'dompdf/dompdf' );
 			}
 			$licence_table = $wpdb->prefix . 'ufsc_licences';
 			$ffst_ready    = (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$licence_table} LIKE %s", 'numero_licence_ffst' ) );
