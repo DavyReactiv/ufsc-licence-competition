@@ -3,7 +3,7 @@
  * Plugin Name: UFSC Licence Competition
  * Description: Add-on UFSC pour associer des PDF nominatives aux licences officielles et préparer les évolutions compétitions.
  * Plugin URI: https://studioreactiv.fr/
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: StudioReactiv
  * Author URI: https://studioreactiv.fr/
  * Requires at least: 6.0
@@ -49,8 +49,43 @@ if ( ! defined( 'UFSC_LC_DEBUG_PERF' ) ) {
  * blocking licence validation or the competition module.
  */
 $ufsc_lc_composer_autoload = UFSC_LC_DIR . 'vendor/autoload.php';
-if ( file_exists( $ufsc_lc_composer_autoload ) ) {
+$ufsc_lc_vendor_present    = is_readable( $ufsc_lc_composer_autoload );
+
+if ( $ufsc_lc_vendor_present ) {
 	require_once $ufsc_lc_composer_autoload;
+}
+
+if ( ! defined( 'UFSC_LC_VENDOR_AUTOLOAD' ) ) {
+	define( 'UFSC_LC_VENDOR_AUTOLOAD', $ufsc_lc_composer_autoload );
+}
+if ( ! defined( 'UFSC_LC_VENDOR_PRESENT' ) ) {
+	define( 'UFSC_LC_VENDOR_PRESENT', $ufsc_lc_vendor_present );
+}
+if ( ! defined( 'UFSC_LC_DOMPDF_READY' ) ) {
+	define( 'UFSC_LC_DOMPDF_READY', class_exists( 'Dompdf\\Dompdf' ) );
+}
+if ( ! defined( 'UFSC_LC_DISTRIBUTION_COMPLETE' ) ) {
+	define( 'UFSC_LC_DISTRIBUTION_COMPLETE', UFSC_LC_VENDOR_PRESENT && UFSC_LC_DOMPDF_READY );
+}
+
+if ( is_admin() && ! UFSC_LC_DISTRIBUTION_COMPLETE ) {
+	add_action(
+		'admin_notices',
+		static function () {
+			$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+			if ( '' === $page || 0 !== strpos( $page, 'ufsc' ) ) {
+				return;
+			}
+			?>
+			<div class="notice notice-error">
+				<p>
+					<strong><?php esc_html_e( 'UFSC Licence Competition : package incomplet.', 'ufsc-licence-competition' ); ?></strong>
+					<?php esc_html_e( 'La distribution installée ne contient pas Dompdf. Installez le ZIP autonome officiel du plugin ; aucune commande Composer ne doit être exécutée sur le serveur WordPress.', 'ufsc-licence-competition' ); ?>
+				</p>
+			</div>
+			<?php
+		}
+	);
 }
 
 if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {

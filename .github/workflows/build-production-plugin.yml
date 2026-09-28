@@ -42,32 +42,26 @@ jobs:
       - name: Validate Composer manifest
         run: composer validate --no-check-publish
 
-      - name: Install production dependencies
-        run: composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader
-
-      - name: Verify Dompdf is bundled
+      - name: Build verified self-contained plugin
+        id: package
+        shell: bash
         run: |
-          test -f vendor/autoload.php
-          php -r "require 'vendor/autoload.php'; exit(class_exists('Dompdf\\Dompdf') ? 0 : 1);"
+          bash tools/build-production-package.sh | tee /tmp/ufsc-package.env
+          grep '^PACKAGE_PATH=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
+          grep '^PACKAGE_NAME=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
 
-      - name: Build plugin archive
+      - name: Verify installable archive
+        shell: bash
         run: |
-          mkdir -p build/ufsc-licence-competition
-          rsync -a ./ build/ufsc-licence-competition/ \
-            --exclude=".git" \
-            --exclude=".github" \
-            --exclude="build" \
-            --exclude="node_modules" \
-            --exclude="tests" \
-            --exclude=".env" \
-            --exclude="*.log"
-          cd build
-          zip -qr ufsc-licence-competition-production.zip ufsc-licence-competition
+          test -f "${{ steps.package.outputs.PACKAGE_PATH }}"
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/autoload.php'
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/dompdf/dompdf/src/Dompdf.php'
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/DISTRIBUTION-VERSION'
 
       - name: Upload production ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: ufsc-licence-competition-production
-          path: build/ufsc-licence-competition-production.zip
+          name: ufsc-licence-competition-self-contained
+          path: ${{ steps.package.outputs.PACKAGE_PATH }}
           if-no-files-found: error
           retention-days: 14

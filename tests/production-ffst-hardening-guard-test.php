@@ -11,6 +11,7 @@ $settings = file_get_contents( $root . '/includes/admin/class-ufsc-lc-settings-p
 $documents = file_get_contents( $root . '/includes/class-ufsc-licence-documents.php' );
 $template = file_get_contents( $root . '/templates/licence-sportive-a6.html' );
 $build    = file_get_contents( $root . '/.github/workflows/build-production-plugin.yml' );
+$package  = file_get_contents( $root . '/tools/build-production-package.sh' );
 $composer = file_get_contents( $root . '/composer.json' );
 
 $errors = array();
@@ -27,9 +28,10 @@ $checks = array(
 	'professional settings cards'  => array( $settings, 'ufsc-lc-settings-grid' ),
 	'recto FFST logo'               => array( $template, 'class="recto-logo-ffst"' ),
 	'recto FFST logo variable'      => array( $template, 'src="{{logo_ffst}}"' ),
-	'production Composer install'   => array( $build, 'composer install --no-dev' ),
+	'production Composer install'   => array( $package, 'composer install --no-dev' ),
 	'PR production build'           => array( $build, 'pull_request:' ),
-	'production Dompdf check'       => array( $build, "class_exists('Dompdf" ),
+	'canonical production script'   => array( $build, 'tools/build-production-package.sh' ),
+	'production Dompdf check'       => array( $package, "class_exists('Dompdf" ),
 	'Dompdf dependency'             => array( $composer, 'dompdf/dompdf' ),
 	'documents FFST label'          => array( $documents, 'N° FFST' ),
 	'documents canonical FFST SQL'  => array( $documents, 'numero_licence_ffst' ),
