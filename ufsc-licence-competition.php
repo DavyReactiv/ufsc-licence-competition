@@ -68,6 +68,26 @@ if ( ! defined( 'UFSC_LC_DISTRIBUTION_COMPLETE' ) ) {
 	define( 'UFSC_LC_DISTRIBUTION_COMPLETE', UFSC_LC_VENDOR_PRESENT && UFSC_LC_DOMPDF_READY );
 }
 
+if ( is_admin() && ! UFSC_LC_DISTRIBUTION_COMPLETE ) {
+	add_action(
+		'admin_notices',
+		static function () {
+			$page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+			if ( '' === $page || 0 !== strpos( $page, 'ufsc' ) ) {
+				return;
+			}
+			?>
+			<div class="notice notice-error">
+				<p>
+					<strong><?php esc_html_e( 'UFSC Licence Competition : package incomplet.', 'ufsc-licence-competition' ); ?></strong>
+					<?php esc_html_e( 'La distribution installée ne contient pas Dompdf. Installez le ZIP autonome officiel du plugin ; aucune commande Composer ne doit être exécutée sur le serveur WordPress.', 'ufsc-licence-competition' ); ?>
+				</p>
+			</div>
+			<?php
+		}
+	);
+}
+
 if ( ! defined( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL' ) ) {
 	define( 'UFSC_COMPETITION_WEIGHT_CATEGORIES_PDF_URL', 'https://ufsc-france.fr/wp-content/uploads/2026/04/AGES-CATEGORIES-DE-POIDS-TATAMI-SAISON-2025-2026-V2_2026.pdf' );
 }
