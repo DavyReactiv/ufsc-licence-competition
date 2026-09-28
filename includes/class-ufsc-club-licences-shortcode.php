@@ -143,101 +143,214 @@ class UFSC_LC_Club_Licences_Shortcode {
 		ob_start();
 		?>
 		<style>
-			.ufsc-licence-stats {
-				display: grid;
-				grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-				gap: 12px;
-				margin-bottom: 16px;
+			:root{
+				--ufsc-navy:#20265f;
+				--ufsc-blue:#2e4a96;
+				--ufsc-red:#df1737;
+				--ufsc-ink:#101828;
+				--ufsc-muted:#667085;
+				--ufsc-line:#e4e7ec;
+				--ufsc-soft:#f5f7fb;
+				--ufsc-card:#ffffff;
 			}
-			.ufsc-licence-stat {
-				background: #f6f7f7;
-				border-radius: 8px;
-				padding: 12px 16px;
-				display: flex;
-				flex-direction: column;
-				gap: 4px;
+			.ufsc-licence-stats,
+			.ufsc-licence-season-summary,
+			.ufsc-licence-filters,
+			.ufsc-licence-table-wrapper,
+			.ufsc-licence-pagination{max-width:1380px;margin-left:auto;margin-right:auto}
+			@media(min-width:1100px){
+				.ufsc-licence-stats,
+				.ufsc-licence-season-summary,
+				.ufsc-licence-filters,
+				.ufsc-licence-table-wrapper,
+				.ufsc-licence-pagination{
+					width:min(1380px,calc(100vw - 56px));
+					max-width:none;
+					position:relative;
+					left:50%;
+					transform:translateX(-50%)
+				}
 			}
-			.ufsc-licence-stat span {
-				color: #50575e;
-				font-size: 13px;
+			.ufsc-licence-stats{
+				display:grid;
+				grid-template-columns:repeat(3,minmax(220px,1fr));
+				gap:16px;
+				margin-bottom:18px
 			}
-			.ufsc-licence-stat strong {
-				font-size: 20px;
+			.ufsc-licence-stat{
+				position:relative;
+				overflow:hidden;
+				background:linear-gradient(145deg,#fff,#f6f8fc);
+				border:1px solid #e2e8f0;
+				border-radius:18px;
+				padding:18px 20px 18px 24px;
+				box-shadow:0 10px 28px rgba(30,41,59,.07)
 			}
-			.ufsc-licence-filters {
-				display: flex;
-				flex-wrap: wrap;
-				gap: 12px;
-				margin-bottom: 16px;
-				align-items: flex-end;
+			.ufsc-licence-stat:before{
+				content:"";
+				position:absolute;
+				left:0;top:0;bottom:0;width:5px;
+				background:linear-gradient(180deg,var(--ufsc-red),var(--ufsc-blue))
 			}
-			.ufsc-licence-filters label {
-				font-weight: 600;
-				display: block;
-				margin-bottom: 4px;
+			.ufsc-licence-stat span{color:var(--ufsc-muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+			.ufsc-licence-stat strong{display:block;margin-top:6px;font-size:25px;line-height:1;color:var(--ufsc-navy);font-weight:900}
+			.ufsc-licence-season-summary{
+				margin-bottom:18px;
+				padding:13px 16px;
+				background:linear-gradient(90deg,#eef3ff,#fff);
+				border:1px solid #dce5fb;
+				border-left:5px solid var(--ufsc-blue);
+				border-radius:12px;
+				color:var(--ufsc-navy)
 			}
-			.ufsc-licence-table-wrapper {
-				overflow-x: auto;
+			.ufsc-licence-filters{
+				display:grid;
+				grid-template-columns:repeat(6,minmax(145px,1fr));
+				gap:14px;
+				margin-bottom:20px;
+				padding:18px;
+				background:#fff;
+				border:1px solid #e2e8f0;
+				border-radius:18px;
+				box-shadow:0 10px 30px rgba(30,41,59,.06)
 			}
-			.ufsc-licence-table {
-				width: 100%;
-				border-collapse: collapse;
+			.ufsc-licence-filters>div{min-width:0}
+			.ufsc-licence-filters label{
+				display:block;
+				margin-bottom:6px;
+				color:#344054;
+				font-size:12px;
+				font-weight:800;
+				letter-spacing:.02em
+			}
+			.ufsc-licence-filters input,
+			.ufsc-licence-filters select{
+				width:100%;
+				min-height:44px;
+				padding:9px 12px;
+				border:1px solid #d0d5dd;
+				border-radius:10px;
+				background:#fff;
+				color:var(--ufsc-ink)
+			}
+			.ufsc-licence-filters button,
+			.ufsc-licence-filters .button{
+				min-height:44px;
+				padding:10px 16px;
+				border:0;
+				border-radius:10px;
+				font-weight:800;
+				text-decoration:none
+			}
+			.ufsc-licence-filters button{background:var(--ufsc-navy);color:#fff}
+			.ufsc-licence-filters button:hover{background:var(--ufsc-red)}
+			.ufsc-licence-filters .button{background:#eef2ff;color:var(--ufsc-navy);border:1px solid #d7def4}
+			.ufsc-licence-table-wrapper{
+				width:100%;
+				overflow-x:auto;
+				background:#fff;
+				border:1px solid #e2e8f0;
+				border-radius:18px;
+				box-shadow:0 12px 32px rgba(30,41,59,.07)
+			}
+			.ufsc-licence-table{
+				width:100%;
+				min-width:1040px;
+				border-collapse:separate;
+				border-spacing:0;
+				background:#fff
 			}
 			.ufsc-licence-table th,
-			.ufsc-licence-table td {
-				padding: 10px 12px;
-				border-bottom: 1px solid #e0e0e0;
-				text-align: left;
+			.ufsc-licence-table td{
+				padding:14px 16px;
+				border-bottom:1px solid #edf0f4;
+				text-align:left;
+				vertical-align:middle
 			}
-			.ufsc-licence-table th {
-				background: #f6f7f7;
+			.ufsc-licence-table th{
+				position:sticky;
+				top:0;
+				z-index:1;
+				background:linear-gradient(180deg,#283474,#20265f);
+				color:#fff;
+				font-size:12px;
+				font-weight:900;
+				text-transform:uppercase;
+				letter-spacing:.045em;
+				white-space:nowrap
 			}
-			.ufsc-licence-pagination {
-				margin-top: 16px;
+			.ufsc-licence-table tbody tr:nth-child(even){background:#fbfcfe}
+			.ufsc-licence-table tbody tr:hover{background:#f1f5ff}
+			.ufsc-licence-table tbody td:first-child{font-weight:900;color:var(--ufsc-navy)}
+			.ufsc-licence-status{
+				display:inline-flex;
+				align-items:center;
+				padding:5px 10px;
+				border-radius:999px;
+				font-size:11px;
+				font-weight:900;
+				text-transform:uppercase;
+				letter-spacing:.03em
 			}
-			.ufsc-licence-actions {
-				display: flex;
-				align-items: center;
-				gap: 8px;
-				flex-wrap: wrap;
+			.ufsc-licence-status--valide{background:#dcfce7;color:#166534}
+			.ufsc-licence-status--en_attente,
+			.ufsc-licence-status--submitted{background:#fef3c7;color:#92400e}
+			.ufsc-licence-status--brouillon{background:#eef2f7;color:#475467}
+			.ufsc-licence-status--refuse,
+			.ufsc-licence-status--suspendue,
+			.ufsc-licence-status--desactive{background:#fee2e2;color:#991b1b}
+			.ufsc-licence-badge{
+				display:inline-flex;
+				align-items:center;
+				border-radius:999px;
+				background:#edf2ff;
+				color:var(--ufsc-navy);
+				font-size:11px;
+				font-weight:800;
+				padding:5px 10px;
+				white-space:nowrap
 			}
-			.ufsc-licence-actions .button {
-				display: inline-flex;
-				align-items: center;
-				gap: 4px;
+			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
+			.ufsc-licence-actions{
+				display:flex;
+				align-items:center;
+				gap:7px;
+				flex-wrap:wrap
 			}
-			.ufsc-licence-badge {
-				display: inline-flex;
-				align-items: center;
-				border-radius: 999px;
-				background: #f0f0f1;
-				color: #50575e;
-				font-size: 12px;
-				padding: 2px 10px;
+			.ufsc-licence-actions .button{
+				display:inline-flex;
+				align-items:center;
+				justify-content:center;
+				gap:5px;
+				min-height:38px;
+				padding:8px 12px;
+				border-radius:9px;
+				border:1px solid #d7def4;
+				background:#eef2ff;
+				color:var(--ufsc-navy);
+				font-weight:800;
+				text-decoration:none
 			}
-			.ufsc-licence-season-summary {
-				margin: 0 0 16px;
-				padding: 10px 12px;
-				background: #f6f7f7;
-				border-left: 4px solid #2271b1;
+			.ufsc-licence-actions .button-primary{
+				background:var(--ufsc-navy);
+				border-color:var(--ufsc-navy);
+				color:#fff
 			}
-			.ufsc-licence-badge--archived {
-				background: #fcf0d4;
-				color: #5f3b00;
+			.ufsc-licence-actions .button:hover{background:var(--ufsc-red);border-color:var(--ufsc-red);color:#fff}
+			.ufsc-licence-pagination{margin-top:18px}
+			@media(max-width:1180px){
+				.ufsc-licence-filters{grid-template-columns:repeat(3,minmax(160px,1fr))}
 			}
-			@media (max-width: 782px) {
-				.ufsc-licence-filters > div,
+			@media(max-width:782px){
+				.ufsc-licence-stats{grid-template-columns:1fr}
+				.ufsc-licence-filters{grid-template-columns:1fr;padding:14px}
+				.ufsc-licence-filters>div,
 				.ufsc-licence-filters input,
 				.ufsc-licence-filters select,
 				.ufsc-licence-filters button,
-				.ufsc-licence-filters .button {
-					width: 100%;
-					min-height: 44px;
-				}
-				.ufsc-licence-actions {
-					flex-direction: column;
-					align-items: flex-start;
-				}
+				.ufsc-licence-filters .button{width:100%;min-height:46px}
+				.ufsc-licence-table{min-width:900px}
+				.ufsc-licence-actions{flex-direction:row;align-items:center}
 			}
 		</style>
 
@@ -459,7 +572,12 @@ class UFSC_LC_Club_Licences_Shortcode {
 								<td><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
 								<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td>
+									<?php $status_key = sanitize_html_class( strtolower( (string) ( $item->statut ?? '' ) ) ); ?>
+									<span class="ufsc-licence-status ufsc-licence-status--<?php echo esc_attr( $status_key ); ?>">
+										<?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?>
+									</span>
+								</td>
 								<td>
 									<?php echo esc_html( $item_season_label ); ?>
 									<?php if ( $is_archived ) : ?>

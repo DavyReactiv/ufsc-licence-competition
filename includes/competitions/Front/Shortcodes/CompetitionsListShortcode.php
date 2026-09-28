@@ -79,7 +79,22 @@ class CompetitionsListShortcode {
 		$total = $repository->count( $filters );
 		$items = $repository->list( $filters, $per_page, $offset );
 
-		$output = '';
+		$output = '<section class="ufsc-competitions-hub">';
+		$output .= sprintf(
+			'<div class="ufsc-competitions-hub__intro">
+				<div>
+					<span class="ufsc-competitions-hub__eyebrow">%1$s</span>
+					<h2>%2$s</h2>
+					<p>%3$s</p>
+				</div>
+				<div class="ufsc-competitions-hub__count"><strong>%4$s</strong><span>%5$s</span></div>
+			</div>',
+			esc_html__( 'ESPACE CLUB', 'ufsc-licence-competition' ),
+			esc_html__( 'Calendrier & engagements', 'ufsc-licence-competition' ),
+			esc_html__( 'Filtrez les événements UFSC, consultez leurs informations et accédez rapidement aux inscriptions disponibles pour votre club.', 'ufsc-licence-competition' ),
+			esc_html( number_format_i18n( $total ) ),
+			esc_html( 1 === (int) $total ? __( 'compétition', 'ufsc-licence-competition' ) : __( 'compétitions', 'ufsc-licence-competition' ) )
+		);
 
 		if ( $show_filters ) {
 			$output .= $this->render_filters_form(
@@ -95,6 +110,7 @@ class CompetitionsListShortcode {
 
 		$output .= $this->render_table( $items );
 		$output .= $this->render_pagination( $total, $per_page, $current_page );
+		$output .= '</section>';
 
 		return $output;
 	}
@@ -189,8 +205,12 @@ class CompetitionsListShortcode {
 	private function render_table( array $items ): string {
 		if ( empty( $items ) ) {
 			return sprintf(
-				'<div class="notice notice-info"><p>%s</p></div>',
-				esc_html__( 'Aucune compétition trouvée.', 'ufsc-licence-competition' )
+				'<div class="ufsc-competitions-empty">
+					<div class="ufsc-competitions-empty__icon" aria-hidden="true">◇</div>
+					<div><strong>%1$s</strong><p>%2$s</p></div>
+				</div>',
+				esc_html__( 'Aucune compétition ne correspond à ces critères.', 'ufsc-licence-competition' ),
+				esc_html__( 'Modifiez les filtres ou réinitialisez la recherche pour afficher les événements disponibles.', 'ufsc-licence-competition' )
 			);
 		}
 
