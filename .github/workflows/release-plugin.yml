@@ -1,0 +1,46 @@
+name: Publish self-contained plugin release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish installable ZIP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer:v2
+          coverage: none
+
+      - name: Build verified self-contained plugin
+        id: package
+        shell: bash
+        run: |
+          bash tools/build-production-package.sh | tee /tmp/ufsc-package.env
+          grep '^PACKAGE_PATH=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
+          grep '^PACKAGE_NAME=' /tmp/ufsc-package.env >> "$GITHUB_OUTPUT"
+
+      - name: Verify release archive
+        shell: bash
+        run: |
+          test -f "${{ steps.package.outputs.PACKAGE_PATH }}"
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/autoload.php'
+          unzip -l "${{ steps.package.outputs.PACKAGE_PATH }}" | grep 'ufsc-licence-competition/vendor/dompdf/dompdf/src/Dompdf.php'
+
+      - name: Create GitHub release with installable ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${GITHUB_REF_NAME}"             "${{ steps.package.outputs.PACKAGE_PATH }}"             --title "UFSC Licence Competition ${GITHUB_REF_NAME}"             --generate-notes
