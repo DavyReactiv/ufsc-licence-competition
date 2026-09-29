@@ -559,10 +559,14 @@ class CompetitionRepository {
 
 		$this->debug_log_effective_filters_once( $view, $filters );
 
-		// Optional status filter (applies only when not trash)
+		// Optional status filter (applies only when not trash).
+		// In the archived view, "archived" is the umbrella label for both the
+		// canonical archived status and legacy closed competitions.
 		if ( isset( $filters['status'] ) && '' !== (string) $filters['status'] && 'trash' !== $view ) {
 			$st = sanitize_key( (string) $filters['status'] );
-			$where[] = $wpdb->prepare( "status = %s", $st );
+			if ( ! ( 'archived' === $view && 'archived' === $st ) ) {
+				$where[] = $wpdb->prepare( "status = %s", $st );
+			}
 		}
 
 		if ( isset( $filters['discipline'] ) && '' !== (string) $filters['discipline'] ) {
