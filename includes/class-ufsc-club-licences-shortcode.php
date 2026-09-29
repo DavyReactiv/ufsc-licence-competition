@@ -197,7 +197,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-filters{
 				display:grid;
-				grid-template-columns:repeat(5,minmax(0,1fr));
+				grid-template-columns:minmax(190px,1.25fr) repeat(4,minmax(0,1fr));
 				gap:14px;
 				margin-bottom:20px;
 				padding:18px;
@@ -209,11 +209,20 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-filters>div{min-width:0}
 			.ufsc-licence-filter-actions{
 				display:flex;
-				align-items:flex-end;
-				gap:8px
+				align-items:stretch;
+				gap:8px;
+				padding-top:22px
 			}
 			.ufsc-licence-filter-actions button,
-			.ufsc-licence-filter-actions .button{flex:1}
+			.ufsc-licence-filter-actions .button{
+				flex:1;
+				display:inline-flex;
+				align-items:center;
+				justify-content:center;
+				height:44px;
+				min-height:44px;
+				margin:0
+			}
 			.ufsc-licence-filters label{
 				display:block;
 				margin-bottom:6px;
@@ -230,7 +239,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 				border:1px solid #d0d5dd;
 				border-radius:10px;
 				background:#fff;
-				color:var(--ufsc-ink)
+				color:var(--ufsc-ink);
+				transition:border-color .18s ease,box-shadow .18s ease
+			}
+			.ufsc-licence-filters input:focus,
+			.ufsc-licence-filters select:focus{
+				border-color:#8ca3df;
+				outline:0;
+				box-shadow:0 0 0 3px rgba(46,74,150,.12)
 			}
 			.ufsc-licence-filters button,
 			.ufsc-licence-filters .button{
@@ -281,6 +297,26 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-table tbody tr:nth-child(even){background:#fbfcfe}
 			.ufsc-licence-table tbody tr:hover{background:#f1f5ff}
 			.ufsc-licence-table tbody td:first-child{font-weight:900;color:var(--ufsc-navy)}
+			.ufsc-licence-table th:nth-child(1),.ufsc-licence-table td:nth-child(1){width:15%}
+			.ufsc-licence-table th:nth-child(2),.ufsc-licence-table td:nth-child(2){width:11%}
+			.ufsc-licence-table th:nth-child(3),.ufsc-licence-table td:nth-child(3){width:14%}
+			.ufsc-licence-table th:nth-child(4),.ufsc-licence-table td:nth-child(4){width:10%}
+			.ufsc-licence-table th:nth-child(5),.ufsc-licence-table td:nth-child(5){width:10%}
+			.ufsc-licence-table th:nth-child(6),.ufsc-licence-table td:nth-child(6){width:11%}
+			.ufsc-licence-table th:nth-child(7),.ufsc-licence-table td:nth-child(7){width:12%}
+			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:17%}
+			.ufsc-licence-ffst{
+				display:inline-flex;
+				align-items:center;
+				min-height:30px;
+				padding:5px 9px;
+				border-radius:8px;
+				background:#eef2ff;
+				color:var(--ufsc-navy);
+				font-weight:900;
+				letter-spacing:.015em;
+				white-space:nowrap
+			}
 			.ufsc-licence-status{
 				display:inline-flex;
 				align-items:center;
@@ -311,16 +347,18 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
 			.ufsc-licence-actions{
-				display:flex;
+				display:grid;
+				grid-template-columns:minmax(74px,auto) minmax(100px,1fr);
 				align-items:center;
 				gap:7px;
-				flex-wrap:wrap
+				min-width:190px
 			}
 			.ufsc-licence-actions .button{
 				display:inline-flex;
 				align-items:center;
 				justify-content:center;
 				gap:5px;
+				height:38px;
 				min-height:38px;
 				padding:8px 12px;
 				border-radius:9px;
@@ -334,6 +372,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 				background:var(--ufsc-navy);
 				border-color:var(--ufsc-navy);
 				color:#fff
+			}
+			.ufsc-licence-actions .ufsc-licence-badge{
+				justify-content:center;
+				min-height:30px
+			}
+			.ufsc-licence-actions .button{
+				width:100%;
+				white-space:nowrap
 			}
 			.ufsc-licence-actions .button:hover{background:var(--ufsc-red);border-color:var(--ufsc-red);color:#fff}
 			.ufsc-licence-pagination{margin-top:18px}
@@ -350,10 +396,10 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters button,
 				.ufsc-licence-filters .button{width:100%;min-height:46px}
 				.ufsc-licence-table{min-width:900px}
-				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column}
+				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column;padding-top:0}
 				.ufsc-licence-filter-actions button,
 				.ufsc-licence-filter-actions .button{width:100%}
-				.ufsc-licence-actions{flex-direction:row;align-items:center}
+				.ufsc-licence-actions{grid-template-columns:minmax(70px,auto) minmax(96px,1fr)}
 			}
 		</style>
 
@@ -415,7 +461,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 			<div>
 				<label for="ufsc-licence-search"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label>
-				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom, N° FFST', 'ufsc-licence-competition' ); ?>" />
+				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom ou N° FFST', 'ufsc-licence-competition' ); ?>" />
 			</div>
 
 			<div>
@@ -588,7 +634,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 									<?php endif; ?>
 								</td>
 								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></td>
+								<td><span class="ufsc-licence-ffst"><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></span></td>
 								<td>
 									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">

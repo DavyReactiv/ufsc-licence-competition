@@ -49,6 +49,18 @@ if ( 1 !== substr_count( $css, '.ufsc-competitions-hub {' ) ) {
 	$errors[] = 'competition hub must have one canonical style definition';
 }
 
+if ( false !== stripos( $licences, '>ASPTT<' ) || false !== stripos( $licences, 'ASPTT)' ) ) {
+	$errors[] = 'public club licence UI must not display ASPTT labels';
+}
+
+if ( false === strpos( $licences, 'ufsc-licence-ffst' ) ) {
+	$errors[] = 'FFST number must keep its dedicated visual treatment';
+}
+
+if ( false === strpos( $licences, 'Nom, prénom ou N° FFST' ) ) {
+	$errors[] = 'FFST-aware search placeholder must remain explicit';
+}
+
 if ( false === strpos( $licences, 'ufsc_lc_generate_club_pdf' ) ) {
 	$errors[] = 'PDF generation action must remain available';
 }
