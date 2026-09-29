@@ -18,7 +18,6 @@ $checks = array(
 	'competition premium hub'      => array( $competitions, 'ufsc-competitions-hub__intro' ),
 	'competition premium empty'    => array( $competitions, 'ufsc-competitions-empty' ),
 	'competition count card'       => array( $competitions, 'ufsc-competitions-hub__count' ),
-	'competition unified width'    => array( $css, '.ufsc-competitions-hub {\n\twidth: 100%;' ),
 	'competition premium palette'  => array( $css, '--ufsc-red: #df1737' ),
 	'competition responsive table' => array( $css, 'min-width: 920px' ),
 );
@@ -27,6 +26,14 @@ foreach ( $checks as $label => $check ) {
 	if ( false === strpos( $check[0], $check[1] ) ) {
 		$errors[] = $label;
 	}
+}
+
+$hub_block_ok = preg_match(
+	'/\.ufsc-competitions-hub\s*\{[^}]*\bwidth\s*:\s*100%\s*;/s',
+	$css
+);
+if ( 1 !== $hub_block_ok ) {
+	$errors[] = 'competition unified width';
 }
 
 
