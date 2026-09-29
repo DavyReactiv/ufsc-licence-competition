@@ -13,7 +13,7 @@ if ( false === strpos( $repository, "status IN ('archived','closed')" ) ) {
 	$errors[] = 'archived view must keep legacy closed competitions visible';
 }
 
-if ( false === strpos( $repository, "'archived' === $view && 'archived' === $st" ) ) {
+if ( false === strpos( $repository, '\'archived\' === $view && \'archived\' === $st' ) ) {
 	$errors[] = 'archived status filter must not hide legacy closed archives';
 }
 
