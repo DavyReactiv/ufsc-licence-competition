@@ -270,7 +270,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-table{
 				width:100%;
-				min-width:960px;
+				min-width:980px;
 				border-collapse:separate;
 				border-spacing:0;
 				background:#fff
@@ -304,7 +304,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-table th:nth-child(5),.ufsc-licence-table td:nth-child(5){width:10%}
 			.ufsc-licence-table th:nth-child(6),.ufsc-licence-table td:nth-child(6){width:11%}
 			.ufsc-licence-table th:nth-child(7),.ufsc-licence-table td:nth-child(7){width:12%}
-			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:17%}
+			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:19%}
 			.ufsc-licence-ffst{
 				display:inline-flex;
 				align-items:center;
@@ -348,10 +348,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
 			.ufsc-licence-actions{
 				display:grid;
-				grid-template-columns:minmax(74px,auto) minmax(100px,1fr);
-				align-items:center;
+				grid-template-columns:1fr;
+				align-items:stretch;
 				gap:7px;
-				min-width:190px
+				min-width:132px;
+				max-width:168px
 			}
 			.ufsc-licence-actions .button{
 				display:inline-flex;
@@ -399,7 +400,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column;padding-top:0}
 				.ufsc-licence-filter-actions button,
 				.ufsc-licence-filter-actions .button{width:100%}
-				.ufsc-licence-actions{grid-template-columns:minmax(70px,auto) minmax(96px,1fr)}
+				.ufsc-licence-actions{grid-template-columns:1fr;min-width:126px;max-width:160px}
 			}
 		</style>
 
