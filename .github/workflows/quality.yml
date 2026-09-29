@@ -55,6 +55,8 @@ jobs:
         run: php tests/self-contained-dompdf-distribution-guard-test.php
       - name: Premium front UI guard
         run: php tests/front-premium-ui-guard-test.php
+      - name: Archive and front layout guard
+        run: php tests/archive-front-layout-guard-test.php
 
   static-analysis:
     name: WordPress coding standards and PHPStan
