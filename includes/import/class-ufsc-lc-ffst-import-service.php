@@ -147,13 +147,118 @@ class UFSC_LC_FFST_Import_Service {
 	}
 	private function parse_pdf($path){
 		if(!class_exists('\\Smalot\\PdfParser\\Parser'))return new WP_Error('ffst_pdf_parser_missing',__('Parseur PDF absent : utilisez le ZIP de production.','ufsc-licence-competition'));
-		try{$p=new \Smalot\PdfParser\Parser();$text=trim((string)$p->parseFile($path)->getText());}catch(Exception $e){return new WP_Error('ffst_pdf_parse_failed',__('PDF FFST non analysable.','ufsc-licence-competition'));}
-		if(''===$text)return new WP_Error('ffst_pdf_no_text',__('PDF scanné ou sans texte : fournir le tableur/CSV FFST.','ufsc-licence-competition'));
-		$rows=array();$pattern='/(?:Licence\\s*(?:FFST)?\\s*[:\\-]?\\s*)([A-Z0-9\\-]{4,})/iu';
-		if(preg_match_all($pattern,$text,$m,PREG_OFFSET_CAPTURE)){for($i=0,$n=count($m[0]);$i<$n;$i++){$start=$m[0][$i][1];$end=$i+1<$n?$m[0][$i+1][1]:strlen($text);$r=$this->parse_pdf_block(substr($text,$start,$end-$start));$r['N° FFST']=$m[1][$i][0];$rows[]=$r;}}
+		try{
+			$p=new \Smalot\PdfParser\Parser();
+			$pdf=$p->parseFile($path);
+			$pages=$pdf->getPages();
+		}catch(Exception $e){
+			return new WP_Error('ffst_pdf_parse_failed',__('PDF FFST non analysable.','ufsc-licence-competition'));
+		}
+		$rows=array();
+		foreach((array)$pages as $page){
+			$text=trim((string)$page->getText());
+			if(''===$text)continue;
+
+			$row=$this->parse_ffst_native_page($text);
+			if($row){
+				$rows[]=$row;
+				continue;
+			}
+
+			$row=$this->parse_pdf_block($text);
+			if(!empty($row)){
+				if(preg_match('/LICENCE\\s+FFST\\s+N[°º]?\\s*([A-Z0-9\\-]{4,})/iu',$text,$m)){
+					$row['N° FFST']=$m[1];
+				}elseif(preg_match('/\\bLicence\\s*[:\\-]\\s*([A-Z0-9\\-]{4,})/iu',$text,$m)){
+					$row['N° FFST']=$m[1];
+				}
+				if(!empty($row['N° FFST']))$rows[]=$row;
+			}
+		}
 		return $rows?:new WP_Error('ffst_pdf_layout_unknown',__('PDF lisible mais structure non reconnue. Aucune donnée écrite : utilisez le tableur/CSV ou adaptons le parseur à ce modèle.','ufsc-licence-competition'));
 	}
+
+	private function parse_ffst_native_page($text){
+		$lines=preg_split('/\\R/u',(string)$text);
+		$lines=array_values(array_filter(array_map('trim',(array)$lines),'strlen'));
+		if(!$lines)return array();
+
+		$joined=implode("\n",$lines);
+		if(!preg_match('/LICENCE\\s+FFST\\s+N[°º]?\\s*([A-Z0-9\\-]{4,})/iu',$joined,$licence_match)){
+			return array();
+		}
+		$ffst=strtoupper(trim($licence_match[1]));
+		$r=array('N° FFST'=>$ffst);
+
+		foreach($lines as $line){
+			if(stripos($line,'UFSC - ')===0)break;
+			if(preg_match('/[A-ZÀ-ÖØ-Ý]{2,}/u',$line) && stripos($line,$ffst)===false && !preg_match('/^\\d/u',$line)){
+				$r['Club']=$line;
+				break;
+			}
+		}
+
+		foreach($lines as $line){
+			if(stripos($line,$ffst)!==false && stripos($line,'LICENCE FFST')===false && stripos($line,'Licence :')===false){
+				$refs=trim(str_ireplace($ffst,'',$line));
+				if(''!==$refs)$r['Références fédérales']=$refs;
+				break;
+			}
+		}
+
+		foreach($lines as $line){
+			if(0===stripos($line,'UFSC - ')){
+				$r['Discipline']=$line;
+				break;
+			}
+		}
+
+		$identity_line_index=-1;
+		foreach($lines as $i=>$line){
+			if(preg_match('/^([MF])\\s+n[ée]e?\\s+le\\s+(\\d{1,2}\\/\\d{1,2}\\/\\d{4})$/iu',$line,$m)){
+				$r['Sexe']=strtoupper($m[1]);
+				$r['Date de naissance']=$m[2];
+				$identity_line_index=$i;
+				break;
+			}
+		}
+
+		if($identity_line_index>0){
+			$role=$lines[$identity_line_index-1];
+			if(!preg_match('/^UFSC\\s*-/iu',$role) && stripos($role,'PHOTO')===false)$r['Fonction']=$role;
+		}
+
+		if($identity_line_index>=0){
+			for($i=$identity_line_index+1,$n=count($lines);$i<$n;$i++){
+				$line=$lines[$i];
+				if(in_array(strtoupper($line),array('PHOTO','SIGNATURE'),true))continue;
+				if(preg_match('/^(Je soussign|Porteur|Fait à|Docteur|Cachet|LICENCE FFST)/iu',$line))break;
+				if(preg_match('/^([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\' -]{1,})\\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\' -]{1,})$/u',$line,$m)){
+					$r['Nom']=trim($m[1]);
+					$r['Prénom']=trim($m[2]);
+					if(isset($lines[$i+1])&&!preg_match('/^(Je soussign|Porteur|Fait à|Docteur|Cachet|LICENCE FFST)/iu',$lines[$i+1])){
+						$r['Adresse']=$lines[$i+1];
+						if(isset($lines[$i+2])&&preg_match('/^(\\d{5})\\s+(.+)$/u',$lines[$i+2],$a)){
+							$r['Code postal']=$a[1];
+							$r['Ville']=$a[2];
+							$r['Adresse'].=' '.$lines[$i+2];
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		if(preg_match('/D[ée]livr[ée]e?\\s+le\\s*:\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{4})/iu',$joined,$m))$r['Délivrée le']=$m[1];
+		if(preg_match('/\\b(20\\d{2}-20\\d{2})\\s+([A-Z])\\b/u',$joined,$m))$r['Code source']=$m[2];
+		if(preg_match('/\\b([A-Z])\\.([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\' -]+)\\b/u',$joined,$m))$r['Référence titulaire']=$m[1].'.'.$m[2];
+		if(preg_match('/\\b([A-Z](?:\\s+[A-Z]){1,5}\\s+\\d{5})\\b/u',$joined,$m))$r['Code club']=$m[1];
+
+		return (!empty($r['Nom'])&&!empty($r['Prénom'])&&!empty($r['Date de naissance']))?$r:array();
+	}
+
 	private function parse_pdf_block($b){$r=array();$p=array('Nom'=>'/\\bNom\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Prénom'=>'/\\bPr[ée]nom\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Date de naissance'=>'/(?:Date de naissance|N[ée]\\s+le)\\s*[:\\-]?\\s*(\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4})/iu','Sexe'=>'/\\bSexe\\s*[:\\-]\\s*([MF])/iu','Club'=>'/\\bClub\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Adresse'=>'/\\bAdresse\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Discipline'=>'/\\bDiscipline\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Fonction'=>'/\\bFonction\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Délivrée le'=>'/(?:D[ée]livr[ée]e?\\s+le)\\s*[:\\-]?\\s*(\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4})/iu');foreach($p as $k=>$re)if(preg_match($re,$b,$m))$r[$k]=trim($m[1]);return $r;}
+
 	private function normalize_record(array $record){
 		$m=array();foreach($record as $k=>$v)$m[$this->key($k)]=is_scalar($v)?trim((string)$v):'';
 		$get=function($keys)use($m){foreach($keys as $k){$k=$this->key($k);if(isset($m[$k])&&''!==$m[$k])return$m[$k];}return'';};
