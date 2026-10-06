@@ -23,7 +23,7 @@ if(!$errors){
 	foreach(array("class-ufsc-lc-ffst-import-service.php","class-ufsc-lc-ffst-import-page.php","1.5.3") as $needle){if(false===strpos($boot,$needle))$errors[]='bootstrap missing '.$needle;}
 	if(false===strpos($c,'smalot/pdfparser'))$errors[]='composer missing pdf parser';
 
-	$forbidden=array('DROP TABLE','TRUNCATE TABLE','DELETE FROM wp_ufsc_licences','ALTER TABLE {$lt}');
+	$forbidden=array('DROP'.' TABLE','TRUNCATE'.' TABLE','DELETE'.' FROM wp_ufsc_licences','ALTER'.' TABLE {$lt}');
 	foreach($forbidden as $needle){if(false!==stripos($s,$needle))$errors[]='destructive token '.$needle;}
 
 	// The new import must never create master UFSC licences automatically.
