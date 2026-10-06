@@ -1,6 +1,8 @@
 <?php
 /**
  * Static guard for the official A6 licence HTML template.
+ * V12 keeps the historical institutional/legal content while displaying the
+ * generated UFSC number separately from the imported FFST number.
  */
 
 $template = dirname( __DIR__ ) . '/templates/licence-sportive-a6.html';
@@ -17,7 +19,12 @@ $required = array(
 	'.page{position:relative;width:148mm;height:104.5mm;',
 	'class="page recto"',
 	'class="page verso"',
-	'LICENCE UFSC / FFST',
+	'LICENCE SPORTIVE',
+	'INFORMATIONS DE LICENCE',
+	'Licence UFSC / FFST',
+	'N° LICENCE UFSC',
+	'N° LICENCE FFST',
+	'{{numero_licence_ufsc}}',
 	'{{numero_licence_ffst}}',
 	'{{ffst_missing_class}}',
 	'Numéro associé à la couverture d’assurance FFST',
@@ -30,11 +37,28 @@ $required = array(
 	'{{logo_ffst}}',
 	'{{photo_licencie}}',
 	'{{saison}}',
-	'{{nom}} {{prenom}}',
+	'{{nom}}',
+	'{{prenom}}',
 	'{{date_naissance}}',
 	'{{categorie}}',
 	'{{club}}',
 	'{{region}}',
+	'{{sexe}}',
+	'{{adresse}}',
+	'{{code_postal}}',
+	'{{ville}}',
+	'{{fonction}}',
+	'{{discipline}}',
+	'{{references_federales}}',
+	'{{date_delivrance_ffst}}',
+	'{{code_club_source}}',
+	'{{reference_titulaire}}',
+	'{{code_source}}',
+	'CERTIFICATION MÉDICALE — TEXTE SOURCE FFST',
+	'N° MÉDECIN / RPPS',
+	'CACHET ET SIGNATURE DU MÉDECIN',
+	'circle-blue',
+	'circle-red',
 );
 
 $missing = array();
@@ -44,18 +68,15 @@ foreach ( $required as $needle ) {
 	}
 }
 
-if ( 2 !== substr_count( $html, 'class="ufsc-legal-footer"' ) ) {
+if ( 2 !== substr_count( $html, 'class="institutional-footer"' ) ) {
 	$missing[] = 'footer institutionnel recto + verso';
-}
-
-if ( false !== strpos( $html, '{{numero_licence_ufsc}}' ) ) {
-	$missing[] = 'le numéro UFSC ne doit plus être affiché séparément sur la carte';
 }
 
 if ( false !== stripos( $html, 'ASPTT' ) ) {
 	$missing[] = 'absence de référence ASPTT';
 }
 
+// Dompdf safety: the PDF template must not rely on CSS Grid/Flex.
 if ( false !== strpos( $html, 'display:grid' ) || false !== strpos( $html, 'display:flex' ) ) {
 	$missing[] = 'le gabarit PDF ne doit pas dépendre de CSS Grid/Flex';
 }
