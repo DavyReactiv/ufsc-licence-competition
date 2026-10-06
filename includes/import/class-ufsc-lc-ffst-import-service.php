@@ -73,23 +73,41 @@ class UFSC_LC_FFST_Import_Service {
 		if(!$this->column_exists($lt,'numero_licence_ffst')) return new WP_Error('ffst_column_missing',__('Le champ numero_licence_ffst manque dans UFSC Gestion. Aucune donnée modifiée.','ufsc-licence-competition'));
 		$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY row_index",$batch_id,self::MATCHED));
 		if(!$rows) return new WP_Error('ffst_no_safe_rows',__('Aucune ligne sûre à appliquer.','ufsc-licence-competition'));
-		$tx=false!==$wpdb->query('START TRANSACTION'); $applied=0; $now=current_time('mysql');
+
+		// Preflight everything before the first write. This also protects hosts
+		// where the master table does not support SQL transactions.
+		$plan=array();
 		foreach($rows as $row){
 			$id=absint($row->match_licence_id); $incoming=trim((string)$row->ffst_number);
 			$current=trim((string)$wpdb->get_var($wpdb->prepare("SELECT numero_licence_ffst FROM {$lt} WHERE id=%d LIMIT 1",$id)));
 			if(''===$incoming || (''!==$current && 0!==strcasecmp($current,$incoming))){
-				if($tx) $wpdb->query('ROLLBACK');
-				return new WP_Error('ffst_concurrent_conflict',sprintf(__('Conflit détecté sur la licence #%d. Aucune ligne du lot n’a été validée.','ufsc-licence-competition'),$id));
+				return new WP_Error('ffst_concurrent_conflict',sprintf(__('Conflit détecté sur la licence #%d. Aucune donnée n’a été modifiée.','ufsc-licence-competition'),$id));
 			}
-			if(''===$current && false===$wpdb->update($lt,array('numero_licence_ffst'=>$incoming),array('id'=>$id),array('%s'),array('%d'))){
-				if($tx) $wpdb->query('ROLLBACK');
-				return new WP_Error('ffst_update_failed',__('Échec de mise à jour FFST. Aucune modification du lot conservée.','ufsc-licence-competition'));
+			$plan[]=array('row'=>$row,'licence_id'=>$id,'current'=>$current,'incoming'=>$incoming);
+		}
+
+		$tx=false!==$wpdb->query('START TRANSACTION'); $changed=array(); $now=current_time('mysql');
+		foreach($plan as $item){
+			if(''===$item['current']){
+				$result=$wpdb->update($lt,array('numero_licence_ffst'=>$item['incoming']),array('id'=>$item['licence_id']),array('%s'),array('%d'));
+				if(false===$result){
+					if($tx){$wpdb->query('ROLLBACK');}
+					else{foreach(array_reverse($changed) as $done){$wpdb->update($lt,array('numero_licence_ffst'=>$done['previous']),array('id'=>$done['id']),array('%s'),array('%d'));}}
+					return new WP_Error('ffst_update_failed',__('Échec de mise à jour FFST. Les écritures déjà effectuées ont été annulées.','ufsc-licence-competition'));
+				}
+				$changed[]=array('id'=>$item['licence_id'],'previous'=>$item['current']);
 			}
-			$this->write_pdf_meta($id,$row);
-			$wpdb->update($this->rows_table(),array('match_status'=>self::APPLIED,'applied_at'=>$now),array('id'=>absint($row->id)),array('%s','%s'),array('%d'));
-			$applied++; do_action('ufsc_lc_ffst_import_synced',$id,'ffst-v2-'.$batch_id);
 		}
 		if($tx) $wpdb->query('COMMIT');
+
+		// Add-on metadata and PDF regeneration are intentionally post-commit:
+		// they must never roll back the canonical UFSC Gestion synchronisation.
+		foreach($plan as $item){
+			$row=$item['row']; $this->write_pdf_meta($item['licence_id'],$row);
+			$wpdb->update($this->rows_table(),array('match_status'=>self::APPLIED,'applied_at'=>$now),array('id'=>absint($row->id)),array('%s','%s'),array('%d'));
+			do_action('ufsc_lc_ffst_import_synced',$item['licence_id'],'ffst-v2-'.$batch_id);
+		}
+		$applied=count($plan);
 		$wpdb->update($this->batches_table(),array('status'=>'applied','applied_rows'=>$applied,'applied_at'=>$now),array('id'=>$batch_id),array('%s','%d','%s'),array('%d'));
 		if(function_exists('ufsc_lc_bump_cache_version')) ufsc_lc_bump_cache_version('status',0);
 		return $applied;
