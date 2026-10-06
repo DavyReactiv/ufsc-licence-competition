@@ -190,14 +190,10 @@ class UFSC_LC_FFST_Import_Service {
 		$ffst=strtoupper(trim($licence_match[1]));
 		$r=array('N° FFST'=>$ffst);
 
-		foreach($lines as $line){
-			if(stripos($line,'UFSC - ')===0)break;
-			if(preg_match('/[A-ZÀ-ÖØ-Ý]{2,}/u',$line) && stripos($line,$ffst)===false && !preg_match('/^\\d/u',$line)){
-				$r['Club']=$line;
-				break;
-			}
-		}
+		// Official FFST page: club is the first line.
+		if(isset($lines[0]))$r['Club']=$lines[0];
 
+		// Header reference line generally contains the FFST number.
 		foreach($lines as $line){
 			if(stripos($line,$ffst)!==false && stripos($line,'LICENCE FFST')===false && stripos($line,'Licence :')===false){
 				$refs=trim(str_ireplace($ffst,'',$line));
@@ -213,39 +209,51 @@ class UFSC_LC_FFST_Import_Service {
 			}
 		}
 
-		$identity_line_index=-1;
+		// Role: line immediately after PHOTO and before Signature.
 		foreach($lines as $i=>$line){
-			if(preg_match('/^([MF])\\s+n[ée]e?\\s+le\\s+(\\d{1,2}\\/\\d{1,2}\\/\\d{4})$/iu',$line,$m)){
-				$r['Sexe']=strtoupper($m[1]);
-				$r['Date de naissance']=$m[2];
-				$identity_line_index=$i;
+			if(0===strcasecmp($line,'PHOTO') && isset($lines[$i+1])){
+				$next=$lines[$i+1];
+				if(0!==strcasecmp($next,'Signature'))$r['Fonction']=$next;
 				break;
 			}
 		}
 
-		if($identity_line_index>0){
-			$role=$lines[$identity_line_index-1];
-			if(!preg_match('/^UFSC\\s*-/iu',$role) && stripos($role,'PHOTO')===false)$r['Fonction']=$role;
+		// Identity: the official FFST extraction places the person name directly
+		// after the "Signature" marker, followed by street then postcode/city.
+		$signature_index=-1;
+		foreach($lines as $i=>$line){
+			if(0===strcasecmp($line,'Signature')){
+				$signature_index=$i;
+				break;
+			}
 		}
-
-		if($identity_line_index>=0){
-			for($i=$identity_line_index+1,$n=count($lines);$i<$n;$i++){
+		if($signature_index>=0){
+			for($i=$signature_index+1,$n=count($lines);$i<$n;$i++){
 				$line=$lines[$i];
-				if(in_array(strtoupper($line),array('PHOTO','SIGNATURE'),true))continue;
 				if(preg_match('/^(Je soussign|Porteur|Fait à|Docteur|Cachet|LICENCE FFST)/iu',$line))break;
 				if(preg_match('/^([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\' -]{1,})\\s+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\' -]{1,})$/u',$line,$m)){
 					$r['Nom']=trim($m[1]);
 					$r['Prénom']=trim($m[2]);
+
 					if(isset($lines[$i+1])&&!preg_match('/^(Je soussign|Porteur|Fait à|Docteur|Cachet|LICENCE FFST)/iu',$lines[$i+1])){
 						$r['Adresse']=$lines[$i+1];
-						if(isset($lines[$i+2])&&preg_match('/^(\\d{5})\\s+(.+)$/u',$lines[$i+2],$a)){
-							$r['Code postal']=$a[1];
-							$r['Ville']=$a[2];
-							$r['Adresse'].=' '.$lines[$i+2];
-						}
+					}
+					if(isset($lines[$i+2])&&preg_match('/^(\\d{5})\\s+(.+)$/u',$lines[$i+2],$a)){
+						$r['Code postal']=$a[1];
+						$r['Ville']=$a[2];
+						$r['Adresse']=trim((isset($r['Adresse'])?$r['Adresse'].' ':'').$lines[$i+2]);
 					}
 					break;
 				}
+			}
+		}
+
+		// Sex and birthdate appear after the address on the native FFST PDF.
+		foreach($lines as $line){
+			if(preg_match('/^([MF])\\s+n[ée]e?\\s+le\\s+(\\d{1,2}\\/\\d{1,2}\\/\\d{4})$/iu',$line,$m)){
+				$r['Sexe']=strtoupper($m[1]);
+				$r['Date de naissance']=$m[2];
+				break;
 			}
 		}
 
