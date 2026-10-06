@@ -133,16 +133,28 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		}
 
 		$sample = array(
-			'first_name'     => 'Alexandre',
-			'last_name'      => 'MARTIN',
-			'license_number' => 'FFST-2026-001245',
-			'club_name'      => 'Club UFSC Démonstration',
-			'birthdate'      => '14/03/1994',
+			'first_name'     => 'Jean-Bernard',
+			'last_name'      => 'SAUTRON',
+			'license_number' => 'M211036',
+			'ufsc_number'    => 'UFSC-2026-000001',
+			'ffst_number'    => 'M211036',
+			'sex'            => 'M',
+			'address'        => '4 Allée des Ficus',
+			'postal_code'    => '97432',
+			'city'           => 'Ravine des Cabris',
+			'discipline'     => 'UFSC – Kick Boxing et DA',
+			'ffst_references'=> '97 · 974 · 2951 · 9908',
+			'ffst_issued_at' => '30/09/2026',
+			'source_club_code' => 'S P B C 97432',
+			'source_holder_ref' => 'J.SAUTRON',
+			'source_code'    => 'U',
+			'club_name'      => 'Saint Pierre Boxing Club',
+			'birthdate'      => '27/05/1967',
 			'season'         => '2026–2027',
 			'category'       => 'Senior',
 			'region'         => 'Auvergne-Rhône-Alpes',
 			'profile'        => 'Compétiteur',
-			'role'           => '',
+			'role'           => 'Président',
 			'photo_uri'      => '',
 			'logo_uri'       => self::get_default_logo_data_uri(),
 			'qr_uri'         => '',
@@ -158,7 +170,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le numéro affiché « Licence UFSC / FFST » correspond au numéro FFST ; s’il n’est pas encore importé, le document affiche « En attente d’attribution » et pourra être régénéré ensuite.', 'ufsc-licence-competition' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est attribué automatiquement et ne peut pas être réutilisé sur une autre licence ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
 				<div class="notice notice-<?php echo esc_attr( 'success' === $status ? 'success' : ( 'warning' === $status ? 'warning' : 'error' ) ); ?> is-dismissible"><p><?php echo esc_html( $message ); ?></p></div>
@@ -184,7 +196,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
 				<h2 style="margin-top:0;"><?php esc_html_e( 'Règles de génération', 'ufsc-licence-competition' ); ?></h2>
-				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. Le numéro UFSC est attribué automatiquement avant génération. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
 				<p><?php esc_html_e( 'Le document utilise le gabarit premium A6 recto/verso et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
 			</div>
 		</div>
@@ -366,7 +378,6 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$role       = self::resolve_role( $licence );
 		$initials   = strtoupper( self::first_character( $first_name ) . self::first_character( $last_name ) );
 
-		$role              = self::resolve_role( $licence );
 		$sex               = trim( (string) ( $licence->genre ?? ( $licence->sexe ?? '' ) ) );
 		$address           = trim( (string) ( $licence->adresse ?? '' ) );
 		$postal_code       = trim( (string) ( $licence->code_postal ?? '' ) );
