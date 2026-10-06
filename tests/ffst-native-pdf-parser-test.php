@@ -14,13 +14,13 @@ array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
 3 03 3091 9908 M211074
 UFSC - KICK BOXING et DA
-PRESIDENT ENTRAINEUR
-M né le 11/09/1983
 PHOTO
+PRESIDENT ENTRAINEUR
 Signature
 CRUSOE Davy
 6 Rue Anna de Noailles
 03100 MONTLUCON
+M né le 11/09/1983
 Je soussigné, certifie que M
 Porteur de cette licence, ne présente aucune contre
 indication à la pratique sportive de la discipline
@@ -29,6 +29,7 @@ Fait à Le
 LICENCE FFST N° M211074 Délivrée le : 01/10/2026
 Docteur :
 Cachet et signature :
+M
 M F C 03100
 D.CRUSOE
 2026-2027 U
@@ -39,35 +40,53 @@ array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
 3 03 3091 9908 F211075
 UFSC - KICK BOXING et DA
-SECRETAIRE
-F née le 12/05/1988
 PHOTO
+SECRETAIRE
 Signature
 BESSEIGE Anaïs
 4 Rue des Ormes
 03420 MARCILLAT EN COMBRAILLE
+F née le 12/05/1988
+Je soussigné, certifie que M
+Porteur de cette licence, ne présente aucune contre
+indication à la pratique sportive de la discipline
+susvisée (Article L 231-3 du Code du Sport)
+Fait à Le
 LICENCE FFST N° F211075 Délivrée le : 01/10/2026
+Docteur :
+Cachet et signature :
+M
+M F C 03420
 A.BESSEIGE
 2026-2027 U
 Licence : F211075",
-'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F')
+'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'SECRETAIRE','Code postal'=>'03420','Ville'=>'MARCILLAT EN COMBRAILLE')
 ),
 array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
 3 03 3091 9908 M211076
 UFSC - KICK BOXING et DA
-TRESORIER
-M né le 24/09/1978
 PHOTO
+TRESORIER
 Signature
 PHILIPPON Fabien
 310 Chemin des Verpis
 03310 VILLEBRET
+M né le 24/09/1978
+Je soussigné, certifie que M
+Porteur de cette licence, ne présente aucune contre
+indication à la pratique sportive de la discipline
+susvisée (Article L 231-3 du Code du Sport)
+Fait à Le
 LICENCE FFST N° M211076 Délivrée le : 01/10/2026
+Docteur :
+Cachet et signature :
+M
+M F C 03310
 F.PHILIPPON
 2026-2027 U
 Licence : M211076",
-'expect'=>array('N° FFST'=>'M211076','Nom'=>'PHILIPPON','Prénom'=>'Fabien','Date de naissance'=>'24/09/1978','Sexe'=>'M')
+'expect'=>array('N° FFST'=>'M211076','Nom'=>'PHILIPPON','Prénom'=>'Fabien','Date de naissance'=>'24/09/1978','Sexe'=>'M','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'TRESORIER','Code postal'=>'03310','Ville'=>'VILLEBRET')
 )
 );
 
