@@ -49,7 +49,7 @@ class UFSC_LC_FFST_Import_Service {
 		$batch_id=absint($wpdb->insert_id); if(!$batch_id) return new WP_Error('ffst_batch_create_failed',__('Création du lot impossible.','ufsc-licence-competition'));
 		$stats=array(self::MATCHED=>0,self::AMBIGUOUS=>0,self::CONFLICT=>0,self::NOT_FOUND=>0); $i=0;
 		foreach($records as $record){$i++; $d=$this->normalize_record((array)$record); $m=$this->resolve_match($d,$season_end_year); $stats[$m['status']]++;
-			$wpdb->insert($this->rows_table(),array(
+			$inserted=$wpdb->insert($this->rows_table(),array(
 				'batch_id'=>$batch_id,'row_index'=>$i,'ffst_number'=>$d['ffst_number'],'last_name'=>$d['last_name'],'first_name'=>$d['first_name'],
 				'birthdate'=>$d['birthdate'],'sex'=>$d['sex'],'club_name'=>$d['club_name'],'address'=>$d['address'],'postal_code'=>$d['postal_code'],
 				'city'=>$d['city'],'discipline'=>$d['discipline'],'role_name'=>$d['role_name'],'federal_references'=>$d['federal_references'],
@@ -58,6 +58,9 @@ class UFSC_LC_FFST_Import_Service {
 				'match_message'=>$m['message'],'previous_ffst_number'=>$m['previous_ffst'],
 				'raw_payload'=>wp_json_encode($record,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
 			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
+			if(false===$inserted){
+				return new WP_Error('ffst_stage_row_insert_failed',sprintf(__('Impossible d’enregistrer la ligne FFST #%d en prévisualisation. Aucune donnée métier n’a été modifiée.','ufsc-licence-competition'),$i));
+			}
 		}
 		$wpdb->update($this->batches_table(),array('total_rows'=>$i,'matched_rows'=>$stats[self::MATCHED],'ambiguous_rows'=>$stats[self::AMBIGUOUS],
 			'conflict_rows'=>$stats[self::CONFLICT],'not_found_rows'=>$stats[self::NOT_FOUND]),array('id'=>$batch_id),
@@ -226,7 +229,21 @@ class UFSC_LC_FFST_Import_Service {
 
 		$name_index=-1;
 		if(''!==$holder_surname){
+			// Prefer the visual identity zone before the medical declaration.
+			// Smalot may flatten columns differently across servers, so search
+			// the whole zone rather than relying on exact line ordering.
+			$identity_zone=$joined;
+			$medical_pos=stripos($identity_zone,'Je soussign');
+			if(false!==$medical_pos)$identity_zone=substr($identity_zone,0,$medical_pos);
+
+			$pattern='/\\b'.preg_quote($holder_surname,'/').'\\b[\\s\\x{00A0}]+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\'’-]{1,40})\\b/u';
+			if(preg_match($pattern,$identity_zone,$m) && $this->is_person_first_name($m[1])){
+				$r['Nom']=$holder_surname;
+				$r['Prénom']=trim($m[1]);
+			}
+
 			foreach($lines as $i=>$line){
+				if(!empty($r['Nom'])&&!empty($r['Prénom']))break;
 				if(stripos($line,'Référence titulaire')!==false)continue;
 				if(preg_match('/^'.preg_quote($holder_surname,'/').'\\s+(.+)$/iu',$line,$m)){
 					$first=trim($m[1]);
@@ -238,7 +255,7 @@ class UFSC_LC_FFST_Import_Service {
 					}
 				}
 				if(0===strcasecmp($line,$holder_surname)){
-					for($j=$i+1,$max=min(count($lines),$i+4);$j<$max;$j++){
+					for($j=$i+1,$max=min(count($lines),$i+5);$j<$max;$j++){
 						if($this->is_person_first_name($lines[$j])){
 							$r['Nom']=$holder_surname;
 							$r['Prénom']=$lines[$j];
@@ -246,6 +263,27 @@ class UFSC_LC_FFST_Import_Service {
 							break 2;
 						}
 					}
+				}
+			}
+
+			// Locate the identity line index when the zone-regex matched first.
+			if(!empty($r['Nom'])&&!empty($r['Prénom'])&&$name_index<0){
+				foreach($lines as $i=>$line){
+					if(false!==stripos($line,$holder_surname) && false!==stripos($line,$r['Prénom'])){$name_index=$i;break;}
+					if(0===strcasecmp($line,$r['Prénom'])){$name_index=$i;break;}
+				}
+			}
+		}
+
+		// Final identity-zone fallback for PDFs whose footer reference is split.
+		if((empty($r['Nom'])||empty($r['Prénom']))){
+			$zone=$joined;
+			$medical_pos=stripos($zone,'Je soussign');
+			if(false!==$medical_pos)$zone=substr($zone,0,$medical_pos);
+			if(preg_match('/(?:Signature\\s*)?([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\'’ -]{1,40})[\\s\\x{00A0}]+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\'’-]{1,40})(?=[\\s\\x{00A0}]+(?:\\d{1,4}\\s+|[MF]\\s+n[ée]))/u',$zone,$m)){
+				if($this->is_person_first_name($m[2])){
+					$r['Nom']=trim($m[1]);
+					$r['Prénom']=trim($m[2]);
 				}
 			}
 		}

@@ -91,6 +91,40 @@ Licence : M211076",
 )
 );
 
+
+// Flattened-column variants observed with different PDF text extraction order.
+$fixtures[]=array(
+'text'=>"MFC MONTLUCON FIGHT CLUB
+3 03 3091 9908 M211074
+UFSC - KICK BOXING et DA PRESIDENT ENTRAINEUR M né le 11/09/1983 PHOTO Signature CRUSOE Davy
+6 Rue Anna de Noailles
+03100 MONTLUCON
+Je soussigné, certifie que M
+LICENCE FFST N° M211074 Délivrée le : 01/10/2026
+D.CRUSOE
+2026-2027 U
+Licence : M211074",
+'expect'=>array('N° FFST'=>'M211074','Nom'=>'CRUSOE','Prénom'=>'Davy','Date de naissance'=>'11/09/1983','Sexe'=>'M')
+);
+$fixtures[]=array(
+'text'=>"MFC MONTLUCON FIGHT CLUB
+3 03 3091 9908 F211075
+UFSC - KICK BOXING et DA PHOTO
+SECRETAIRE
+Signature
+BESSEIGE
+Anaïs
+4 Rue des Ormes
+03420 MARCILLAT EN COMBRAILLE
+F née le 12/05/1988
+Je soussigné, certifie que M
+LICENCE FFST N° F211075 Délivrée le : 01/10/2026
+A.BESSEIGE
+2026-2027 U
+Licence : F211075",
+'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F')
+);
+
 $errors=array();
 foreach($fixtures as $index=>$fixture){
 	$row=$method->invoke($service,$fixture['text']);
