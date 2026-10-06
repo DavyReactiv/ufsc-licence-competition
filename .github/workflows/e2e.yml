@@ -11,6 +11,7 @@ permissions:
 env:
   UFSC_PARENT_REPOSITORY: DavyReactiv/PLUGIN-UFSC-GESTION-SEPT2025
   UFSC_PARENT_REF: 32f7baeb020cbd0d4169b775b1e9680e314847cf
+  UFSC_PARENT_TOKEN: ${{ secrets.UFSC_PARENT_TOKEN }}
 
 jobs:
   playwright:
@@ -35,11 +36,23 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Check UFSC parent repository access
+        id: parent_access
+        shell: bash
+        run: |
+          if [ -n "${UFSC_PARENT_TOKEN}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::UFSC_PARENT_TOKEN is not configured. Cross-repository WordPress E2E will be skipped; static, PHP and package guards still run in their dedicated workflows."
+          fi
+
       - name: Prepare UFSC parent plugin dependency
+        if: steps.parent_access.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          git clone --no-checkout "https://github.com/${UFSC_PARENT_REPOSITORY}.git" ufsc-parent-plugin
+          git clone --no-checkout "https://x-access-token:${UFSC_PARENT_TOKEN}@github.com/${UFSC_PARENT_REPOSITORY}.git" ufsc-parent-plugin
           git -C ufsc-parent-plugin fetch --depth 1 origin "${UFSC_PARENT_REF}"
           git -C ufsc-parent-plugin checkout --detach FETCH_HEAD
           composer install --working-dir=ufsc-parent-plugin --no-dev --no-interaction --prefer-dist --no-progress --optimize-autoloader
@@ -53,6 +66,7 @@ jobs:
           JSON
 
       - name: Start disposable WordPress environment
+        if: steps.parent_access.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -76,9 +90,11 @@ jobs:
           done
 
       - name: Wait for WordPress
+        if: steps.parent_access.outputs.available == 'true'
         run: curl --retry 20 --retry-delay 3 --retry-connrefused --fail http://localhost:8888/wp-login.php --output /dev/null
 
       - name: Prepare historical UFSC base tables and admin account
+        if: steps.parent_access.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -142,6 +158,7 @@ jobs:
           npx wp-env run cli wp user update admin --user_pass=password --user_email=admin@example.test --skip-plugins --skip-themes
 
       - name: Activate UFSC plugins and run additive migrations
+        if: steps.parent_access.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -151,6 +168,7 @@ jobs:
           npx wp-env run cli wp plugin list
 
       - name: Verify UFSC database prerequisites
+        if: steps.parent_access.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -158,6 +176,7 @@ jobs:
           npx wp-env run cli wp eval 'global $wpdb; foreach (["ufsc_clubs","ufsc_licences"] as $suffix) { $table=$wpdb->prefix.$suffix; if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s",$table)) !== $table) { fwrite(STDERR,"Missing $table\n"); exit(1); } } echo "UFSC base tables ready\n";'
 
       - name: Run Playwright workflow and visual checks
+        if: steps.parent_access.outputs.available == 'true'
         run: npm run test:e2e
         env:
           WP_BASE_URL: http://localhost:8888
@@ -176,5 +195,5 @@ jobs:
           retention-days: 14
 
       - name: Stop WordPress environment
-        if: always()
+        if: always() && steps.parent_access.outputs.available == 'true'
         run: npx wp-env stop || true
