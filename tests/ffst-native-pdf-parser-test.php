@@ -14,13 +14,14 @@ array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
 3 03 3091 9908 M211074
 UFSC - KICK BOXING et DA
-PHOTO
 PRESIDENT ENTRAINEUR
+M né le 11/09/1983
+PHOTO
 Signature
-CRUSOE Davy
+CRUSOE
+Davy
 6 Rue Anna de Noailles
 03100 MONTLUCON
-M né le 11/09/1983
 Je soussigné, certifie que M
 Porteur de cette licence, ne présente aucune contre
 indication à la pratique sportive de la discipline
@@ -39,8 +40,7 @@ Licence : M211074",
 array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
 3 03 3091 9908 F211075
-UFSC - KICK BOXING et DA
-PHOTO
+UFSC - KICK BOXING et DA PHOTO
 SECRETAIRE
 Signature
 BESSEIGE Anaïs
@@ -69,7 +69,8 @@ UFSC - KICK BOXING et DA
 PHOTO
 TRESORIER
 Signature
-PHILIPPON Fabien
+PHILIPPON
+Fabien
 310 Chemin des Verpis
 03310 VILLEBRET
 M né le 24/09/1978
