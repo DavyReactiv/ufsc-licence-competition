@@ -209,19 +209,19 @@ class UFSC_LC_FFST_Import_Service {
 			}
 		}
 
-		// Birthdate and sex can appear before or after Signature depending on the
-		// PDF text extraction order. Parse them independently from the whole page.
-		if(preg_match('/\\b([MF])\\s+n[ée]e?\\s+le\\s+(\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\b/iu',$joined,$m)){
+		// Smalot flattens the native FFST layout aggressively on production:
+		// examples are "M11/09/1983né le" and "F12/05/1988née le".
+		if(preg_match('/\\b([MF])\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\s*n[ée]e?\\s+le\\b/iu',$joined,$m)
+			|| preg_match('/\\b([MF])\\s*n[ée]e?\\s+le\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\b/iu',$joined,$m)){
 			$r['Sexe']=strtoupper($m[1]);
 			$r['Date de naissance']=$m[2];
 		}
 
-		// The footer reference (e.g. D.CRUSOE) is the most stable identity anchor
-		// in the official FFST PDF, even when surname/firstname are extracted in
-		// separate visual columns.
+		// The footer is also flattened, e.g.
+		// "M M F C 03100D.CRUSOE2026-2027 ULicence : M211074".
 		$holder_surname='';
 		$holder_initial='';
-		if(preg_match('/(?:^|\\s)([A-ZÀ-ÖØ-Ý])\\.([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\' -]+)(?=\\s|$)/u',$joined,$m)){
+		if(preg_match('/([A-ZÀ-ÖØ-Ý])\\.([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\' -]{1,60}?)(?=20\\d{2}-20\\d{2}|\\s+[A-Z]Licence|\\s+Licence|$)/u',$joined,$m)){
 			$holder_initial=$m[1];
 			$holder_surname=trim($m[2]);
 			$r['Référence titulaire']=$holder_initial.'.'.$holder_surname;
@@ -229,22 +229,17 @@ class UFSC_LC_FFST_Import_Service {
 
 		$name_index=-1;
 		if(''!==$holder_surname){
-			// Prefer the visual identity zone before the medical declaration.
-			// Smalot may flatten columns differently across servers, so search
-			// the whole zone rather than relying on exact line ordering.
-			$identity_zone=$joined;
-			$medical_pos=stripos($identity_zone,'Je soussign');
-			if(false!==$medical_pos)$identity_zone=substr($identity_zone,0,$medical_pos);
-
-			$pattern='/\\b'.preg_quote($holder_surname,'/').'\\b[\\s\\x{00A0}]+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\'’-]{1,40})\\b/u';
-			if(preg_match($pattern,$identity_zone,$m) && $this->is_person_first_name($m[1])){
-				$r['Nom']=$holder_surname;
-				$r['Prénom']=trim($m[1]);
-			}
-
 			foreach($lines as $i=>$line){
-				if(!empty($r['Nom'])&&!empty($r['Prénom']))break;
-				if(stripos($line,'Référence titulaire')!==false)continue;
+				// Production extraction often concatenates columns: CRUSOEDavy.
+				if(0===stripos($line,$holder_surname) && strlen($line)>strlen($holder_surname)){
+					$first=trim(substr($line,strlen($holder_surname)));
+					if($this->is_person_first_name($first)){
+						$r['Nom']=$holder_surname;
+						$r['Prénom']=$first;
+						$name_index=$i;
+						break;
+					}
+				}
 				if(preg_match('/^'.preg_quote($holder_surname,'/').'\\s+(.+)$/iu',$line,$m)){
 					$first=trim($m[1]);
 					if($this->is_person_first_name($first)){
@@ -265,30 +260,9 @@ class UFSC_LC_FFST_Import_Service {
 					}
 				}
 			}
-
-			// Locate the identity line index when the zone-regex matched first.
-			if(!empty($r['Nom'])&&!empty($r['Prénom'])&&$name_index<0){
-				foreach($lines as $i=>$line){
-					if(false!==stripos($line,$holder_surname) && false!==stripos($line,$r['Prénom'])){$name_index=$i;break;}
-					if(0===strcasecmp($line,$r['Prénom'])){$name_index=$i;break;}
-				}
-			}
 		}
 
-		// Final identity-zone fallback for PDFs whose footer reference is split.
-		if((empty($r['Nom'])||empty($r['Prénom']))){
-			$zone=$joined;
-			$medical_pos=stripos($zone,'Je soussign');
-			if(false!==$medical_pos)$zone=substr($zone,0,$medical_pos);
-			if(preg_match('/(?:Signature\\s*)?([A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý\'’ -]{1,40})[\\s\\x{00A0}]+([A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\'’-]{1,40})(?=[\\s\\x{00A0}]+(?:\\d{1,4}\\s+|[MF]\\s+n[ée]))/u',$zone,$m)){
-				if($this->is_person_first_name($m[2])){
-					$r['Nom']=trim($m[1]);
-					$r['Prénom']=trim($m[2]);
-				}
-			}
-		}
-
-		// Fallback around Signature for FFST variants without footer holder ref.
+		// Signature-zone fallback when the footer reference cannot be recovered.
 		if(empty($r['Nom'])||empty($r['Prénom'])){
 			$sig=-1;
 			foreach($lines as $i=>$line){
@@ -307,12 +281,11 @@ class UFSC_LC_FFST_Import_Service {
 			}
 		}
 
-		// Address is located between the identity and the medical declaration.
 		if($name_index>=0){
 			for($i=$name_index+1,$n=count($lines);$i<$n;$i++){
 				$line=$lines[$i];
 				if(preg_match('/^(Je soussign|Porteur|Fait à|Docteur|Cachet|LICENCE FFST)/iu',$line))break;
-				if(preg_match('/^([MF])\\s+n[ée]e?\\s+le/iu',$line))continue;
+				if(preg_match('/^[MF]\\s*(?:\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\s*n[ée]e?\\s+le|n[ée]e?\\s+le)/iu',$line))continue;
 				if(empty($r['Adresse']) && preg_match('/\\d/u',$line) && !preg_match('/^\\d{5}\\s+/u',$line)){
 					$r['Adresse']=$line;
 					continue;
@@ -326,8 +299,6 @@ class UFSC_LC_FFST_Import_Service {
 			}
 		}
 
-		// Function is the first meaningful uppercase label after discipline,
-		// excluding PHOTO, Signature and the sex/birthdate line.
 		$discipline_index=-1;
 		foreach($lines as $i=>$line){if(0===stripos($line,'UFSC - ')){$discipline_index=$i;break;}}
 		if($discipline_index>=0){
@@ -335,7 +306,7 @@ class UFSC_LC_FFST_Import_Service {
 				$line=$lines[$i];
 				$clean=trim(preg_replace('/\\bPHOTO\\b/iu','',$line));
 				if(''===$clean||0===strcasecmp($clean,'Signature'))continue;
-				if(preg_match('/^[MF]\\s+n[ée]e?\\s+le/iu',$clean))continue;
+				if(preg_match('/^[MF]\\s*(?:\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\s*n[ée]e?\\s+le|n[ée]e?\\s+le)/iu',$clean))continue;
 				if(!empty($r['Nom']) && false!==stripos($clean,$r['Nom']))break;
 				if(preg_match('/^[A-ZÀ-ÖØ-Ý][A-ZÀ-ÖØ-Ý \'-]{2,}$/u',$clean)){
 					$r['Fonction']=$clean;
@@ -345,17 +316,15 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		if(preg_match('/D[ée]livr[ée]e?\\s+le\\s*:\\s*(\\d{1,2}\\/\\d{1,2}\\/\\d{4})/iu',$joined,$m))$r['Délivrée le']=$m[1];
-		if(preg_match('/\\b(20\\d{2}-20\\d{2})\\s+([A-Z])\\b/u',$joined,$m))$r['Code source']=$m[2];
-		if(preg_match('/\\b([A-Z](?:\\s+[A-Z]){1,5}\\s+\\d{5})\\b/u',$joined,$m))$r['Code club']=$m[1];
+		if(preg_match('/(20\\d{2}-20\\d{2})\\s+([A-Z])/u',$joined,$m))$r['Code source']=$m[2];
+
+		// Code club may be glued to holder reference in the flattened footer.
+		if(preg_match('/([A-Z](?:\\s+[A-Z]){1,5}\\s+\\d{5})(?=[A-Z]\\.)/u',$joined,$m)
+			|| preg_match('/\\b([A-Z](?:\\s+[A-Z]){1,5}\\s+\\d{5})\\b/u',$joined,$m)){
+			$r['Code club']=$m[1];
+		}
 
 		return (!empty($r['Nom'])&&!empty($r['Prénom'])&&!empty($r['Date de naissance']))?$r:array();
-	}
-
-	private function is_person_first_name($value){
-		$value=trim((string)$value);
-		if(''===$value||preg_match('/\\d/u',$value))return false;
-		if(preg_match('/^(PHOTO|SIGNATURE|PRESIDENT|SECRETAIRE|TRESORIER|ENTRAINEUR|JE SOUSSIGN|PORTEUR|FAIT|DOCTEUR|CACHET)$/iu',$value))return false;
-		return (bool)preg_match('/^[A-ZÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ\' -]{1,40}$/u',$value);
 	}
 
 	private function parse_pdf_block($b){$r=array();$p=array('Nom'=>'/\\bNom\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Prénom'=>'/\\bPr[ée]nom\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Date de naissance'=>'/(?:Date de naissance|N[ée]\\s+le)\\s*[:\\-]?\\s*(\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4})/iu','Sexe'=>'/\\bSexe\\s*[:\\-]\\s*([MF])/iu','Club'=>'/\\bClub\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Adresse'=>'/\\bAdresse\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Discipline'=>'/\\bDiscipline\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Fonction'=>'/\\bFonction\\s*[:\\-]\\s*([^\\r\\n]+)/iu','Délivrée le'=>'/(?:D[ée]livr[ée]e?\\s+le)\\s*[:\\-]?\\s*(\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4})/iu');foreach($p as $k=>$re)if(preg_match($re,$b,$m))$r[$k]=trim($m[1]);return $r;}

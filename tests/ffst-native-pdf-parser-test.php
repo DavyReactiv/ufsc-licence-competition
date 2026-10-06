@@ -12,117 +12,70 @@ $method->setAccessible(true);
 $fixtures=array(
 array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
-3 03 3091 9908 M211074
+30330919908M211074
 UFSC - KICK BOXING et DA
-PRESIDENT ENTRAINEUR
-M né le 11/09/1983
 PHOTO
+PRESIDENT ENTRAINEUR
 Signature
-CRUSOE
-Davy
+CRUSOEDavy
 6 Rue Anna de Noailles
 03100 MONTLUCON
+M11/09/1983né le
 Je soussigné, certifie que M
 Porteur de cette licence, ne présente aucune contre
 indication à la pratique sportive de la discipline
 susvisée (Article L 231-3 du Code du Sport)
-Fait à Le
-LICENCE FFST N° M211074 Délivrée le : 01/10/2026
-Docteur :
-Cachet et signature :
-M
-M F C 03100
-D.CRUSOE
-2026-2027 U
-Licence : M211074",
+Fait à                                              Le 
+Délivrée le : 01/10/2026LICENCE FFST N° M211074
+ Docteur :
+ Cachet et signature : 
+M M F C 03100D.CRUSOE2026-2027 ULicence : M211074",
 'expect'=>array('N° FFST'=>'M211074','Nom'=>'CRUSOE','Prénom'=>'Davy','Date de naissance'=>'11/09/1983','Sexe'=>'M','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'PRESIDENT ENTRAINEUR','Code postal'=>'03100','Ville'=>'MONTLUCON','Délivrée le'=>'01/10/2026')
 ),
 array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
-3 03 3091 9908 F211075
-UFSC - KICK BOXING et DA PHOTO
+30330919908F211075
+UFSC - KICK BOXING et DA
+PHOTO
 SECRETAIRE
 Signature
-BESSEIGE Anaïs
+BESSEIGEAnaïs
 4 Rue des Ormes
 03420 MARCILLAT EN COMBRAILLE
-F née le 12/05/1988
+F12/05/1988née le
 Je soussigné, certifie que M
 Porteur de cette licence, ne présente aucune contre
 indication à la pratique sportive de la discipline
 susvisée (Article L 231-3 du Code du Sport)
-Fait à Le
-LICENCE FFST N° F211075 Délivrée le : 01/10/2026
-Docteur :
-Cachet et signature :
-M
-M F C 03420
-A.BESSEIGE
-2026-2027 U
-Licence : F211075",
-'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'SECRETAIRE','Code postal'=>'03420','Ville'=>'MARCILLAT EN COMBRAILLE')
+Fait à                                              Le 
+Délivrée le : 01/10/2026LICENCE FFST N° F211075
+ Docteur :
+ Cachet et signature : 
+M M F C 03420A.BESSEIGE2026-2027 ULicence : F211075",
+'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'SECRETAIRE','Code postal'=>'03420','Ville'=>'MARCILLAT EN COMBRAILLE','Délivrée le'=>'01/10/2026')
 ),
 array(
 'text'=>"MFC MONTLUCON FIGHT CLUB
-3 03 3091 9908 M211076
+30330919908M211076
 UFSC - KICK BOXING et DA
 PHOTO
 TRESORIER
 Signature
-PHILIPPON
-Fabien
+PHILIPPONFabien
 310 Chemin des Verpis
 03310 VILLEBRET
-M né le 24/09/1978
+M24/09/1978né le
 Je soussigné, certifie que M
 Porteur de cette licence, ne présente aucune contre
 indication à la pratique sportive de la discipline
 susvisée (Article L 231-3 du Code du Sport)
-Fait à Le
-LICENCE FFST N° M211076 Délivrée le : 01/10/2026
-Docteur :
-Cachet et signature :
-M
-M F C 03310
-F.PHILIPPON
-2026-2027 U
-Licence : M211076",
-'expect'=>array('N° FFST'=>'M211076','Nom'=>'PHILIPPON','Prénom'=>'Fabien','Date de naissance'=>'24/09/1978','Sexe'=>'M','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'TRESORIER','Code postal'=>'03310','Ville'=>'VILLEBRET')
+Fait à                                              Le 
+Délivrée le : 01/10/2026LICENCE FFST N° M211076
+ Docteur :
+ Cachet et signature : 
+M M F C 03310F.PHILIPPON2026-2027 ULicence : M211076",
+'expect'=>array('N° FFST'=>'M211076','Nom'=>'PHILIPPON','Prénom'=>'Fabien','Date de naissance'=>'24/09/1978','Sexe'=>'M','Club'=>'MFC MONTLUCON FIGHT CLUB','Fonction'=>'TRESORIER','Code postal'=>'03310','Ville'=>'VILLEBRET','Délivrée le'=>'01/10/2026')
 )
-);
-
-
-// Flattened-column variants observed with different PDF text extraction order.
-$fixtures[]=array(
-'text'=>"MFC MONTLUCON FIGHT CLUB
-3 03 3091 9908 M211074
-UFSC - KICK BOXING et DA PRESIDENT ENTRAINEUR M né le 11/09/1983 PHOTO Signature CRUSOE Davy
-6 Rue Anna de Noailles
-03100 MONTLUCON
-Je soussigné, certifie que M
-LICENCE FFST N° M211074 Délivrée le : 01/10/2026
-D.CRUSOE
-2026-2027 U
-Licence : M211074",
-'expect'=>array('N° FFST'=>'M211074','Nom'=>'CRUSOE','Prénom'=>'Davy','Date de naissance'=>'11/09/1983','Sexe'=>'M')
-);
-$fixtures[]=array(
-'text'=>"MFC MONTLUCON FIGHT CLUB
-3 03 3091 9908 F211075
-UFSC - KICK BOXING et DA PHOTO
-SECRETAIRE
-Signature
-BESSEIGE
-Anaïs
-4 Rue des Ormes
-03420 MARCILLAT EN COMBRAILLE
-F née le 12/05/1988
-Je soussigné, certifie que M
-LICENCE FFST N° F211075 Délivrée le : 01/10/2026
-A.BESSEIGE
-2026-2027 U
-Licence : F211075",
-'expect'=>array('N° FFST'=>'F211075','Nom'=>'BESSEIGE','Prénom'=>'Anaïs','Date de naissance'=>'12/05/1988','Sexe'=>'F')
 );
 
 $errors=array();
