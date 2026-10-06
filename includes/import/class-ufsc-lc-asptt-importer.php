@@ -863,6 +863,30 @@ class UFSC_LC_ASPTT_Import_Service {
 
 		$this->preview_licence_ids = array();
 
+		if ( ! $dry_run ) {
+			$affected_licence_ids = array_values(
+				array_unique(
+					array_filter(
+						array_map(
+							'absint',
+							array_merge( $created_licences, $updated_licences )
+						)
+					)
+				)
+			);
+
+			foreach ( $affected_licence_ids as $affected_licence_id ) {
+				/**
+				 * Fires after a committed FFST/import synchronisation.
+				 *
+				 * PDF generation listeners must remain additive: the importer has
+				 * already committed its data and must never be rolled back because
+				 * a PDF engine is unavailable.
+				 */
+				do_action( 'ufsc_lc_ffst_import_synced', $affected_licence_id, $import_batch_id );
+			}
+		}
+
 		if ( ! $dry_run && function_exists( 'ufsc_lc_bump_cache_version' ) ) {
 			ufsc_lc_bump_cache_version( 'club_all', 0 );
 			ufsc_lc_bump_cache_version( 'status', 0 );
