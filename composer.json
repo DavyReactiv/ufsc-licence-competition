@@ -5,6 +5,7 @@
   "license": "proprietary",
   "require": {
     "dompdf/dompdf": "^2.0 || ^3.0",
+    "smalot/pdfparser": "^2.11",
     "php": ">=7.4"
   },
   "require-dev": {
