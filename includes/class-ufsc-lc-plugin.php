@@ -20,11 +20,13 @@ require_once __DIR__ . '/ea11y-fix.php';
 require_once __DIR__ . '/Repositories/LicenceRepository.php';
 require_once __DIR__ . '/export/class-ufsc-lc-exporter.php';
 require_once __DIR__ . '/import/class-ufsc-lc-asptt-importer.php';
+require_once __DIR__ . '/import/class-ufsc-lc-ffst-import-service.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-admin-assets.php';
 require_once __DIR__ . '/admin/class-ufsc-licences-admin.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-settings-page.php';
+require_once __DIR__ . '/admin/class-ufsc-lc-ffst-import-page.php';
 $competitions_bootstrap = __DIR__ . '/competitions/bootstrap.php';
 if ( file_exists( $competitions_bootstrap ) ) {
 	require_once $competitions_bootstrap;
@@ -33,7 +35,7 @@ if ( file_exists( $competitions_bootstrap ) ) {
 class UFSC_LC_Plugin {
 	const CAPABILITY      = UFSC_LC_Capabilities::MANAGE_CAPABILITY;
 	const DB_VERSION_OPTION = 'ufsc_lc_db_version';
-	const DB_VERSION        = '1.5.2';
+	const DB_VERSION        = '1.5.3';
 	const LEGACY_OPTION     = 'ufsc_lc_legacy_compatibility';
 	// Must match add_menu_page slug.
 	const PARENT_SLUG       = 'ufsc-sql-licences';
@@ -93,6 +95,9 @@ class UFSC_LC_Plugin {
 
 			$settings_page = new UFSC_LC_Settings_Page();
 			$settings_page->register();
+
+			$ffst_import_page = new UFSC_LC_FFST_Import_Page();
+			$ffst_import_page->register();
 		}
 
 		$this->dependencies_met = $this->check_dependencies();
@@ -171,6 +176,9 @@ class UFSC_LC_Plugin {
 
 		$importer = new UFSC_LC_ASPTT_Importer( $this->legacy_enabled );
 		$importer->create_tables();
+
+		$ffst_import = new UFSC_LC_FFST_Import_Service();
+		$ffst_import->create_tables();
 
 $allow_master_alter = (bool) apply_filters( 'ufsc_lc_allow_master_table_alter', false );
 
