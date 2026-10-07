@@ -136,7 +136,19 @@ class UFSC_LC_FFST_Import_Service {
 	}
 
 	public function get_batch($id){global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->batches_table()} WHERE id=%d LIMIT 1",absint($id)));}
-	public function get_batch_rows($id,$limit=250){global $wpdb; return $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->rows_table()} WHERE batch_id=%d ORDER BY row_index LIMIT %d",absint($id),max(1,min(1000,absint($limit)))));}
+	public function get_batch_rows($id,$limit=250,$offset=0){
+		global $wpdb;
+		return $wpdb->get_results($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d ORDER BY row_index ASC, id ASC LIMIT %d OFFSET %d",
+			absint($id),max(1,min(500,absint($limit))),max(0,absint($offset))
+		));
+	}
+	public function get_batch_row_count($id){
+		global $wpdb;
+		return (int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d",absint($id)
+		));
+	}
 	public function get_recent_batches($limit=10){global $wpdb; return $wpdb->get_results("SELECT * FROM {$this->batches_table()} ORDER BY id DESC LIMIT ".max(1,min(50,absint($limit))));}
 
 	private function validate_upload(array $file){
