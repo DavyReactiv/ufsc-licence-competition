@@ -57,7 +57,7 @@ class UFSC_LC_FFST_Import_Service {
 				'source_code'=>$d['source_code'],'match_status'=>$m['status'],'match_licence_id'=>absint($m['licence_id']),
 				'match_message'=>$m['message'],'previous_ffst_number'=>$m['previous_ffst'],
 				'raw_payload'=>wp_json_encode($record,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
-			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
+			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
 			if(false===$inserted){
 				return new WP_Error('ffst_stage_row_insert_failed',sprintf(__('Impossible d’enregistrer la ligne FFST #%d en prévisualisation. Aucune donnée métier n’a été modifiée.','ufsc-licence-competition'),$i));
 			}
@@ -149,6 +149,50 @@ class UFSC_LC_FFST_Import_Service {
 		));
 	}
 
+	/**
+	 * Explicit, non-destructive repair for older preview rows whose match_status
+	 * was accidentally stored as "0" by a wrong wpdb format specifier.
+	 */
+	public function repair_legacy_batch($batch_id){
+		global $wpdb;
+		$batch=$this->get_batch($batch_id);
+		if(!$batch||!in_array($batch->status,array('preview','partial'),true))
+			return new WP_Error('ffst_repair_locked',__('Le lot est clôturé ou introuvable.','ufsc-licence-competition'));
+		$table=$this->rows_table();
+		$rows=$wpdb->get_results($wpdb->prepare(
+			"SELECT * FROM {$table} WHERE batch_id=%d AND match_status=%s ORDER BY id ASC",
+			absint($batch_id),'0'
+		));
+		$fixed=0;
+		foreach((array)$rows as $row){
+			$data=array(
+				'ffst_number'=>(string)$row->ffst_number,
+				'last_name'=>(string)$row->last_name,
+				'first_name'=>(string)$row->first_name,
+				'birthdate'=>(string)$row->birthdate,
+				'club_name'=>(string)$row->club_name,
+			);
+			$match=$this->resolve_match($data,(int)$batch->season_end_year);
+			$ok=$wpdb->update($table,array(
+				'match_status'=>$match['status'],'match_licence_id'=>absint($match['licence_id']),
+				'match_message'=>$match['message'],'previous_ffst_number'=>$match['previous_ffst']
+			),array('id'=>(int)$row->id,'batch_id'=>(int)$batch_id,'match_status'=>'0'),
+			array('%s','%d','%s','%s'),array('%d','%d','%s'));
+			if(false===$ok)return new WP_Error('ffst_repair_failed',__('Échec du réexamen : aucune donnée UFSC Gestion n’a été modifiée.','ufsc-licence-competition'));
+			$fixed++;
+		}
+		$this->refresh_batch_counts($batch_id);
+		return $fixed;
+	}
+
+	public function get_legacy_unreviewed_count($batch_id){
+		global $wpdb;
+		return (int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s",
+			absint($batch_id),'0'
+		));
+	}
+
 	/** Review a candidate in staging without touching UFSC Gestion. */
 	public function confirm_row_match($batch_id,$row_id,$licence_id){
 		global $wpdb;
@@ -228,6 +272,13 @@ class UFSC_LC_FFST_Import_Service {
 		if(!$this->column_exists($lt,'numero_licence_ffst'))
 			return new WP_Error('ffst_column_missing',__('Le champ canonique FFST manque dans UFSC Gestion. Aucune modification.','ufsc-licence-competition'));
 
+		// Fail closed on non-transactional tables: an import must never claim
+		// atomic rollback on MyISAM or other non-transactional engines.
+		foreach(array($lt,$this->rows_table(),$this->batches_table()) as $table){
+			$info=$wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS LIKE %s',$table));
+			if(!$info||!isset($info->Engine)||'InnoDB'!==$info->Engine)
+				return new WP_Error('ffst_transaction_required',__('Import bloqué : toutes les tables concernées doivent prendre en charge les transactions InnoDB. Aucune donnée modifiée.','ufsc-licence-competition'));
+		}
 		$lock_key='ufsc_lc_ffst_batch_'.$batch_id;
 		$acquired=$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 8)',$lock_key));
 		if((string)$acquired!=='1')return new WP_Error('ffst_import_busy',__('Un autre traitement de ce lot est déjà en cours. Réessayez.','ufsc-licence-competition'));
@@ -293,8 +344,8 @@ class UFSC_LC_FFST_Import_Service {
 				return new WP_Error('ffst_commit_failed',__('La transaction n’a pas été confirmée ; vérifiez la base avant nouvel import.','ufsc-licence-competition'));
 			$this->refresh_batch_counts($batch_id);
 			$remaining=(int)$wpdb->get_var($wpdb->prepare(
-				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s",
-				$batch_id,self::MATCHED
+				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status<>%s",
+				$batch_id,self::APPLIED
 			));
 			$wpdb->update($this->batches_table(),array(
 				'status'=>$remaining?'partial':'applied','applied_at'=>current_time('mysql')
