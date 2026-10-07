@@ -19,12 +19,8 @@ $expected=array(
 	array($service,'LIMIT %d OFFSET %d'),
 );
 foreach($expected as $e){if(false===strpos($e[0],$e[1]))$missing[]=$e[1];}
-if(false!==strpos($page,'<table class="widefat striped">')){
-	// Other tables (e.g. history) may remain native; only import preview must
-	// be isolated from global WordPress <table> styling.
-	$start=strpos($page,'Prévisualisation des licences FFST');
-	$end=strpos($page,"<?php if($counts_consistent", $start?:0);
-	if(false===$start || false===$end)$missing[]='preview structure markers';
-}
+$preview_start=strpos($page,'ufsc-lc-ffst-import-grid');
+$preview_end=strpos($page,"<?php if(" . '$counts_consistent',$preview_start?:0);
+if(false===$preview_start || false===$preview_end)$missing[]='preview structure markers';
 if($missing){fwrite(STDERR,"FFST staging visibility guard failed:\n - ".implode("\n - ",$missing)."\n");exit(1);}
 echo "FFST staging visibility guard: OK\n";
