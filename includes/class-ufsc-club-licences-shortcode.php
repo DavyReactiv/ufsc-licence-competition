@@ -390,6 +390,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
 				.ufsc-licence-filter-actions{grid-column:1 / -1}
 			}
+			@media(max-width:900px){
+				.ufsc-licence-table{min-width:0}
+				.ufsc-licence-table thead{display:none}
+				.ufsc-licence-table,.ufsc-licence-table tbody,.ufsc-licence-table tr,.ufsc-licence-table td{display:block;width:100%}
+				.ufsc-licence-table tr{padding:14px;border-bottom:1px solid #e4e7ec}
+				.ufsc-licence-table td{position:relative;padding:9px 10px 9px 44%;border:0;min-height:42px}
+				.ufsc-licence-table td:before{content:attr(data-label);position:absolute;left:10px;top:10px;width:40%;font-size:11px;font-weight:900;color:#667085;text-transform:uppercase;letter-spacing:.03em}
+				.ufsc-licence-actions{max-width:none;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+			}
 			@media(max-width:782px){
 				.ufsc-licence-stats{grid-template-columns:1fr}
 				.ufsc-licence-filters{grid-template-columns:1fr;padding:14px}
@@ -398,7 +407,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters select,
 				.ufsc-licence-filters button,
 				.ufsc-licence-filters .button{width:100%;min-height:46px}
-				.ufsc-licence-table{min-width:900px}
 				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column;padding-top:0}
 				.ufsc-licence-filter-actions button,
 				.ufsc-licence-filter-actions .button{width:100%}
@@ -622,25 +630,25 @@ class UFSC_LC_Club_Licences_Shortcode {
 							}
 							?>
 							<tr>
-								<td><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Nom', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Prénom', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Date de naissance', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Statut', 'ufsc-licence-competition' ); ?>">
 									<?php $status_key = sanitize_html_class( strtolower( (string) ( $item->statut ?? '' ) ) ); ?>
 									<span class="ufsc-licence-status ufsc-licence-status--<?php echo esc_attr( $status_key ); ?>">
 										<?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?>
 									</span>
 								</td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Saison', 'ufsc-licence-competition' ); ?>">
 									<?php echo esc_html( $item_season_label ); ?>
 									<?php if ( $is_archived ) : ?>
 										<span class="ufsc-licence-badge ufsc-licence-badge--archived"><?php esc_html_e( 'Saison archivée', 'ufsc-licence-competition' ); ?></span>
 									<?php endif; ?>
 								</td>
-								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><span class="ufsc-licence-ufsc"><?php echo esc_html( $item->ufsc_number ?? $item->id ); ?></span></td>
-								<td><span class="ufsc-licence-ffst"><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></span></td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Catégorie', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'N° UFSC', 'ufsc-licence-competition' ); ?>"><span class="ufsc-licence-ufsc"><?php echo esc_html( $item->ufsc_number ?? $item->id ); ?></span></td>
+								<td data-label="<?php esc_attr_e( 'N° FFST', 'ufsc-licence-competition' ); ?>"><span class="ufsc-licence-ffst"><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></span></td>
+								<td data-label="<?php esc_attr_e( 'PDF', 'ufsc-licence-competition' ); ?>">
 									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">
 											<span class="ufsc-licence-badge"><?php esc_html_e( 'Généré', 'ufsc-licence-competition' ); ?></span>
