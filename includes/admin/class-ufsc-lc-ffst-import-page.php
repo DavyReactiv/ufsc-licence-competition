@@ -39,7 +39,8 @@ class UFSC_LC_FFST_Import_Page {
 		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
 		check_admin_referer('ufsc_lc_ffst_apply_'.$batch_id,'ufsc_lc_ffst_apply_nonce');
 		$service=new UFSC_LC_FFST_Import_Service();
-		$result=$service->apply_batch($batch_id);
+		$ids=isset($_POST['selected_row_ids'])?(array)wp_unslash($_POST['selected_row_ids']):array();
+		$result=$service->apply_batch($batch_id,$ids);
 		if(is_wp_error($result)) $this->redirect_notice('error',$result->get_error_message(),$batch_id);
 		$this->redirect_notice('success',sprintf(_n('%d licence FFST synchronisée.','%d licences FFST synchronisées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
 	}
@@ -62,6 +63,11 @@ class UFSC_LC_FFST_Import_Page {
 			$rows=$batch?$service->get_batch_rows($batch_id,$per_page,$offset):array();
 		}
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
+		$matched_count=0;$unknown_count=0;
+		if($batch){
+			$matched_count=$service->get_batch_status_count($batch_id,UFSC_LC_FFST_Import_Service::MATCHED);
+			$unknown_count=$service->get_batch_unknown_status_count($batch_id);
+		}
 		$season=$this->active_season_end_year();
 		?>
 		<div class="wrap ufsc-lc-admin">
@@ -93,14 +99,14 @@ class UFSC_LC_FFST_Import_Page {
 					<h2><?php echo esc_html(sprintf(__('2. Contrôle du lot #%d — %s','ufsc-licence-competition'),$batch->id,$batch->file_name)); ?></h2>
 					<p>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Total : %d','ufsc-licence-competition'),$batch->total_rows)); ?></span>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Trouvées : %d','ufsc-licence-competition'),$batch->matched_rows)); ?></span>
+						<span class="button disabled"><?php echo esc_html(sprintf(__('Trouvées : %d','ufsc-licence-competition'),$matched_count)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Ambiguës : %d','ufsc-licence-competition'),$batch->ambiguous_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Conflits : %d','ufsc-licence-competition'),$batch->conflict_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
 					</p>
 					<style>
 						.ufsc-lc-ffst-import-grid{min-width:1150px;font-size:12px}
-						.ufsc-lc-ffst-import-record{display:grid!important;grid-template-columns:45px 105px 135px 110px 100px minmax(150px,1.4fr) 110px 110px minmax(180px,1.4fr);align-items:start;visibility:visible!important;opacity:1!important;height:auto!important;min-height:42px;position:relative;box-sizing:border-box;border-bottom:1px solid #dcdcde;background:#fff}
+						.ufsc-lc-ffst-import-record{display:grid!important;grid-template-columns:55px 45px 105px 135px 110px 100px minmax(150px,1.4fr) 110px 110px minmax(180px,1.4fr);align-items:start;visibility:visible!important;opacity:1!important;height:auto!important;min-height:42px;position:relative;box-sizing:border-box;border-bottom:1px solid #dcdcde;background:#fff}
 						.ufsc-lc-ffst-import-record:nth-of-type(even){background:#f6f7f7}
 						.ufsc-lc-ffst-import-record>div{padding:11px 9px;word-break:break-word}
 						.ufsc-lc-ffst-import-header{font-weight:700;background:#f0f0f1!important;border-bottom:2px solid #c3c4c7}
@@ -112,10 +118,18 @@ class UFSC_LC_FFST_Import_Page {
 					<p class="description">
 						<?php echo esc_html(sprintf(__('Lignes stockées : %1$d — affichage %2$d à %3$d (page %4$d sur %5$d).','ufsc-licence-competition'),(int)$actual_rows,$actual_rows?$offset+1:0,min($actual_rows,$offset+count($rows)),$current_page,$pages)); ?>
 					</p>
+					<?php if($unknown_count): ?>
+						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ancienne(s) ligne(s) possèdent un statut invalide (0). Elles ne peuvent pas être appliquées : réimportez le PDF pour créer un nouveau lot fiable. Aucune ancienne donnée n’est modifiée.','ufsc-licence-competition'),$unknown_count)); ?></p></div>
+					<?php endif; ?>
+					<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="ufsc-ffst-apply-form">
+						<input type="hidden" name="action" value="ufsc_lc_ffst_apply">
+						<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch->id); ?>">
+						<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch->id,'ufsc_lc_ffst_apply_nonce'); ?>
+						<p class="description"><?php esc_html_e('Sélectionnez uniquement les rapprochements vérifiés. Les doublons, conflits et dossiers ambigus sont bloqués. La sélection concerne cette page.','ufsc-licence-competition'); ?></p>
 					<div style="overflow-x:auto;max-height:600px;overflow-y:auto">
 						<div class="ufsc-lc-ffst-import-grid" role="table" aria-label="<?php esc_attr_e('Prévisualisation des licences FFST','ufsc-licence-competition'); ?>">
 							<div class="ufsc-lc-ffst-import-record ufsc-lc-ffst-import-header" role="row">
-								<div role="columnheader">#</div><div role="columnheader"><?php esc_html_e('N° FFST','ufsc-licence-competition'); ?></div>
+								<div role="columnheader"><?php esc_html_e('Choix','ufsc-licence-competition'); ?></div><div role="columnheader">#</div><div role="columnheader"><?php esc_html_e('N° FFST','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Nom','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Prénom','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Naissance','ufsc-licence-competition'); ?></div>
@@ -126,6 +140,7 @@ class UFSC_LC_FFST_Import_Page {
 							</div>
 							<?php foreach($rows as $row): ?>
 								<div class="ufsc-lc-ffst-import-record" role="row" data-ffst-row="<?php echo esc_attr(absint($row->row_index)); ?>">
+									<div role="cell"><?php if('matched'===$row->match_status && $counts_consistent): ?><label><input type="checkbox" name="selected_row_ids[]" value="<?php echo esc_attr(absint($row->id)); ?>" aria-label="<?php echo esc_attr(sprintf(__('Sélectionner la ligne %d','ufsc-licence-competition'),absint($row->row_index))); ?>"></label><?php else: ?>—<?php endif; ?></div>
 									<div role="cell"><?php echo esc_html($row->row_index); ?></div>
 									<div role="cell"><strong><?php echo esc_html($row->ffst_number?:'—'); ?></strong></div>
 									<div role="cell"><?php echo esc_html($row->last_name?:'—'); ?></div>
@@ -146,16 +161,15 @@ class UFSC_LC_FFST_Import_Page {
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
-					<?php if($counts_consistent && 'applied'!==$batch->status && (int)$batch->matched_rows>0): ?>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:18px">
-							<input type="hidden" name="action" value="ufsc_lc_ffst_apply"><input type="hidden" name="batch_id" value="<?php echo esc_attr($batch->id); ?>">
-							<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch->id,'ufsc_lc_ffst_apply_nonce'); ?>
-							<?php submit_button(__('Appliquer uniquement les lignes sûres','ufsc-licence-competition'),'primary','submit',false,array('onclick'=>"return confirm('Confirmer la synchronisation des lignes trouvées sans ambiguïté ?');")); ?>
-							<p class="description"><?php esc_html_e('Les lignes ambiguës, introuvables ou en conflit restent inchangées. La génération PDF V12 est déclenchée après chaque synchronisation validée.','ufsc-licence-competition'); ?></p>
-						</form>
+					<?php if($counts_consistent && 'applied'!==$batch->status && $matched_count>0): ?>
+						<div style="margin-top:18px">
+							<?php submit_button(__('Rapprocher les lignes sélectionnées','ufsc-licence-competition'),'primary','submit',false,array('onclick'=>"return confirm('Confirmer le rapprochement des licences sélectionnées avec UFSC Gestion ?');")); ?>
+							<p class="description"><?php esc_html_e('Le N° FFST est conservé en texte. Les N° UFSC existants ne sont jamais remplacés. Les lignes non sélectionnées restent en attente.','ufsc-licence-competition'); ?></p>
+						</div>
 					<?php elseif('applied'===$batch->status): ?>
-						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) appliquée(s).','ufsc-licence-competition'),$batch->applied_rows)); ?></p></div>
+						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) déjà appliquée(s).','ufsc-licence-competition'),$batch->applied_rows)); ?></p></div>
 					<?php endif; ?>
+					</form>
 				</div>
 			<?php endif; ?>
 
@@ -173,7 +187,7 @@ class UFSC_LC_FFST_Import_Page {
 	}
 
 	private function status_badge($status){
-		$map=array('matched'=>array('Trouvée','#e7f6ec','#166534'),'applied'=>array('Appliquée','#dcfce7','#166534'),'ambiguous'=>array('À contrôler','#fff7d6','#92400e'),'conflict'=>array('Conflit','#fee2e2','#991b1b'),'not_found'=>array('Introuvable','#f3f4f6','#4b5563'));
+		$map=array('matched'=>array('Trouvée','#e7f6ec','#166534'),'applied'=>array('Appliquée','#dcfce7','#166534'),'ambiguous'=>array('À contrôler','#fff7d6','#92400e'),'conflict'=>array('Conflit','#fee2e2','#991b1b'),'not_found'=>array('Introuvable','#f3f4f6','#4b5563'),'0'=>array('Ancien statut invalide','#fee2e2','#991b1b'));
 		$v=isset($map[$status])?$map[$status]:array($status,'#f3f4f6','#374151');
 		return '<span style="display:inline-block;padding:4px 8px;border-radius:999px;background:'.esc_attr($v[1]).';color:'.esc_attr($v[2]).';font-weight:700">'.esc_html($v[0]).'</span>';
 	}
