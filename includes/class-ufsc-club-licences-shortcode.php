@@ -1027,6 +1027,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$nom_affiche_sql,
 				$has_prenom,
 				$ffst_column,
+				$ufsc_number_sql,
 				$has_doc_source_number,
 				$can_join_docs,
 				$params
@@ -1241,6 +1242,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$nom_affiche_sql,
 				$has_prenom,
 				$ffst_column,
+				$ufsc_number_sql,
 				false,
 				false,
 				$params
@@ -1974,7 +1976,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return strtolower( $value );
 	}
 
-	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, string $ffst_column, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
+	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, string $ffst_column, string $ufsc_number_sql, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
 		global $wpdb;
 
 		$term = trim( $term );
@@ -2016,6 +2018,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$search_clauses[] = "LOWER(l.{$ffst_column}) LIKE %s";
 				$params[]         = $like_normalized;
 			}
+		}
+
+		if ( '' !== $ufsc_number_sql ) {
+			$search_clauses[] = "{$ufsc_number_sql} LIKE %s";
+			$params[]         = $like;
 		}
 
 		if ( $can_join_docs && $has_doc_source_number ) {
