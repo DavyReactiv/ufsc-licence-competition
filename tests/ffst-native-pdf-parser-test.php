@@ -6,6 +6,7 @@ define('ABSPATH', __DIR__ . '/');
 require_once dirname(__DIR__) . '/includes/import/class-ufsc-lc-ffst-import-service.php';
 
 $service=new UFSC_LC_FFST_Import_Service();
+if(!method_exists($service,'is_person_first_name')){fwrite(STDERR,"FFST parser helper missing\n");exit(1);}
 $method=new ReflectionMethod('UFSC_LC_FFST_Import_Service','parse_ffst_native_page');
 $method->setAccessible(true);
 
