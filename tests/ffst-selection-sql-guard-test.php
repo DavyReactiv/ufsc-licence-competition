@@ -6,7 +6,7 @@ $root=dirname(__DIR__);
 $service=file_get_contents($root.'/includes/import/class-ufsc-lc-ffst-import-service.php');
 $page=file_get_contents($root.'/includes/admin/class-ufsc-lc-ffst-import-page.php');
 $fail=array();
-$start=strpos($service,"$inserted".'=$wpdb->insert');
+$start=strpos($service,'$inserted=$wpdb->insert');
 $end=strpos($service,'if(false===$inserted)',$start?:0);
 $insert=substr($service,$start,($end?:strlen($service))-$start);
 preg_match_all("/'([a-z_]+)'\s*=>/", $insert, $fields);
