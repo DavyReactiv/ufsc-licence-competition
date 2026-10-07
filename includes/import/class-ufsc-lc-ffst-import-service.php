@@ -110,6 +110,25 @@ class UFSC_LC_FFST_Import_Service {
 		global $wpdb; $batch_id=absint($batch_id); $batch=$this->get_batch($batch_id);
 		if(!$batch) return new WP_Error('ffst_batch_missing',__('Lot introuvable.','ufsc-licence-competition'));
 		if('applied'===$batch->status) return new WP_Error('ffst_batch_applied',__('Ce lot est déjà appliqué.','ufsc-licence-competition'));
+
+		// Older batches created with mismatched insert formats can report
+		// misleading counters. Refuse writes from them; re-import safely.
+		$actual=$wpdb->get_results($wpdb->prepare(
+			"SELECT match_status,COUNT(*) qty FROM {$this->rows_table()} WHERE batch_id=%d GROUP BY match_status",
+			$batch_id
+		),ARRAY_A);
+		$actual_total=0;$actual_matched=0;
+		foreach((array)$actual as $group){
+			$status=(string)$group['match_status'];$qty=absint($group['qty']);
+			if(!in_array($status,array(self::MATCHED,self::AMBIGUOUS,self::NOT_FOUND,self::CONFLICT,self::APPLIED),true)){
+				return new WP_Error('ffst_invalid_staged_status',__('Ce lot contient des statuts endommagés par une ancienne version. Réimportez le PDF dans un nouveau lot : aucune licence ne sera modifiée.','ufsc-licence-competition'));
+			}
+			$actual_total+=$qty;
+			if(self::MATCHED===$status)$actual_matched+=$qty;
+		}
+		if($actual_total!==absint($batch->total_rows) || $actual_matched!==absint($batch->matched_rows)){
+			return new WP_Error('ffst_staging_counters_corrupt',__('Les compteurs de ce lot ne correspondent pas aux lignes présentes. Réimportez le PDF dans un nouveau lot sans appliquer celui-ci.','ufsc-licence-competition'));
+		}
 		$lt=$wpdb->prefix.'ufsc_licences';
 		if(!$this->column_exists($lt,'numero_licence_ffst')) return new WP_Error('ffst_column_missing',__('Le champ numero_licence_ffst manque dans UFSC Gestion. Aucune donnée modifiée.','ufsc-licence-competition'));
 		$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY row_index",$batch_id,self::MATCHED));
