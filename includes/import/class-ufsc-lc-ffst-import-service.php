@@ -57,7 +57,7 @@ class UFSC_LC_FFST_Import_Service {
 				'source_code'=>$d['source_code'],'match_status'=>$m['status'],'match_licence_id'=>absint($m['licence_id']),
 				'match_message'=>$m['message'],'previous_ffst_number'=>$m['previous_ffst'],
 				'raw_payload'=>wp_json_encode($record,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
-			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
+			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
 			if(false===$inserted){
 				return new WP_Error('ffst_stage_row_insert_failed',sprintf(__('Impossible d’enregistrer la ligne FFST #%d en prévisualisation. Aucune donnée métier n’a été modifiée.','ufsc-licence-competition'),$i));
 			}
@@ -92,6 +92,55 @@ class UFSC_LC_FFST_Import_Service {
 	 * Repeated numbers, repeated target licences and numbers held by someone
 	 * else in UFSC Gestion are always blocking, including across imports.
 	 */
+	/**
+	 * Old FFST imports had a misplaced wpdb format specifier that coerced
+	 * match_status to string "0". Explicit operator action repairs only these
+	 * unprocessed staging rows by recomputing from stored identity.
+	 */
+	public function recheck_legacy_batch($batch_id){
+		global $wpdb;
+		$batch_id=absint($batch_id);$batch=$this->get_batch($batch_id);
+		if(!$batch||'preview'!==$batch->status)return new WP_Error('ffst_recheck_status',__('Lot non réexaminable.','ufsc-licence-competition'));
+		$rows=$wpdb->get_results($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY id",
+			$batch_id,'0'
+		));
+		if(!$rows)return new WP_Error('ffst_recheck_none',__('Aucune ligne historique à corriger.','ufsc-licence-competition'));
+		$fixed=0;
+		foreach($rows as $row){
+			$record=array(
+				'ffst_number'=>(string)$row->ffst_number,
+				'last_name'=>(string)$row->last_name,
+				'first_name'=>(string)$row->first_name,
+				'birthdate'=>(string)$row->birthdate,
+				'club_name'=>(string)$row->club_name,
+			);
+			$match=$this->resolve_match($record,absint($batch->season_end_year));
+			if(!in_array($match['status'],array(self::MATCHED,self::AMBIGUOUS,self::CONFLICT,self::NOT_FOUND),true)){
+				return new WP_Error('ffst_recheck_invalid',__('Statut de rapprochement inattendu.','ufsc-licence-competition'));
+			}
+			$result=$wpdb->update($this->rows_table(),array(
+				'match_status'=>$match['status'],
+				'match_licence_id'=>absint($match['licence_id']),
+				'match_message'=>$match['message'],
+				'previous_ffst_number'=>$match['previous_ffst'],
+			),array('id'=>absint($row->id),'batch_id'=>$batch_id),
+			array('%s','%d','%s','%s'),array('%d','%d'));
+			if(false===$result)return new WP_Error('ffst_recheck_write',__('Le recalcul a été interrompu. Aucune donnée métier UFSC Gestion n’a été modifiée.','ufsc-licence-competition'));
+			$fixed++;
+		}
+		$this->recount_batch($batch_id);
+		return $fixed;
+	}
+
+	public function get_legacy_status_count($batch_id){
+		global $wpdb;
+		return (int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s",
+			absint($batch_id),'0'
+		));
+	}
+
 	public function audit_batch($batch_id){
 		global $wpdb;
 		$batch_id=absint($batch_id);
