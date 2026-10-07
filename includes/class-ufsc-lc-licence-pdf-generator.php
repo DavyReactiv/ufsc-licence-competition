@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-card-v12-premium-a6';
+	const TEMPLATE_VERSION = 'ufsc-card-v13-canonical-a6';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -170,7 +170,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est attribué automatiquement et ne peut pas être réutilisé sur une autre licence ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
 				<div class="notice notice-<?php echo esc_attr( 'success' === $status ? 'success' : ( 'warning' === $status ? 'warning' : 'error' ) ); ?> is-dismissible"><p><?php echo esc_html( $message ); ?></p></div>
@@ -196,7 +196,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
 				<h2 style="margin-top:0;"><?php esc_html_e( 'Règles de génération', 'ufsc-licence-competition' ); ?></h2>
-				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. Le numéro UFSC est attribué automatiquement avant génération. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. Le numéro UFSC est lu depuis UFSC Gestion avant génération. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
 				<p><?php esc_html_e( 'Le document utilise le gabarit premium A6 recto/verso et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
 			</div>
 		</div>
@@ -275,9 +275,9 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				return new WP_Error( 'ufsc_lc_pdf_tables_missing', __( 'Les tables de documents du plugin Licence Compétition sont indisponibles.', 'ufsc-licence-competition' ) );
 			}
 
-			$ufsc_number = self::ensure_ufsc_license_number( $licence_id, $licence );
-			if ( is_wp_error( $ufsc_number ) ) {
-				return $ufsc_number;
+			$ufsc_number = self::resolve_ufsc_license_number( $licence_id, $licence );
+			if ( '' === $ufsc_number ) {
+				return new WP_Error( 'ufsc_lc_pdf_missing_ufsc_number', __( 'Le numéro de licence UFSC est introuvable dans UFSC Gestion.', 'ufsc-licence-competition' ) );
 			}
 			$source_number = $ufsc_number;
 
@@ -315,7 +315,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				return $pdf;
 			}
 
-			$attachment_id = self::store_pdf_attachment( $licence_id, $source_number, $data['season'], $pdf );
+			$attachment_id = self::store_pdf_attachment( $licence_id, $source_number, $data['season'], $pdf, $data );
 			if ( is_wp_error( $attachment_id ) ) {
 				return $attachment_id;
 			}
@@ -382,7 +382,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$address           = trim( (string) ( $licence->adresse ?? '' ) );
 		$postal_code       = trim( (string) ( $licence->code_postal ?? '' ) );
 		$city              = trim( (string) ( $licence->ville ?? '' ) );
-		$discipline        = trim( (string) ( $licence->activite ?? ( $licence->discipline ?? '' ) ) );
+		$discipline        = self::resolve_discipline( $licence_id, $licence );
 		$ffst_references   = self::first_non_empty_meta( $licence_id, array( 'ffst_references', 'ffst_reference_codes' ) );
 		$ffst_issued_at    = self::first_non_empty_meta( $licence_id, array( 'ffst_issued_at', 'ffst_delivery_date' ) );
 		$source_club_code  = self::first_non_empty_meta( $licence_id, array( 'ffst_club_code', 'source_club_code' ) );
@@ -636,19 +636,32 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	 * @param string $pdf            Raw PDF bytes.
 	 * @return int|WP_Error
 	 */
-	private static function store_pdf_attachment( $licence_id, $license_number, $season, $pdf ) {
+	private static function store_pdf_attachment( $licence_id, $license_number, $season, $pdf, array $data = array() ) {
+		$first_name  = trim( (string) ( $data['first_name'] ?? '' ) );
+		$last_name   = trim( (string) ( $data['last_name'] ?? '' ) );
+		$holder_slug = sanitize_file_name( strtolower( remove_accents( trim( $first_name . '-' . $last_name ) ) ) );
 		$number_slug = sanitize_file_name( strtolower( str_replace( ' ', '-', $license_number ) ) );
 		$season_slug = sanitize_file_name( strtolower( str_replace( array( '–', '/', ' ' ), '-', $season ) ) );
-		$filename    = 'licence-ufsc-' . ( $number_slug ? $number_slug : $licence_id ) . ( $season_slug ? '-' . $season_slug : '' ) . '.pdf';
-		$upload      = wp_upload_bits( $filename, null, $pdf );
+		$parts       = array_filter(
+			array(
+				'licence-ufsc',
+				$holder_slug,
+				$number_slug ? $number_slug : (string) absint( $licence_id ),
+				$season_slug,
+			)
+		);
+		$filename = implode( '-', $parts ) . '.pdf';
+		$upload   = wp_upload_bits( $filename, null, $pdf );
 
 		if ( ! empty( $upload['error'] ) ) {
 			return new WP_Error( 'ufsc_lc_pdf_upload_error', sanitize_text_field( $upload['error'] ) );
 		}
 
+		$holder_label = trim( $first_name . ' ' . $last_name );
+		$title_parts  = array_filter( array( 'Licence UFSC', $holder_label, $license_number, $season ) );
 		$attachment = array(
 			'post_mime_type' => 'application/pdf',
-			'post_title'     => sprintf( 'Licence UFSC %s', $license_number ),
+			'post_title'     => implode( ' – ', $title_parts ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
 		);
@@ -706,59 +719,32 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	 *
 	 * @return string|WP_Error
 	 */
-	private static function ensure_ufsc_license_number( $licence_id, $licence ) {
-		global $wpdb;
-
-		$canonical = strtoupper( trim( (string) self::resolve_ufsc_license_number( $licence ) ) );
-		if ( 0 === strpos( $canonical, 'UFSC' ) && ! self::ufsc_number_used_by_other_licence( $canonical, $licence_id ) ) {
-			self::set_document_meta( $licence_id, 'ufsc_license_number', $canonical );
-			return $canonical;
-		}
-
-		$stored = strtoupper( trim( (string) self::get_document_meta( $licence_id, 'ufsc_license_number' ) ) );
-		if ( 0 === strpos( $stored, 'UFSC' ) && ! self::ufsc_number_used_by_other_licence( $stored, $licence_id ) ) {
-			return $stored;
-		}
-
-		$season = self::format_season( $licence );
-		$year   = (int) wp_date( 'Y' );
-		if ( preg_match( '/(20\\d{2})/', $season, $matches ) ) {
-			$year = (int) $matches[1];
-		}
-
-		$lock_name = $wpdb->prefix . 'ufsc_lc_number_allocator';
-		$locked    = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock_name ) );
-		if ( 1 !== $locked ) {
-			return new WP_Error( 'ufsc_lc_number_lock_failed', __( 'Impossible de réserver un numéro UFSC unique pour le moment.', 'ufsc-licence-competition' ) );
-		}
-
-		try {
-			$stored = strtoupper( trim( (string) self::get_document_meta( $licence_id, 'ufsc_license_number' ) ) );
-			if ( 0 === strpos( $stored, 'UFSC' ) && ! self::ufsc_number_used_by_other_licence( $stored, $licence_id ) ) {
-				return $stored;
+	/**
+	 * Resolve the UFSC licence number from UFSC Gestion only.
+	 *
+	 * The licence competition add-on must never allocate a second UFSC number.
+	 * UFSC Gestion is the source of truth. Its canonical resolver is preferred
+	 * when available; otherwise the dedicated fields and finally the licence
+	 * table primary key are used as read-only compatibility fallbacks.
+	 */
+	private static function resolve_ufsc_license_number( $licence_id, $licence ) {
+		if ( class_exists( 'UFSC_Identifier_Resolver' ) && method_exists( 'UFSC_Identifier_Resolver', 'read' ) ) {
+			$value = trim( (string) UFSC_Identifier_Resolver::read( $licence, 'licence_ufsc' ) );
+			if ( '' !== $value ) {
+				return $value;
 			}
-
-			$option_name = 'ufsc_lc_number_sequence_' . $year;
-			$sequence    = max( 0, (int) get_option( $option_name, 0 ) );
-
-			for ( $attempt = 0; $attempt < 1000; $attempt++ ) {
-				$sequence++;
-				$candidate = sprintf( 'UFSC-%04d-%06d', $year, $sequence );
-
-				if ( self::ufsc_number_used_by_other_licence( $candidate, $licence_id ) ) {
-					continue;
-				}
-
-				update_option( $option_name, $sequence, false );
-				self::set_document_meta( $licence_id, 'ufsc_license_number', $candidate );
-				return $candidate;
-			}
-
-			return new WP_Error( 'ufsc_lc_number_exhausted', __( 'Impossible d’attribuer un numéro UFSC unique.', 'ufsc-licence-competition' ) );
-		} finally {
-			$wpdb->get_var( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
 		}
+
+		foreach ( array( 'numero_licence_ufsc', 'numero_licence', 'num_licence', 'licence_number' ) as $field ) {
+			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
+				return trim( (string) $licence->{$field} );
+			}
+		}
+
+		$record_id = absint( $licence->id ?? $licence_id );
+		return $record_id > 0 ? (string) $record_id : '';
 	}
+
 
 	private static function ufsc_number_used_by_other_licence( $number, $licence_id ) {
 		global $wpdb;
@@ -829,18 +815,40 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		return '';
 	}
 
-	private static function resolve_ufsc_license_number( $licence ) {
-		if ( property_exists( $licence, 'numero_licence_ufsc' ) ) {
-			return trim( (string) $licence->numero_licence_ufsc );
-		}
 
-		foreach ( array( 'numero_licence', 'num_licence', 'licence_number', 'numero_licence_delegataire' ) as $field ) {
+	/**
+	 * Resolve the licence discipline from UFSC Gestion and compatible imports.
+	 * Never invent a discipline when the source contains no usable value.
+	 */
+	private static function resolve_discipline( $licence_id, $licence ) {
+		foreach ( array(
+			'discipline',
+			'activite',
+			'discipline_principale',
+			'discipline_sportive',
+			'activite_principale',
+			'pratique',
+			'sport',
+			'specialite',
+		) as $field ) {
 			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
 				return trim( (string) $licence->{$field} );
 			}
 		}
 
-		return '';
+		$meta = self::first_non_empty_meta(
+			$licence_id,
+			array(
+				'discipline',
+				'discipline_principale',
+				'discipline_sportive',
+				'activite',
+				'ffst_discipline',
+				'source_discipline',
+			)
+		);
+
+		return trim( (string) $meta );
 	}
 
 

@@ -270,14 +270,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-table{
 				width:100%;
-				min-width:980px;
+				min-width:1080px;
 				border-collapse:separate;
 				border-spacing:0;
 				background:#fff
 			}
 			.ufsc-licence-table th,
 			.ufsc-licence-table td{
-				padding:14px 16px;
+				padding:16px 16px;
 				border-bottom:1px solid #edf0f4;
 				text-align:left;
 				vertical-align:middle
@@ -295,6 +295,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				white-space:nowrap
 			}
 			.ufsc-licence-table tbody tr:nth-child(even){background:#fbfcfe}
+			.ufsc-licence-table tbody tr{transition:background .16s ease}
 			.ufsc-licence-table tbody tr:hover{background:#f1f5ff}
 			.ufsc-licence-table tbody td:first-child{font-weight:900;color:var(--ufsc-navy)}
 			.ufsc-licence-table th:nth-child(1),.ufsc-licence-table td:nth-child(1){width:15%}
@@ -305,6 +306,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-table th:nth-child(6),.ufsc-licence-table td:nth-child(6){width:11%}
 			.ufsc-licence-table th:nth-child(7),.ufsc-licence-table td:nth-child(7){width:12%}
 			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:19%}
+			.ufsc-licence-ufsc,
 			.ufsc-licence-ffst{
 				display:inline-flex;
 				align-items:center;
@@ -348,20 +350,20 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
 			.ufsc-licence-actions{
 				display:grid;
-				grid-template-columns:1fr;
+				grid-template-columns:repeat(2,minmax(96px,1fr));
 				align-items:stretch;
-				gap:7px;
-				min-width:132px;
-				max-width:168px
+				gap:8px;
+				min-width:216px;
+				max-width:248px
 			}
 			.ufsc-licence-actions .button{
 				display:inline-flex;
 				align-items:center;
 				justify-content:center;
-				gap:5px;
-				height:38px;
-				min-height:38px;
-				padding:8px 12px;
+				gap:6px;
+				height:40px;
+				min-height:40px;
+				padding:9px 13px;
 				border-radius:9px;
 				border:1px solid #d7def4;
 				background:#eef2ff;
@@ -369,6 +371,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				font-weight:800;
 				text-decoration:none
 			}
+			.ufsc-licence-actions>.ufsc-licence-badge{grid-column:1 / -1}
 			.ufsc-licence-actions .button-primary{
 				background:var(--ufsc-navy);
 				border-color:var(--ufsc-navy);
@@ -388,6 +391,15 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters{grid-template-columns:repeat(3,minmax(0,1fr))}
 				.ufsc-licence-filter-actions{grid-column:1 / -1}
 			}
+			@media(max-width:900px){
+				.ufsc-licence-table{min-width:0}
+				.ufsc-licence-table thead{display:none}
+				.ufsc-licence-table,.ufsc-licence-table tbody,.ufsc-licence-table tr,.ufsc-licence-table td{display:block;width:100%}
+				.ufsc-licence-table tr{padding:14px;border-bottom:1px solid #e4e7ec}
+				.ufsc-licence-table td{position:relative;padding:9px 10px 9px 44%;border:0;min-height:42px}
+				.ufsc-licence-table td:before{content:attr(data-label);position:absolute;left:10px;top:10px;width:40%;font-size:11px;font-weight:900;color:#667085;text-transform:uppercase;letter-spacing:.03em}
+				.ufsc-licence-actions{max-width:none;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr))}
+			}
 			@media(max-width:782px){
 				.ufsc-licence-stats{grid-template-columns:1fr}
 				.ufsc-licence-filters{grid-template-columns:1fr;padding:14px}
@@ -396,7 +408,6 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filters select,
 				.ufsc-licence-filters button,
 				.ufsc-licence-filters .button{width:100%;min-height:46px}
-				.ufsc-licence-table{min-width:900px}
 				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column;padding-top:0}
 				.ufsc-licence-filter-actions button,
 				.ufsc-licence-filter-actions .button{width:100%}
@@ -462,7 +473,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 
 			<div>
 				<label for="ufsc-licence-search"><?php esc_html_e( 'Recherche', 'ufsc-licence-competition' ); ?></label>
-				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom ou N° FFST', 'ufsc-licence-competition' ); ?>" />
+				<input type="text" id="ufsc-licence-search" name="ufsc_q" value="<?php echo esc_attr( $filters['q'] ); ?>" placeholder="<?php esc_attr_e( 'Nom, prénom, N° UFSC ou N° FFST', 'ufsc-licence-competition' ); ?>" />
 			</div>
 
 			<div>
@@ -578,6 +589,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 						<th><?php esc_html_e( 'Statut', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'Saison', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'Catégorie', 'ufsc-licence-competition' ); ?></th>
+						<th><?php esc_html_e( 'N° UFSC', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'N° FFST', 'ufsc-licence-competition' ); ?></th>
 						<th><?php esc_html_e( 'PDF', 'ufsc-licence-competition' ); ?></th>
 					</tr>
@@ -585,14 +597,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 				<tbody>
 					<?php if ( empty( $items ) ) : ?>
 						<tr>
-							<td colspan="8">
+							<td colspan="9">
 								<?php
 								if ( 'previous' === $filters['season'] ) {
 									esc_html_e( 'Aucune licence historique trouvée pour ces filtres.', 'ufsc-licence-competition' );
 								} elseif ( 'unspecified' === $filters['season'] ) {
 									esc_html_e( 'Aucune licence sans saison trouvée pour ces filtres.', 'ufsc-licence-competition' );
 								} elseif ( '' !== trim( (string) ( $filters['q'] ?? '' ) ) ) {
-									esc_html_e( 'Aucune licence trouvée pour cette recherche. Vérifiez le nom, le prénom ou le N° FFST saisi.', 'ufsc-licence-competition' );
+									esc_html_e( 'Aucune licence trouvée pour cette recherche. Vérifiez le nom, le prénom, le N° UFSC ou le N° FFST saisi.', 'ufsc-licence-competition' );
 								} elseif ( 'all' !== $filters['season'] && '' === $filters['statut'] && '' === $filters['categorie'] && '' === $filters['competition'] && '' === $filters['pdf'] ) {
 									esc_html_e( 'Aucune licence enregistrée pour cette saison.', 'ufsc-licence-competition' );
 								} else {
@@ -619,24 +631,25 @@ class UFSC_LC_Club_Licences_Shortcode {
 							}
 							?>
 							<tr>
-								<td><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Nom', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $nom_affiche ? $nom_affiche : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Prénom', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( $item->prenom ?? __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Date de naissance', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $birthdate ? $birthdate : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'Statut', 'ufsc-licence-competition' ); ?>">
 									<?php $status_key = sanitize_html_class( strtolower( (string) ( $item->statut ?? '' ) ) ); ?>
 									<span class="ufsc-licence-status ufsc-licence-status--<?php echo esc_attr( $status_key ); ?>">
 										<?php echo esc_html( $item->statut ?? __( '—', 'ufsc-licence-competition' ) ); ?>
 									</span>
 								</td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Saison', 'ufsc-licence-competition' ); ?>">
 									<?php echo esc_html( $item_season_label ); ?>
 									<?php if ( $is_archived ) : ?>
 										<span class="ufsc-licence-badge ufsc-licence-badge--archived"><?php esc_html_e( 'Saison archivée', 'ufsc-licence-competition' ); ?></span>
 									<?php endif; ?>
 								</td>
-								<td><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
-								<td><span class="ufsc-licence-ffst"><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></span></td>
-								<td>
+								<td data-label="<?php esc_attr_e( 'Catégorie', 'ufsc-licence-competition' ); ?>"><?php echo esc_html( '' !== $category ? $category : __( '—', 'ufsc-licence-competition' ) ); ?></td>
+								<td data-label="<?php esc_attr_e( 'N° UFSC', 'ufsc-licence-competition' ); ?>"><span class="ufsc-licence-ufsc"><?php echo esc_html( $item->ufsc_number ?? $item->id ); ?></span></td>
+								<td data-label="<?php esc_attr_e( 'N° FFST', 'ufsc-licence-competition' ); ?>"><span class="ufsc-licence-ffst"><?php echo esc_html( $this->get_ffst_display_number( $item ) ); ?></span></td>
+								<td data-label="<?php esc_attr_e( 'PDF', 'ufsc-licence-competition' ); ?>">
 									<?php if ( $pdf_attachment_id ) : ?>
 										<div class="ufsc-licence-actions">
 											<span class="ufsc-licence-badge"><?php esc_html_e( 'Généré', 'ufsc-licence-competition' ); ?></span>
@@ -1023,6 +1036,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$nom_affiche_sql,
 				$has_prenom,
 				$ffst_column,
+				$ufsc_number_sql,
 				$has_doc_source_number,
 				$can_join_docs,
 				$params
@@ -1193,6 +1207,9 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$select_document_columns = 'NULL AS date_asptt, NULL AS attachment_id';
 		$document_params         = array();
 		$ffst_number_sql         = $this->get_ffst_number_sql( 'l' );
+		$ufsc_number_sql         = in_array( 'numero_licence_ufsc', $columns, true )
+			? "COALESCE(NULLIF(l.numero_licence_ufsc,''), CAST(l.id AS CHAR))"
+			: 'CAST(l.id AS CHAR)';
 
 		$prenom_select      = $has_prenom ? 'l.prenom' : 'NULL AS prenom';
 		$birthdate_select   = $has_birthdate ? 'l.date_naissance' : 'NULL AS date_naissance';
@@ -1234,6 +1251,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$nom_affiche_sql,
 				$has_prenom,
 				$ffst_column,
+				$ufsc_number_sql,
 				false,
 				false,
 				$params
@@ -1289,6 +1307,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			{$category_select},
 			{$season_end_year_sql},
 			{$competition_select},
+			{$ufsc_number_sql} AS ufsc_number,
 			{$ffst_number_sql} AS ffst_number,
 			{$select_document_columns}
 			FROM {$licences_table} l
@@ -1966,7 +1985,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return strtolower( $value );
 	}
 
-	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, string $ffst_column, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
+	private function build_search_clause( string $term, string $nom_affiche_sql, bool $has_prenom, string $ffst_column, string $ufsc_number_sql, bool $has_doc_source_number, bool $can_join_docs, array &$params ): string {
 		global $wpdb;
 
 		$term = trim( $term );
@@ -2008,6 +2027,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 				$search_clauses[] = "LOWER(l.{$ffst_column}) LIKE %s";
 				$params[]         = $like_normalized;
 			}
+		}
+
+		if ( '' !== $ufsc_number_sql ) {
+			$search_clauses[] = "{$ufsc_number_sql} LIKE %s";
+			$params[]         = $like;
 		}
 
 		if ( $can_join_docs && $has_doc_source_number ) {

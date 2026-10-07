@@ -57,8 +57,17 @@ if ( false === strpos( $licences, 'ufsc-licence-ffst' ) ) {
 	$errors[] = 'FFST number must keep its dedicated visual treatment';
 }
 
-if ( false === strpos( $licences, 'Nom, prénom ou N° FFST' ) ) {
-	$errors[] = 'FFST-aware search placeholder must remain explicit';
+if ( false === strpos( $licences, 'Nom, prénom, N° UFSC ou N° FFST' ) ) {
+	$errors[] = 'UFSC/FFST-aware search placeholder must remain explicit';
+}
+if ( false === strpos( $licences, 'ufsc-licence-ufsc' ) ) {
+	$errors[] = 'UFSC number must have a dedicated visual treatment';
+}
+if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(96px,1fr))' ) ) {
+	$errors[] = 'PDF actions must use a balanced two-column desktop layout';
+}
+if ( false === strpos( $licences, 'content:attr(data-label)' ) ) {
+	$errors[] = 'licence table must switch to labelled responsive cards on smaller screens';
 }
 
 if ( false === strpos( $licences, 'ufsc_lc_generate_club_pdf' ) ) {
