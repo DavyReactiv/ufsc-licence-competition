@@ -382,7 +382,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$address           = trim( (string) ( $licence->adresse ?? '' ) );
 		$postal_code       = trim( (string) ( $licence->code_postal ?? '' ) );
 		$city              = trim( (string) ( $licence->ville ?? '' ) );
-		$discipline        = trim( (string) ( $licence->activite ?? ( $licence->discipline ?? '' ) ) );
+		$discipline        = self::resolve_discipline( $licence_id, $licence );
 		$ffst_references   = self::first_non_empty_meta( $licence_id, array( 'ffst_references', 'ffst_reference_codes' ) );
 		$ffst_issued_at    = self::first_non_empty_meta( $licence_id, array( 'ffst_issued_at', 'ffst_delivery_date' ) );
 		$source_club_code  = self::first_non_empty_meta( $licence_id, array( 'ffst_club_code', 'source_club_code' ) );
@@ -814,6 +814,43 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		}
 		return '';
 	}
+
+
+	/**
+	 * Resolve the licence discipline from UFSC Gestion and compatible imports.
+	 * Never invent a discipline when the source contains no usable value.
+	 */
+	private static function resolve_discipline( $licence_id, $licence ) {
+		foreach ( array(
+			'discipline',
+			'activite',
+			'discipline_principale',
+			'discipline_sportive',
+			'activite_principale',
+			'pratique',
+			'sport',
+			'specialite',
+		) as $field ) {
+			if ( isset( $licence->{$field} ) && '' !== trim( (string) $licence->{$field} ) ) {
+				return trim( (string) $licence->{$field} );
+			}
+		}
+
+		$meta = self::first_non_empty_meta(
+			$licence_id,
+			array(
+				'discipline',
+				'discipline_principale',
+				'discipline_sportive',
+				'activite',
+				'ffst_discipline',
+				'source_discipline',
+			)
+		);
+
+		return trim( (string) $meta );
+	}
+
 
 	private static function resolve_ffst_license_number( $licence ) {
 		foreach ( array( 'numero_licence_ffst', 'licence_ffst', 'ffst_number', 'numero_ffst' ) as $field ) {
