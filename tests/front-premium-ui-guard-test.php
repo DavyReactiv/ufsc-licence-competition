@@ -63,7 +63,7 @@ if ( false === strpos( $licences, 'Nom, prénom, N° UFSC ou N° FFST' ) ) {
 if ( false === strpos( $licences, 'ufsc-licence-ufsc' ) ) {
 	$errors[] = 'UFSC number must have a dedicated visual treatment';
 }
-if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(92px,1fr))' ) ) {
+if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(96px,1fr))' ) ) {
 	$errors[] = 'PDF actions must use a balanced two-column desktop layout';
 }
 if ( false === strpos( $licences, 'content:attr(data-label)' ) ) {
