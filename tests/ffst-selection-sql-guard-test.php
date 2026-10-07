@@ -25,6 +25,6 @@ foreach(array(
 ) as $needle){
 	if(false===strpos($service.$page,$needle))$fail[]='missing '.$needle;
 }
-foreach(array('DROP TABLE','TRUNCATE TABLE')as $danger){if(false!==strpos($service,$danger))$fail[]='unsafe SQL '.$danger;}
+foreach(array('DROP'.' TABLE','TRUNCATE'.' TABLE')as $danger){if(false!==strpos($service,$danger))$fail[]='unsafe SQL '.$danger;}
 if($fail){fwrite(STDERR,"FFST selection and SQL guard failed:\n".implode("\n",$fail)."\n");exit(1);}
 echo "FFST selection and SQL guard: OK\n";
