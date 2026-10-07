@@ -8,6 +8,7 @@ class UFSC_LC_FFST_Import_Page {
 		add_action('admin_menu',array($this,'register_menu'),35);
 		add_action('admin_post_ufsc_lc_ffst_stage',array($this,'handle_stage'));
 		add_action('admin_post_ufsc_lc_ffst_apply',array($this,'handle_apply'));
+		add_action('admin_post_ufsc_lc_ffst_assign',array($this,'handle_assign'));
 	}
 
 	public function register_menu(){
@@ -35,13 +36,26 @@ class UFSC_LC_FFST_Import_Page {
 	}
 
 	public function handle_apply(){
-		if(!UFSC_LC_Capabilities::user_can_import()) wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
+		if(!UFSC_LC_Capabilities::user_can_import())wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
 		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
 		check_admin_referer('ufsc_lc_ffst_apply_'.$batch_id,'ufsc_lc_ffst_apply_nonce');
+		$selected=isset($_POST['ffst_selected'])&&is_array($_POST['ffst_selected'])?array_map('absint',wp_unslash($_POST['ffst_selected'])):array();
 		$service=new UFSC_LC_FFST_Import_Service();
-		$result=$service->apply_batch($batch_id);
-		if(is_wp_error($result)) $this->redirect_notice('error',$result->get_error_message(),$batch_id);
+		$result=$service->apply_selected_rows($batch_id,$selected);
+		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
 		$this->redirect_notice('success',sprintf(_n('%d licence FFST synchronisée.','%d licences FFST synchronisées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
+	}
+
+	public function handle_assign(){
+		if(!UFSC_LC_Capabilities::user_can_import())wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
+		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
+		$row_id=isset($_POST['row_id'])?absint($_POST['row_id']):0;
+		$licence_id=isset($_POST['licence_id'])?absint($_POST['licence_id']):0;
+		check_admin_referer('ufsc_lc_ffst_assign_'.$batch_id.'_'.$row_id,'ufsc_lc_ffst_assign_nonce');
+		$service=new UFSC_LC_FFST_Import_Service();
+		$result=$service->assign_review_candidate($batch_id,$row_id,$licence_id);
+		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+		$this->redirect_notice('success',__('Rapprochement contrôlé enregistré. Sélectionnez ensuite la ligne pour confirmer sa synchronisation.','ufsc-licence-competition'),$batch_id);
 	}
 
 	public function render(){
@@ -62,6 +76,7 @@ class UFSC_LC_FFST_Import_Page {
 			$rows=$batch?$service->get_batch_rows($batch_id,$per_page,$offset):array();
 		}
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
+		$duplicates=$batch?$service->audit_batch($batch_id):array();
 		$season=$this->active_season_end_year();
 		?>
 		<div class="wrap ufsc-lc-admin">
@@ -99,8 +114,8 @@ class UFSC_LC_FFST_Import_Page {
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
 					</p>
 					<style>
-						.ufsc-lc-ffst-import-grid{min-width:1150px;font-size:12px}
-						.ufsc-lc-ffst-import-record{display:grid!important;grid-template-columns:45px 105px 135px 110px 100px minmax(150px,1.4fr) 110px 110px minmax(180px,1.4fr);align-items:start;visibility:visible!important;opacity:1!important;height:auto!important;min-height:42px;position:relative;box-sizing:border-box;border-bottom:1px solid #dcdcde;background:#fff}
+						.ufsc-lc-ffst-import-grid{min-width:1330px;font-size:12px}
+						.ufsc-lc-ffst-import-record{display:grid!important;grid-template-columns:36px 40px 105px 130px 95px 100px minmax(145px,1.3fr) 110px 110px minmax(170px,1.3fr) 200px;align-items:start;visibility:visible!important;opacity:1!important;height:auto!important;min-height:42px;position:relative;box-sizing:border-box;border-bottom:1px solid #dcdcde;background:#fff}
 						.ufsc-lc-ffst-import-record:nth-of-type(even){background:#f6f7f7}
 						.ufsc-lc-ffst-import-record>div{padding:11px 9px;word-break:break-word}
 						.ufsc-lc-ffst-import-header{font-weight:700;background:#f0f0f1!important;border-bottom:2px solid #c3c4c7}
@@ -112,20 +127,30 @@ class UFSC_LC_FFST_Import_Page {
 					<p class="description">
 						<?php echo esc_html(sprintf(__('Lignes stockées : %1$d — affichage %2$d à %3$d (page %4$d sur %5$d).','ufsc-licence-competition'),(int)$actual_rows,$actual_rows?$offset+1:0,min($actual_rows,$offset+count($rows)),$current_page,$pages)); ?>
 					</p>
+					<form id="ufsc-lc-ffst-selection" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+						<input type="hidden" name="action" value="ufsc_lc_ffst_apply">
+						<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
+						<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch_id,'ufsc_lc_ffst_apply_nonce'); ?>
+					</form>
 					<div style="overflow-x:auto;max-height:600px;overflow-y:auto">
 						<div class="ufsc-lc-ffst-import-grid" role="table" aria-label="<?php esc_attr_e('Prévisualisation des licences FFST','ufsc-licence-competition'); ?>">
 							<div class="ufsc-lc-ffst-import-record ufsc-lc-ffst-import-header" role="row">
-								<div role="columnheader">#</div><div role="columnheader"><?php esc_html_e('N° FFST','ufsc-licence-competition'); ?></div>
+								<div role="columnheader"><?php esc_html_e('Choix','ufsc-licence-competition'); ?></div><div role="columnheader">#</div><div role="columnheader"><?php esc_html_e('N° FFST','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Nom','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Prénom','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Naissance','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Club','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('Licence UFSC','ufsc-licence-competition'); ?></div>
 								<div role="columnheader"><?php esc_html_e('État','ufsc-licence-competition'); ?></div>
-								<div role="columnheader"><?php esc_html_e('Contrôle','ufsc-licence-competition'); ?></div>
+								<div role="columnheader"><?php esc_html_e('Contrôle','ufsc-licence-competition'); ?></div><div role="columnheader"><?php esc_html_e('Rapprochement','ufsc-licence-competition'); ?></div>
 							</div>
 							<?php foreach($rows as $row): ?>
 								<div class="ufsc-lc-ffst-import-record" role="row" data-ffst-row="<?php echo esc_attr(absint($row->row_index)); ?>">
+									<div role="cell">
+										<?php if('matched'===$row->match_status && !isset($duplicates[absint($row->id)]) && $counts_consistent && 'preview'===$batch->status): ?>
+											<input aria-label="<?php echo esc_attr(sprintf(__('Sélectionner la ligne %d','ufsc-licence-competition'),$row->row_index)); ?>" type="checkbox" form="ufsc-lc-ffst-selection" name="ffst_selected[]" value="<?php echo esc_attr($row->id); ?>">
+										<?php endif; ?>
+									</div>
 									<div role="cell"><?php echo esc_html($row->row_index); ?></div>
 									<div role="cell"><strong><?php echo esc_html($row->ffst_number?:'—'); ?></strong></div>
 									<div role="cell"><?php echo esc_html($row->last_name?:'—'); ?></div>
@@ -133,8 +158,36 @@ class UFSC_LC_FFST_Import_Page {
 									<div role="cell"><?php echo esc_html($row->birthdate?:'—'); ?></div>
 									<div role="cell"><?php echo esc_html($row->club_name?:'—'); ?></div>
 									<div role="cell"><?php echo $row->match_licence_id?esc_html('#'.(int)$row->match_licence_id):'—'; ?></div>
-									<div role="cell"><?php echo $this->status_badge($row->match_status); ?></div>
-									<div role="cell"><?php echo esc_html($row->match_message); ?></div>
+									<div role="cell"><?php echo isset($duplicates[absint($row->id)])?'<strong style="color:#a00">Doublon</strong>':$this->status_badge($row->match_status); ?></div>
+									<div role="cell"><?php echo esc_html(isset($duplicates[absint($row->id)])?$duplicates[absint($row->id)]:$row->match_message); ?></div>
+									<div role="cell">
+										<?php if('applied'===$row->match_status): ?>
+											<strong><?php esc_html_e('Déjà synchronisée','ufsc-licence-competition'); ?></strong>
+										<?php elseif(isset($duplicates[absint($row->id)])): ?>
+											<strong><?php esc_html_e('Bloqué : doublon','ufsc-licence-competition'); ?></strong>
+										<?php elseif('matched'===$row->match_status): ?>
+											<strong><?php esc_html_e('Prête à valider','ufsc-licence-competition'); ?></strong>
+										<?php else: ?>
+											<?php $candidates=$service->get_review_candidates($row->id,$batch_id,20); ?>
+											<?php if($candidates && 'preview'===$batch->status): ?>
+												<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+													<input type="hidden" name="action" value="ufsc_lc_ffst_assign">
+													<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
+													<input type="hidden" name="row_id" value="<?php echo esc_attr($row->id); ?>">
+													<?php wp_nonce_field('ufsc_lc_ffst_assign_'.$batch_id.'_'.$row->id,'ufsc_lc_ffst_assign_nonce'); ?>
+													<select name="licence_id" required aria-label="<?php esc_attr_e('Sélectionner une licence UFSC vérifiée','ufsc-licence-competition'); ?>">
+														<option value=""><?php esc_html_e('Choisir un dossier','ufsc-licence-competition'); ?></option>
+														<?php foreach($candidates as $candidate): ?>
+															<option value="<?php echo esc_attr($candidate->id); ?>"><?php echo esc_html('#'.$candidate->id.' — '.$candidate->club_name); ?></option>
+														<?php endforeach; ?>
+													</select>
+													<button class="button button-small" type="submit"><?php esc_html_e('Associer','ufsc-licence-competition'); ?></button>
+												</form>
+											<?php else: ?>
+												<?php esc_html_e('Contrôle manuel requis : aucune correspondance sûre','ufsc-licence-competition'); ?>
+											<?php endif; ?>
+										<?php endif; ?>
+									</div>
 								</div>
 							<?php endforeach; ?>
 						</div>
@@ -146,13 +199,11 @@ class UFSC_LC_FFST_Import_Page {
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
-					<?php if($counts_consistent && 'applied'!==$batch->status && (int)$batch->matched_rows>0): ?>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:18px">
-							<input type="hidden" name="action" value="ufsc_lc_ffst_apply"><input type="hidden" name="batch_id" value="<?php echo esc_attr($batch->id); ?>">
-							<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch->id,'ufsc_lc_ffst_apply_nonce'); ?>
-							<?php submit_button(__('Appliquer uniquement les lignes sûres','ufsc-licence-competition'),'primary','submit',false,array('onclick'=>"return confirm('Confirmer la synchronisation des lignes trouvées sans ambiguïté ?');")); ?>
-							<p class="description"><?php esc_html_e('Les lignes ambiguës, introuvables ou en conflit restent inchangées. La génération PDF V12 est déclenchée après chaque synchronisation validée.','ufsc-licence-competition'); ?></p>
-						</form>
+					<?php if($counts_consistent && 'preview'===$batch->status && (int)$batch->matched_rows>0): ?>
+						<div style="margin-top:18px">
+							<button form="ufsc-lc-ffst-selection" class="button button-primary" type="submit" onclick="return confirm('Confirmer uniquement les lignes cochées ? Les doublons et associations non vérifiées sont bloqués.');"><?php esc_html_e('Valider les lignes sélectionnées','ufsc-licence-competition'); ?></button>
+							<p class="description"><?php esc_html_e('Cochez les lignes sûres sur cette page (100 maximum). Aucune sélection = aucune écriture. Les pages suivantes se traitent séparément.','ufsc-licence-competition'); ?></p>
+						</div>
 					<?php elseif('applied'===$batch->status): ?>
 						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) appliquée(s).','ufsc-licence-competition'),$batch->applied_rows)); ?></p></div>
 					<?php endif; ?>
