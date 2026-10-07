@@ -55,6 +55,8 @@ jobs:
         run: php tests/ffst-import-v2-safety-guard-test.php
       - name: FFST season and staging integrity guard
         run: php tests/ffst-season-integrity-guard-test.php
+      - name: FFST staging first-row visibility and pagination
+        run: php tests/ffst-staging-visibility-guard-test.php
       - name: Self-contained Dompdf distribution guard
         run: php tests/self-contained-dompdf-distribution-guard-test.php
       - name: Premium front UI guard
