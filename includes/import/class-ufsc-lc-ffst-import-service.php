@@ -88,51 +88,227 @@ class UFSC_LC_FFST_Import_Service {
 	}
 
 	public function apply_batch($batch_id){
-		global $wpdb; $batch_id=absint($batch_id); $batch=$this->get_batch($batch_id);
-		if(!$batch) return new WP_Error('ffst_batch_missing',__('Lot introuvable.','ufsc-licence-competition'));
-		if('applied'===$batch->status) return new WP_Error('ffst_batch_applied',__('Ce lot est déjà appliqué.','ufsc-licence-competition'));
+		// Legacy API remains available, but no longer means "apply every match".
+		return new WP_Error('ffst_explicit_selection_required',__('Sélectionnez explicitement les licences à rapprocher avant validation.','ufsc-licence-competition'));
+	}
+
+	/**
+	 * Duplicate numbers or destinations inside the current upload must be
+	 * reviewed, even if two lines otherwise match the same person.
+	 */
+	public function get_duplicate_flags($batch_id){
+		global $wpdb;
+		$rows=$this->rows_table();
+		$numbers=$wpdb->get_results($wpdb->prepare(
+			"SELECT UPPER(TRIM(ffst_number)) AS duplicate_key, COUNT(*) AS qty FROM {$rows}
+			 WHERE batch_id=%d AND ffst_number IS NOT NULL AND TRIM(ffst_number)<>'' 
+			 GROUP BY UPPER(TRIM(ffst_number)) HAVING COUNT(*)>1",
+			absint($batch_id)
+		),ARRAY_A);
+		$targets=$wpdb->get_results($wpdb->prepare(
+			"SELECT match_licence_id AS duplicate_key, COUNT(*) AS qty FROM {$rows}
+			 WHERE batch_id=%d AND match_licence_id IS NOT NULL AND match_licence_id>0
+			 GROUP BY match_licence_id HAVING COUNT(*)>1",
+			absint($batch_id)
+		),ARRAY_A);
+		$result=array('numbers'=>array(),'targets'=>array());
+		foreach((array)$numbers as $row)$result['numbers'][(string)$row['duplicate_key']]=true;
+		foreach((array)$targets as $row)$result['targets'][(int)$row['duplicate_key']]=true;
+		return $result;
+	}
+
+	/** Read-only search for matching UFSC Gestion rows; limited to exact identity. */
+	public function get_candidates_for_row($batch_id,$row_id){
+		global $wpdb;
+		$row=$this->get_row_in_batch($batch_id,$row_id);
+		if(!$row)return array();
+		if(!$row->last_name||!$row->first_name||!$row->birthdate||'0000-00-00'===$row->birthdate)return array();
 		$lt=$wpdb->prefix.'ufsc_licences';
-		if(!$this->column_exists($lt,'numero_licence_ffst')) return new WP_Error('ffst_column_missing',__('Le champ numero_licence_ffst manque dans UFSC Gestion. Aucune donnée modifiée.','ufsc-licence-competition'));
-		$rows=$wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY row_index",$batch_id,self::MATCHED));
-		if(!$rows) return new WP_Error('ffst_no_safe_rows',__('Aucune ligne sûre à appliquer.','ufsc-licence-competition'));
+		$ct=$wpdb->prefix.'ufsc_clubs';
+		$last_col=$this->column_exists($lt,'nom')?'l.nom':'l.nom_licence';
+		$club_col=$this->column_exists($ct,'nom')?'c.nom':'c.name';
+		$has_ffst=$this->column_exists($lt,'numero_licence_ffst');
+		$fields="l.id,{$last_col} AS nom,l.prenom,l.date_naissance,l.club_id,{$club_col} AS club_name";
+		$fields.=$has_ffst?",l.numero_licence_ffst":" ,'' AS numero_licence_ffst";
+		if($this->column_exists($lt,'season_end_year'))$fields.=',l.season_end_year';
+		if($this->column_exists($lt,'saison'))$fields.=',l.saison';
+		elseif($this->column_exists($lt,'season'))$fields.=',l.season';
+		$sql="SELECT {$fields} FROM {$lt} l LEFT JOIN {$ct} c ON c.id=l.club_id
+			WHERE UPPER(TRIM({$last_col}))=%s AND UPPER(TRIM(l.prenom))=%s AND l.date_naissance=%s ORDER BY l.id DESC LIMIT 50";
+		return (array)$wpdb->get_results($wpdb->prepare(
+			$sql,
+			$this->norm($row->last_name),$this->norm($row->first_name),$row->birthdate
+		));
+	}
 
-		// Preflight everything before the first write. This also protects hosts
-		// where the master table does not support SQL transactions.
-		$plan=array();
-		foreach($rows as $row){
-			$id=absint($row->match_licence_id); $incoming=trim((string)$row->ffst_number);
-			$current=trim((string)$wpdb->get_var($wpdb->prepare("SELECT numero_licence_ffst FROM {$lt} WHERE id=%d LIMIT 1",$id)));
-			if(''===$incoming || (''!==$current && 0!==strcasecmp($current,$incoming))){
-				return new WP_Error('ffst_concurrent_conflict',sprintf(__('Conflit détecté sur la licence #%d. Aucune donnée n’a été modifiée.','ufsc-licence-competition'),$id));
-			}
-			$plan[]=array('row'=>$row,'licence_id'=>$id,'current'=>$current,'incoming'=>$incoming);
+	public function get_row_in_batch($batch_id,$row_id){
+		global $wpdb;
+		return $wpdb->get_row($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND id=%d LIMIT 1",
+			absint($batch_id),absint($row_id)
+		));
+	}
+
+	/** Review a candidate in staging without touching UFSC Gestion. */
+	public function confirm_row_match($batch_id,$row_id,$licence_id){
+		global $wpdb;
+		$batch=$this->get_batch($batch_id);
+		$row=$this->get_row_in_batch($batch_id,$row_id);
+		if(!$batch||!$row||'applied'===$row->match_status)return new WP_Error('ffst_review_unavailable',__('Cette ligne ne peut plus être rapprochée.','ufsc-licence-competition'));
+		if(!in_array($batch->status,array('preview','partial'),true))return new WP_Error('ffst_review_batch_locked',__('Le lot est clôturé.','ufsc-licence-competition'));
+		$chosen=null;
+		foreach($this->get_candidates_for_row($batch_id,$row_id) as $candidate){
+			if((int)$candidate->id===(int)$licence_id){$chosen=$candidate;break;}
 		}
+		if(!$chosen)return new WP_Error('ffst_invalid_candidate',__('La fiche choisie ne correspond pas strictement à l’identité et à la naissance du PDF.','ufsc-licence-competition'));
+		$existing=trim((string)$chosen->numero_licence_ffst);
+		if(''===$row->ffst_number || (''!==$existing && 0!==strcasecmp($existing,(string)$row->ffst_number)))
+			return new WP_Error('ffst_review_conflict',__('Cette fiche possède déjà un N° FFST différent ou le numéro source manque.','ufsc-licence-competition'));
+		if(!$this->candidate_season_matches($chosen,(int)$batch->season_end_year))
+			return new WP_Error('ffst_review_wrong_season',__('La fiche choisie n’appartient pas à la saison du lot.','ufsc-licence-competition'));
+		if($row->club_name && $this->norm($row->club_name)!==$this->norm($chosen->club_name))
+			return new WP_Error('ffst_review_wrong_club',__('Le club de la fiche choisie diffère du club FFST.','ufsc-licence-competition'));
+		$other=$wpdb->get_var($wpdb->prepare(
+			"SELECT id FROM {$this->rows_table()} WHERE batch_id=%d AND id<>%d AND match_licence_id=%d LIMIT 1",
+			absint($batch_id),absint($row_id),absint($licence_id)
+		));
+		if($other)return new WP_Error('ffst_review_duplicate_target',__('Une autre ligne du lot utilise déjà cette licence UFSC.','ufsc-licence-competition'));
+		$ok=$wpdb->update($this->rows_table(),array(
+			'match_status'=>self::MATCHED,
+			'match_licence_id'=>absint($licence_id),
+			'match_message'=>__('Correspondance choisie et contrôlée manuellement : identité, naissance, saison et club.','ufsc-licence-competition'),
+			'previous_ffst_number'=>$existing,
+		),array('id'=>absint($row_id),'batch_id'=>absint($batch_id)),array('%s','%d','%s','%s'),array('%d','%d'));
+		if(false===$ok)return new WP_Error('ffst_review_save_failed',__('Impossible d’enregistrer le rapprochement.','ufsc-licence-competition'));
+		$this->refresh_batch_counts($batch_id);
+		return true;
+	}
 
-		$tx=false!==$wpdb->query('START TRANSACTION'); $changed=array(); $now=current_time('mysql');
-		foreach($plan as $item){
-			if(''===$item['current']){
-				$result=$wpdb->update($lt,array('numero_licence_ffst'=>$item['incoming']),array('id'=>$item['licence_id']),array('%s'),array('%d'));
-				if(false===$result){
-					if($tx){$wpdb->query('ROLLBACK');}
-					else{foreach(array_reverse($changed) as $done){$wpdb->update($lt,array('numero_licence_ffst'=>$done['previous']),array('id'=>$done['id']),array('%s'),array('%d'));}}
-					return new WP_Error('ffst_update_failed',__('Échec de mise à jour FFST. Les écritures déjà effectuées ont été annulées.','ufsc-licence-competition'));
+	private function candidate_season_matches($candidate,$season_end){
+		if(!$season_end)return false;
+		if(isset($candidate->season_end_year) && (int)$candidate->season_end_year===$season_end)return true;
+		$value='';
+		if(isset($candidate->saison))$value=trim((string)$candidate->saison);
+		elseif(isset($candidate->season))$value=trim((string)$candidate->season);
+		if(''===$value){
+			// No observable season is unsafe for manual reassignment.
+			return false;
+		}
+		return in_array($value,array((string)$season_end,($season_end-1).'-'.$season_end,($season_end-1).'/'.$season_end),true);
+	}
+
+	private function refresh_batch_counts($batch_id){
+		global $wpdb;
+		$counts=$wpdb->get_results($wpdb->prepare(
+			"SELECT match_status,COUNT(*) qty FROM {$this->rows_table()} WHERE batch_id=%d GROUP BY match_status",
+			absint($batch_id)
+		),ARRAY_A);
+		$totals=array('matched'=>0,'ambiguous'=>0,'conflict'=>0,'not_found'=>0,'applied'=>0);
+		foreach((array)$counts as $item){
+			if(isset($totals[$item['match_status']]))$totals[$item['match_status']]+=(int)$item['qty'];
+		}
+		$wpdb->update($this->batches_table(),array(
+			'matched_rows'=>$totals['matched'],'ambiguous_rows'=>$totals['ambiguous'],
+			'conflict_rows'=>$totals['conflict'],'not_found_rows'=>$totals['not_found'],
+			'applied_rows'=>$totals['applied']
+		),array('id'=>absint($batch_id)),array('%d','%d','%d','%d','%d'),array('%d'));
+	}
+
+	/** Only checked, safe, non-duplicate rows can change the master database. */
+	public function apply_selected_rows($batch_id,array $selected_ids){
+		global $wpdb;
+		$batch_id=absint($batch_id);
+		$batch=$this->get_batch($batch_id);
+		if(!$batch||!in_array($batch->status,array('preview','partial'),true))
+			return new WP_Error('ffst_batch_locked',__('Lot introuvable ou déjà clôturé.','ufsc-licence-competition'));
+		$ids=array_values(array_unique(array_filter(array_map('absint',$selected_ids))));
+		if(!$ids||count($ids)>100)
+			return new WP_Error('ffst_selection_invalid',__('Sélectionnez entre 1 et 100 lignes par opération.','ufsc-licence-competition'));
+		$lt=$wpdb->prefix.'ufsc_licences';
+		if(!$this->column_exists($lt,'numero_licence_ffst'))
+			return new WP_Error('ffst_column_missing',__('Le champ canonique FFST manque dans UFSC Gestion. Aucune modification.','ufsc-licence-competition'));
+
+		$lock_key='ufsc_lc_ffst_batch_'.$batch_id;
+		$acquired=$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, 8)',$lock_key));
+		if((string)$acquired!=='1')return new WP_Error('ffst_import_busy',__('Un autre traitement de ce lot est déjà en cours. Réessayez.','ufsc-licence-competition'));
+		try{
+			// Re-fetch after locking, so repeat clicks cannot apply twice.
+			$batch=$this->get_batch($batch_id);
+			if(!$batch||!in_array($batch->status,array('preview','partial'),true))
+				return new WP_Error('ffst_batch_locked',__('Le lot est déjà clôturé.','ufsc-licence-competition'));
+			if($this->get_batch_row_count($batch_id)!==(int)$batch->total_rows)
+				return new WP_Error('ffst_count_mismatch',__('Le nombre de lignes du lot ne correspond pas aux données stockées.','ufsc-licence-competition'));
+			$flags=$this->get_duplicate_flags($batch_id);
+			$plan=array();
+			$seen_target=array();
+			$seen_ffst=array();
+			foreach($ids as $id){
+				$row=$this->get_row_in_batch($batch_id,$id);
+				if(!$row||self::MATCHED!==$row->match_status||!(int)$row->match_licence_id)
+					return new WP_Error('ffst_bad_selected_row',__('Une ligne sélectionnée n’est pas validée pour rapprochement. Aucune donnée modifiée.','ufsc-licence-competition'));
+				$number=strtoupper(trim((string)$row->ffst_number));
+				$target=(int)$row->match_licence_id;
+				if(''===$number||isset($flags['numbers'][$number])||isset($flags['targets'][$target])||isset($seen_target[$target])||isset($seen_ffst[$number]))
+					return new WP_Error('ffst_duplicate',__('Doublon de numéro FFST ou de licence UFSC dans le lot : validation bloquée.','ufsc-licence-competition'));
+				$seen_target[$target]=true;$seen_ffst[$number]=true;
+				$master=$wpdb->get_row($wpdb->prepare(
+					"SELECT id,numero_licence_ffst FROM {$lt} WHERE id=%d LIMIT 1",$target
+				));
+				if(!$master)return new WP_Error('ffst_master_missing',__('Une licence cible n’existe plus. Aucune modification.','ufsc-licence-competition'));
+				$current=trim((string)$master->numero_licence_ffst);
+				if(''!==$current && 0!==strcasecmp($current,$number))
+					return new WP_Error('ffst_number_conflict',__('Une licence UFSC porte déjà un autre numéro FFST.','ufsc-licence-competition'));
+				$other=$wpdb->get_var($wpdb->prepare(
+					"SELECT id FROM {$lt} WHERE UPPER(TRIM(numero_licence_ffst))=%s AND id<>%d LIMIT 1",$number,$target
+				));
+				if($other)return new WP_Error('ffst_number_owned',__('Ce numéro FFST est déjà rattaché à une autre licence UFSC.','ufsc-licence-competition'));
+				$plan[]=array('row'=>$row,'target'=>$target,'number'=>$number,'previous'=>$current);
+			}
+			$transaction=false!==$wpdb->query('START TRANSACTION');
+			$changed=array();
+			foreach($plan as $item){
+				if(''===$item['previous']){
+					// Conditional update prevents overwriting a concurrent change.
+					$result=$wpdb->query($wpdb->prepare(
+						"UPDATE {$lt} SET numero_licence_ffst=%s WHERE id=%d AND (numero_licence_ffst IS NULL OR numero_licence_ffst='')",
+						$item['number'],$item['target']
+					));
+					if(1!==(int)$result){
+						if($transaction)$wpdb->query('ROLLBACK');
+						else foreach(array_reverse($changed) as $done)$wpdb->update($lt,array('numero_licence_ffst'=>$done['previous']),array('id'=>$done['target']),array('%s'),array('%d'));
+						return new WP_Error('ffst_concurrent_update',__('Modification concurrente détectée : import interrompu. Contrôlez les fiches avant de réessayer.','ufsc-licence-competition'));
+					}
+					$changed[]=$item;
 				}
-				$changed[]=array('id'=>$item['licence_id'],'previous'=>$item['current']);
+				$updated=$wpdb->update($this->rows_table(),array(
+					'match_status'=>self::APPLIED,'applied_at'=>current_time('mysql')
+				),array('id'=>(int)$item['row']->id,'batch_id'=>$batch_id,'match_status'=>self::MATCHED),array('%s','%s'),array('%d','%d','%s'));
+				if(1!==(int)$updated){
+					if($transaction)$wpdb->query('ROLLBACK');
+					else foreach(array_reverse($changed) as $done)$wpdb->update($lt,array('numero_licence_ffst'=>$done['previous']),array('id'=>$done['target']),array('%s'),array('%d'));
+					return new WP_Error('ffst_staging_update_failed',__('Échec de validation du staging ; vérification de la base nécessaire.','ufsc-licence-competition'));
+				}
 			}
+			if($transaction && false===$wpdb->query('COMMIT'))
+				return new WP_Error('ffst_commit_failed',__('La transaction n’a pas été confirmée ; vérifiez la base avant nouvel import.','ufsc-licence-competition'));
+			$this->refresh_batch_counts($batch_id);
+			$remaining=(int)$wpdb->get_var($wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s",
+				$batch_id,self::MATCHED
+			));
+			$wpdb->update($this->batches_table(),array(
+				'status'=>$remaining?'partial':'applied','applied_at'=>current_time('mysql')
+			),array('id'=>$batch_id),array('%s','%s'),array('%d'));
+			// The PDF hook is intentionally post-commit, never inside transaction.
+			foreach($plan as $item){
+				$this->write_pdf_meta($item['target'],$item['row']);
+				do_action('ufsc_lc_ffst_import_synced',$item['target'],'ffst-v2-'.$batch_id);
+			}
+			if(function_exists('ufsc_lc_bump_cache_version'))ufsc_lc_bump_cache_version('status',0);
+			return count($plan);
+		}finally{
+			$wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$lock_key));
 		}
-		if($tx) $wpdb->query('COMMIT');
-
-		// Add-on metadata and PDF regeneration are intentionally post-commit:
-		// they must never roll back the canonical UFSC Gestion synchronisation.
-		foreach($plan as $item){
-			$row=$item['row']; $this->write_pdf_meta($item['licence_id'],$row);
-			$wpdb->update($this->rows_table(),array('match_status'=>self::APPLIED,'applied_at'=>$now),array('id'=>absint($row->id)),array('%s','%s'),array('%d'));
-			do_action('ufsc_lc_ffst_import_synced',$item['licence_id'],'ffst-v2-'.$batch_id);
-		}
-		$applied=count($plan);
-		$wpdb->update($this->batches_table(),array('status'=>'applied','applied_rows'=>$applied,'applied_at'=>$now),array('id'=>$batch_id),array('%s','%d','%s'),array('%d'));
-		if(function_exists('ufsc_lc_bump_cache_version')) ufsc_lc_bump_cache_version('status',0);
-		return $applied;
 	}
 
 	public function get_batch($id){global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->batches_table()} WHERE id=%d LIMIT 1",absint($id)));}
