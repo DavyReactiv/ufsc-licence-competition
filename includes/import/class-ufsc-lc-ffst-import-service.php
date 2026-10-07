@@ -57,9 +57,25 @@ class UFSC_LC_FFST_Import_Service {
 				'source_code'=>$d['source_code'],'match_status'=>$m['status'],'match_licence_id'=>absint($m['licence_id']),
 				'match_message'=>$m['message'],'previous_ffst_number'=>$m['previous_ffst'],
 				'raw_payload'=>wp_json_encode($record,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
-			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
+			),array('%d','%d','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%s','%d','%s','%s','%s'));
 			if(false===$inserted){
 				return new WP_Error('ffst_stage_row_insert_failed',sprintf(__('Impossible d’enregistrer la ligne FFST #%d en prévisualisation. Aucune donnée métier n’a été modifiée.','ufsc-licence-competition'),$i));
+			}
+
+			// Protect against positional wpdb format mismatches. The old format
+			// accidentally cast match_status to 0 instead of retaining its text.
+			// Validate the persisted row before the lot can become actionable.
+			$staged=$wpdb->get_row($wpdb->prepare(
+				"SELECT id,match_status,match_licence_id,ffst_number FROM {$this->rows_table()} WHERE batch_id=%d AND row_index=%d LIMIT 1",
+				$batch_id,$i
+			));
+			if(!$staged || $staged->match_status!==$m['status']
+				|| absint($staged->match_licence_id)!==absint($m['licence_id'])
+				|| (string)$staged->ffst_number!==(string)$d['ffst_number']){
+				return new WP_Error(
+					'ffst_staging_row_verification_failed',
+					sprintf(__('La ligne FFST #%d a été enregistrée de manière incohérente. Lot bloqué sans modification des licences UFSC Gestion.','ufsc-licence-competition'),$i)
+				);
 			}
 		}
 		// Recompute counters from rows actually persisted in staging so the UI
@@ -74,16 +90,19 @@ class UFSC_LC_FFST_Import_Service {
 			$status=(string)$group['match_status'];$qty=absint($group['qty']);$actual_total+=$qty;
 			if(isset($actual[$status]))$actual[$status]+=$qty;
 		}
-		if($actual_total!==$i){
+		if($actual_total!==$i || array_sum($actual)!==$i){
 			return new WP_Error('ffst_stage_integrity_mismatch',sprintf(__('Intégrité du lot FFST impossible : %1$d ligne(s) analysée(s), %2$d enregistrée(s). Aucune donnée métier n’a été modifiée.','ufsc-licence-competition'),$i,$actual_total));
 		}
-		$wpdb->update($this->batches_table(),array(
+		$batch_updated=$wpdb->update($this->batches_table(),array(
 			'total_rows'=>$actual_total,
 			'matched_rows'=>$actual[self::MATCHED],
 			'ambiguous_rows'=>$actual[self::AMBIGUOUS],
 			'conflict_rows'=>$actual[self::CONFLICT],
 			'not_found_rows'=>$actual[self::NOT_FOUND]
 		),array('id'=>$batch_id),array('%d','%d','%d','%d','%d'),array('%d'));
+		if(false===$batch_updated){
+			return new WP_Error('ffst_batch_counter_update_failed',__('Les compteurs du lot FFST n’ont pas pu être enregistrés. Aucune licence métier modifiée.','ufsc-licence-competition'));
+		}
 		return $batch_id;
 	}
 
