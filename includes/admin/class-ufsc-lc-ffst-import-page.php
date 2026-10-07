@@ -9,6 +9,7 @@ class UFSC_LC_FFST_Import_Page {
 		add_action('admin_post_ufsc_lc_ffst_stage',array($this,'handle_stage'));
 		add_action('admin_post_ufsc_lc_ffst_apply',array($this,'handle_apply'));
 		add_action('admin_post_ufsc_lc_ffst_assign',array($this,'handle_assign'));
+		add_action('admin_post_ufsc_lc_ffst_recheck',array($this,'handle_recheck'));
 	}
 
 	public function register_menu(){
@@ -58,6 +59,16 @@ class UFSC_LC_FFST_Import_Page {
 		$this->redirect_notice('success',__('Rapprochement contrôlé enregistré. Sélectionnez ensuite la ligne pour confirmer sa synchronisation.','ufsc-licence-competition'),$batch_id);
 	}
 
+	public function handle_recheck(){
+		if(!UFSC_LC_Capabilities::user_can_import())wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
+		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
+		check_admin_referer('ufsc_lc_ffst_recheck_'.$batch_id,'ufsc_lc_ffst_recheck_nonce');
+		$service=new UFSC_LC_FFST_Import_Service();
+		$result=$service->recheck_legacy_batch($batch_id);
+		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+		$this->redirect_notice('success',sprintf(__('%d ligne(s) anciennes réexaminée(s), sans écriture dans UFSC Gestion.','ufsc-licence-competition'),(int)$result),$batch_id);
+	}
+
 	public function render(){
 		if(!UFSC_LC_Capabilities::user_can_import()) wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'));
 		$service=new UFSC_LC_FFST_Import_Service();
@@ -77,6 +88,7 @@ class UFSC_LC_FFST_Import_Page {
 		}
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
 		$duplicates=$batch?$service->audit_batch($batch_id):array();
+		$legacy_count=$batch?$service->get_legacy_status_count($batch_id):0;
 		$season=$this->active_season_end_year();
 		?>
 		<div class="wrap ufsc-lc-admin">
@@ -123,6 +135,16 @@ class UFSC_LC_FFST_Import_Page {
 					</style>
 					<?php if(!$counts_consistent): ?>
 						<div class="notice notice-error inline"><p><?php echo esc_html(sprintf(__('Attention : %1$d licences annoncées, mais %2$d lignes enregistrées. Validation désactivée jusqu’à résolution.','ufsc-licence-competition'),(int)$batch->total_rows,(int)$actual_rows)); ?></p></div>
+					<?php endif; ?>
+					<?php if($legacy_count>0 && 'preview'===$batch->status): ?>
+						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) possèdent un ancien statut technique incorrect (0). Vous pouvez recalculer leurs correspondances depuis les données déjà enregistrées, sans importer de nouveau PDF.','ufsc-licence-competition'),$legacy_count)); ?></p>
+							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+								<input type="hidden" name="action" value="ufsc_lc_ffst_recheck">
+								<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
+								<?php wp_nonce_field('ufsc_lc_ffst_recheck_'.$batch_id,'ufsc_lc_ffst_recheck_nonce'); ?>
+								<?php submit_button(__('Recalculer les rapprochements du lot','ufsc-licence-competition'),'secondary','submit',false); ?>
+							</form>
+						</div>
 					<?php endif; ?>
 					<p class="description">
 						<?php echo esc_html(sprintf(__('Lignes stockées : %1$d — affichage %2$d à %3$d (page %4$d sur %5$d).','ufsc-licence-competition'),(int)$actual_rows,$actual_rows?$offset+1:0,min($actual_rows,$offset+count($rows)),$current_page,$pages)); ?>
@@ -199,7 +221,7 @@ class UFSC_LC_FFST_Import_Page {
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
-					<?php if($counts_consistent && 'preview'===$batch->status && (int)$batch->matched_rows>0): ?>
+					<?php if($counts_consistent && 0===$legacy_count && 'preview'===$batch->status && (int)$batch->matched_rows>0): ?>
 						<div style="margin-top:18px">
 							<button form="ufsc-lc-ffst-selection" class="button button-primary" type="submit" onclick="return confirm('Confirmer uniquement les lignes cochées ? Les doublons et associations non vérifiées sont bloqués.');"><?php esc_html_e('Valider les lignes sélectionnées','ufsc-licence-competition'); ?></button>
 							<p class="description"><?php esc_html_e('Cochez les lignes sûres sur cette page (100 maximum). Aucune sélection = aucune écriture. Les pages suivantes se traitent séparément.','ufsc-licence-competition'); ?></p>
