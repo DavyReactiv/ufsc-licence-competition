@@ -9,6 +9,7 @@ class UFSC_LC_FFST_Import_Page {
 		add_action('admin_post_ufsc_lc_ffst_stage',array($this,'handle_stage'));
 		add_action('admin_post_ufsc_lc_ffst_apply',array($this,'handle_apply'));
 		add_action('admin_post_ufsc_lc_ffst_review',array($this,'handle_review'));
+		add_action('admin_post_ufsc_lc_ffst_recheck',array($this,'handle_recheck'));
 	}
 
 	public function register_menu(){
@@ -58,6 +59,16 @@ class UFSC_LC_FFST_Import_Page {
 		$this->redirect_notice('success',__('Rapprochement confirmé dans le lot. Aucune licence UFSC Gestion n’a encore été modifiée.','ufsc-licence-competition'),$batch_id);
 	}
 
+	public function handle_recheck(){
+		if(!UFSC_LC_Capabilities::user_can_import())wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
+		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
+		check_admin_referer('ufsc_lc_ffst_recheck_'.$batch_id,'ufsc_lc_ffst_recheck_nonce');
+		$service=new UFSC_LC_FFST_Import_Service();
+		$result=$service->repair_legacy_batch($batch_id);
+		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+		$this->redirect_notice('success',sprintf(__('%d ligne(s) historiques réexaminée(s). Les données UFSC Gestion n’ont pas été modifiées.','ufsc-licence-competition'),$result),$batch_id);
+	}
+
 	public function render(){
 		if(!UFSC_LC_Capabilities::user_can_import()) wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'));
 		$service=new UFSC_LC_FFST_Import_Service();
@@ -80,6 +91,7 @@ class UFSC_LC_FFST_Import_Page {
 		$review_row_id=isset($_GET['review_row'])?absint($_GET['review_row']):0;
 		$review_row=($batch&&$review_row_id)?$service->get_row_in_batch($batch_id,$review_row_id):null;
 		$review_candidates=$review_row?$service->get_candidates_for_row($batch_id,$review_row_id):array();
+		$legacy_pending=$batch?$service->get_legacy_unreviewed_count($batch_id):0;
 		$selectable_total=0;
 		foreach($rows as $row){
 			$number=strtoupper(trim((string)$row->ffst_number));
@@ -132,6 +144,16 @@ class UFSC_LC_FFST_Import_Page {
 						.ufsc-lc-ffst-import-header{font-weight:700;background:#f0f0f1!important;border-bottom:2px solid #c3c4c7}
 						.ufsc-lc-ffst-import-record:first-of-type{display:grid!important;visibility:visible!important}
 					</style>
+					<?php if($legacy_pending>0 && in_array($batch->status,array('preview','partial'),true)): ?>
+						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) issues d’un ancien import possèdent un statut incorrect. Réexaminez-les avant de les sélectionner.','ufsc-licence-competition'),$legacy_pending)); ?></p>
+							<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0">
+								<input type="hidden" name="action" value="ufsc_lc_ffst_recheck">
+								<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
+								<?php wp_nonce_field('ufsc_lc_ffst_recheck_'.$batch_id,'ufsc_lc_ffst_recheck_nonce'); ?>
+								<?php submit_button(__('Réexaminer les anciennes lignes sans modifier UFSC Gestion','ufsc-licence-competition'),'secondary','submit',false); ?>
+							</form>
+						</div>
+					<?php endif; ?>
 					<?php if(!$counts_consistent): ?>
 						<div class="notice notice-error inline"><p><?php echo esc_html(sprintf(__('Attention : %1$d licences annoncées, mais %2$d lignes enregistrées. Validation désactivée jusqu’à résolution.','ufsc-licence-competition'),(int)$batch->total_rows,(int)$actual_rows)); ?></p></div>
 					<?php endif; ?>
@@ -208,7 +230,7 @@ class UFSC_LC_FFST_Import_Page {
 							<?php else: ?><p><?php esc_html_e('Aucune fiche candidate de même identité et naissance trouvée. Aucune liaison forcée possible.','ufsc-licence-competition'); ?></p><?php endif; ?>
 						</div>
 					<?php endif; ?>
-					<?php if($counts_consistent && 'applied'!==$batch->status && $selectable_total>0): ?>
+					<?php if($counts_consistent && !$legacy_pending && 'applied'!==$batch->status && $selectable_total>0): ?>
 						<form id="ffst-apply-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-top:18px">
 							<input type="hidden" name="action" value="ufsc_lc_ffst_apply"><input type="hidden" name="batch_id" value="<?php echo esc_attr($batch->id); ?>">
 							<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch->id,'ufsc_lc_ffst_apply_nonce'); ?>
@@ -235,7 +257,7 @@ class UFSC_LC_FFST_Import_Page {
 	}
 
 	private function status_badge($status){
-		$map=array('matched'=>array('Trouvée','#e7f6ec','#166534'),'applied'=>array('Appliquée','#dcfce7','#166534'),'ambiguous'=>array('À contrôler','#fff7d6','#92400e'),'conflict'=>array('Conflit','#fee2e2','#991b1b'),'not_found'=>array('Introuvable','#f3f4f6','#4b5563'));
+		$map=array('matched'=>array('Trouvée','#e7f6ec','#166534'),'applied'=>array('Appliquée','#dcfce7','#166534'),'ambiguous'=>array('À contrôler','#fff7d6','#92400e'),'conflict'=>array('Conflit','#fee2e2','#991b1b'),'not_found'=>array('Introuvable','#f3f4f6','#4b5563'),'0'=>array('À réexaminer','#fff4ce','#92400e'));
 		$v=isset($map[$status])?$map[$status]:array($status,'#f3f4f6','#374151');
 		return '<span style="display:inline-block;padding:4px 8px;border-radius:999px;background:'.esc_attr($v[1]).';color:'.esc_attr($v[2]).';font-weight:700">'.esc_html($v[0]).'</span>';
 	}
