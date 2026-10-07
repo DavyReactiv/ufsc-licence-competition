@@ -191,6 +191,20 @@ class UFSC_LC_FFST_Import_Service {
 			absint($id),max(1,min(500,absint($limit))),max(0,absint($offset))
 		));
 	}
+	public function get_batch_status_count($id,$status){
+		global $wpdb;
+		return (int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s",
+			absint($id),sanitize_key($status)
+		));
+	}
+	public function get_batch_unknown_status_count($id){
+		global $wpdb;
+		return (int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status NOT IN (%s,%s,%s,%s,%s)",
+			absint($id),self::MATCHED,self::AMBIGUOUS,self::NOT_FOUND,self::CONFLICT,self::APPLIED
+		));
+	}
 	public function get_batch_row_count($id){
 		global $wpdb;
 		return (int)$wpdb->get_var($wpdb->prepare(
