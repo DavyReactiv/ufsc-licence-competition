@@ -19,15 +19,15 @@ if(!$errors){
 		'Smalot\\PdfParser\\Parser','ZipArchive','CSV, XLSX ou PDF'
 	);
 	foreach($required as $needle){if(false===strpos($s,$needle))$errors[]='service missing '.$needle;}
-	foreach(array('Import FFST','Analyser sans modifier les licences','Appliquer uniquement les lignes sûres','Saison active') as $needle){if(false===strpos($p,$needle))$errors[]='page missing '.$needle;}
+	foreach(array('Import FFST','Analyser sans modifier les licences','Rapprocher les lignes sélectionnées','Saison active') as $needle){if(false===strpos($p,$needle))$errors[]='page missing '.$needle;}
 	foreach(array("class-ufsc-lc-ffst-import-service.php","class-ufsc-lc-ffst-import-page.php","1.5.3") as $needle){if(false===strpos($boot,$needle))$errors[]='bootstrap missing '.$needle;}
 	if(false===strpos($c,'smalot/pdfparser'))$errors[]='composer missing pdf parser';
 
-	$forbidden=array('DROP'.' TABLE','TRUNCATE'.' TABLE','DELETE'.' FROM wp_ufsc_licences','ALTER'.' TABLE {$lt}');
+	$forbidden=array('DROP'.' TABLE','TRUNCATE'.' TABLE','DELETE'.' FROM wp_ufsc_licences','ALTER'.' TABLE ' . '$lt');
 	foreach($forbidden as $needle){if(false!==stripos($s,$needle))$errors[]='destructive token '.$needle;}
 
 	// The new import must never create master UFSC licences automatically.
-	if(false!==strpos($s,"INSERT INTO {$lt}"))$errors[]='master licence insert forbidden';
+	if(false!==strpos($s,'INSERT INTO ' . '$lt'))$errors[]='master licence insert forbidden';
 }
 if($errors){fwrite(STDERR,"FFST import V2 guard failed:\n - ".implode("\n - ",$errors)."\n");exit(1);}
 echo "FFST import V2 safety guard: OK\n";
