@@ -66,8 +66,8 @@ if ( false === strpos( $licences, 'ufsc-licence-ufsc' ) ) {
 if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(96px,1fr))' ) ) {
 	$errors[] = 'PDF actions must use a balanced two-column desktop layout';
 }
-if ( false === strpos( $licences, 'content:attr(data-label)' ) ) {
-	$errors[] = 'licence table must switch to labelled responsive cards on smaller screens';
+if ( false === strpos( $licences, 'content:attr(data-label)' ) || false === strpos( $licences, '@media(max-width:1180px)' ) ) {
+	$errors[] = 'licence table must switch to labelled responsive cards before horizontal overflow appears';
 }
 
 if ( false === strpos( $licences, 'ufsc_lc_generate_club_pdf' ) ) {
