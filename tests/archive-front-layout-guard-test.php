@@ -21,7 +21,7 @@ if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(96px,1f
 	$errors[] = 'club PDF actions must use the balanced two-column layout';
 }
 
-if ( false === strpos( $licences, 'max-width:248px' ) ) {
+if ( false === strpos( $licences, 'max-width:236px' ) ) {
 	$errors[] = 'club PDF actions need a bounded width';
 }
 
