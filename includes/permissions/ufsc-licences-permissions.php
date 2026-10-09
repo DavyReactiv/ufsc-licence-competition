@@ -26,6 +26,35 @@ if ( ! defined( 'UFSC_LC_CAP_ALL_REGIONS' ) ) {
 	define( 'UFSC_LC_CAP_ALL_REGIONS', 'ufsc_all_regions_access' );
 }
 
+/**
+ * Bridge the managed UFSC Gestion consultation profiles without modifying roles.
+ * Write operations remain denied for consultation accounts even if a legacy
+ * capability accidentally remains attached to the user.
+ */
+if ( ! function_exists( 'ufsc_lc_is_managed_readonly_responsable' ) ) {
+    function ufsc_lc_is_managed_readonly_responsable( $user_id = 0 ): bool {
+        $user_id = absint( $user_id ?: get_current_user_id() );
+        if ( ! $user_id ) { return false; }
+        if ( function_exists( 'ufsc_readonly_access_is_user' ) ) {
+            return (bool) ufsc_readonly_access_is_user( $user_id );
+        }
+        $user = get_userdata( $user_id );
+        if ( ! $user || in_array( 'administrator', (array) $user->roles, true ) ) { return false; }
+        $profile = sanitize_key( (string) get_user_meta( $user_id, '_ufsc_readonly_access_profile', true ) );
+        return in_array( 'ufsc_region_viewer', (array) $user->roles, true )
+            && in_array( $profile, array( 'regional_readonly', 'national_readonly' ), true );
+    }
+}
+if ( ! function_exists( 'ufsc_lc_responsable_read_capability' ) ) {
+    function ufsc_lc_responsable_read_capability( $capability ): bool {
+        return in_array( $capability, array(
+            UFSC_LC_CAP_LICENCES_READ, UFSC_LC_CAP_COMPETITIONS_READ,
+            'ufsc_licence_read', 'ufsc_competition_read', 'ufsc_competition_audit_view',
+            'ufsc_comp_view_region',
+        ), true );
+    }
+}
+
 if ( ! function_exists( 'ufsc_lc_is_administrator' ) ) {
 	function ufsc_lc_is_administrator( int $user_id = 0 ): bool {
 		$user_id = $user_id > 0 ? $user_id : get_current_user_id();
@@ -47,6 +76,9 @@ if ( ! function_exists( 'ufsc_lc_user_can' ) ) {
 
 		if ( ufsc_lc_is_administrator( $user_id ) ) {
 			return true;
+		}
+		if ( ufsc_lc_is_managed_readonly_responsable( $user_id ) ) {
+			return ufsc_lc_responsable_read_capability( $capability );
 		}
 
 		if ( function_exists( 'ufsc_user_can' ) ) {
@@ -393,6 +425,18 @@ add_filter(
 			'ufsc_comp_view_region'              => UFSC_LC_CAP_COMPETITIONS_READ,
 			'ufsc_competitions_validate_entries' => UFSC_LC_CAP_COMPETITIONS_MANAGE,
 		);
+
+		// Managed consultation users see both modules but never receive write caps.
+		if ( ufsc_lc_is_managed_readonly_responsable( (int) $user->ID ) ) {
+			foreach ( array_keys( $cap_map ) as $mapped_cap ) {
+				$allcaps[ $mapped_cap ] = ufsc_lc_responsable_read_capability( $mapped_cap );
+			}
+			foreach ( array_unique( array_values( $cap_map ) ) as $canonical_cap ) {
+				$allcaps[ $canonical_cap ] = ufsc_lc_responsable_read_capability( $canonical_cap );
+			}
+			$allcaps[ UFSC_LC_CAP_ALL_REGIONS ] = false;
+			return $allcaps;
+		}
 
 		$is_admin = ! empty( $allcaps['manage_options'] );
 		foreach ( $cap_map as $legacy_cap => $canonical_cap ) {

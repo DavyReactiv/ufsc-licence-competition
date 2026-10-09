@@ -73,6 +73,22 @@ class Capabilities {
 			return false;
 		}
 
+		// Object-level access must never be inferred from a global menu capability.
+		// Regional operators are allowed only within their assigned UFSC regions.
+		if ( $competition_id > 0 && function_exists( 'ufsc_lc_current_user_can_access_competition' )
+			&& ! \ufsc_lc_current_user_can_access_competition( $competition_id ) ) {
+			return false;
+		}
+
+		// Sensitive capabilities require their own explicit grant for regional
+		// managers. Legacy broad manage rights must not imply permanent deletion.
+		if ( in_array( $capability, array( self::SENSITIVE_OPS_CAPABILITY, self::DELETE_PERMANENT_CAPABILITY,
+			self::WEIGHIN_OVERRIDE_CAPABILITY, self::FIGHT_REGENERATE_CAPABILITY, self::RESULT_CORRECT_CAPABILITY ), true )
+			&& ! \ufsc_lc_is_administrator() ) {
+			return \ufsc_lc_user_can( $capability )
+				&& ( 0 === $competition_id || \ufsc_lc_current_user_can_access_competition( $competition_id ) );
+		}
+
 		if ( \ufsc_lc_user_can( $capability ) ) {
 			return true;
 		}
@@ -82,10 +98,6 @@ class Capabilities {
 			return true;
 		}
 
-		// Backward compatibility: WordPress administrators and legacy UFSC competition
-		// super-managers keep Lot 1 rights. Canonical mapping above also keeps
-		// limited competition managers working when UFSC Gestion only exposes the
-		// ufsc_competitions_* capabilities.
 		return self::user_is_legacy_super_manager();
 	}
 
