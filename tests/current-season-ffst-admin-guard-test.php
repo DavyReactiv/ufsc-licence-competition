@@ -52,7 +52,7 @@ foreach ( $required_admin as $needle ) {
 $required_generator = array(
 	'self::build_pdf_html( $sample )',
 	"Gabarit automatique de licence UFSC / FFST",
-	"Le document utilise le gabarit premium A6 recto/verso",
+	"Le document utilise le gabarit A4 portrait sur deux pages",
 	"'ffst_missing_class'",
 );
 

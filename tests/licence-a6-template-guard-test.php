@@ -1,7 +1,7 @@
 <?php
 /**
- * Static guard for the official A6 licence HTML template.
- * V12 keeps the historical institutional/legal content while displaying the
+ * Static guard for the official A4 portrait licence HTML template.
+ * V14 keeps the historical institutional/legal content while displaying the
  * generated UFSC number separately from the imported FFST number.
  */
 
@@ -15,8 +15,8 @@ if ( ! is_file( $template ) ) {
 $html = file_get_contents( $template );
 
 $required = array(
-	'@page{size:A6 landscape;margin:0}',
-	'.page{position:relative;width:148mm;height:104.5mm;',
+	'@page { size: A4 portrait; margin: 0; }',
+	'.page{position:relative;width:210mm;height:296mm;',
 	'class="page recto"',
 	'class="page verso"',
 	'LICENCE SPORTIVE',
@@ -90,8 +90,8 @@ if ( 1 !== substr_count( $html, 'page-break-after:always' ) ) {
 }
 
 if ( $missing ) {
-	fwrite( STDERR, "Licence A6 template guard failed:\n - " . implode( "\n - ", $missing ) . "\n" );
+	fwrite( STDERR, "Licence A4 template guard failed:\n - " . implode( "\n - ", $missing ) . "\n" );
 	exit( 1 );
 }
 
-echo "Licence A6 template guard: OK\n";
+echo "Licence A4 template guard: OK\n";

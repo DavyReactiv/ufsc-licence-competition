@@ -1,7 +1,7 @@
 <?php
 /**
  * Guard the corrective integration after PR #505:
- * validated licence => premium V13 HTML template,
+ * validated licence => premium V14 A4 HTML template,
  * UFSC number => read canonically from UFSC Gestion,
  * imported FFST number => displayed separately,
  * missing FFST => non-blocking pending state.
@@ -19,7 +19,7 @@ $php  = file_get_contents( $generator );
 $html = file_get_contents( $template );
 
 $required_php = array(
-	"const TEMPLATE_VERSION = 'ufsc-card-v13-canonical-a6';",
+	"const TEMPLATE_VERSION = 'ufsc-document-v14-a4-portrait';",
 	"UFSC_Identifier_Resolver::read( \$licence, 'licence_ufsc' )",
 	"return \$record_id > 0 ? (string) \$record_id : '';",
 	"'licence-ufsc'",
@@ -54,19 +54,19 @@ if ( false !== strpos( $php, "UFSC-%04d-%06d" ) || false !== strpos( $php, "GET_
 }
 
 if ( false === strpos( $html, 'N° LICENCE UFSC' ) || false === strpos( $html, '{{numero_licence_ufsc}}' ) ) {
-	$errors[] = 'premium V13 template must display the canonical UFSC number';
+	$errors[] = 'premium V14 template must display the canonical UFSC number';
 }
 
 if ( false === strpos( $html, 'N° LICENCE FFST' ) || false === strpos( $html, '{{numero_licence_ffst}}' ) ) {
-	$errors[] = 'premium V13 template must display the imported FFST number separately';
+	$errors[] = 'premium V14 template must display the imported FFST number separately';
 }
 
 if ( false === strpos( $html, 'CERTIFICATION MÉDICALE — TEXTE SOURCE FFST' ) || false === strpos( $html, 'N° MÉDECIN / RPPS' ) ) {
-	$errors[] = 'premium V13 template must preserve the medical certification and doctor/RPPS area';
+	$errors[] = 'premium V14 template must preserve the medical certification and doctor/RPPS area';
 }
 
 if ( false === strpos( $html, 'circle-blue' ) || false === strpos( $html, 'circle-red' ) ) {
-	$errors[] = 'premium V13 template must preserve the validated blue/red circle design';
+	$errors[] = 'premium V14 template must preserve the validated blue/red circle design';
 }
 
 if ( $errors ) {
