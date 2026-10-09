@@ -190,7 +190,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				<iframe
 					title="<?php echo esc_attr__( 'Prévisualisation de la licence UFSC / FFST', 'ufsc-licence-competition' ); ?>"
 					srcdoc="<?php echo esc_attr( self::build_pdf_html( $sample ) ); ?>"
-					style="display:block;width:100%;max-width:760px;height:1120px;border:0;background:#fff;margin:0 auto;"
+					style="display:block;width:100%;max-width:840px;height:2340px;border:0;background:#fff;margin:0 auto;"
 				></iframe>
 			</div>
 
@@ -533,7 +533,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	}
 
 	/**
-	 * Designed A6 landscape card. CSS intentionally uses Dompdf-safe primitives.
+	 * Legacy card markup retained for compatibility with external integrations. The official generated PDF uses the A4 HTML template.
 	 *
 	 * @param array $data       Template data.
 	 * @param bool  $is_preview Browser preview mode.
