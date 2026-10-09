@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-card-v13-canonical-a6';
+	const TEMPLATE_VERSION = 'ufsc-document-v14-a4-portrait';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -170,7 +170,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Aperçu du gabarit premium A6 recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Aperçu du document A4 portrait recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
 				<div class="notice notice-<?php echo esc_attr( 'success' === $status ? 'success' : ( 'warning' === $status ? 'warning' : 'error' ) ); ?> is-dismissible"><p><?php echo esc_html( $message ); ?></p></div>
@@ -197,7 +197,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
 				<h2 style="margin-top:0;"><?php esc_html_e( 'Règles de génération', 'ufsc-licence-competition' ); ?></h2>
 				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. Le numéro UFSC est lu depuis UFSC Gestion avant génération. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
-				<p><?php esc_html_e( 'Le document utilise le gabarit premium A6 recto/verso et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le document utilise le gabarit A4 portrait sur deux pages et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
 			</div>
 		</div>
 		<?php
@@ -454,7 +454,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				$dompdf = new \Dompdf\Dompdf();
 			}
 
-			$dompdf->setPaper( 'A6', 'landscape' );
+			$dompdf->setPaper( 'A4', 'portrait' );
 			$dompdf->loadHtml( $html, 'UTF-8' );
 			$dompdf->render();
 			$output = $dompdf->output();
@@ -470,17 +470,34 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	}
 
 	/**
+	 * Fail safely when the production template is missing. Never silently
+	 * generate an A6 document while the renderer is configured for A4.
+	 */
+	private static function build_a4_fallback_markup( array $data ) {
+		return '<!doctype html><html lang="fr"><head><meta charset="utf-8">'
+			. '<style>@page{size:A4 portrait;margin:18mm}body{font-family:DejaVu Sans,sans-serif;font-size:12pt;color:#17273c}'
+			. 'h1{color:#142e51}dt{font-size:9pt;color:#667}dd{margin:0 0 8mm;font-size:14pt;overflow-wrap:break-word}</style></head><body>'
+			. '<h1>Licence sportive UFSC / FFST</h1><p>Saison : ' . esc_html( (string) ( $data['season'] ?? '' ) ) . '</p>'
+			. '<dl><dt>Nom</dt><dd>' . esc_html( (string) ( $data['last_name'] ?? '' ) ) . '</dd>'
+			. '<dt>Prénom</dt><dd>' . esc_html( (string) ( $data['first_name'] ?? '' ) ) . '</dd>'
+			. '<dt>Club</dt><dd>' . esc_html( (string) ( $data['club_name'] ?? '' ) ) . '</dd>'
+			. '<dt>Licence UFSC</dt><dd>' . esc_html( (string) ( $data['ufsc_number'] ?? '' ) ) . '</dd>'
+			. '<dt>Licence FFST</dt><dd>' . esc_html( (string) ( $data['ffst_number'] ?? '' ) ) . '</dd></dl>'
+			. '</body></html>';
+	}
+
+	/**
 	 * Complete HTML document passed to Dompdf.
 	 */
 	private static function build_pdf_html( array $data ) {
 		$template_path = UFSC_LC_DIR . 'templates/licence-sportive-a6.html';
 		if ( ! is_readable( $template_path ) ) {
-			return self::build_card_markup( $data, false );
+			return self::build_a4_fallback_markup( $data );
 		}
 
 		$html = file_get_contents( $template_path );
 		if ( false === $html || '' === trim( $html ) ) {
-			return self::build_card_markup( $data, false );
+			return self::build_a4_fallback_markup( $data );
 		}
 
 		$replacements = array(
