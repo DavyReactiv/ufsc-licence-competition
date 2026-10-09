@@ -5,7 +5,7 @@ $generator=file_get_contents($root.'/includes/class-ufsc-lc-licence-pdf-generato
 $template=file_get_contents($root.'/templates/licence-sportive-a6.html');
 $checks=array(
  'A4 portrait Dompdf' => strpos($generator,"setPaper( 'A4', 'portrait' )")!==false,
- 'A4 portrait template' => strpos($template,'@page { size: A4 portrait; margin: 0; }')!==false,
+ 'A4 portrait template' => strpos($template,'@page{size:A4 portrait;margin:0}')!==false,
  'two faces on one printable page' => substr_count($template,'class="page ')===2 && strpos($template,'.verso{top:154mm;page-break-after:auto}')!==false && strpos($template,'page-break-after:always')===false,
  'old version invalidation' => strpos($generator,'ufsc-document-v15-a4-two-faces-one-sheet')!==false,
  'historic generated files retained' => strpos($generator,"'ufsc_lc_license_pdf_delete_previous_generated_attachment', false")!==false,
