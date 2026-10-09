@@ -15,8 +15,8 @@ if ( ! is_file( $template ) ) {
 $html = file_get_contents( $template );
 
 $required = array(
-	'@page { size: A4 portrait; margin: 0; }',
-	'.page{position:relative;width:210mm;height:296mm;',
+	'@page{size:A4 portrait;margin:0}',
+	'.page{position:absolute;left:10mm;width:190mm;height:133mm;',
 	'class="page recto"',
 	'class="page verso"',
 	'.recto{top:10mm;page-break-after:auto}',
