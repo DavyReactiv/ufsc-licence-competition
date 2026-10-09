@@ -384,6 +384,30 @@ class UFSC_LC_Settings_Page {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ), 30 );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'update_option_' . self::SETTINGS_OPTION, array( $this, 'sync_legacy_options' ), 10, 2 );
+		add_action( 'update_option_' . self::SETTINGS_OPTION, array( $this, 'audit_settings_change' ), 20, 2 );
+	}
+
+	/**
+	 * Append-only bounded audit of setting keys (never records secret values).
+	 * Does not modify plugin settings or operational data.
+	 */
+	public function audit_settings_change( $old, $new ) {
+		if ( ! is_array( $old ) || ! is_array( $new ) ) { return; }
+		$keys = array();
+		foreach ( $new as $key => $value ) {
+			if ( ! array_key_exists( $key, $old ) || $old[ $key ] !== $value ) {
+				$keys[] = sanitize_key( (string) $key );
+			}
+		}
+		if ( ! $keys ) { return; }
+		$history = get_option( 'ufsc_lc_settings_audit', array() );
+		$history = is_array( $history ) ? $history : array();
+		$history[] = array(
+			'date' => current_time( 'mysql' ),
+			'actor' => get_current_user_id(),
+			'keys' => array_values( $keys ),
+		);
+		update_option( 'ufsc_lc_settings_audit', array_slice( $history, -40 ), false );
 	}
 
 	public function register_admin_menu() {
@@ -743,6 +767,24 @@ class UFSC_LC_Settings_Page {
 					<small style="display:block;margin-top:8px;color:#646970;word-break:break-all;"><?php echo esc_html( defined( 'UFSC_LC_VENDOR_AUTOLOAD' ) ? UFSC_LC_VENDOR_AUTOLOAD : UFSC_LC_DIR . 'vendor/autoload.php' ); ?></small>
 				</div>
 			</div>
+			<div class="notice notice-info inline" style="margin:18px 0 0">
+				<p><strong><?php esc_html_e( 'Paramétrage sensible', 'ufsc-licence-competition' ); ?></strong>
+				<?php esc_html_e( 'Les réglages de saisons, permissions, imports et PDF agissent sur des parcours actifs. Vérifiez les conséquences sur DEV avant de les modifier. Le suivi ci-dessous conserve seulement les noms des réglages modifiés, jamais leurs valeurs.', 'ufsc-licence-competition' ); ?></p>
+			</div>
+			<?php
+			$settings_audit = get_option( 'ufsc_lc_settings_audit', array() );
+			$settings_audit = is_array( $settings_audit ) ? array_slice( $settings_audit, -5 ) : array();
+			?>
+			<details style="background:#fff;border:1px solid #dcdcde;border-radius:10px;padding:12px 18px;margin-top:14px">
+				<summary><strong><?php esc_html_e( 'Historique récent des modifications de paramètres', 'ufsc-licence-competition' ); ?></strong></summary>
+				<?php if ( ! $settings_audit ) : ?>
+					<p><?php esc_html_e( 'Aucune modification enregistrée depuis l’activation du journal.', 'ufsc-licence-competition' ); ?></p>
+				<?php else : ?>
+					<ul><?php foreach ( array_reverse( $settings_audit ) as $entry ) : ?>
+						<li><?php echo esc_html( (string) ( $entry['date'] ?? '' ) . ' · #' . absint( $entry['actor'] ?? 0 ) . ' · ' . implode( ', ', (array) ( $entry['keys'] ?? array() ) ) ); ?></li>
+					<?php endforeach; ?></ul>
+				<?php endif; ?>
+			</details>
 			<?php $this->render_tabs( $tabs, $active_tab ); ?>
 			<?php settings_errors( self::SETTINGS_OPTION ); ?>
 			<form method="post" action="options.php">
