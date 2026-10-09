@@ -19,6 +19,8 @@ $required = array(
 	'.page{position:relative;width:210mm;height:296mm;',
 	'class="page recto"',
 	'class="page verso"',
+	'.recto{top:10mm;page-break-after:auto}',
+	'.verso{top:154mm;page-break-after:auto}',
 	'LICENCE SPORTIVE',
 	'INFORMATIONS DE LICENCE',
 	'Licence UFSC / FFST',
@@ -85,8 +87,8 @@ if ( false !== strpos( $html, 'margin:10mm auto' ) ) {
 	$missing[] = 'aucune marge extérieure ne doit créer de page blanche Dompdf';
 }
 
-if ( 1 !== substr_count( $html, 'page-break-after:always' ) ) {
-	$missing[] = 'un seul saut de page recto -> verso est attendu';
+if ( 0 !== substr_count( $html, 'page-break-after:always' ) ) {
+	$missing[] = 'aucun saut de page entre les deux faces sur la même feuille A4';
 }
 
 if ( $missing ) {
