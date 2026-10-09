@@ -4,66 +4,66 @@
 <meta charset="UTF-8">
 <title>Licence sportive UFSC / FFST</title>
 <style>
-@page { size: A4 portrait; margin: 0; }
-html,body {margin:0;padding:0;width:210mm;background:#fff;color:#17273c;font:11pt "DejaVu Sans",Arial,sans-serif}
+@page{size:A4 portrait;margin:0}
+html,body{margin:0;padding:0;width:210mm;height:297mm;background:#fff;color:#17273c;font-family:"DejaVu Sans",Arial,sans-serif}
 *{box-sizing:border-box}
-.page{position:relative;width:210mm;height:296mm;page-break-inside:avoid;overflow:hidden;background:#fff}
-.recto{page-break-after:always}.verso{page-break-after:auto}
+.page{position:absolute;left:10mm;width:190mm;height:133mm;overflow:hidden;background:#fff;border:.3mm solid #dde3ed}
+.recto{top:10mm;page-break-after:auto}
+.verso{top:154mm;page-break-after:auto}
 .circle-blue,.circle-red,.sidecode,.source-ref{display:none}
-.header{position:absolute;left:0;top:0;width:210mm;height:37mm;border-bottom:.35mm solid #dbe1ea;background:#fff}
-.header-line-blue,.header-line-red{position:absolute;bottom:0;height:1.5mm}
-.header-line-blue{left:0;width:155mm;background:#142e51}.header-line-red{right:0;width:55mm;background:#c51c35}
-.logo-ufsc,.logo-ffst{position:absolute;top:9mm;width:35mm;height:20mm}
-.logo-ufsc{left:13mm}.logo-ffst{right:13mm}
-.logo-ufsc img,.logo-ffst img{max-width:35mm;max-height:20mm}
-.header-center{position:absolute;left:51mm;top:7mm;width:108mm;text-align:center}
-.header-center .overline{font-size:7pt;color:#b21b35;letter-spacing:.6pt;font-weight:bold}
-.header-center .title{margin:3mm 0 2mm;font-size:17pt;line-height:1.3;color:#142e51;font-weight:bold}
-.header-center .season{display:inline-block;padding:2mm 5mm;border-radius:8mm;background:#142e51;color:#fff;font-size:9pt;font-weight:bold}
-.photo-frame{position:absolute;left:15mm;top:48mm;width:42mm;height:56mm;border:.5mm solid #253956;border-radius:3mm;padding:2mm}
-.photo-inner{position:relative;width:37mm;height:51mm;background:#edf1f6;overflow:hidden}
-.photo-inner img{position:absolute;top:0;left:0;width:37mm;height:51mm;object-fit:contain}
-.photo-inner .head{position:absolute;width:12mm;height:12mm;top:9mm;left:12mm;border-radius:50%;background:#ccd5e2}
-.photo-inner .body{position:absolute;width:25mm;height:23mm;top:24mm;left:6mm;border-radius:12mm 12mm 2mm 2mm;background:#ccd5e2}
-.photo-label{position:absolute;bottom:2mm;left:0;width:100%;text-align:center;font-size:7pt;color:#607084}
-.role-box{position:absolute;top:108mm;left:15mm;width:42mm;min-height:10mm;padding:3mm 2mm;border-radius:2mm;text-align:center;background:#c51c35;color:#fff;font-size:10pt;font-weight:bold;overflow-wrap:break-word}
-.signature-box{position:absolute;top:124mm;left:15mm;width:42mm;height:25mm;border:.35mm solid #dbe1ea;border-radius:2mm;padding:3mm;font-size:8pt}
-.signature-box .line{margin-top:14mm;border-bottom:.25mm solid #8c98aa}
-.clubline{position:absolute;left:65mm;top:48mm;width:130mm;min-height:15mm;font-size:10pt;line-height:1.5;overflow-wrap:break-word}
-.clubline .club,.clubline .refs{display:block;margin-bottom:2mm}
-.discipline{position:absolute;left:65mm;top:69mm;width:130mm;min-height:12mm;font-size:11pt;color:#b51b34;font-weight:bold;overflow-wrap:break-word}
-.member-name{position:absolute;left:65mm;top:88mm;width:130mm;min-height:13mm;font-size:23pt;line-height:1.2;font-weight:bold;overflow-wrap:break-word}
-.member-firstname{position:absolute;left:65mm;top:106mm;width:130mm;min-height:12mm;font-size:17pt;line-height:1.2;overflow-wrap:break-word}
-.red-rule{position:absolute;left:65mm;top:124mm;width:18mm;height:1mm;background:#c51c35}
-.field{position:absolute;border-bottom:.3mm solid #dbe1ea;padding:2mm 0;min-height:19mm;overflow-wrap:break-word}
-.field .label,.number-card .label{display:block;font-size:9pt;color:#617084;font-weight:bold;letter-spacing:.2pt}
-.field .value,.number-card .value{display:block;margin-top:2mm;font-size:13pt;line-height:1.3;font-weight:bold;overflow-wrap:break-word}
-.sex{left:15mm;top:164mm;width:78mm}.birth{left:108mm;top:164mm;width:87mm}
-.address{left:15mm;top:190mm;width:180mm;min-height:25mm}
-.category{left:15mm;top:222mm;width:78mm}.region{left:108mm;top:222mm;width:87mm}
-.number-card{position:absolute;top:254mm;width:86mm;min-height:22mm;padding:4mm;border:.35mm solid #dbe1ea;border-left:1mm solid #142e51;border-radius:2mm;overflow-wrap:break-word}
-.number-card.ufsc{left:15mm}.number-card.ffst{left:109mm;border-left-color:#c51c35}
-.number-card .value{font-size:16pt}
-.number-card.ffst .value{font-size:13pt}
-.institutional-footer{position:absolute;left:14mm;bottom:7mm;width:182mm;text-align:center;color:#667386;font-size:7.5pt;line-height:1.4;overflow-wrap:break-word}
-.bottom-blue,.bottom-red{position:absolute;bottom:0;height:1.5mm}
-.bottom-blue{left:0;width:155mm;background:#142e51}.bottom-red{right:0;width:55mm;background:#c51c35}
-.verso .panel{position:absolute;top:47mm;width:87mm;min-height:140mm;border:.35mm solid #dbe1ea;border-radius:2mm;padding:5mm}
-.verso .panel.left{left:15mm}.verso .panel.right{left:108mm}
-.panel-title{font-size:11pt;font-weight:bold;color:#142e51;border-left:1mm solid #c51c35;padding:2mm 3mm;margin-bottom:4mm}
-.panel .row{display:block;padding:2.2mm 0;border-bottom:.2mm solid #e6ebf1;font-size:9pt;line-height:1.5;overflow-wrap:break-word}
-.panel .key{display:block;font-size:8pt;font-weight:bold;color:#607084}
-.panel .val{display:block;margin-top:1mm;font-size:10pt;font-weight:bold}
-.medical{position:absolute;left:15mm;top:197mm;width:180mm;height:72mm;border:.35mm solid #dbe1ea;border-radius:2mm}
-.medical .certif{position:absolute;top:4mm;left:5mm;width:83mm}
-.certif-title{font-size:10pt;font-weight:bold;color:#142e51}
-.certif-copy{font-size:8pt;line-height:1.6;margin-top:4mm}
-.medical .doctor{position:absolute;top:4mm;left:95mm;width:78mm}
-.doctor-name,.doctor-rpps{min-height:12mm;font-size:8pt}
-.doctor .write-line,.certif .write-line{border-bottom:.3mm solid #aab5c2;width:100%;height:5mm}
-.place{margin-top:8mm}.place .one,.place .two{display:inline-block;width:42%;margin-right:3%}
-.stamp-title{font-size:8pt;font-weight:bold;margin:2mm 0}
-.stamp{height:28mm;border:.4mm dashed #b2becb;text-align:center;padding-top:12mm;font-size:7pt;color:#697789}
+.header{position:absolute;left:0;top:0;width:190mm;height:23mm;border-bottom:.3mm solid #dbe1ea}
+.header-line-blue,.header-line-red{position:absolute;bottom:0;height:1mm}
+.header-line-blue{left:0;width:140mm;background:#142e51}.header-line-red{right:0;width:50mm;background:#c51c35}
+.logo-ufsc,.logo-ffst{position:absolute;top:4mm;width:28mm;height:15mm}
+.logo-ufsc{left:6mm}.logo-ffst{right:6mm}
+.logo-ufsc img,.logo-ffst img{max-width:28mm;max-height:15mm}
+.header-center{position:absolute;left:38mm;top:3mm;width:114mm;text-align:center}
+.header-center .overline{font-size:7pt;color:#b21b35;font-weight:bold}
+.header-center .title{font-size:14pt;line-height:1.3;color:#142e51;font-weight:bold;margin:1mm 0}
+.header-center .season{font-size:8pt;color:#fff;background:#142e51;display:inline-block;padding:1mm 3mm;border-radius:3mm}
+.photo-frame{position:absolute;left:7mm;top:29mm;width:29mm;height:40mm;padding:1mm;border:.4mm solid #253956;border-radius:2mm}
+.photo-inner{position:relative;width:26mm;height:37mm;background:#edf1f6;overflow:hidden}
+.photo-inner img{position:absolute;top:0;left:0;width:26mm;height:37mm}
+.photo-inner .head{position:absolute;top:6mm;left:9mm;width:8mm;height:8mm;border-radius:50%;background:#ccd5e2}
+.photo-inner .body{position:absolute;top:17mm;left:5mm;width:16mm;height:17mm;background:#ccd5e2;border-radius:7mm 7mm 2mm 2mm}
+.photo-label{position:absolute;bottom:1mm;left:0;width:100%;text-align:center;font-size:5.5pt}
+.role-box{position:absolute;left:7mm;top:72mm;width:29mm;min-height:7mm;padding:1.5mm 1mm;text-align:center;color:#fff;background:#c51c35;font-weight:bold;font-size:8pt;border-radius:2mm}
+.signature-box{position:absolute;left:7mm;top:82mm;width:29mm;height:14mm;border:.3mm solid #dbe1ea;padding:1mm;font-size:6pt}
+.signature-box .line{margin-top:7mm;border-bottom:.2mm solid #a9b3c0}
+.clubline{position:absolute;top:27mm;left:42mm;width:139mm;height:16mm;line-height:1.5;font-size:8pt;overflow-wrap:break-word}
+.clubline .club,.clubline .refs{display:block}
+.discipline{position:absolute;left:42mm;top:44mm;width:139mm;min-height:8mm;font-size:9pt;color:#b51b34;font-weight:bold;overflow-wrap:break-word}
+.member-name{position:absolute;left:42mm;top:56mm;width:139mm;min-height:9mm;font-size:17pt;line-height:1.15;font-weight:bold;overflow-wrap:break-word}
+.member-firstname{position:absolute;left:42mm;top:67mm;width:139mm;font-size:12pt;line-height:1.2;overflow-wrap:break-word}
+.red-rule{position:absolute;left:42mm;top:78mm;width:14mm;height:.7mm;background:#c51c35}
+.field{position:absolute;border-bottom:.25mm solid #dbe1ea;padding:1mm 0;min-height:11mm;overflow-wrap:break-word}
+.field .label,.number-card .label{display:block;font-size:7pt;font-weight:bold;color:#607084}
+.field .value,.number-card .value{display:block;margin-top:1mm;font-size:9pt;font-weight:bold;line-height:1.3;overflow-wrap:break-word}
+.sex{left:42mm;top:82mm;width:45mm}.birth{left:94mm;top:82mm;width:87mm}
+.address{left:42mm;top:96mm;width:139mm;min-height:13mm}
+.category{left:42mm;top:111mm;width:59mm}.region{left:109mm;top:111mm;width:72mm}
+.number-card{position:absolute;top:111mm;height:14mm;padding:1.5mm 2mm;border:.25mm solid #dbe1ea;border-left:.9mm solid #142e51;border-radius:1mm}
+.number-card.ufsc{left:7mm;width:29mm}.number-card.ffst{left:42mm;width:55mm;border-left-color:#c51c35}
+.number-card .value{font-size:10pt}.number-card.ffst .value{font-size:10pt}
+.institutional-footer{position:absolute;left:5mm;bottom:2mm;width:180mm;font-size:5.5pt;text-align:center;color:#667386;line-height:1.3}
+.bottom-blue,.bottom-red{position:absolute;bottom:0;height:1mm}
+.bottom-blue{left:0;width:140mm;background:#142e51}.bottom-red{right:0;width:50mm;background:#c51c35}
+.verso .panel{position:absolute;top:27mm;width:86mm;height:67mm;border:.3mm solid #dde3ed;padding:2.5mm;overflow:hidden}
+.verso .panel.left{left:7mm}.verso .panel.right{left:98mm}
+.panel-title{font-size:9pt;font-weight:bold;color:#142e51;border-left:.7mm solid #c51c35;padding:1mm 2mm;margin-bottom:2mm}
+.panel .row{display:block;padding:.8mm 0;border-bottom:.2mm solid #e6ebf1;font-size:7pt;line-height:1.2;overflow-wrap:break-word}
+.panel .key{display:inline-block;width:39%;font-weight:bold;color:#607084;font-size:6.5pt;vertical-align:top}
+.panel .val{display:inline-block;width:59%;font-weight:bold;vertical-align:top}
+.medical{position:absolute;left:7mm;top:98mm;width:177mm;height:29mm;border:.3mm solid #dde3ed}
+.medical .certif{position:absolute;left:3mm;top:2mm;width:85mm}
+.certif-title{font-size:7pt;font-weight:bold;color:#142e51}
+.certif-copy{margin-top:1mm;font-size:6pt;line-height:1.3}
+.medical .doctor{position:absolute;left:92mm;top:2mm;width:80mm}
+.doctor-name,.doctor-rpps{display:inline-block;width:48%;font-size:6pt}
+.doctor .write-line,.certif .write-line{border-bottom:.2mm solid #aab5c2;height:3mm}
+.place{margin-top:3mm}.place .one,.place .two{display:inline-block;width:43%;margin-right:3%}
+.stamp-title{font-size:6pt;font-weight:bold;margin:1mm 0}
+.stamp{height:11mm;border:.25mm dashed #b2becb;text-align:center;padding-top:3mm;font-size:6pt;color:#697789}
 
 </style>
 </head>
