@@ -17,12 +17,12 @@ if ( false === strpos( $repository, '\'archived\' === $view && \'archived\' === 
 	$errors[] = 'archived status filter must not hide legacy closed archives';
 }
 
-if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(96px,1fr))' ) ) {
+if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(108px,1fr))' ) ) {
 	$errors[] = 'club PDF actions must use the balanced two-column layout';
 }
 
-if ( false === strpos( $licences, 'max-width:236px' ) ) {
-	$errors[] = 'club PDF actions need a bounded width';
+if ( false === strpos( $licences, 'max-width:none' ) ) {
+	$errors[] = 'club PDF actions must not be truncated by a fixed maximum width';
 }
 
 if ( $errors ) {
