@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-document-v14-a4-portrait';
+	const TEMPLATE_VERSION = 'ufsc-document-v15-a4-two-faces-one-sheet';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -170,7 +170,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
-			<p class="description"><?php esc_html_e( 'Aperçu du document A4 portrait recto/verso utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Aperçu des deux faces sur une seule feuille A4 portrait utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
 				<div class="notice notice-<?php echo esc_attr( 'success' === $status ? 'success' : ( 'warning' === $status ? 'warning' : 'error' ) ); ?> is-dismissible"><p><?php echo esc_html( $message ); ?></p></div>
@@ -190,14 +190,14 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				<iframe
 					title="<?php echo esc_attr__( 'Prévisualisation de la licence UFSC / FFST', 'ufsc-licence-competition' ); ?>"
 					srcdoc="<?php echo esc_attr( self::build_pdf_html( $sample ) ); ?>"
-					style="display:block;width:100%;max-width:840px;height:2340px;border:0;background:#fff;margin:0 auto;"
+					style="display:block;width:100%;max-width:840px;height:1160px;border:0;background:#fff;margin:0 auto;"
 				></iframe>
 			</div>
 
 			<div style="max-width:920px;margin-top:22px;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:18px;">
 				<h2 style="margin-top:0;"><?php esc_html_e( 'Règles de génération', 'ufsc-licence-competition' ); ?></h2>
 				<p><?php esc_html_e( 'Le PDF est généré uniquement si la licence est réellement validée en base. Le numéro UFSC est lu depuis UFSC Gestion avant génération. L’absence temporaire du numéro FFST ne bloque pas la génération. Un PDF ajouté manuellement est conservé et n’est jamais remplacé automatiquement.', 'ufsc-licence-competition' ); ?></p>
-				<p><?php esc_html_e( 'Le document utilise le gabarit A4 portrait sur deux pages et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
+				<p><?php esc_html_e( 'Le document présente les deux faces sur une seule page A4 portrait et les coordonnées institutionnelles UFSC. Aucun QR code n’est activé pour le moment.', 'ufsc-licence-competition' ); ?></p>
 			</div>
 		</div>
 		<?php

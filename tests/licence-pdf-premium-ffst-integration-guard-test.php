@@ -19,7 +19,7 @@ $php  = file_get_contents( $generator );
 $html = file_get_contents( $template );
 
 $required_php = array(
-	"const TEMPLATE_VERSION = 'ufsc-document-v14-a4-portrait';",
+	"const TEMPLATE_VERSION = 'ufsc-document-v15-a4-two-faces-one-sheet';",
 	"UFSC_Identifier_Resolver::read( \$licence, 'licence_ufsc' )",
 	"return \$record_id > 0 ? (string) \$record_id : '';",
 	"'licence-ufsc'",

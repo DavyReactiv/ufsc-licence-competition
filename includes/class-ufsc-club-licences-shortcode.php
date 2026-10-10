@@ -270,7 +270,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-table{
 				width:100%;
-				min-width:0;
+				min-width:1080px;
 				border-collapse:separate;
 				border-spacing:0;
 				background:#fff
@@ -305,7 +305,8 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-table th:nth-child(5),.ufsc-licence-table td:nth-child(5){width:10%}
 			.ufsc-licence-table th:nth-child(6),.ufsc-licence-table td:nth-child(6){width:11%}
 			.ufsc-licence-table th:nth-child(7),.ufsc-licence-table td:nth-child(7){width:12%}
-			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:19%}
+			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:11%}
+			.ufsc-licence-table th:nth-child(9),.ufsc-licence-table td:nth-child(9){min-width:265px;width:25%}
 			.ufsc-licence-ufsc,
 			.ufsc-licence-ffst{
 				display:inline-flex;
@@ -350,11 +351,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
 			.ufsc-licence-actions{
 				display:grid;
-				grid-template-columns:repeat(2,minmax(96px,1fr));
+				grid-template-columns:repeat(2,minmax(108px,1fr));
 				align-items:stretch;
 				gap:8px;
 				min-width:210px;
-				max-width:236px
+				max-width:none
 			}
 			.ufsc-licence-actions .button{
 				display:inline-flex;
