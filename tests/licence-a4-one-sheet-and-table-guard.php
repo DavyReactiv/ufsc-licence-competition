@@ -5,12 +5,12 @@ $pdf = file_get_contents( $root . '/templates/licence-sportive-a6.html' );
 $gen = file_get_contents( $root . '/includes/class-ufsc-lc-licence-pdf-generator.php' );
 $front = file_get_contents( $root . '/includes/class-ufsc-club-licences-shortcode.php' );
 $checks = array(
- 'A4 portrait page' => false !== strpos( $pdf, '@page{size:A4 portrait;margin:0}' ),
- 'two faces stacked inside the sheet' => false !== strpos( $pdf, '.recto{top:10mm;page-break-after:auto}' ) && false !== strpos( $pdf, '.verso{top:154mm;page-break-after:auto}' ),
+ 'A4 portrait page' => false !== strpos( $pdf, '@page { size: A4 portrait; margin: 0; }' ),
+ 'two faces stacked inside the sheet' => false !== strpos( $pdf, '.recto { top:9mm; }' ) && false !== strpos( $pdf, '.verso { top:155mm; }' ),
  'no second page break' => false === strpos( $pdf, 'page-break-after:always' ),
- 'top and bottom page fit' => false !== strpos( $pdf, 'height:133mm;' ) && false !== strpos( $pdf, 'top:154mm;' ),
+ 'top and bottom page fit' => false !== strpos( $pdf, 'height:132mm;' ) && false !== strpos( $pdf, 'top:155mm;' ),
  'PDF paper A4' => false !== strpos( $gen, "setPaper( 'A4', 'portrait' )" ),
- 'new template version' => false !== strpos( $gen, 'ufsc-document-v15-a4-two-faces-one-sheet' ),
+ 'new template version' => false !== strpos( $gen, 'ufsc-document-v16-approved-v5-a4' ),
  'printable and viewable data preserved' => false !== strpos( $pdf, '{{numero_licence_ufsc}}' ) && false !== strpos( $pdf, '{{numero_licence_ffst}}' ) && false !== strpos( $pdf, '{{nom}}' ),
  'table has native PDF column width' => false !== strpos( $front, 'td:nth-child(9){min-width:265px;width:25%}' ),
  'PDF actions have width' => false !== strpos( $front, 'grid-template-columns:repeat(2,minmax(108px,1fr))' ),
