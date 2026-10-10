@@ -1,115 +1,124 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<title>Licence sportive UFSC / FFST</title>
+<meta charset="utf-8">
+<title>Licence sportive UFSC / FFST — A4, deux faces</title>
 <style>
-@page{size:A4 portrait;margin:0}
-html,body{margin:0;padding:0;width:210mm;height:297mm;background:#fff;color:#17273c;font-family:"DejaVu Sans",Arial,sans-serif}
-*{box-sizing:border-box}
-.page{position:absolute;left:10mm;width:190mm;height:133mm;overflow:hidden;background:#fff;border:.3mm solid #dde3ed}
-.recto{top:10mm;page-break-after:auto}
-.verso{top:154mm;page-break-after:auto}
-.circle-blue,.circle-red,.sidecode,.source-ref{display:none}
-.header{position:absolute;left:0;top:0;width:190mm;height:23mm;border-bottom:.3mm solid #dbe1ea}
-.header-line-blue,.header-line-red{position:absolute;bottom:0;height:1mm}
-.header-line-blue{left:0;width:140mm;background:#142e51}.header-line-red{right:0;width:50mm;background:#c51c35}
-.logo-ufsc,.logo-ffst{position:absolute;top:4mm;width:28mm;height:15mm}
-.logo-ufsc{left:6mm}.logo-ffst{right:6mm}
-.logo-ufsc img,.logo-ffst img{max-width:28mm;max-height:15mm}
-.header-center{position:absolute;left:38mm;top:3mm;width:114mm;text-align:center}
-.header-center .overline{font-size:7pt;color:#b21b35;font-weight:bold}
-.header-center .title{font-size:14pt;line-height:1.3;color:#142e51;font-weight:bold;margin:1mm 0}
-.header-center .season{font-size:8pt;color:#fff;background:#142e51;display:inline-block;padding:1mm 3mm;border-radius:3mm}
-.photo-frame{position:absolute;left:7mm;top:29mm;width:29mm;height:40mm;padding:1mm;border:.4mm solid #253956;border-radius:2mm}
-.photo-inner{position:relative;width:26mm;height:37mm;background:#edf1f6;overflow:hidden}
-.photo-inner img{position:absolute;top:0;left:0;width:26mm;height:37mm}
-.photo-inner .head{position:absolute;top:6mm;left:9mm;width:8mm;height:8mm;border-radius:50%;background:#ccd5e2}
-.photo-inner .body{position:absolute;top:17mm;left:5mm;width:16mm;height:17mm;background:#ccd5e2;border-radius:7mm 7mm 2mm 2mm}
-.photo-label{position:absolute;bottom:1mm;left:0;width:100%;text-align:center;font-size:5.5pt}
-.role-box{position:absolute;left:7mm;top:72mm;width:29mm;min-height:7mm;padding:1.5mm 1mm;text-align:center;color:#fff;background:#c51c35;font-weight:bold;font-size:8pt;border-radius:2mm}
-.signature-box{position:absolute;left:7mm;top:82mm;width:29mm;height:14mm;border:.3mm solid #dbe1ea;padding:1mm;font-size:6pt}
-.signature-box .line{margin-top:7mm;border-bottom:.2mm solid #a9b3c0}
-.clubline{position:absolute;top:27mm;left:42mm;width:139mm;height:16mm;line-height:1.5;font-size:8pt;overflow-wrap:break-word}
-.clubline .club,.clubline .refs{display:block}
-.discipline{position:absolute;left:42mm;top:44mm;width:139mm;min-height:8mm;font-size:9pt;color:#b51b34;font-weight:bold;overflow-wrap:break-word}
-.member-name{position:absolute;left:42mm;top:56mm;width:139mm;min-height:9mm;font-size:17pt;line-height:1.15;font-weight:bold;overflow-wrap:break-word}
-.member-firstname{position:absolute;left:42mm;top:67mm;width:139mm;font-size:12pt;line-height:1.2;overflow-wrap:break-word}
-.red-rule{position:absolute;left:42mm;top:78mm;width:14mm;height:.7mm;background:#c51c35}
-.field{position:absolute;border-bottom:.25mm solid #dbe1ea;padding:1mm 0;min-height:11mm;overflow-wrap:break-word}
-.field .label,.number-card .label{display:block;font-size:7pt;font-weight:bold;color:#607084}
-.field .value,.number-card .value{display:block;margin-top:1mm;font-size:9pt;font-weight:bold;line-height:1.3;overflow-wrap:break-word}
-.sex{left:42mm;top:79mm;width:45mm}.birth{left:94mm;top:79mm;width:87mm}
-.address{left:42mm;top:91mm;width:139mm;min-height:12mm}
-.category{left:42mm;top:103mm;width:59mm}.region{left:109mm;top:103mm;width:72mm}
-.number-card{position:absolute;top:116mm;height:11mm;padding:1.5mm 2mm;border:.25mm solid #dbe1ea;border-left:.9mm solid #142e51;border-radius:1mm}
-.number-card.ufsc{left:7mm;width:83mm}.number-card.ffst{left:96mm;width:87mm;border-left-color:#c51c35}
-.number-card .value{font-size:10pt}.number-card.ffst .value{font-size:10pt}
-.institutional-footer{position:absolute;left:5mm;bottom:2mm;width:180mm;font-size:5.5pt;text-align:center;color:#667386;line-height:1.3}
-.bottom-blue,.bottom-red{position:absolute;bottom:0;height:1mm}
-.bottom-blue{left:0;width:140mm;background:#142e51}.bottom-red{right:0;width:50mm;background:#c51c35}
-.verso .panel{position:absolute;top:27mm;width:86mm;height:67mm;border:.3mm solid #dde3ed;padding:2.5mm;overflow:hidden}
-.verso .panel.left{left:7mm}.verso .panel.right{left:98mm}
-.panel-title{font-size:9pt;font-weight:bold;color:#142e51;border-left:.7mm solid #c51c35;padding:1mm 2mm;margin-bottom:2mm}
-.panel .row{display:block;padding:.8mm 0;border-bottom:.2mm solid #e6ebf1;font-size:7pt;line-height:1.2;overflow-wrap:break-word}
-.panel .key{display:inline-block;width:39%;font-weight:bold;color:#607084;font-size:6.5pt;vertical-align:top}
-.panel .val{display:inline-block;width:59%;font-weight:bold;vertical-align:top}
-.medical{position:absolute;left:7mm;top:98mm;width:177mm;height:29mm;border:.3mm solid #dde3ed}
-.medical .certif{position:absolute;left:3mm;top:2mm;width:85mm}
-.certif-title{font-size:7pt;font-weight:bold;color:#142e51}
-.certif-copy{margin-top:1mm;font-size:6pt;line-height:1.3}
-.medical .doctor{position:absolute;left:92mm;top:2mm;width:80mm}
-.doctor-name,.doctor-rpps{display:inline-block;width:48%;font-size:6pt}
-.doctor .write-line,.certif .write-line{border-bottom:.2mm solid #aab5c2;height:3mm}
-.place{margin-top:3mm}.place .one,.place .two{display:inline-block;width:43%;margin-right:3%}
-.stamp-title{font-size:6pt;font-weight:bold;margin:1mm 0}
-.stamp{height:11mm;border:.25mm dashed #b2becb;text-align:center;padding-top:3mm;font-size:6pt;color:#697789}
-
+/* UFSC / FFST — Dompdf-compatible template. Single A4 portrait sheet.
+   No CSS grid, flex, transform or external stylesheet. */
+@page { size: A4 portrait; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; width:210mm; height:297mm; color:#172b46; font-family:"DejaVu Sans",Arial,sans-serif; background:#fff; }
+.sheet { width:210mm; height:297mm; position:relative; overflow:hidden; }
+.face { position:absolute; left:10mm; width:190mm; height:132mm; border:0.3mm solid #c6d4e4; background:#fff; overflow:hidden; }
+.recto { top:9mm; }
+.verso { top:155mm; }
+.face:before { content:""; position:absolute; width:40mm; height:40mm; top:33mm; right:-22mm; border:2.3mm solid #f0f5fc; border-radius:50%; z-index:0; }
+.face:after { content:""; position:absolute; width:27mm; height:27mm; top:40mm; right:-18mm; border:1.5mm solid #f9ebee; border-radius:50%; z-index:0; }
+.face-head { position:absolute; left:0; top:0; width:100%; height:22mm; border-bottom:0.28mm solid #d9e2eb; z-index:2; background:#fff; }
+.logo-ufsc { position:absolute; left:6mm; top:4mm; width:30mm; height:14mm; }
+.logo-ffst { position:absolute; right:6mm; top:4mm; width:30mm; height:14mm; text-align:right; }
+.logo-ufsc img,.logo-ffst img { max-width:30mm; max-height:14mm; }
+.header-center { position:absolute; left:38mm; top:3mm; width:112mm; text-align:center; }
+.header-center .eyebrow { color:#b51d35; font-size:6.7pt; font-weight:bold; letter-spacing:0.3pt; }
+.header-center .heading { margin-top:1.2mm; font-size:15pt; font-weight:bold; color:#122b4b; }
+.header-center .season { margin-top:1.7mm; display:inline-block; padding:1.1mm 4mm; border:0.25mm solid #d8e2ed; border-radius:5mm; font-size:7.8pt; font-weight:bold; color:#183657; }
+.head-rule { position:absolute; left:6mm; bottom:-0.35mm; width:20mm; height:0.9mm; background:#af233b; }
+.photo { position:absolute; left:7mm; top:28mm; width:30mm; height:39mm; border:0.4mm solid #c7d3e2; border-radius:1.6mm; background:#f2f5f8; overflow:hidden; text-align:center; }
+.photo img { width:100%; height:100%; object-fit:contain; }
+.photo-placeholder { position:absolute; width:100%; top:14mm; font-size:8pt; color:#8795a7; }
+.role { position:absolute; left:7mm; top:69.5mm; width:30mm; height:7mm; line-height:7mm; border-radius:1mm; text-align:center; background:#173453; color:white; font-weight:bold; font-size:8pt; overflow:hidden; }
+.holder-sign { position:absolute; left:7mm; top:79mm; width:30mm; height:15mm; border:0.3mm solid #d8e1e9; padding:1.5mm; font-size:6pt; color:#64748b; }
+.holder-sign .line { border-bottom:0.25mm solid #a2afbd; margin-top:8mm; }
+.clubline { position:absolute; left:43mm; top:27mm; width:139mm; min-height:12mm; font-size:9.5pt; line-height:1.5; text-align:center; overflow-wrap:break-word; z-index:1; }
+.clubline strong { font-weight:bold; }
+.member-name { position:absolute; top:40mm; left:43mm; width:139mm; max-height:13mm; overflow:hidden; font-size:23pt; line-height:1.15; text-align:center; font-weight:bold; overflow-wrap:break-word; z-index:1; }
+.member-first { position:absolute; top:53mm; left:43mm; width:139mm; max-height:10mm; overflow:hidden; font-size:15pt; line-height:1.2; text-align:center; overflow-wrap:break-word; z-index:1; }
+.discipline { position:absolute; top:64mm; left:43mm; width:139mm; min-height:9mm; font-size:9.5pt; text-align:center; color:#ae2545; font-weight:bold; overflow-wrap:break-word; z-index:1; }
+.field { position:absolute; padding:1mm 0; border-bottom:0.25mm solid #e2e9f0; font-size:9pt; min-height:11mm; z-index:1; }
+.field .label { display:block; font-size:7pt; font-weight:bold; color:#59718c; text-transform:uppercase; }
+.field .value { display:block; margin-top:1.1mm; font-size:10pt; line-height:1.2; font-weight:bold; overflow-wrap:break-word; }
+.sex { left:43mm; top:76mm; width:64mm; }
+.birth { left:113mm; top:76mm; width:69mm; }
+.address { left:43mm; top:89mm; width:139mm; min-height:12mm; }
+.category { left:43mm; top:103mm; width:64mm; }
+.region { left:113mm; top:103mm; width:69mm; }
+.licence-number { position:absolute; top:115mm; height:10mm; padding:1mm 3mm; border:0.3mm solid #d2dce7; border-left:0.8mm solid #173453; background:#f3f7fc; z-index:1; }
+.licence-number.ufsc { left:7mm; width:85mm; }
+.licence-number.ffst { left:98mm; width:85mm; border-left-color:#b61f39; background:#fdf5f7; }
+.licence-number .label { display:block; font-size:7.4pt; font-weight:bold; color:#657a91; line-height:1.25; }
+.licence-number .value { display:block; font-size:12pt; line-height:1.3; font-weight:bold; color:#132c4e; overflow-wrap:break-word; margin-top:.5mm; }
+.face-footer { position:absolute; left:7mm; right:7mm; bottom:1.3mm; height:3.8mm; padding-top:1.0mm; border-top:0.3mm solid #d3deea; background:#fff; text-align:center; font-size:5.6pt; color:#627389; line-height:1.3; z-index:4; }
+.columns { position:absolute; top:26mm; left:7mm; width:176mm; height:65mm; }
+.panel { position:absolute; top:0; width:85mm; height:65mm; padding:2.5mm; border:0.3mm solid #d7e0ea; background:#fff; z-index:1; }
+.panel.left { left:0; }
+.panel.right { right:0; }
+.panel-title { font-size:8.5pt; font-weight:bold; padding-bottom:2mm; margin-bottom:1.5mm; color:#16314f; border-bottom:0.3mm solid #dce4ec; }
+.panel .row { width:100%; min-height:5.15mm; padding:0.65mm 0; border-bottom:0.2mm solid #edf1f5; font-size:7.1pt; line-height:1.22; overflow-wrap:break-word; }
+.panel .key { display:inline-block; width:38%; vertical-align:top; color:#5e728b; font-weight:bold; }
+.panel .val { display:inline-block; width:60%; vertical-align:top; color:#192e49; font-weight:bold; }
+.medical { position:absolute; left:7mm; top:94mm; width:176mm; height:32mm; border:0.3mm solid #d7e0ea; background:#fff; z-index:1; }
+.med-left { position:absolute; left:3mm; top:2mm; width:83mm; }
+.med-right { position:absolute; right:3mm; top:2mm; width:83mm; }
+.med-title { font-size:7.1pt; font-weight:bold; color:#173453; }
+.med-copy { margin-top:1.5mm; font-size:6.7pt; line-height:1.35; }
+.fill-fields { margin-top:3mm; }
+.fill-field { display:inline-block; width:46%; font-size:7pt; font-weight:bold; vertical-align:top; margin-right:2%; }
+.fill-box { height:9mm; margin-top:1mm; border-bottom:0.35mm solid #9cabbc; }
+.doctor-fields { font-size:6.5pt; font-weight:bold; }
+.doctor-field { display:inline-block; width:47%; vertical-align:top; margin-right:2%; }
+.doctor-line { height:5mm; border-bottom:0.3mm solid #aab6c4; }
+.stamp-caption { margin-top:2.5mm; font-size:6pt; font-weight:bold; }
+.stamp { margin-top:1mm; height:13mm; border:0.35mm dashed #bcc8d6; text-align:center; padding-top:3mm; font-size:6pt; color:#95a2b1; }
+/* Refined federal document accents; decoration stays outside text zones. */
+.recto .clubline{color:#344a66}
+.recto .clubline strong{color:#10294b}
+.recto .member-name{letter-spacing:.3pt;color:#112b4d}
+.recto .field .label{letter-spacing:.2pt}
+.face-footer{white-space:nowrap;overflow:hidden}
+.medical,.panel,.licence-number{border-radius:1.2mm}
 </style>
 </head>
 <body>
-<section class="page recto">
-  <div class="circle-blue"></div><div class="circle-red"></div>
-  <div class="header"><div class="logo-ufsc"><img src="{{logo_ufsc}}" alt="UFSC"></div><div class="header-center"><div class="overline">UNION FRANÇAISE DES SPORTS DE COMBAT</div><div class="title">LICENCE SPORTIVE</div><div class="season">SAISON {{saison}}</div></div><div class="logo-ffst"><span class="recto-logo-ffst"><img src="{{logo_ffst}}" alt="FFST"></span></div><div class="header-line-blue"></div><div class="header-line-red"></div></div>
-  <div class="photo-frame"><div class="photo-inner"><span class="head"></span><span class="body"></span><img src="{{photo_licencie}}" alt=""><span class="photo-label">PHOTO LICENCIÉ</span></div></div>
-  <div class="role-box">{{fonction}}</div><div class="signature-box"><div class="cap">SIGNATURE DU TITULAIRE</div><div class="line"></div></div>
-  <div class="clubline"><span class="club">Club : <strong>{{club}}</strong></span><span class="refs">Réf. fédérales : <strong>{{references_federales}}</strong></span></div>
-  <div class="discipline">{{discipline}}</div><div class="member-name">{{nom}}</div><div class="member-firstname">{{prenom}}</div><div class="red-rule"></div>
-  <div class="field sex"><div class="label">SEXE</div><div class="value">{{sexe}}</div></div>
-  <div class="field birth"><div class="label">DATE DE NAISSANCE</div><div class="value">{{date_naissance}}</div></div>
-  <div class="field address"><div class="label">ADRESSE DU LICENCIÉ</div><div class="value">{{adresse}} · {{code_postal}} {{ville}}</div></div>
-  <div class="field category"><div class="label">CATÉGORIE</div><div class="value">{{categorie}}</div></div>
-  <div class="field region"><div class="label">RÉGION</div><div class="value">{{region}}</div></div>
-  <div class="number-card ufsc"><div class="label">N° LICENCE UFSC</div><div class="value">{{numero_licence_ufsc}}</div></div>
-  <div class="number-card ffst"><div class="label">N° LICENCE FFST</div><div class="value {{ffst_missing_class}}">{{numero_licence_ffst}}</div><div style="margin-top:1mm;font-size:.8mm;color:#6e7887">Numéro associé à la couverture d’assurance FFST</div></div>
-  <div class="institutional-footer">Licence UFSC / FFST · 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France · RNA : W596010570 · 06 27 85 80 20 · contact@ufsc-france.org · www.ufsc-france.fr</div>
-  <div class="bottom-blue"></div><div class="bottom-red"></div>
-</section>
-
-<section class="page verso">
-  <div class="circle-blue"></div><div class="circle-red"></div>
-  <div class="header"><div class="logo-ufsc"><img src="{{logo_ufsc}}" alt="UFSC"></div><div class="header-center"><div class="overline">DONNÉES ADMINISTRATIVES ET RÉGLEMENTAIRES</div><div class="title">INFORMATIONS DE LICENCE</div><div class="season">SAISON {{saison}}</div></div><div class="logo-ffst"><img src="{{logo_ffst}}" alt="FFST"></div><div class="header-line-blue"></div><div class="header-line-red"></div></div>
-  <div class="panel left"><div class="panel-title">INFORMATIONS DU TITULAIRE</div>
-    <div class="row"><span class="key">NOM</span><span class="val">{{nom}}</span></div><div class="row"><span class="key">PRÉNOM</span><span class="val">{{prenom}}</span></div>
-    <div class="row"><span class="key">SEXE</span><span class="val">{{sexe}}</span></div><div class="row"><span class="key">NÉ LE</span><span class="val">{{date_naissance}}</span></div>
-    <div class="row"><span class="key">FONCTION</span><span class="val">{{fonction}}</span></div><div class="row"><span class="key">CLUB</span><span class="val">{{club}}</span></div>
-    <div class="row"><span class="key">ADRESSE</span><span class="val">{{adresse}} · {{code_postal}} {{ville}}</span></div><div class="row"><span class="key">DISCIPLINE</span><span class="val">{{discipline}}</span></div>
-    <div class="row"><span class="key">CATÉGORIE</span><span class="val">{{categorie}}</span></div><div class="row"><span class="key">RÉGION</span><span class="val">{{region}}</span></div>
-  </div>
-  <div class="panel right"><div class="panel-title">RÉFÉRENCES FÉDÉRALES</div>
-    <div class="row"><span class="key">RÉFÉRENCES</span><span class="val">{{references_federales}}</span></div><div class="row"><span class="key">LICENCE FFST</span><span class="val">{{numero_licence_ffst}}</span></div>
-    <div class="row"><span class="key">DÉLIVRÉE LE</span><span class="val">{{date_delivrance_ffst}}</span></div><div class="row"><span class="key">SAISON</span><span class="val">{{saison}}</span></div>
-    <div class="row"><span class="key">CODE CLUB / MENTION SOURCE</span><span class="val">{{code_club_source}}</span></div><div class="row"><span class="key">RÉFÉRENCE TITULAIRE</span><span class="val">{{reference_titulaire}}</span></div>
-    <div class="row"><span class="key">CODE SOURCE</span><span class="val">{{code_source}}</span></div><div class="row"><span class="key">LICENCE (SOURCE)</span><span class="val">{{numero_licence_ffst}}</span></div>
-  </div>
-  <div class="medical">
-    <div class="certif"><div class="certif-title">CERTIFICATION MÉDICALE — TEXTE SOURCE FFST</div><div class="certif-copy">Je soussigné, certifie que M, porteur de cette licence, ne présente aucune contre indication à la pratique sportive de la discipline susvisée (Article L 231-3 du Code du Sport).</div><div class="place"><div class="one"><div class="cap">FAIT À</div><div class="write-line"></div></div><div class="two"><div class="cap">LE</div><div class="write-line"></div></div></div></div>
-    <div class="doctor"><div class="doctor-name"><div class="cap">DOCTEUR</div><div class="write-line"></div></div><div class="doctor-rpps"><div class="cap">N° MÉDECIN / RPPS</div><div class="write-line"></div></div><div class="stamp-title">CACHET ET SIGNATURE DU MÉDECIN</div><div class="stamp">ZONE RÉSERVÉE AU CACHET ET À LA SIGNATURE</div></div>
-  </div>
-  <div class="sidecode">{{code_club_source}} · {{reference_titulaire}} · {{saison}} · {{code_source}} · Licence : {{numero_licence_ffst}}</div>
-  <div class="institutional-footer">Licence UFSC / FFST · 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France · RNA : W596010570 · 06 27 85 80 20 · contact@ufsc-france.org · www.ufsc-france.fr</div>
-  <div class="source-ref">SOURCE FFST : {{numero_licence_ffst}} · délivrée le {{date_delivrance_ffst}}</div>
-  <div class="bottom-blue"></div><div class="bottom-red"></div>
-</section>
+<div class="sheet">
+  <section class="face recto" aria-label="Face 1 — Identité du licencié">
+    <header class="face-head">
+      <div class="logo-ufsc"><img src="{{logo_ufsc}}" alt="UFSC"></div>
+      <div class="header-center"><div class="eyebrow">UNION FRANÇAISE DES SPORTS DE COMBAT</div><div class="heading">LICENCE SPORTIVE</div><div class="season">SAISON {{saison}}</div></div>
+      <div class="logo-ffst"><img src="{{logo_ffst}}" alt="FFST"></div><div class="head-rule"></div>
+    </header>
+    <div class="photo"><div class="photo-placeholder">PHOTO LICENCIÉ</div><img src="{{photo_licencie}}" alt=""></div>
+    <div class="role">{{fonction}}</div>
+    <div class="holder-sign">SIGNATURE DU TITULAIRE<div class="line"></div></div>
+    <div class="clubline">Club : <strong>{{club}}</strong><div>Réf. fédérales : <strong>{{references_federales}}</strong></div></div>
+    <div class="member-name">{{nom}}</div><div class="member-first">{{prenom}}</div>
+    <!-- Disciplines affichées depuis les données de la licence (exemple : Kickboxing · K1 · Full Contact) -->
+    <div class="discipline">{{discipline}}</div>
+    <div class="field sex"><span class="label">Sexe</span><span class="value">{{sexe}}</span></div>
+    <div class="field birth"><span class="label">Date de naissance</span><span class="value">{{date_naissance}}</span></div>
+    <div class="field address"><span class="label">Adresse du licencié</span><span class="value">{{adresse}} · {{code_postal}} {{ville}}</span></div>
+    <div class="field category"><span class="label">Catégorie</span><span class="value">{{categorie}}</span></div>
+    <div class="field region"><span class="label">Région</span><span class="value">{{region}}</span></div>
+    <div class="licence-number ufsc"><span class="label">N° LICENCE UFSC</span><span class="value">{{numero_licence_ufsc}}</span></div>
+    <div class="licence-number ffst"><span class="label">N° LICENCE FFST</span><span class="value {{ffst_missing_class}}">{{numero_licence_ffst}}</span></div>
+    <footer class="face-footer">Licence UFSC / FFST · 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France · RNA : W596010570 · 06 27 85 80 20 · contact@ufsc-france.org · www.ufsc-france.fr</footer>
+  </section>
+  <section class="face verso" aria-label="Face 2 — Informations réglementaires">
+    <header class="face-head"><div class="logo-ufsc"><img src="{{logo_ufsc}}" alt="UFSC"></div><div class="header-center"><div class="eyebrow">DONNÉES ADMINISTRATIVES ET RÉGLEMENTAIRES</div><div class="heading">INFORMATIONS DE LICENCE</div><div class="season">SAISON {{saison}}</div></div><div class="logo-ffst"><img src="{{logo_ffst}}" alt="FFST"></div><div class="head-rule"></div></header>
+    <div class="columns">
+      <div class="panel left"><div class="panel-title">INFORMATIONS DU TITULAIRE</div>
+        <div class="row"><span class="key">NOM</span><span class="val">{{nom}}</span></div><div class="row"><span class="key">PRÉNOM</span><span class="val">{{prenom}}</span></div><div class="row"><span class="key">SEXE</span><span class="val">{{sexe}}</span></div><div class="row"><span class="key">NÉ LE</span><span class="val">{{date_naissance}}</span></div><div class="row"><span class="key">FONCTION</span><span class="val">{{fonction}}</span></div><div class="row"><span class="key">CLUB</span><span class="val">{{club}}</span></div><div class="row"><span class="key">ADRESSE</span><span class="val">{{adresse}} · {{code_postal}} {{ville}}</span></div><div class="row"><span class="key">DISCIPLINE</span><span class="val">{{discipline}}</span></div><div class="row"><span class="key">CATÉGORIE</span><span class="val">{{categorie}}</span></div><div class="row"><span class="key">RÉGION</span><span class="val">{{region}}</span></div>
+      </div>
+      <div class="panel right"><div class="panel-title">RÉFÉRENCES FÉDÉRALES</div>
+        <div class="row"><span class="key">RÉFÉRENCES</span><span class="val">{{references_federales}}</span></div><div class="row"><span class="key">LICENCE FFST</span><span class="val">{{numero_licence_ffst}}</span></div><div class="row"><span class="key">DÉLIVRÉE LE</span><span class="val">{{date_delivrance_ffst}}</span></div><div class="row"><span class="key">SAISON</span><span class="val">{{saison}}</span></div><div class="row"><span class="key">CODE CLUB / MENTION SOURCE</span><span class="val">{{code_club_source}}</span></div><div class="row"><span class="key">RÉFÉRENCE TITULAIRE</span><span class="val">{{reference_titulaire}}</span></div><div class="row"><span class="key">CODE SOURCE</span><span class="val">{{code_source}}</span></div><div class="row"><span class="key">LICENCE (SOURCE)</span><span class="val">{{numero_licence_ffst}}</span></div>
+      </div>
+    </div>
+    <div class="medical">
+      <div class="med-left"><div class="med-title">CERTIFICATION MÉDICALE — À COMPLÉTER PAR LE MÉDECIN</div><div class="med-copy">Je soussigné(e), docteur en médecine, certifie que la personne titulaire de cette licence ne présente aucune contre-indication médicale à la pratique de la ou des disciplines sportives indiquées sur ce document.</div><div class="fill-fields"><div class="fill-field">FAIT À<div class="fill-box"></div></div><div class="fill-field">LE<div class="fill-box"></div></div></div></div>
+      <div class="med-right"><div class="doctor-fields"><div class="doctor-field">DOCTEUR<div class="doctor-line"></div></div><div class="doctor-field">N° MÉDECIN / RPPS<div class="doctor-line"></div></div></div><div class="stamp-caption">CACHET ET SIGNATURE DU MÉDECIN</div><div class="stamp">ZONE RÉSERVÉE AU CACHET ET À LA SIGNATURE</div></div>
+    </div>
+    <footer class="face-footer">Licence UFSC / FFST · 7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France · RNA : W596010570 · 06 27 85 80 20 · contact@ufsc-france.org · www.ufsc-france.fr</footer>
+  </section>
+</div>
 </body>
 </html>

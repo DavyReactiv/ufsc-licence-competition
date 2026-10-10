@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-document-v15-a4-two-faces-one-sheet';
+	const TEMPLATE_VERSION = 'ufsc-document-v16-approved-v5-a4';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
@@ -457,6 +457,16 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			$dompdf->setPaper( 'A4', 'portrait' );
 			$dompdf->loadHtml( $html, 'UTF-8' );
 			$dompdf->render();
+			// Validate the rendered document BEFORE writing an attachment or changing
+			// the canonical document association. One A4 sheet, two stacked faces.
+			$canvas = $dompdf->getCanvas();
+			$page_count = $canvas ? (int) $canvas->get_page_count() : 0;
+			$page_width = $canvas ? (float) $canvas->get_width() : 0.0;
+			$page_height = $canvas ? (float) $canvas->get_height() : 0.0;
+			if ( 1 !== $page_count || abs( $page_width - 595.28 ) > 3 || abs( $page_height - 841.89 ) > 3 ) {
+				return new WP_Error( 'ufsc_lc_pdf_a4_validation_failed', __( 'Le PDF ne respecte pas le format A4 sur une seule page. Le document précédent est conservé.', 'ufsc-licence-competition' ) );
+			}
+
 			$output = $dompdf->output();
 
 			if ( ! is_string( $output ) || '' === $output ) {

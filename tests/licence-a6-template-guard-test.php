@@ -15,12 +15,12 @@ if ( ! is_file( $template ) ) {
 $html = file_get_contents( $template );
 
 $required = array(
-	'@page{size:A4 portrait;margin:0}',
-	'.page{position:absolute;left:10mm;width:190mm;height:133mm;',
-	'class="page recto"',
-	'class="page verso"',
-	'.recto{top:10mm;page-break-after:auto}',
-	'.verso{top:154mm;page-break-after:auto}',
+	'@page { size: A4 portrait; margin: 0; }',
+	'.face { position:absolute; left:10mm; width:190mm; height:132mm;',
+	'class="face recto"',
+	'class="face verso"',
+	'.recto { top:9mm; }',
+	'.verso { top:155mm; }',
 	'LICENCE SPORTIVE',
 	'INFORMATIONS DE LICENCE',
 	'Licence UFSC / FFST',
@@ -29,7 +29,7 @@ $required = array(
 	'{{numero_licence_ufsc}}',
 	'{{numero_licence_ffst}}',
 	'{{ffst_missing_class}}',
-	'Numéro associé à la couverture d’assurance FFST',
+	
 	'7 B chemin de la Combette, 13210 Saint-Rémy-de-Provence - France',
 	'RNA : W596010570',
 	'06 27 85 80 20',
@@ -56,11 +56,11 @@ $required = array(
 	'{{code_club_source}}',
 	'{{reference_titulaire}}',
 	'{{code_source}}',
-	'CERTIFICATION MÉDICALE — TEXTE SOURCE FFST',
+	'CERTIFICATION MÉDICALE — À COMPLÉTER PAR LE MÉDECIN',
 	'N° MÉDECIN / RPPS',
 	'CACHET ET SIGNATURE DU MÉDECIN',
-	'circle-blue',
-	'circle-red',
+	'.face:before',
+	'.face:after',
 );
 
 $missing = array();
@@ -70,7 +70,7 @@ foreach ( $required as $needle ) {
 	}
 }
 
-if ( 2 !== substr_count( $html, 'class="institutional-footer"' ) ) {
+if ( 2 !== substr_count( $html, 'class="face-footer"' ) ) {
 	$missing[] = 'footer institutionnel recto + verso';
 }
 
