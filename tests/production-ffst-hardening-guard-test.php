@@ -26,7 +26,7 @@ $checks = array(
 	'front FFST label'              => array( $front, 'N° FFST' ),
 	'FFST settings tab'             => array( $settings, 'FFST & imports' ),
 	'professional settings cards'  => array( $settings, 'ufsc-lc-settings-grid' ),
-	'recto FFST logo'               => array( $template, 'class="recto-logo-ffst"' ),
+	'recto FFST logo'               => array( $template, 'class="logo-ffst"' ),
 	'recto FFST logo variable'      => array( $template, 'src="{{logo_ffst}}"' ),
 	'production Composer install'   => array( $package, 'composer install --no-dev' ),
 	'PR production build'           => array( $build, 'pull_request:' ),
