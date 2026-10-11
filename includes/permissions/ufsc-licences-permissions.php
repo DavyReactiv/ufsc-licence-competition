@@ -166,6 +166,20 @@ if ( ! function_exists( 'ufsc_lc_user_can_access_region' ) ) {
 			return true;
 		}
 
+		if ( ufsc_lc_is_scoped_regional_manager( $user_id ) ) {
+			// Match the assigned canonical regions rather than consulting legacy
+			// broad-capability checks, which may grant every region implicitly.
+			$assigned = function_exists( 'ufsc_get_user_regions' )
+				? ufsc_get_user_regions( $user_id )
+				: get_user_meta( $user_id, '_ufsc_allowed_regions', true );
+			$target = ufsc_lc_normalize_permission_region( $region );
+			foreach ( ufsc_lc_sanitize_regions_list( $assigned ) as $assigned_region ) {
+				if ( $target === ufsc_lc_normalize_permission_region( $assigned_region ) ) {
+					return true;
+				}
+			}
+			return false;
+		}
 		if ( function_exists( 'ufsc_user_can_access_region' ) ) {
 			return (bool) ufsc_user_can_access_region( $region, $user_id );
 		}
