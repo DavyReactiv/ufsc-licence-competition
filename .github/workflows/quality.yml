@@ -29,6 +29,8 @@ jobs:
         run: php tests/assaut-tatami-reference-test.php
       - name: Pancrace reference
         run: php tests/pancrace-reference-test.php
+      - name: Ring 2026-2027 official weight reference
+        run: php tests/ring-2026-2027-season-reference-test.php
       - name: Event format registry
         run: php tests/event-format-registry-test.php
       - name: Hybrid event program

@@ -14,6 +14,43 @@ class WeightCategoryResolver {
 		return (string) ( $result['label'] ?? '' );
 	}
 
+	/**
+	 * 2026/2027 Ring reference (FFKMDA table, season 2026). Other seasons
+	 * retain their original rules. This routine reads data and never mutates
+	 * registrations, licences or historical category assignments.
+	 */
+	private static function ring_2026_reference( $dob, $sex, array $context ) {
+		$context = self::normalize_context( $context );
+		if ( 2027 !== (int) $context['season_end_year'] || 'ring' !== $context['discipline'] ) {
+			return null;
+		}
+		$sex = self::normalize_sex( $sex );
+		if ( ! in_array( $sex, array( 'm', 'f' ), true ) ) {
+			return array();
+		}
+		$dob = trim( (string) $dob );
+		if ( ! preg_match( '/^(\\d{4})[-\\/]/', $dob, $match ) ) {
+			return array();
+		}
+		$age = 2026 - (int) $match[1];
+		if ( 15 === $age ) {
+			$group = 'cadets_2e_annee';
+		} elseif ( $age >= 16 && $age <= 17 ) {
+			$group = 'juniors';
+		} elseif ( $age >= 18 && $age <= 40 ) {
+			$group = 'seniors';
+		} else {
+			return array();
+		}
+		$male_minor = array( -45, -48, -51, -54, -57, -60, -63.5, -67, -71, -75, -81, 81 );
+		$female_minor = array( -40, -44, -48, -52, -56, -60, -65, 65 );
+		$male_senior = array( -51, -54, -57, -60, -63.5, -67, -71, -75, -81, -86, -91, 91 );
+		$female_senior = array( -48, -52, -56, -60, -65, -70, 70 );
+		return 'seniors' === $group
+			? ( 'm' === $sex ? $male_senior : $female_senior )
+			: ( 'm' === $sex ? $male_minor : $female_minor );
+	}
+
 	public static function resolve_with_details( $dob, $sex, $weight_kg, array $context = array() ): array {
 		$weight_kg = self::sanitize_weight( $weight_kg );
 		if ( null === $weight_kg ) {
@@ -34,6 +71,14 @@ class WeightCategoryResolver {
 		}
 
 		$sex = self::normalize_sex( $sex );
+		$ring_2026 = self::ring_2026_reference( $dob, $sex, $context );
+		if ( null !== $ring_2026 ) {
+			if ( ! $ring_2026 ) {
+				return array( 'label' => self::OUT_OF_RANGE_LABEL, 'message' => __( 'Catégorie Ring 2026-2027 indisponible pour cet âge ou sexe.', 'ufsc-licence-competition' ), 'status' => 'out_of_range' );
+			}
+			$label = self::resolve_weight_label( $weight_kg, $ring_2026 );
+			return array( 'label' => $label ?: self::OUT_OF_RANGE_LABEL, 'message' => '', 'status' => $label ? 'ok' : 'out_of_range' );
+		}
 		$missing_sex = '' === $sex;
 
 		$context = self::normalize_context( $context );
@@ -103,6 +148,10 @@ class WeightCategoryResolver {
 		}
 
 		$sex = self::normalize_sex( $sex );
+		$ring_2026 = self::ring_2026_reference( $dob, $sex, $context );
+		if ( null !== $ring_2026 ) {
+			return array_map( array( __CLASS__, 'format_weight_label' ), $ring_2026 );
+		}
 		$context = self::normalize_context( $context );
 		$rules = self::get_rules();
 		$discipline = $context['discipline'];
