@@ -19,7 +19,7 @@ $php  = file_get_contents( $generator );
 $html = file_get_contents( $template );
 
 $required_php = array(
-	"const TEMPLATE_VERSION = 'ufsc-document-v15-a4-two-faces-one-sheet';",
+	"const TEMPLATE_VERSION = 'ufsc-document-v16-approved-v5-a4';",
 	"UFSC_Identifier_Resolver::read( \$licence, 'licence_ufsc' )",
 	"return \$record_id > 0 ? (string) \$record_id : '';",
 	"'licence-ufsc'",
@@ -61,11 +61,11 @@ if ( false === strpos( $html, 'N° LICENCE FFST' ) || false === strpos( $html, '
 	$errors[] = 'premium V14 template must display the imported FFST number separately';
 }
 
-if ( false === strpos( $html, 'CERTIFICATION MÉDICALE — TEXTE SOURCE FFST' ) || false === strpos( $html, 'N° MÉDECIN / RPPS' ) ) {
+if ( false === strpos( $html, 'CERTIFICATION MÉDICALE — À COMPLÉTER PAR LE MÉDECIN' ) || false === strpos( $html, 'N° MÉDECIN / RPPS' ) ) {
 	$errors[] = 'premium V14 template must preserve the medical certification and doctor/RPPS area';
 }
 
-if ( false === strpos( $html, 'circle-blue' ) || false === strpos( $html, 'circle-red' ) ) {
+if ( false === strpos( $html, '.face:before' ) || false === strpos( $html, '.face:after' ) ) {
 	$errors[] = 'premium V14 template must preserve the validated blue/red circle design';
 }
 
