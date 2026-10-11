@@ -125,6 +125,46 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	}
 
 	/**
+	 * Fictional identity and placeholders for the admin template preview only.
+	 *
+	 * @return array<string,string>
+	 */
+	private static function get_template_preview_demo_data() {
+		return array(
+			'first_name' => 'Alex',
+			'last_name' => 'EXEMPLE',
+			'license_number' => 'FFST-DEMO-000000',
+			'ufsc_number' => 'UFSC-DEMO-000001',
+			'ffst_number' => 'FFST-DEMO-000000',
+			'sex' => 'M',
+			'address' => '10 rue de la Démonstration',
+			'postal_code' => '00000',
+			'city' => 'Ville fictive',
+			'discipline' => 'Kickboxing / K1 / Full Contact (exemple)',
+			'ffst_references' => 'RÉFÉRENCE FICTIVE',
+			'ffst_issued_at' => '01/09/2026',
+			'source_club_code' => 'CLUB-DEMO',
+			'source_holder_ref' => 'A.EXEMPLE',
+			'source_code' => 'DEMO',
+			'club_name' => 'Club Démonstration UFSC',
+			'birthdate' => '01/01/1990',
+			'season' => '2026–2027',
+			'category' => 'Senior',
+			'region' => 'Région fictive',
+			'profile' => 'Démonstration',
+			'role' => 'Pratiquant',
+			'photo_uri' => '',
+			'logo_uri' => self::get_default_logo_data_uri(),
+			'qr_uri' => '',
+			'ffst_missing_class' => '',
+			'logo_ufsc_url' => 'https://ufsc-france.fr/wp-content/uploads/2025/12/cropped-cropped-UFSC-logo.jpg',
+			'logo_ffst_url' => 'https://ufsc-france.fr/wp-content/uploads/2026/09/logo-ffst-2020.png',
+			'generated_at' => wp_date( 'd/m/Y' ),
+			'initials' => 'AE',
+		);
+	}
+
+	/**
 	 * Render the designed sample and generator diagnostics.
 	 */
 	public static function render_admin_page() {
@@ -132,44 +172,16 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
 
-		$sample = array(
-			'first_name'     => 'Jean-Bernard',
-			'last_name'      => 'SAUTRON',
-			'license_number' => 'M211036',
-			'ufsc_number'    => 'UFSC-2026-000001',
-			'ffst_number'    => 'M211036',
-			'sex'            => 'M',
-			'address'        => '4 Allée des Ficus',
-			'postal_code'    => '97432',
-			'city'           => 'Ravine des Cabris',
-			'discipline'     => 'UFSC – Kick Boxing et DA',
-			'ffst_references'=> '97 · 974 · 2951 · 9908',
-			'ffst_issued_at' => '30/09/2026',
-			'source_club_code' => 'S P B C 97432',
-			'source_holder_ref' => 'J.SAUTRON',
-			'source_code'    => 'U',
-			'club_name'      => 'Saint Pierre Boxing Club',
-			'birthdate'      => '27/05/1967',
-			'season'         => '2026–2027',
-			'category'       => 'Senior',
-			'region'         => 'Auvergne-Rhône-Alpes',
-			'profile'        => 'Compétiteur',
-			'role'           => 'Président',
-			'photo_uri'      => '',
-			'logo_uri'       => self::get_default_logo_data_uri(),
-			'qr_uri'         => '',
-			'ffst_missing_class' => '',
-			'logo_ufsc_url'  => 'https://ufsc-france.fr/wp-content/uploads/2025/12/cropped-cropped-UFSC-logo.jpg',
-			'logo_ffst_url'  => 'https://ufsc-france.fr/wp-content/uploads/2026/09/logo-ffst-2020.png',
-			'generated_at'   => wp_date( 'd/m/Y' ),
-			'initials'       => 'AM',
-		);
+		// Entirely fictional display-only data. Never use a real licensee for this preview.
+		// Actual PDF generation uses its separate persisted-license data flow.
+		$sample = self::get_template_preview_demo_data();
 
 		$status  = isset( $_GET['ufsc_pdf_status'] ) ? sanitize_key( wp_unslash( $_GET['ufsc_pdf_status'] ) ) : '';
 		$message = isset( $_GET['ufsc_pdf_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ufsc_pdf_message'] ) ) : '';
 		?>
 		<div class="wrap ufsc-lc-pdf-template-admin">
 			<h1><?php esc_html_e( 'Gabarit automatique de licence UFSC / FFST', 'ufsc-licence-competition' ); ?></h1>
+			<div class="notice notice-info inline"><p><strong><?php esc_html_e( 'APERÇU DE DÉMONSTRATION — DONNÉES 100 % FICTIVES', 'ufsc-licence-competition' ); ?></strong> <?php esc_html_e( 'Les numéros, l’identité et le club affichés ne correspondent à aucune licence réelle. Le PDF des licences validées conserve son fonctionnement habituel.', 'ufsc-licence-competition' ); ?></p></div>
 			<p class="description"><?php esc_html_e( 'Aperçu des deux faces sur une seule feuille A4 portrait utilisé pour les licences validées. Le gabarit affiche séparément le numéro UFSC unique et le numéro FFST importé. Le numéro UFSC est repris directement depuis UFSC Gestion ; si le numéro FFST n’est pas encore importé, le document affiche « En attente d’attribution ».', 'ufsc-licence-competition' ); ?></p>
 
 			<?php if ( $message ) : ?>
