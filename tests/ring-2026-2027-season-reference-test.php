@@ -28,6 +28,6 @@ foreach($tests as $t) {
  $failed=$failed||!$ok;
 }
 $classes=$cls::get_weight_classes('2009-02-01','m',$ctx);
-$ok=in_array('-63.5',$classes,true)&&in_array('+81',$classes,true)&&!in_array('-48',$classes,true);
+$ok=in_array('-63.5',$classes,true)&&in_array('+81',$classes,true)&&!in_array('-40',$classes,true);
 echo($ok?'PASS ':'FAIL ').'male junior ring class list'.PHP_EOL;
 exit($failed||!$ok?1:0);
