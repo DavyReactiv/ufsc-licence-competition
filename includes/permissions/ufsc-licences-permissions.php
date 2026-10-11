@@ -132,6 +132,19 @@ if ( ! function_exists( 'ufsc_lc_normalize_permission_region' ) ) {
 	}
 }
 
+/**
+ * Regional managers must never inherit global region bypasses from old grants.
+ * Uses the canonical UFSC Gestion role and assignment; no role mutation.
+ */
+if ( ! function_exists( 'ufsc_lc_is_scoped_regional_manager' ) ) {
+    function ufsc_lc_is_scoped_regional_manager( $user_id = 0 ): bool {
+        $user_id = absint( $user_id ?: get_current_user_id() );
+        $user = $user_id ? get_userdata( $user_id ) : false;
+        return $user && ! in_array( 'administrator', (array) $user->roles, true )
+            && in_array( 'ufsc_region_manager', (array) $user->roles, true );
+    }
+}
+
 if ( ! function_exists( 'ufsc_lc_user_can_access_region' ) ) {
 	function ufsc_lc_user_can_access_region( $region, $user_id = null ): bool {
 		$region = sanitize_text_field( (string) $region );
@@ -144,7 +157,12 @@ if ( ! function_exists( 'ufsc_lc_user_can_access_region' ) ) {
 			return false;
 		}
 
-		if ( ufsc_lc_is_administrator( $user_id ) || user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) {
+		if ( ufsc_lc_is_administrator( $user_id ) ) {
+			return true;
+		}
+		// Scoped regional managers cannot bypass their region assignment even
+		// when older roles or user meta contain a global-region capability.
+		if ( ! ufsc_lc_is_scoped_regional_manager( $user_id ) && user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return true;
 		}
 
@@ -171,7 +189,7 @@ if ( ! function_exists( 'ufsc_lc_current_user_allowed_regions' ) ) {
 		}
 
 		// null means unrestricted access for administrators / all-regions users.
-		if ( ufsc_lc_is_administrator( $user_id ) || user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) {
+		if ( ufsc_lc_is_administrator( $user_id ) || ( ! ufsc_lc_is_scoped_regional_manager( $user_id ) && user_can( $user_id, UFSC_LC_CAP_ALL_REGIONS ) ) ) {
 			return null;
 		}
 
@@ -267,7 +285,7 @@ if ( ! function_exists( 'ufsc_lc_get_competition_region' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_current_user_can_access_license' ) ) {
 	function ufsc_lc_current_user_can_access_license( $license_id ): bool {
-		if ( ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
+		if ( ! ufsc_lc_is_scoped_regional_manager() && ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return true;
 		}
 
@@ -282,7 +300,7 @@ if ( ! function_exists( 'ufsc_lc_current_user_can_access_license' ) ) {
 
 if ( ! function_exists( 'ufsc_lc_current_user_can_access_competition' ) ) {
 	function ufsc_lc_current_user_can_access_competition( $competition_id ): bool {
-		if ( ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
+		if ( ! ufsc_lc_is_scoped_regional_manager() && ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return true;
 		}
 
@@ -321,7 +339,7 @@ if ( ! function_exists( 'ufsc_lc_current_user_can_access_club' ) ) {
 			return false;
 		}
 
-		if ( ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
+		if ( ! ufsc_lc_is_scoped_regional_manager() && ufsc_lc_user_can( UFSC_LC_CAP_ALL_REGIONS ) ) {
 			return true;
 		}
 
