@@ -305,7 +305,11 @@ final class UFSC_LC_Licence_Pdf_Generator {
 					return new WP_Error( 'ufsc_lc_pdf_manual_preserved', __( 'Un PDF a été associé manuellement à cette licence : il est conservé et ne sera pas remplacé automatiquement.', 'ufsc-licence-competition' ) );
 				}
 
-				if ( ! $force && self::TEMPLATE_VERSION === (string) self::get_document_meta( $licence_id, 'pdf_template_version' ) ) {
+				// A current template version is not sufficient when the FFST number
+				// changed since generation. Refresh rather than serving a stale card.
+				$saved_ffst_number = trim( (string) self::get_document_meta( $licence_id, 'ffst_display_number' ) );
+				if ( ! $force && self::TEMPLATE_VERSION === (string) self::get_document_meta( $licence_id, 'pdf_template_version' )
+					&& $saved_ffst_number === $ffst_number ) {
 					$file = get_attached_file( (int) $current->attachment_id );
 					if ( $file && is_readable( $file ) ) {
 						return (int) $current->attachment_id;
