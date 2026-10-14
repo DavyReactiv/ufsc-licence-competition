@@ -121,6 +121,14 @@ class UFSC_LC_FFST_Import_Service {
 		// UFSC Gestion data immediately before any write.
 		$plan=array();$seen_ffst=array();$seen_licence=array();
 		$names=$this->column_exists($lt,'nom')?'nom':'nom_licence';
+		$season_columns=array();
+		foreach(array('season_end_year','saison','season') as $season_field){
+			if($this->column_exists($lt,$season_field))$season_columns[]=$season_field;
+		}
+		if(!$season_columns)return new WP_Error('ffst_season_column_missing',__('Impossible de vérifier la saison des licences : import arrêté sans modification.','ufsc-licence-competition'));
+		$expected_end=absint($batch->season_end_year);
+		if(!$expected_end)return new WP_Error('ffst_invalid_batch_season',__('Saison du lot FFST invalide.','ufsc-licence-competition'));
+
 		foreach($rows as $row){
 			$id=absint($row->match_licence_id);$incoming=strtoupper(trim((string)$row->ffst_number));
 			if(!$id||''===$incoming||isset($seen_ffst[$incoming])||isset($seen_licence[$id])){
@@ -128,11 +136,20 @@ class UFSC_LC_FFST_Import_Service {
 			}
 			$seen_ffst[$incoming]=true;$seen_licence[$id]=true;
 			$master=$wpdb->get_row($wpdb->prepare(
-				"SELECT id,{$names} AS last_name,prenom AS first_name,date_naissance AS birthdate,numero_licence_ffst FROM {$lt} WHERE id=%d LIMIT 1",$id
+				"SELECT id,{$names} AS last_name,prenom AS first_name,date_naissance AS birthdate,numero_licence_ffst,".implode(',',array_map(static function($field){return "`{$field}`";},$season_columns))." FROM {$lt} WHERE id=%d LIMIT 1",$id
 			));
 			if(!$master||$this->norm($master->last_name)!==$this->norm($row->last_name)||$this->norm($master->first_name)!==$this->norm($row->first_name)||(string)$master->birthdate!==(string)$row->birthdate){
 				return new WP_Error('ffst_identity_changed',sprintf(__('Identité non vérifiée pour la licence UFSC #%d : aucune modification.','ufsc-licence-competition'),$id));
 			}
+			$season_ok=false;
+			foreach($season_columns as $season_field){
+				$value=trim((string)($master->{$season_field}??''));
+				if(('season_end_year'===$season_field && absint($value)===$expected_end) ||
+					in_array($value,array((string)$expected_end,($expected_end-1).'-'.$expected_end,($expected_end-1).'/'.$expected_end),true)){
+					$season_ok=true;break;
+				}
+			}
+			if(!$season_ok)return new WP_Error('ffst_batch_season_mismatch',sprintf(__('La licence UFSC #%d ne correspond pas à la saison du lot FFST. Aucune modification.','ufsc-licence-competition'),$id));
 			$current=trim((string)$master->numero_licence_ffst);
 			if(''!==$current&&0!==strcasecmp($current,$incoming)){
 				return new WP_Error('ffst_concurrent_conflict',sprintf(__('La licence UFSC #%d possède déjà un autre N° FFST.','ufsc-licence-competition'),$id));
