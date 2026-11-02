@@ -42,6 +42,16 @@ class UFSC_LC_FFST_Import_Page {
 		$ids=isset($_POST['selected_row_ids'])?(array)wp_unslash($_POST['selected_row_ids']):array();
 		$result=$service->apply_batch($batch_id,$ids);
 		if(is_wp_error($result)) $this->redirect_notice('error',$result->get_error_message(),$batch_id);
+        // Rapprochement FFST = numéro inscrit, PAS encore statut UFSC validé.
+        // Passage immédiat à l'écran de confirmation pour les administrateurs.
+        if ( (int) $result > 0 && class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) {
+            wp_safe_redirect( add_query_arg( array(
+                'page' => 'ufsc-ffst-validation',
+                'batch_id' => $batch_id,
+                'ufsc_ffst_synced' => (int) $result,
+            ), admin_url( 'admin.php' ) ) );
+            exit;
+        }
 		$this->redirect_notice('success',sprintf(_n('%d licence FFST synchronisée.','%d licences FFST synchronisées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
 	}
 
@@ -76,6 +86,24 @@ class UFSC_LC_FFST_Import_Page {
 			<?php $this->render_notice(); ?>
 			<div class="notice notice-info inline"><p><strong><?php esc_html_e('Flux sécurisé :','ufsc-licence-competition'); ?></strong>
 			<?php esc_html_e('fichier → analyse → rapprochement avec UFSC Gestion → contrôle → validation. Aucune licence UFSC n’est créée automatiquement et aucun N° FFST existant différent n’est écrasé.','ufsc-licence-competition'); ?></p></div>
+            <?php if ( class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
+                <p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=ufsc-ffst-validation' ) ); ?>"><?php esc_html_e( 'Voir les lots prêts à valider dans UFSC Gestion', 'ufsc-licence-competition' ); ?></a></p>
+            <?php endif; ?>
+            <?php if ( $batch && (int) $batch->applied_rows > 0 ) : ?>
+                <div class="notice notice-<?php echo class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ? 'success' : 'warning'; ?> inline" style="padding:12px 16px">
+                    <p><strong><?php echo esc_html( sprintf( _n( '%d numéro FFST rapproché.', '%d numéros FFST rapprochés.', (int) $batch->applied_rows, 'ufsc-licence-competition' ), (int) $batch->applied_rows ) ); ?></strong>
+                    <?php esc_html_e( 'Le statut des licences UFSC reste inchangé tant que la validation groupée n’est pas confirmée.', 'ufsc-licence-competition' ); ?></p>
+                    <?php if ( class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
+                        <p><a class="button button-primary button-hero" href="<?php echo esc_url( add_query_arg( array( 'page' => 'ufsc-ffst-validation', 'batch_id' => absint( $batch->id ) ), admin_url( 'admin.php' ) ) ); ?>"><?php esc_html_e( 'Étape suivante : passer les statuts UFSC à « Validée »', 'ufsc-licence-competition' ); ?></a></p>
+                    <?php elseif ( ! class_exists( 'UFSC_FFST_Batch_Validation', false ) ) : ?>
+                        <p><?php esc_html_e( 'Le centre de validation UFSC Gestion n’est pas chargé sur ce site. Vérifiez la version installée et l’activation du plugin UFSC Gestion.', 'ufsc-licence-competition' ); ?></p>
+                    <?php else : ?>
+                        <p><?php esc_html_e( 'Seul un administrateur WordPress peut confirmer le passage du statut UFSC à « Validée ». Contactez votre administrateur.', 'ufsc-licence-competition' ); ?></p>
+                    <?php endif; ?>
+                </div>
+            <?php elseif ( $batch && (int) $matched_count > 0 ) : ?>
+                <div class="notice notice-info inline"><p><?php esc_html_e( 'Prochaine étape : sélectionnez les licences trouvées, puis cliquez sur « Rapprocher les lignes sélectionnées ». Vous pourrez ensuite valider leur statut UFSC.', 'ufsc-licence-competition' ); ?></p></div>
+            <?php endif; ?>
 
 			<div class="card" style="max-width:1100px;padding:20px;margin-top:18px">
 				<h2><?php esc_html_e('1. Charger le fichier fourni par la FFST','ufsc-licence-competition'); ?></h2>
@@ -103,11 +131,7 @@ class UFSC_LC_FFST_Import_Page {
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Ambiguës : %d','ufsc-licence-competition'),$batch->ambiguous_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Conflits : %d','ufsc-licence-competition'),$batch->conflict_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
-                        <?php if ( (int) $batch->applied_rows > 0 && class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
-                            <a class="button button-primary" href="<?php echo esc_url( add_query_arg( array( 'page' => 'ufsc-ffst-validation', 'batch_id' => absint( $batch->id ) ), admin_url( 'admin.php' ) ) ); ?>">
-                                <?php esc_html_e( 'Valider les licences UFSC du lot', 'ufsc-licence-competition' ); ?>
-                            </a>
-                        <?php endif; ?>
+
 					</p>
 					<style>
 						.ufsc-lc-ffst-import-grid{min-width:1150px;font-size:12px}
