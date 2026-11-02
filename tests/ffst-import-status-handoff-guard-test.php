@@ -9,14 +9,13 @@ $required = array(
     "class_exists( 'UFSC_FFST_Batch_Validation', false )",
     "current_user_can( 'manage_options' )",
     "'page' => 'ufsc-ffst-validation'",
-    "'batch_id' => $batch_id", // intentionally checked as literal below
+    "'batch_id' => " . '$batch_id',
     "'ufsc_ffst_synced'",
     "wp_safe_redirect(",
     "Le statut des licences UFSC reste inchangé",
     "Étape suivante : passer les statuts UFSC à",
     "Le centre de validation UFSC Gestion n’est pas chargé",
 );
-$required[3] = "'batch_id' => " . '$batch_id';
 $failures = array();
 foreach ( $required as $needle ) {
     if ( false === strpos( $page, $needle ) ) { $failures[] = 'Absent: ' . $needle; }
