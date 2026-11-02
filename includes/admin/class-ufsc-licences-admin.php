@@ -40,6 +40,13 @@ class UFSC_LC_Licences_Admin {
 		}
 
 		foreach ( self::LEGACY_PAGE_SLUGS as $legacy_slug ) {
+			// UFSC Gestion owns this slug and renders its club/licence editor there.
+			// Registering a second callback on the same WordPress page hook
+			// appends the Competition licences table beneath Gestion's content.
+			// Keep other legacy aliases; do not change data, exports or URLs.
+			if ( 'ufsc_lc_licences' === $legacy_slug && class_exists( 'UFSC_SQL_Admin', false ) ) {
+				continue;
+			}
 			$legacy_hook = add_submenu_page(
 				null,
 				__( 'Licences', 'ufsc-licence-competition' ),
