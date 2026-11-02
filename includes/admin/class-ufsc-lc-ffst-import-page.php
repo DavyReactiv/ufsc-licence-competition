@@ -103,6 +103,11 @@ class UFSC_LC_FFST_Import_Page {
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Ambiguës : %d','ufsc-licence-competition'),$batch->ambiguous_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Conflits : %d','ufsc-licence-competition'),$batch->conflict_rows)); ?></span>
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
+                        <?php if ( (int) $batch->applied_rows > 0 && class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
+                            <a class="button button-primary" href="<?php echo esc_url( add_query_arg( array( 'page' => 'ufsc-ffst-validation', 'batch_id' => absint( $batch->id ) ), admin_url( 'admin.php' ) ) ); ?>">
+                                <?php esc_html_e( 'Valider les licences UFSC du lot', 'ufsc-licence-competition' ); ?>
+                            </a>
+                        <?php endif; ?>
 					</p>
 					<style>
 						.ufsc-lc-ffst-import-grid{min-width:1150px;font-size:12px}
