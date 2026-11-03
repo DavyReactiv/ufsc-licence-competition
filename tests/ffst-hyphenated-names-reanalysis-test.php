@@ -24,6 +24,8 @@ require dirname( __DIR__ ) . '/includes/import/class-ufsc-lc-ffst-import-service
 $service = new UFSC_LC_FFST_Import_Service();
 $norm = new ReflectionMethod( $service, 'norm' );
 $match = new ReflectionMethod( $service, 'resolve_match' );
+$norm->setAccessible( true );
+$match->setAccessible( true );
 function check( $test, $label ) {
     if ( ! $test ) { fwrite( STDERR, "FAIL: {$label}\n" ); exit( 1 ); }
 }
