@@ -99,12 +99,69 @@ class UFSC_LC_FFST_Import_Service {
 		return $batch_id;
 	}
 
+
+	/**
+	 * Reassess ONLY previously not-found rows of an existing FFST import.
+	 * This does not edit UFSC licences, issue numbers, or change already-applied rows.
+	 */
+	public function reanalyse_not_found($batch_id){
+		global $wpdb;
+		$batch_id=absint($batch_id);
+		$batch=$this->get_batch($batch_id);
+		if(!$batch)return new WP_Error('ffst_batch_missing',__('Lot FFST introuvable.','ufsc-licence-competition'));
+		if((int)$batch->total_rows!==$this->get_batch_row_count($batch_id)){
+			return new WP_Error('ffst_batch_count_mismatch',__('Le lot présente une incohérence de données : réanalyse refusée sans modification.','ufsc-licence-competition'));
+		}
+		$rows=$wpdb->get_results($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY id ASC LIMIT 501",
+			$batch_id,self::NOT_FOUND
+		));
+		if(count($rows)>500)return new WP_Error('ffst_reanalyse_limit',__('Plus de 500 lignes introuvables : réanalyse interrompue pour éviter un traitement incomplet.','ufsc-licence-competition'));
+		$matched=0;
+		foreach($rows as $row){
+			$d=array(
+				'ffst_number'=>(string)$row->ffst_number,'last_name'=>(string)$row->last_name,
+				'first_name'=>(string)$row->first_name,'birthdate'=>(string)$row->birthdate,
+				'club_name'=>(string)$row->club_name,
+			);
+			$match=$this->resolve_match($d,absint($batch->season_end_year));
+			if(self::MATCHED!==$match['status']||!absint($match['licence_id']))continue;
+			// Keep the one-person/one-number invariant across the entire stored lot.
+			$conflicting_number=(int)$wpdb->get_var($wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND id<>%d AND ffst_number=%s",
+				$batch_id,absint($row->id),$row->ffst_number
+			));
+			$conflicting_person=(int)$wpdb->get_var($wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND id<>%d AND match_licence_id=%d AND match_status IN (%s,%s)",
+				$batch_id,absint($row->id),absint($match['licence_id']),self::MATCHED,self::APPLIED
+			));
+			if($conflicting_number||$conflicting_person)continue;
+			$written=$wpdb->update($this->rows_table(),array(
+				'match_status'=>self::MATCHED,
+				'match_licence_id'=>absint($match['licence_id']),
+				'match_message'=>__('Rapprochement retrouvé après normalisation du prénom : à confirmer avant application.','ufsc-licence-competition'),
+				'previous_ffst_number'=>$match['previous_ffst'],
+			),array('id'=>absint($row->id),'batch_id'=>$batch_id,'match_status'=>self::NOT_FOUND),
+			array('%s','%d','%s','%s'),array('%d','%d','%s'));
+			if(false===$written)return new WP_Error('ffst_reanalyse_failed',__('Erreur de réanalyse du lot : les licences UFSC n’ont pas été modifiées.','ufsc-licence-competition'));
+			if(1===$written)$matched++;
+		}
+		$updated=$wpdb->update($this->batches_table(),array(
+			'matched_rows'=>$this->get_batch_status_count($batch_id,self::MATCHED),
+			'ambiguous_rows'=>$this->get_batch_status_count($batch_id,self::AMBIGUOUS),
+			'conflict_rows'=>$this->get_batch_status_count($batch_id,self::CONFLICT),
+			'not_found_rows'=>$this->get_batch_status_count($batch_id,self::NOT_FOUND)
+		),array('id'=>$batch_id),array('%d','%d','%d','%d'),array('%d'));
+		if(false===$updated)return new WP_Error('ffst_reanalyse_counts',__('Compteurs du lot non actualisés. Les licences UFSC n’ont pas été modifiées.','ufsc-licence-competition'));
+		return $matched;
+	}
+
 	public function apply_batch($batch_id,array $selected_ids=array()){
 		global $wpdb;
 		$batch_id=absint($batch_id);
 		$batch=$this->get_batch($batch_id);
 		if(!$batch)return new WP_Error('ffst_batch_missing',__('Lot introuvable.','ufsc-licence-competition'));
-		if('applied'===$batch->status)return new WP_Error('ffst_batch_applied',__('Ce lot est déjà traité.','ufsc-licence-competition'));
+		if('applied'===$batch->status && 0===$this->get_batch_status_count($batch_id,self::MATCHED))return new WP_Error('ffst_batch_applied',__('Ce lot ne contient plus de rapprochement à appliquer.','ufsc-licence-competition'));
 		$selected_ids=array_values(array_unique(array_filter(array_map('absint',$selected_ids))));
 		if(!$selected_ids)return new WP_Error('ffst_no_selection',__('Sélectionnez au moins une licence à rapprocher.','ufsc-licence-competition'));
 		if(count($selected_ids)>500)return new WP_Error('ffst_selection_limit',__('Sélectionnez au maximum 500 licences par opération.','ufsc-licence-competition'));
