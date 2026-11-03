@@ -100,10 +100,28 @@ final class UFSC_LC_FFST_Resolution_Admin {
             wp_die( 'Identité ou club non confirmé.', '', array( 'response' => 400 ) );
         }
         $service = new UFSC_LC_FFST_Import_Service();
+        $row = self::row( $batch_id, $row_id );
+        if ( ! $row ) { wp_die( 'Ligne FFST introuvable.', '', array( 'response' => 404 ) ); }
+        $audit_key = 'ufsc_ffst_manual_link_' . $batch_id . '_' . $row_id;
+        $previous = get_option( $audit_key, null );
+        $audit = array(
+            'actor' => get_current_user_id(),
+            'date' => current_time( 'mysql' ),
+            'batch' => $batch_id,
+            'licence' => $licence_id,
+            'ffst' => (string) $row->ffst_number,
+        );
+        // Persist and verify the operator before changing even staging state.
+        update_option( $audit_key, $audit, false );
+        if ( get_option( $audit_key, null ) !== $audit ) {
+            wp_die( 'Traçabilité indisponible : rapprochement non effectué.', '', array( 'response' => 500 ) );
+        }
         $match = $service->manual_stage_match( $batch_id, $row_id, $licence_id, $club_id );
-        if ( is_wp_error( $match ) ) { wp_die( esc_html( $match->get_error_message() ), '', array( 'response' => 409 ) ); }
-        $audit = array( 'actor' => get_current_user_id(), 'date' => current_time( 'mysql' ), 'batch' => $batch_id, 'licence' => $licence_id, 'ffst' => (string) $match['ffst_number'] );
-        update_option( 'ufsc_ffst_manual_link_' . $batch_id . '_' . $row_id, $audit, false );
+        if ( is_wp_error( $match ) ) {
+            if ( null === $previous ) { delete_option( $audit_key ); }
+            else { update_option( $audit_key, $previous, false ); }
+            wp_die( esc_html( $match->get_error_message() ), '', array( 'response' => 409 ) );
+        }
         wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => 'linked' ) ) );
         exit;
     }
