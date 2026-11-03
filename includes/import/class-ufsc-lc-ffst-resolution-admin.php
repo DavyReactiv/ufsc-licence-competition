@@ -89,6 +89,13 @@ final class UFSC_LC_FFST_Resolution_Admin {
         exit;
     }
 
+    private static function match_error( $batch_id, $row_id, $message ) {
+        $key = 'ufsc_ffst_match_error_' . get_current_user_id() . '_' . absint( $batch_id ) . '_' . absint( $row_id );
+        set_transient( $key, sanitize_text_field( (string) $message ), 300 );
+        wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolve_row' => $row_id, 'ffst_resolved' => 'error' ) ) . '#ffst-resolve-panel' );
+        exit;
+    }
+
     public static function save_match() {
         if ( ! self::allowed() ) { wp_die( 'Accès refusé.', '', array( 'response' => 403 ) ); }
         $batch_id = absint( $_POST['batch_id'] ?? 0 );
@@ -97,11 +104,11 @@ final class UFSC_LC_FFST_Resolution_Admin {
         $club_id = absint( $_POST['club_id'] ?? 0 );
         check_admin_referer( 'ufsc_ffst_match_' . $batch_id . '_' . $row_id );
         if ( empty( $_POST['identity_confirmed'] ) || ! self::club_exists( $club_id ) ) {
-            wp_die( 'Identité ou club non confirmé.', '', array( 'response' => 400 ) );
+            self::match_error( $batch_id, $row_id, 'Confirmez la vérification de l’identité et choisissez le club avant de poursuivre.' );
         }
         $service = new UFSC_LC_FFST_Import_Service();
         $row = self::row( $batch_id, $row_id );
-        if ( ! $row ) { wp_die( 'Ligne FFST introuvable.', '', array( 'response' => 404 ) ); }
+        if ( ! $row ) { self::match_error( $batch_id, $row_id, 'Ligne FFST introuvable : rechargez le lot.' ); }
         $audit_key = 'ufsc_ffst_manual_link_' . $batch_id . '_' . $row_id;
         $previous = get_option( $audit_key, null );
         $audit = array(
@@ -114,13 +121,13 @@ final class UFSC_LC_FFST_Resolution_Admin {
         // Persist and verify the operator before changing even staging state.
         update_option( $audit_key, $audit, false );
         if ( get_option( $audit_key, null ) !== $audit ) {
-            wp_die( 'Traçabilité indisponible : rapprochement non effectué.', '', array( 'response' => 500 ) );
+            self::match_error( $batch_id, $row_id, 'Traçabilité indisponible : aucun rapprochement effectué.' );
         }
         $match = $service->manual_stage_match( $batch_id, $row_id, $licence_id, $club_id );
         if ( is_wp_error( $match ) ) {
             if ( null === $previous ) { delete_option( $audit_key ); }
             else { update_option( $audit_key, $previous, false ); }
-            wp_die( esc_html( $match->get_error_message() ), '', array( 'response' => 409 ) );
+            self::match_error( $batch_id, $row_id, $match->get_error_message() );
         }
         wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => 'linked' ) ) );
         exit;
@@ -174,6 +181,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
         if ( ! $row || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
         $club_id = absint( $_GET['ffst_target_club'] ?? self::target_club_id( $row->club_name ) );
         echo '<section class="ufsc-ffst-resolve-panel" id="ffst-resolve-panel"><h3>Rapprochement assisté : ' . esc_html( $row->first_name . ' ' . $row->last_name ) . '</h3>';
+        $error_key = 'ufsc_ffst_match_error_' . get_current_user_id() . '_' . absint( $batch->id ) . '_' . $row_id;
+        $error = get_transient( $error_key );
+        if ( $error ) {
+            echo '<div class="ufsc-ffst-warning" role="alert"><strong>Association non effectuée :</strong> ' . esc_html( $error ) . '</div>';
+            delete_transient( $error_key );
+        }
         echo '<p>FFST <strong>' . esc_html( $row->ffst_number ) . '</strong> · Naissance ' . esc_html( $row->birthdate ) . ' · Saison ' . esc_html( ( $batch->season_end_year - 1 ) . '–' . $batch->season_end_year ) . '</p>';
         echo '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '"><input type="hidden" name="page" value="' . esc_attr( UFSC_LC_FFST_Import_Page::PAGE_SLUG ) . '"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="ffst_resolve_row" value="' . esc_attr( $row->id ) . '">';
         echo '<label for="ffst-manual-club">Rechercher dans le club UFSC</label> <select name="ffst_target_club" id="ffst-manual-club" required><option value="">Sélectionner le club…</option>';
@@ -187,10 +200,18 @@ final class UFSC_LC_FFST_Resolution_Admin {
             } elseif ( ! $candidates ) {
                 echo '<p class="ufsc-ffst-warning">Aucune fiche avec cette date de naissance dans ce club pour la saison choisie. Vérifiez le club ou préparez un brouillon.</p>';
             } else {
+                $exact_count = count( array_filter( $candidates, static function ( $candidate ) {
+                    return ! empty( $candidate->eligible );
+                } ) );
+                if ( $exact_count > 1 ) {
+                    echo '<div class="ufsc-ffst-warning" role="alert"><strong>Doublon d’identité :</strong> plusieurs licences UFSC sont identiques pour ce club et cette saison. Corrigez le doublon avant toute association ; aucun numéro ne sera écrit.</div>';
+                } elseif ( 0 === $exact_count ) {
+                    echo '<div class="ufsc-ffst-warning">Date de naissance commune, mais aucun nom et prénom exactement concordants. Ne forcez pas une identité différente : vérifiez ou corrigez la fiche UFSC.</div>';
+                }
                 echo '<div class="ufsc-ffst-candidate-table"><table class="widefat striped"><thead><tr><th>UFSC</th><th>Nom et prénom</th><th>Naissance</th><th>Contrôle</th><th>Action</th></tr></thead><tbody>';
                 foreach ( $candidates as $person ) {
                     echo '<tr><td>#' . esc_html( $person->id ) . '</td><td>' . esc_html( $person->first_name . ' ' . $person->last_name ) . '</td><td>' . esc_html( $person->date_naissance ) . '</td><td>' . ( $person->eligible ? 'Identité concordante' : 'Identité différente' ) . '</td><td>';
-                    if ( $person->eligible ) {
+                    if ( $person->eligible && 1 === $exact_count ) {
                         echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
                         wp_nonce_field( 'ufsc_ffst_match_' . absint( $batch->id ) . '_' . absint( $row->id ) );
                         echo '<input type="hidden" name="action" value="ufsc_lc_ffst_manual_match"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="row_id" value="' . esc_attr( $row->id ) . '"><input type="hidden" name="licence_id" value="' . esc_attr( $person->id ) . '"><input type="hidden" name="club_id" value="' . esc_attr( $club_id ) . '"><label><input type="checkbox" name="identity_confirmed" value="1" required> Identité et club vérifiés</label> <button type="submit" class="button button-primary">Associer</button></form>';
