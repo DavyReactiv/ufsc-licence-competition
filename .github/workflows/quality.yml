@@ -75,6 +75,10 @@ jobs:
         run: php tests/ffst-club-search-runtime-test.php
       - name: FFST club search UI guard
         run: php tests/ffst-club-search-ui-guard-test.php
+      - name: FFST full batch search SQL and filtering
+        run: php tests/ffst-global-lot-search-runtime-test.php
+      - name: FFST search UX and filter persistence
+        run: php tests/ffst-global-lot-search-ui-guard-test.php
       - name: FFST club search JS syntax
         run: node --check assets/js/ffst-club-search.js
       - name: Self-contained Dompdf distribution guard
