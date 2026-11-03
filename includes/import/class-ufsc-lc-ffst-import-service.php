@@ -484,14 +484,25 @@ class UFSC_LC_FFST_Import_Service {
 		if($this->column_exists($lt,'saison'))$select[]='l.saison';
 		elseif($this->column_exists($lt,'season'))$select[]='l.season';
 
+		// Search on the exact birth date, then compare both names in PHP.
+		// Strict SQL first-name equality rejects Jean-Christophe / Jean Christophe.
+		// Never fuzzy-match identities; ambiguous candidates remain blocked.
+		$select[]="{$last} AS last_name";
+		$select[]='l.prenom AS first_name';
 		$sql="SELECT ".implode(',',$select)." FROM {$lt} l LEFT JOIN {$ct} c ON c.id=l.club_id
-			WHERE UPPER(TRIM({$last}))=%s AND UPPER(TRIM(l.prenom))=%s AND l.date_naissance=%s";
-		$args=array($this->norm($d['last_name']),$this->norm($d['first_name']),$d['birthdate']);
-		$candidates=$wpdb->get_results($wpdb->prepare($sql.' ORDER BY l.id DESC LIMIT 25',$args));
+			WHERE l.date_naissance=%s ORDER BY l.id DESC LIMIT 501";
+		$birth_candidates=$wpdb->get_results($wpdb->prepare($sql,$d['birthdate']));
+		if(count($birth_candidates)>500){
+			return array('status'=>self::AMBIGUOUS,'licence_id'=>0,'message'=>__('Trop de candidats pour cette date de naissance : vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
+		}
+		$candidates=array_values(array_filter($birth_candidates,function($candidate)use($d){
+			return $this->norm((string)$candidate->last_name)===$this->norm($d['last_name'])
+				&& $this->norm((string)$candidate->first_name)===$this->norm($d['first_name']);
+		}));
 
 		// Restrict duplicate identities to the season explicitly selected for the
 		// FFST import. This is critical when the same member has historical rows.
-		if(count($candidates)>1 && absint($season)>0){
+		if($candidates && absint($season)>0){
 			$season_end=absint($season);
 			$season_label=sprintf('%d-%d',$season_end-1,$season_end);
 			$season_label_alt=sprintf('%d/%d',$season_end-1,$season_end);
@@ -503,7 +514,7 @@ class UFSC_LC_FFST_Import_Service {
 				if(''===$value)return false;
 				return in_array($value,array((string)$season_end,$season_label,$season_label_alt),true);
 			}));
-			if($season_matches)$candidates=$season_matches;
+			$candidates=$season_matches;
 		}
 
 		// Then prefer the club provided by FFST.
@@ -545,7 +556,12 @@ class UFSC_LC_FFST_Import_Service {
 	private function meta($id,$k,$v){global$wpdb;$t=$wpdb->prefix.'ufsc_licence_documents_meta';if(!$this->table_exists($t))return;$mid=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$t} WHERE licence_id=%d AND source=%s AND meta_key=%s LIMIT 1",$id,'UFSC',$k));$d=array('licence_id'=>$id,'source'=>'UFSC','meta_key'=>$k,'meta_value'=>maybe_serialize($v),'updated_at'=>current_time('mysql'));if($mid)$wpdb->update($t,$d,array('id'=>absint($mid)),array('%d','%s','%s','%s','%s'),array('%d'));else$wpdb->insert($t,$d,array('%d','%s','%s','%s','%s'));}
 	private function key($v){$v=remove_accents(strtolower(trim((string)$v)));return trim(preg_replace('/[^a-z0-9]+/',' ',$v));}
 	private function date($v){$v=trim((string)$v);foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as$f){$d=DateTime::createFromFormat($f,$v);if($d instanceof DateTime)return$d->format('Y-m-d');}return'';}
-	private function norm($v){return strtoupper(preg_replace('/\\s+/',' ',trim(remove_accents((string)$v))));}
+	private function norm($v){
+		$value=remove_accents(trim((string)$v));
+		// Only normalize hyphens/whitespace; never guess a different identity.
+		$value=preg_replace('/[\\p{Pd}-]+/u',' ',$value);
+		return strtoupper(trim(preg_replace('/\\s+/u',' ',$value)));
+	}
 	private function xlsx_col($letters){$i=0;foreach(str_split(strtoupper($letters))as$c)$i=$i*26+(ord($c)-64);return$i-1;}
 	private function batches_table(){global$wpdb;return$wpdb->prefix.'ufsc_lc_ffst_import_batches';}
 	private function rows_table(){global$wpdb;return$wpdb->prefix.'ufsc_lc_ffst_import_rows';}
