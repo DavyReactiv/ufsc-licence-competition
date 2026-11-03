@@ -30,12 +30,15 @@ final class UFSC_LC_FFST_Resolution_Admin {
     }
 
     public static function club_options() {
+        static $cache = null;
+        if ( null !== $cache ) { return $cache; }
         global $wpdb;
         $table = $wpdb->prefix . 'ufsc_clubs';
         $columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
         $name_col = in_array( 'nom', (array) $columns, true ) ? 'nom' : ( in_array( 'name', (array) $columns, true ) ? 'name' : '' );
         if ( ! $name_col ) { return array(); }
-        return $wpdb->get_results( "SELECT id, {$name_col} AS club_name FROM {$table} ORDER BY {$name_col} ASC LIMIT 500" );
+        $cache = $wpdb->get_results( "SELECT id, {$name_col} AS club_name FROM {$table} ORDER BY {$name_col} ASC LIMIT 500" );
+        return (array) $cache;
     }
 
     public static function club_exists( $club_id ) {
@@ -108,7 +111,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
     public static function render_tools( $batch, $rows ) {
         if ( ! self::allowed() || ! $batch || ! $rows ) { return; }
         $source = null;
-        foreach ( $rows as $row ) { if ( trim( (string) $row->club_name ) ) { $source = $row; break; } }
+        foreach ( $rows as $row ) {
+            if ( trim( (string) $row->club_name ) && 'not_found' === $row->match_status ) { $source = $row; break; }
+        }
+        if ( ! $source ) {
+            foreach ( $rows as $row ) { if ( trim( (string) $row->club_name ) ) { $source = $row; break; } }
+        }
         if ( ! $source ) { return; }
         $mapped = self::target_club_id( $source->club_name );
         echo '<section class="ufsc-ffst-resolve-tools"><div class="ufsc-ffst-tool-head"><div><h3>Résoudre les licences introuvables</h3><p>Associez le nom FFST au club UFSC pour reprendre la recherche dans le bon club.</p></div>';
