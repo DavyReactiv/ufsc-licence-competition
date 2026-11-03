@@ -195,11 +195,10 @@ class UFSC_LC_FFST_Import_Service {
             if ( ! $season_ok ) { continue; }
             $candidate->last_name = (string) $candidate->{$name};
             $candidate->first_name = (string) $candidate->prenom;
+            // The same canonical comparison is used by the import service.
+            // Extra slug comparisons would reject some legitimate dash variants.
             $candidate->eligible = $this->norm( $candidate->last_name ) === $this->norm( $row->last_name )
-                && $this->norm( $candidate->first_name ) === $this->norm( $row->first_name )
-                && ( ! function_exists( 'sanitize_title' ) ||
-                    ( sanitize_title( remove_accents( $candidate->last_name ) ) === sanitize_title( remove_accents( $row->last_name ) )
-                        && sanitize_title( remove_accents( $candidate->first_name ) ) === sanitize_title( remove_accents( $row->first_name ) ) ) );
+                && $this->norm( $candidate->first_name ) === $this->norm( $row->first_name );
             $result[] = $candidate;
         }
         return $result;
@@ -228,6 +227,12 @@ class UFSC_LC_FFST_Import_Service {
         }
         if ( ! $found ) {
             return new WP_Error( 'ffst_manual_identity', __( 'Identité complète, naissance, club ou saison non concordants.', 'ufsc-licence-competition' ) );
+        }
+        $eligible_count = count( array_filter( $candidates, static function ( $candidate ) {
+            return ! empty( $candidate->eligible );
+        } ) );
+        if ( 1 !== $eligible_count ) {
+            return new WP_Error( 'ffst_manual_ambiguous', __( 'Plusieurs fiches UFSC ont la même identité et date de naissance dans ce club pour la saison. Vérifiez et corrigez le doublon avant de continuer.', 'ufsc-licence-competition' ) );
         }
         $prev = trim( (string) ( $found->numero_licence_ffst ?? '' ) );
         $incoming = trim( (string) $row->ffst_number );
