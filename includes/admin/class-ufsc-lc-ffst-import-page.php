@@ -94,12 +94,17 @@ class UFSC_LC_FFST_Import_Page {
         if(!in_array($status_filter,$allowed_filters,true))$status_filter='';
         $lot_search = isset($_GET['ffst_search']) ? sanitize_text_field(wp_unslash($_GET['ffst_search'])) : '';
         $lot_search = function_exists('mb_substr') ? mb_substr(trim($lot_search),0,100) : substr(trim($lot_search),0,100);
+        $club_summary=$batch?$service->get_batch_club_summary($batch_id,250):array();
+        $club_filter=isset($_GET['ffst_club'])?sanitize_text_field(wp_unslash($_GET['ffst_club'])):'';
+        // The club must exist in this exact import batch; never trust a
+        // forged query parameter or a club name from a different batch.
+        if(''!==$club_filter && !$service->batch_club_in_summary($club_summary,$club_filter))$club_filter='';
         $actual_rows=$batch?$service->get_batch_row_count($batch_id):0;
-        $display_rows=$batch?$service->count_batch_rows_filtered($batch_id,$status_filter,$lot_search):0;
+        $display_rows=$batch?$service->count_batch_rows_filtered($batch_id,$status_filter,$lot_search,$club_filter):0;
         $pages=$display_rows?max(1,(int)ceil($display_rows/$per_page)):1;
         if($current_page>$pages)$current_page=$pages;
         $offset=($current_page-1)*$per_page;
-        $rows=$batch?$service->get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset):array();
+        $rows=$batch?$service->get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset,$club_filter):array();
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
 		$matched_count=0;$unknown_count=0;
 		if($batch){
@@ -158,16 +163,27 @@ class UFSC_LC_FFST_Import_Page {
                         <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
                         <input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
                         <input type="hidden" name="ffst_status" value="<?php echo esc_attr($status_filter); ?>">
+                        <label for="ffst-source-club"><strong>Club FFST du lot</strong></label>
+                        <select name="ffst_club" id="ffst-source-club">
+                            <option value="">Tous les clubs du lot</option>
+                            <?php foreach($club_summary as $club): ?>
+                                <option value="<?php echo esc_attr($club->club_name); ?>" <?php selected($club_filter,(string)$club->club_name); ?>><?php echo esc_html($club->club_name); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                         <label for="ffst-global-search"><strong>Rechercher dans tout le lot</strong></label>
                         <input id="ffst-global-search" type="search" name="ffst_search" value="<?php echo esc_attr($lot_search); ?>" maxlength="100" placeholder="Nom, prénom, N° FFST, club, naissance…" aria-describedby="ffst-global-search-help">
                         <button type="submit" class="button button-primary">Rechercher</button>
-                        <?php if(''!==$lot_search): ?>
-                            <a class="button" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_page'=>1),admin_url('admin.php'))); ?>">Effacer la recherche</a>
+                        <?php if(''!==$lot_search || ''!==$club_filter): ?>
+                            <a class="button" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_page'=>1),admin_url('admin.php'))); ?>">Effacer les filtres</a>
                         <?php endif; ?>
                         <span id="ffst-global-search-help" class="description">Recherche sur toutes les pages, avec le filtre d’état sélectionné.</span>
                     </form>
-                    <?php if(''!==$lot_search): ?>
-                        <div class="ufsc-ffst-search-summary" role="status"><?php echo esc_html(sprintf('%d résultat(s) dans tout le lot pour « %s ».',$display_rows,$lot_search)); ?></div>
+                    <?php if(''!==$lot_search || ''!==$club_filter): ?>
+                        <div class="ufsc-ffst-search-summary" role="status">
+                            <?php echo esc_html(sprintf('%d ligne(s) trouvée(s) dans ce lot.',$display_rows)); ?>
+                            <?php if(''!==$club_filter): ?>Club FFST : <strong><?php echo esc_html($club_filter); ?></strong>.<?php endif; ?>
+                            <?php if(''!==$lot_search): ?>Recherche : <strong><?php echo esc_html($lot_search); ?></strong>.<?php endif; ?>
+                        </div>
                     <?php endif; ?>
                     <nav class="ufsc-ffst-metrics" aria-label="Filtrer les lignes du lot">
                         <?php
@@ -180,7 +196,7 @@ class UFSC_LC_FFST_Import_Page {
                             'applied' => array( 'Appliquées', (int) $batch->applied_rows ),
                         );
                         foreach( $metric_items as $key => $metric ) :
-                            $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_search'=>$lot_search,'ffst_page'=>1),admin_url('admin.php'));
+                            $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_search'=>$lot_search,'ffst_club'=>$club_filter,'ffst_page'=>1),admin_url('admin.php'));
                         ?>
                             <a class="ufsc-ffst-metric <?php echo $status_filter===$key?'is-active':''; ?>" href="<?php echo esc_url($url); ?>" <?php echo $status_filter===$key?'aria-current="true"':''; ?>>
                                 <strong><?php echo esc_html($metric[1]); ?></strong>
@@ -188,6 +204,30 @@ class UFSC_LC_FFST_Import_Page {
                             </a>
                         <?php endforeach; ?>
                     </nav>
+                    <?php if($club_summary): ?>
+                        <details class="ufsc-ffst-club-workqueue">
+                            <summary><strong>Voir les clubs du lot et leurs dossiers à traiter</strong> <span class="description">(<?php echo esc_html(count($club_summary)); ?> club(s) affiché(s))</span></summary>
+                            <div class="ufsc-ffst-workqueue-scroll"><table class="widefat striped">
+                                <thead><tr><th>Club FFST</th><th>Total</th><th>Introuvables</th><th>Ambiguës</th><th>Conflits</th><th>À rapprocher</th><th>Appliquées</th><th>Action</th></tr></thead>
+                                <tbody>
+                                <?php foreach($club_summary as $club): ?>
+                                    <?php $pending=(int)$club->not_found_rows+(int)$club->ambiguous_rows+(int)$club->conflict_rows; ?>
+                                    <tr>
+                                        <td><strong><?php echo esc_html($club->club_name); ?></strong></td>
+                                        <td><?php echo esc_html((int)$club->total_rows); ?></td>
+                                        <td><?php echo esc_html((int)$club->not_found_rows); ?></td>
+                                        <td><?php echo esc_html((int)$club->ambiguous_rows); ?></td>
+                                        <td><?php echo esc_html((int)$club->conflict_rows); ?></td>
+                                        <td><?php echo esc_html((int)$club->matched_rows); ?></td>
+                                        <td><?php echo esc_html((int)$club->applied_rows); ?></td>
+                                        <td><a class="button button-small" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_club'=>(string)$club->club_name,'ffst_status'=>$pending?'not_found':'','ffst_page'=>1),admin_url('admin.php'))); ?>">Ouvrir ce club</a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table></div>
+                            <p class="description">Les compteurs sont en lecture seule. Aucun rapprochement ni changement de statut n’est effectué par ce tableau. Maximum 250 clubs affichés par lot.</p>
+                        </details>
+                    <?php endif; ?>
                     <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)): ?>
                         <?php UFSC_LC_FFST_Resolution_Admin::render_tools($batch,$rows); ?>
                     <?php endif; ?>
@@ -283,7 +323,7 @@ class UFSC_LC_FFST_Import_Page {
 					<?php if($pages>1): ?>
 						<nav aria-label="<?php esc_attr_e('Pages des licences du lot','ufsc-licence-competition'); ?>" style="margin-top:14px">
 							<?php for($page_number=1;$page_number<=$pages;$page_number++): ?>
-								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_search'=>$lot_search,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
+								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_search'=>$lot_search,'ffst_club'=>$club_filter,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
