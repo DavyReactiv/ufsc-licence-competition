@@ -312,6 +312,18 @@ class UFSC_LC_FFST_Import_Service {
 			if(!$master||$this->norm($master->last_name)!==$this->norm($row->last_name)||$this->norm($master->first_name)!==$this->norm($row->first_name)||(string)$master->birthdate!==(string)$row->birthdate){
 				return new WP_Error('ffst_identity_changed',sprintf(__('Identité non vérifiée pour la licence UFSC #%d : aucune modification.','ufsc-licence-competition'),$id));
 			}
+            // Re-check the exact same club/identity/season resolution on the
+            // live database just before writing, including any saved club alias.
+            $verified = $this->resolve_match(array(
+                'ffst_number' => $incoming,
+                'last_name' => (string) $row->last_name,
+                'first_name' => (string) $row->first_name,
+                'birthdate' => (string) $row->birthdate,
+                'club_name' => (string) $row->club_name,
+            ), $expected_end);
+            if(self::MATCHED!==$verified['status'] || absint($verified['licence_id'])!==$id){
+                return new WP_Error('ffst_recheck_mismatch',sprintf(__('Rapprochement devenu incertain pour la licence UFSC #%d : associez le bon club ou vérifiez le lot avant de réessayer. Aucune écriture.','ufsc-licence-competition'),$id));
+            }
 			$season_ok=false;
 			foreach($season_columns as $season_field){
 				$value=trim((string)($master->{$season_field}??''));
@@ -646,13 +658,15 @@ class UFSC_LC_FFST_Import_Service {
 		$last=$this->column_exists($lt,'nom')?'l.nom':'l.nom_licence';
 		$clubcol=$this->column_exists($ct,'nom')?'c.nom':'c.name';
 
-		// Exact FFST number always wins if unique.
+		// A matching FFST number is NOT sufficient to identify someone:
+		// always verify full name, birth date, club and season too.
+		$number_owner_id = 0;
 		if($has_ffst&&''!==$d['ffst_number']){
 			$x=$wpdb->get_results($wpdb->prepare(
 				"SELECT id,numero_licence_ffst FROM {$lt} WHERE UPPER(numero_licence_ffst)=%s LIMIT 3",
 				strtoupper($d['ffst_number'])
 			));
-			if(1===count($x))return array('status'=>self::MATCHED,'licence_id'=>$x[0]->id,'message'=>__('Correspondance exacte N° FFST.','ufsc-licence-competition'),'previous_ffst'=>$x[0]->numero_licence_ffst);
+			if(1===count($x))$number_owner_id=absint($x[0]->id);
 			if(count($x)>1)return array('status'=>self::AMBIGUOUS,'licence_id'=>0,'message'=>__('N° FFST déjà présent plusieurs fois.','ufsc-licence-competition'),'previous_ffst'=>'');
 		}
 
@@ -722,6 +736,9 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		if(1!==count($candidates)){
+            if($number_owner_id){
+                return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('N° FFST déjà attribué : identité, club ou saison non concordants. Vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
+            }
 			$message=count($candidates)>1
 				? __('Plusieurs licences correspondent encore après filtrage saison + club. Vérification manuelle requise.','ufsc-licence-competition')
 				: __('Aucune licence UFSC Gestion correspondante pour la saison sélectionnée.','ufsc-licence-competition');
@@ -734,6 +751,15 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		$candidate=$candidates[0];
+        if($number_owner_id && $number_owner_id!==absint($candidate->id)){
+            return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Ce numéro FFST appartient à une autre fiche UFSC. Aucune association autorisée.','ufsc-licence-competition'),'previous_ffst'=>'');
+        }
+        // A unique homonym in a different club is NOT a verified match.
+        // The administrator can explicitly map the FFST club name first.
+        if(!$mapped_club && ''!==trim((string)$d['club_name']) &&
+            $this->norm($d['club_name'])!==$this->norm((string)$candidate->club_name)){
+            return array('status'=>self::NOT_FOUND,'licence_id'=>0,'message'=>__('Nom du club FFST différent du club UFSC : associez le club cible avant de rapprocher.','ufsc-licence-competition'),'previous_ffst'=>'');
+        }
 		$prev=trim((string)$candidate->numero_licence_ffst);
 		if(''!==$prev&&''!==$d['ffst_number']&&0!==strcasecmp($prev,$d['ffst_number'])){
 			return array('status'=>self::CONFLICT,'licence_id'=>$candidate->id,'message'=>__('Conflit : un autre N° FFST existe déjà. Aucune écriture automatique.','ufsc-licence-competition'),'previous_ffst'=>$prev);
