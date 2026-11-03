@@ -9,6 +9,7 @@ final class UFSC_LC_FFST_Resolution_Admin {
 
     public static function register() {
         add_action( 'admin_post_ufsc_lc_ffst_club_alias', array( __CLASS__, 'save_alias' ) );
+        add_action( 'admin_post_ufsc_lc_ffst_remove_club_alias', array( __CLASS__, 'remove_alias' ) );
         add_action( 'admin_post_ufsc_lc_ffst_manual_match', array( __CLASS__, 'save_match' ) );
         add_action( 'admin_post_ufsc_lc_ffst_export_unmatched', array( __CLASS__, 'export_unmatched' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_css' ) );
@@ -89,6 +90,33 @@ final class UFSC_LC_FFST_Resolution_Admin {
         exit;
     }
 
+    /**
+     * An incorrect club alias can always be removed without touching any
+     * source PDF rows or UFSC Gestion records.
+     */
+    public static function remove_alias() {
+        if ( ! self::allowed() ) { wp_die( 'Accès refusé.', '', array( 'response' => 403 ) ); }
+        $batch_id = absint( $_POST['batch_id'] ?? 0 );
+        $row_id = absint( $_POST['row_id'] ?? 0 );
+        check_admin_referer( 'ufsc_ffst_remove_club_' . $batch_id . '_' . $row_id );
+        $service = new UFSC_LC_FFST_Import_Service();
+        $row = $service->get_batch( $batch_id ) ? self::row( $batch_id, $row_id ) : null;
+        if ( ! $row || ! trim( (string) $row->club_name ) ) {
+            wp_die( 'Ligne ou lot FFST introuvable.', '', array( 'response' => 404 ) );
+        }
+        $key = self::key( $row->club_name );
+        $map = get_option( self::OPTION_KEY, array() );
+        if ( ! is_array( $map ) ) { $map = array(); }
+        if ( isset( $map[ $key ] ) ) {
+            unset( $map[ $key ] );
+            update_option( self::OPTION_KEY, $map, false );
+        }
+        $current = get_option( self::OPTION_KEY, array() );
+        if ( isset( $current[ $key ] ) ) { wp_die( 'Impossible de retirer la correspondance.', '', array( 'response' => 500 ) ); }
+        wp_safe_redirect( self::url( $batch_id, array( 'ffst_club_row' => $row_id, 'ffst_resolved' => 'alias_removed' ) ) . '#ufsc-ffst-club-tools' );
+        exit;
+    }
+
     private static function match_error( $batch_id, $row_id, $message ) {
         $key = 'ufsc_ffst_match_error_' . get_current_user_id() . '_' . absint( $batch_id ) . '_' . absint( $row_id );
         set_transient( $key, sanitize_text_field( (string) $message ), 300 );
@@ -153,7 +181,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
         $mapped = self::target_club_id( $source->club_name );
         echo '<section class="ufsc-ffst-resolve-tools" id="ufsc-ffst-club-tools"><div class="ufsc-ffst-tool-head"><div><h3>Résoudre les licences introuvables</h3><p>Associez le nom FFST au club UFSC pour reprendre la recherche dans le bon club.</p></div>';
         echo '<a class="button" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ufsc_lc_ffst_export_unmatched&batch_id=' . absint( $batch->id ) ), 'ufsc_ffst_export_' . absint( $batch->id ) ) ) . '">Exporter les introuvables (CSV)</a></div>';
-        $messages = array( 'rescanned' => absint( $_GET['ffst_found'] ?? 0 ) . ' correspondance(s) supplémentaire(s) trouvée(s). Vérifiez avant application.', 'linked' => 'Correspondance préparée dans le lot : aucune licence UFSC encore modifiée.', 'club_saved' => 'Association du club enregistrée. Relancez la recherche si nécessaire.' );
+        $messages = array(
+            'rescanned' => absint( $_GET['ffst_found'] ?? 0 ) . ' correspondance(s) supplémentaire(s) trouvée(s). Vérifiez avant application.',
+            'linked' => 'Correspondance préparée dans le lot : aucune licence UFSC encore modifiée.',
+            'club_saved' => 'Association du club enregistrée. Relancez la recherche si nécessaire.',
+            'alias_removed' => 'Correspondance de club retirée. Les licences et numéros FFST existants sont inchangés.',
+        );
         $message = isset( $_GET['ffst_resolved'] ) ? sanitize_key( wp_unslash( $_GET['ffst_resolved'] ) ) : '';
         if ( isset( $messages[ $message ] ) ) { echo '<p class="ufsc-ffst-info">' . esc_html( $messages[ $message ] ) . '</p>'; }
         echo '<form class="ufsc-ffst-club-form" method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
@@ -165,6 +198,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
             echo '<option value="' . esc_attr( $club->id ) . '" ' . selected( $mapped, absint( $club->id ), false ) . '>' . esc_html( $club->club_name ) . '</option>';
         }
         echo '</select></div><button class="button button-primary" type="submit">Associer le club et rechercher</button></form>';
+        if ( $mapped ) {
+            echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="ufsc-ffst-unmap-form">';
+            wp_nonce_field( 'ufsc_ffst_remove_club_' . absint( $batch->id ) . '_' . absint( $source->id ) );
+            echo '<input type="hidden" name="action" value="ufsc_lc_ffst_remove_club_alias"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="row_id" value="' . esc_attr( $source->id ) . '">';
+            echo '<button type="submit" class="button button-secondary" onclick="return confirm(\'Retirer cette association de club pour les prochains rapprochements ? Les licences UFSC déjà rapprochées ne seront pas modifiées.\')">Retirer cette association de club</button></form>';
+        }
         echo '<p class="description">Association mémorisée pour les prochains imports. Aucune identité, date de naissance ou licence n’est écrasée.</p></section>';
     }
 
