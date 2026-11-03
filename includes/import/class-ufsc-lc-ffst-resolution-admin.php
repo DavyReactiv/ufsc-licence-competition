@@ -11,7 +11,14 @@ final class UFSC_LC_FFST_Resolution_Admin {
         add_action( 'admin_post_ufsc_lc_ffst_club_alias', array( __CLASS__, 'save_alias' ) );
         add_action( 'admin_post_ufsc_lc_ffst_manual_match', array( __CLASS__, 'save_match' ) );
         add_action( 'admin_post_ufsc_lc_ffst_export_unmatched', array( __CLASS__, 'export_unmatched' ) );
+        add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_css' ) );
         add_action( 'admin_footer', array( __CLASS__, 'draft_prefill' ) );
+    }
+
+    public static function enqueue_css() {
+        $page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+        if ( UFSC_LC_FFST_Import_Page::PAGE_SLUG !== $page ) { return; }
+        wp_enqueue_style( 'ufsc-lc-ffst-resolution', UFSC_LC_URL . 'assets/css/ffst-resolution-center.css', array(), '1.0.0' );
     }
 
     public static function allowed() {
