@@ -44,9 +44,19 @@ class UFSC_LC_FFST_Import_Page {
 		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
 		check_admin_referer('ufsc_lc_ffst_reanalyse_'.$batch_id,'ufsc_lc_ffst_reanalyse_nonce');
 		$service=new UFSC_LC_FFST_Import_Service();
-		$result=$service->reanalyse_not_found($batch_id);
-		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
-		$this->redirect_notice('success',sprintf(_n('%d nouvelle correspondance FFST trouvée. Vérifiez puis rapprochez les lignes sélectionnées.','%d nouvelles correspondances FFST trouvées. Vérifiez puis rapprochez les lignes sélectionnées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
+        $cursor=isset($_POST['after_id'])?absint($_POST['after_id']):0;
+        $previous_total=isset($_POST['matched_total'])?min(1000000,absint($_POST['matched_total'])):0;
+        $result=$service->reanalyse_not_found_chunk($batch_id,$cursor);
+        if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+        $args=array(
+            'page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,
+            'ffst_reanalyse_matched'=>min(1000000,$previous_total+absint($result['matched'])),
+            'ffst_reanalyse_processed'=>absint($result['processed']),
+            'ffst_reanalyse_more'=>!empty($result['has_more'])?1:0,
+            'ffst_reanalyse_cursor'=>absint($result['next_cursor']),
+        );
+        wp_safe_redirect(add_query_arg($args,admin_url('admin.php')));
+        exit;
 	}
 
 	public function handle_apply(){
@@ -181,12 +191,30 @@ class UFSC_LC_FFST_Import_Page {
                     <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)): ?>
                         <?php UFSC_LC_FFST_Resolution_Admin::render_tools($batch,$rows); ?>
                     <?php endif; ?>
+                    <?php if(isset($_GET['ffst_reanalyse_processed'])): ?>
+                        <div class="notice notice-info inline" role="status">
+                            <p><strong><?php echo esc_html(absint($_GET['ffst_reanalyse_matched']??0)); ?> correspondance(s) retrouvée(s) depuis le début de cette réanalyse.</strong>
+                            <?php echo esc_html(absint($_GET['ffst_reanalyse_processed'])); ?> ligne(s) examinée(s) dans la dernière étape.
+                            <?php if(!empty($_GET['ffst_reanalyse_more'])): ?>
+                                Il reste des lignes à parcourir. Utilisez « Continuer la réanalyse » ; les licences déjà rapprochées ne seront pas retraitées.
+                            <?php else: ?>
+                                Parcours terminé. Les introuvables restants nécessitent un autre club, une correction des données ou un rapprochement manuel.
+                            <?php endif; ?>
+                            </p>
+                        </div>
+                    <?php endif; ?>
                     <?php if($counts_consistent && (int)$batch->not_found_rows>0): ?>
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:12px 0">
                             <input type="hidden" name="action" value="ufsc_lc_ffst_reanalyse">
                             <input type="hidden" name="batch_id" value="<?php echo esc_attr(absint($batch->id)); ?>">
+                            <input type="hidden" name="after_id" value="<?php echo esc_attr(!empty($_GET['ffst_reanalyse_more'])?absint($_GET['ffst_reanalyse_cursor']??0):0); ?>">
+                            <input type="hidden" name="matched_total" value="<?php echo esc_attr(!empty($_GET['ffst_reanalyse_more'])?absint($_GET['ffst_reanalyse_matched']??0):0); ?>">
                             <?php wp_nonce_field('ufsc_lc_ffst_reanalyse_'.$batch->id,'ufsc_lc_ffst_reanalyse_nonce'); ?>
-                            <?php submit_button(__('Relancer le rapprochement des introuvables (sans réimporter le PDF)','ufsc-licence-competition'),'secondary','submit',false,array('onclick'=>"return confirm('Relancer seulement la recherche des licences introuvables dans le lot déjà enregistré ? Aucune fiche UFSC ne sera modifiée.');")); ?>
+                            <?php $resume_reanalyse=!empty($_GET['ffst_reanalyse_more']) && absint($_GET['ffst_reanalyse_cursor']??0)>0; ?>
+                            <?php submit_button($resume_reanalyse?__('Continuer la réanalyse (100 lignes suivantes)','ufsc-licence-competition'):__('Relancer les introuvables (100 lignes par étape)','ufsc-licence-competition'),'secondary','submit',false,array('onclick'=>"return confirm('Vérifier les lignes introuvables de cette étape, sans modifier les fiches UFSC ?');")); ?>
+                            <?php if($resume_reanalyse): ?>
+                                <a class="button" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>'not_found','ffst_page'=>1),admin_url('admin.php'))); ?>">Recommencer depuis le début</a>
+                            <?php endif; ?>
                             <p class="description"><?php esc_html_e('Vérifie les variantes de traits d’union et d’espaces dans les prénoms. L’identité complète, la date de naissance et la saison restent vérifiées ; aucune licence n’est créée ou validée automatiquement.','ufsc-licence-competition'); ?></p>
                         </form>
                     <?php endif; ?>
