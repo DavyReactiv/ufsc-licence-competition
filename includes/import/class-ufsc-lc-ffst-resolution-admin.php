@@ -158,9 +158,18 @@ final class UFSC_LC_FFST_Resolution_Admin {
         update_option( self::OPTION_KEY, $map, false );
         $verified = get_option( self::OPTION_KEY, array() );
         if ( absint( $verified[ $key ]['club_id'] ?? 0 ) !== $club_id ) { wp_die( 'Association non enregistrée.', '', array( 'response' => 500 ) ); }
-        // Reanalysis only touches the staged FFST import.
-        $res = $service->reanalyse_not_found( $batch_id );
-        wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => is_wp_error( $res ) ? 'club_saved' : 'rescanned', 'ffst_found' => is_wp_error( $res ) ? 0 : absint( $res ) ) ) );
+        // Reanalysis only touches the staged FFST import. An administrator
+        // can resume after this first bounded chunk, even for >500 cases.
+        $res = $service->reanalyse_not_found_chunk( $batch_id, 0 );
+        $args = array( 'ffst_resolved' => is_wp_error( $res ) ? 'club_saved' : 'rescanned' );
+        if ( ! is_wp_error( $res ) ) {
+            $args['ffst_found'] = absint( $res['matched'] );
+            $args['ffst_reanalyse_matched'] = absint( $res['matched'] );
+            $args['ffst_reanalyse_processed'] = absint( $res['processed'] );
+            $args['ffst_reanalyse_more'] = ! empty( $res['has_more'] ) ? 1 : 0;
+            $args['ffst_reanalyse_cursor'] = absint( $res['next_cursor'] );
+        }
+        wp_safe_redirect( self::url( $batch_id, $args ) );
         exit;
     }
 
