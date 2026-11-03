@@ -13,13 +13,19 @@ final class UFSC_LC_FFST_Resolution_Admin {
         add_action( 'admin_post_ufsc_lc_ffst_manual_match', array( __CLASS__, 'save_match' ) );
         add_action( 'admin_post_ufsc_lc_ffst_export_unmatched', array( __CLASS__, 'export_unmatched' ) );
         add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_css' ) );
+        add_action( 'wp_ajax_ufsc_lc_ffst_club_search', array( __CLASS__, 'ajax_club_search' ) );
         add_action( 'admin_footer', array( __CLASS__, 'draft_prefill' ) );
     }
 
     public static function enqueue_css() {
         $page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
         if ( UFSC_LC_FFST_Import_Page::PAGE_SLUG !== $page ) { return; }
-        wp_enqueue_style( 'ufsc-lc-ffst-resolution', UFSC_LC_URL . 'assets/css/ffst-resolution-center.css', array(), '1.0.0' );
+        wp_enqueue_style( 'ufsc-lc-ffst-resolution', UFSC_LC_URL . 'assets/css/ffst-resolution-center.css', array(), '1.1.0' );
+        wp_enqueue_script( 'ufsc-lc-ffst-club-search', UFSC_LC_URL . 'assets/js/ffst-club-search.js', array(), '1.1.0', true );
+        wp_localize_script( 'ufsc-lc-ffst-club-search', 'UFSCFFSTClubSearch', array(
+            'ajaxurl' => admin_url( 'admin-ajax.php' ),
+            'nonce'   => wp_create_nonce( 'ufsc_ffst_search_clubs' ),
+        ) );
     }
 
     public static function allowed() {
@@ -30,23 +36,91 @@ final class UFSC_LC_FFST_Resolution_Admin {
         return sanitize_title( remove_accents( trim( (string) $source ) ) );
     }
 
+    private static function name_column() {
+        static $name_col = null;
+        if ( null !== $name_col ) { return $name_col; }
+        global $wpdb;
+        $table = $wpdb->prefix . 'ufsc_clubs';
+        $columns = (array) $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
+        $name_col = in_array( 'nom', $columns, true ) ? 'nom' : ( in_array( 'name', $columns, true ) ? 'name' : '' );
+        return $name_col;
+    }
+
     public static function club_options() {
         static $cache = null;
         if ( null !== $cache ) { return $cache; }
         global $wpdb;
         $table = $wpdb->prefix . 'ufsc_clubs';
-        $columns = $wpdb->get_col( "SHOW COLUMNS FROM {$table}", 0 );
-        $name_col = in_array( 'nom', (array) $columns, true ) ? 'nom' : ( in_array( 'name', (array) $columns, true ) ? 'name' : '' );
+        $name_col = self::name_column();
         if ( ! $name_col ) { return array(); }
+        // Keep existing no-JS fallback and first-500 ordering unchanged.
+        // Remote search below allows accessing EVERY club beyond this list.
         $cache = $wpdb->get_results( "SELECT id, {$name_col} AS club_name FROM {$table} ORDER BY {$name_col} ASC LIMIT 500" );
         return (array) $cache;
     }
 
+    public static function club_by_id( $club_id ) {
+        global $wpdb;
+        $club_id = absint( $club_id );
+        $name_col = self::name_column();
+        if ( ! $club_id || ! $name_col ) { return null; }
+        $table = $wpdb->prefix . 'ufsc_clubs';
+        // Unlike the previous first-500 check, look up the canonical ID
+        // directly so remote-search results beyond 500 remain selectable.
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, {$name_col} AS club_name FROM {$table} WHERE id=%d LIMIT 1",
+            $club_id
+        ) );
+    }
+
     public static function club_exists( $club_id ) {
-        foreach ( self::club_options() as $club ) {
-            if ( absint( $club->id ) === absint( $club_id ) ) { return true; }
+        return (bool) self::club_by_id( $club_id );
+    }
+
+    public static function ajax_club_search() {
+        if ( ! self::allowed() ) {
+            wp_send_json_error( array( 'message' => 'Accès réservé aux administrateurs UFSC.' ), 403 );
         }
-        return false;
+        check_ajax_referer( 'ufsc_ffst_search_clubs', 'nonce' );
+        $query = isset( $_POST['term'] ) ? sanitize_text_field( wp_unslash( $_POST['term'] ) ) : '';
+        $query = trim( $query );
+        if ( strlen( $query ) < 2 ) {
+            wp_send_json_success( array( 'clubs' => array(), 'message' => 'Saisissez au moins deux caractères.' ) );
+        }
+        $query = substr( $query, 0, 80 );
+        $col = self::name_column();
+        if ( ! $col ) {
+            wp_send_json_error( array( 'message' => 'La table UFSC Clubs est indisponible.' ), 503 );
+        }
+        global $wpdb;
+        $table = $wpdb->prefix . 'ufsc_clubs';
+        $like = '%' . $wpdb->esc_like( $query ) . '%';
+        $found = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, {$col} AS club_name FROM {$table} WHERE {$col} LIKE %s ORDER BY {$col} ASC LIMIT 30",
+            $like
+        ) );
+        $clubs = array();
+        foreach ( (array) $found as $club ) {
+            $clubs[] = array( 'id' => absint( $club->id ), 'name' => (string) $club->club_name );
+        }
+        wp_send_json_success( array( 'clubs' => $clubs, 'message' => $clubs ? '' : 'Aucun club UFSC correspondant.' ) );
+    }
+
+    private static function render_club_options( $selected_id ) {
+        $selected_id = absint( $selected_id );
+        $found = false;
+        foreach ( self::club_options() as $club ) {
+            $id = absint( $club->id );
+            if ( $id === $selected_id ) { $found = true; }
+            echo '<option value="' . esc_attr( $id ) . '"' . selected( $selected_id, $id, false ) . '>' . esc_html( $club->club_name ) . '</option>';
+        }
+        if ( $selected_id && ! $found ) {
+            // Retain aliases targeting clubs beyond the initial 500.
+            $selected = self::club_by_id( $selected_id );
+            if ( $selected ) {
+                echo '<option selected value="' . esc_attr( $selected_id ) . '">' . esc_html( $selected->club_name ) . '</option>';
+            }
+        }
     }
 
     public static function target_club_id( $name ) {
