@@ -36,6 +36,27 @@ Le sélecteur initial affichait seulement les 500 premiers clubs ; cela empêcha
 - [ ] Simuler une erreur réseau et vérifier que le club déjà choisi reste sélectionné.
 - [ ] Vérifier le comportement au clavier et sur écran mobile.
 
+## Recherche globale dans un lot FFST
+
+Le contrôle du lot dispose désormais de deux recherches clairement distinctes :
+
+- **Rechercher dans tout le lot** : recherche serveur en lecture seule dans toutes les lignes du lot, y compris les pages non affichées, sur les champs numéro FFST, nom, prénom, naissance, club FFST et message de contrôle.
+- **Affiner les résultats de cette page** : filtre instantané local limité aux lignes affichées sur la page, sans nouvelle requête SQL.
+
+La recherche globale se combine avec les cartes de statut (trouvées, introuvables, ambiguës, conflits, appliquées). Le terme est conservé lorsqu'on change de carte ou de page, et un bouton permet de l'effacer sans réinitialiser le lot. Le compteur et la pagination utilisent la même requête filtrée ; aucune licence absente des résultats n'est sélectionnée automatiquement.
+
+**Sécurité** : terme limité à 100 caractères, motifs LIKE échappés, requêtes SQL préparées, statuts autorisés par liste blanche, lots isolés par identifiant ; aucune écriture ni modification de statut, de paiement ou de numéro FFST.
+
+### Recette recherche de lot
+
+- [ ] Dans un lot d'au moins 101 lignes, retrouver un nom uniquement présent en deuxième page.
+- [ ] Conserver le terme et le filtre en changeant de page et de carte.
+- [ ] Contrôler un terme avec %, _, apostrophe ou accents et l'absence d'erreur SQL.
+- [ ] Vérifier la cohérence du nombre de résultats et de la pagination.
+- [ ] Afficher un résultat vide, effacer la recherche puis retrouver toutes les lignes.
+- [ ] Contrôler qu'aucune ligne non affichée n'est rapprochée par le bouton de sélection sur page.
+- [ ] Tester les lots historiques et les lignes déjà appliquées.
+
 ## Règles de sécurité
 
 - Les correspondances de clubs sont stockées dans l'option WordPress `ufsc_lc_ffst_club_alias_v1` (pas de modification des noms existants).
