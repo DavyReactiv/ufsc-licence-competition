@@ -79,6 +79,10 @@ jobs:
         run: php tests/ffst-global-lot-search-runtime-test.php
       - name: FFST search UX and filter persistence
         run: php tests/ffst-global-lot-search-ui-guard-test.php
+      - name: FFST chunked staging reanalysis runtime
+        run: php tests/ffst-chunked-reanalysis-runtime-test.php
+      - name: FFST batch productivity UX and permissions guard
+        run: php tests/ffst-batch-productivity-ui-guard-test.php
       - name: FFST club search JS syntax
         run: node --check assets/js/ffst-club-search.js
       - name: Self-contained Dompdf distribution guard

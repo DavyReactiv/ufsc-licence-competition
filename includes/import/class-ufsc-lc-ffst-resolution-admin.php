@@ -158,9 +158,18 @@ final class UFSC_LC_FFST_Resolution_Admin {
         update_option( self::OPTION_KEY, $map, false );
         $verified = get_option( self::OPTION_KEY, array() );
         if ( absint( $verified[ $key ]['club_id'] ?? 0 ) !== $club_id ) { wp_die( 'Association non enregistrée.', '', array( 'response' => 500 ) ); }
-        // Reanalysis only touches the staged FFST import.
-        $res = $service->reanalyse_not_found( $batch_id );
-        wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => is_wp_error( $res ) ? 'club_saved' : 'rescanned', 'ffst_found' => is_wp_error( $res ) ? 0 : absint( $res ) ) ) );
+        // Reanalysis only touches the staged FFST import. An administrator
+        // can resume after this first bounded chunk, even for >500 cases.
+        $res = $service->reanalyse_not_found_chunk( $batch_id, 0 );
+        $args = array( 'ffst_resolved' => is_wp_error( $res ) ? 'club_saved' : 'rescanned' );
+        if ( ! is_wp_error( $res ) ) {
+            $args['ffst_found'] = absint( $res['matched'] );
+            $args['ffst_reanalyse_matched'] = absint( $res['matched'] );
+            $args['ffst_reanalyse_processed'] = absint( $res['processed'] );
+            $args['ffst_reanalyse_more'] = ! empty( $res['has_more'] ) ? 1 : 0;
+            $args['ffst_reanalyse_cursor'] = absint( $res['next_cursor'] );
+        }
+        wp_safe_redirect( self::url( $batch_id, $args ) );
         exit;
     }
 
@@ -231,7 +240,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
             else { update_option( $audit_key, $previous, false ); }
             self::match_error( $batch_id, $row_id, $match->get_error_message() );
         }
-        wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => 'linked' ) ) );
+        // Continue to the next unresolved case without making another manual
+        // selection or changing any other licence.
+        $next = $service->get_next_unresolved_row( $batch_id, $row_id );
+        $args = array( 'ffst_resolved' => 'linked' );
+        if ( $next ) { $args['ffst_resolve_row'] = absint( $next->id ); }
+        wp_safe_redirect( self::url( $batch_id, $args ) . ( $next ? '#ffst-resolve-panel' : '#ufsc-ffst-club-tools' ) );
         exit;
     }
 
@@ -295,6 +309,11 @@ final class UFSC_LC_FFST_Resolution_Admin {
         if ( ! $row || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
         $club_id = absint( $_GET['ffst_target_club'] ?? self::target_club_id( $row->club_name ) );
         echo '<section class="ufsc-ffst-resolve-panel" id="ffst-resolve-panel"><h3>Rapprochement assisté : ' . esc_html( $row->first_name . ' ' . $row->last_name ) . '</h3>';
+        $service = new UFSC_LC_FFST_Import_Service();
+        $next_unresolved = $service->get_next_unresolved_row( $batch->id, $row_id );
+        if ( $next_unresolved && absint( $next_unresolved->id ) !== $row_id ) {
+            echo '<p><a class="button button-secondary" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $next_unresolved->id ) ) ) . '#ffst-resolve-panel' ) . '">Passer au prochain dossier introuvable ou ambigu</a></p>';
+        }
         $error_key = 'ufsc_ffst_match_error_' . get_current_user_id() . '_' . absint( $batch->id ) . '_' . $row_id;
         $error = get_transient( $error_key );
         if ( $error ) {
@@ -310,7 +329,6 @@ final class UFSC_LC_FFST_Resolution_Admin {
         self::render_club_options( $club_id );
         echo '</select></div> <button type="submit" class="button">Chercher les candidats</button></form>';
         if ( $club_id && self::club_exists( $club_id ) ) {
-            $service = new UFSC_LC_FFST_Import_Service();
             $candidates = $service->get_manual_candidates( $batch->id, $row->id, $club_id );
             if ( is_wp_error( $candidates ) ) {
                 echo '<p class="ufsc-ffst-warning">' . esc_html( $candidates->get_error_message() ) . '</p>';

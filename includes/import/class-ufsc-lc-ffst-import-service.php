@@ -104,21 +104,41 @@ class UFSC_LC_FFST_Import_Service {
 	 * Reassess ONLY previously not-found rows of an existing FFST import.
 	 * This does not edit UFSC licences, issue numbers, or change already-applied rows.
 	 */
+	/**
+	 * Compatibility entry: scan only one bounded chunk. The old integer
+	 * return contract is retained for club mapping and existing callers.
+	 */
 	public function reanalyse_not_found($batch_id){
+		$result=$this->reanalyse_not_found_chunk($batch_id,0);
+		return is_wp_error($result)?$result:(int)$result['matched'];
+	}
+
+	/**
+	 * Continue a large import through stable keyset pagination.
+	 * The cursor is a last-seen row ID, not an offset: changing match_status
+	 * while scanning cannot skip rows. Neither UFSC master licences nor
+	 * rows already applied are touched.
+	 *
+	 * @return array|WP_Error matched, processed, next_cursor, has_more
+	 */
+	public function reanalyse_not_found_chunk($batch_id,$after_id=0){
 		global $wpdb;
 		$batch_id=absint($batch_id);
+		$after_id=absint($after_id);
 		$batch=$this->get_batch($batch_id);
 		if(!$batch)return new WP_Error('ffst_batch_missing',__('Lot FFST introuvable.','ufsc-licence-competition'));
 		if((int)$batch->total_rows!==$this->get_batch_row_count($batch_id)){
 			return new WP_Error('ffst_batch_count_mismatch',__('Le lot présente une incohérence de données : réanalyse refusée sans modification.','ufsc-licence-competition'));
 		}
+		// 100 rows/request caps execution time and prevents request timeouts.
 		$rows=$wpdb->get_results($wpdb->prepare(
-			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY id ASC LIMIT 501",
-			$batch_id,self::NOT_FOUND
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s AND id>%d ORDER BY id ASC LIMIT 100",
+			$batch_id,self::NOT_FOUND,$after_id
 		));
-		if(count($rows)>500)return new WP_Error('ffst_reanalyse_limit',__('Plus de 500 lignes introuvables : réanalyse interrompue pour éviter un traitement incomplet.','ufsc-licence-competition'));
 		$matched=0;
-		foreach($rows as $row){
+		$last_id=$after_id;
+		foreach((array)$rows as $row){
+			$last_id=absint($row->id);
 			$d=array(
 				'ffst_number'=>(string)$row->ffst_number,'last_name'=>(string)$row->last_name,
 				'first_name'=>(string)$row->first_name,'birthdate'=>(string)$row->birthdate,
@@ -126,7 +146,6 @@ class UFSC_LC_FFST_Import_Service {
 			);
 			$match=$this->resolve_match($d,absint($batch->season_end_year));
 			if(self::MATCHED!==$match['status']||!absint($match['licence_id']))continue;
-			// Keep the one-person/one-number invariant across the entire stored lot.
 			$conflicting_number=(int)$wpdb->get_var($wpdb->prepare(
 				"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND id<>%d AND ffst_number=%s",
 				$batch_id,absint($row->id),$row->ffst_number
@@ -139,7 +158,7 @@ class UFSC_LC_FFST_Import_Service {
 			$written=$wpdb->update($this->rows_table(),array(
 				'match_status'=>self::MATCHED,
 				'match_licence_id'=>absint($match['licence_id']),
-				'match_message'=>__('Rapprochement retrouvé après normalisation du prénom : à confirmer avant application.','ufsc-licence-competition'),
+				'match_message'=>__('Identité retrouvée lors de la réanalyse du lot : à confirmer avant application.','ufsc-licence-competition'),
 				'previous_ffst_number'=>$match['previous_ffst'],
 			),array('id'=>absint($row->id),'batch_id'=>$batch_id,'match_status'=>self::NOT_FOUND),
 			array('%s','%d','%s','%s'),array('%d','%d','%s'));
@@ -153,7 +172,14 @@ class UFSC_LC_FFST_Import_Service {
 			'not_found_rows'=>$this->get_batch_status_count($batch_id,self::NOT_FOUND)
 		),array('id'=>$batch_id),array('%d','%d','%d','%d'),array('%d'));
 		if(false===$updated)return new WP_Error('ffst_reanalyse_counts',__('Compteurs du lot non actualisés. Les licences UFSC n’ont pas été modifiées.','ufsc-licence-competition'));
-		return $matched;
+		$has_more=0<(int)$wpdb->get_var($wpdb->prepare(
+			"SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s AND id>%d",
+			$batch_id,self::NOT_FOUND,$last_id
+		));
+		return array(
+			'matched'=>$matched,'processed'=>count((array)$rows),
+			'next_cursor'=>$last_id,'has_more'=>$has_more
+		);
 	}
 
 
@@ -386,6 +412,27 @@ class UFSC_LC_FFST_Import_Service {
 		$wpdb->update($this->batches_table(),array('status'=>$remaining?'partial':'applied','applied_rows'=>$applied,'applied_at'=>$now),array('id'=>$batch_id),array('%s','%d','%s'),array('%d'));
 		if(function_exists('ufsc_lc_bump_cache_version'))ufsc_lc_bump_cache_version('status',0);
 		return count($plan);
+	}
+
+	/**
+	 * Find the next unresolved case in a specific batch, wrapping once.
+	 * Only returns staging rows; no master licence mutation.
+	 */
+	public function get_next_unresolved_row($batch_id,$after_id=0){
+		global $wpdb;
+		$batch_id=absint($batch_id);
+		$after_id=absint($after_id);
+		$row=$wpdb->get_row($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status IN (%s,%s) AND id>%d ORDER BY id ASC LIMIT 1",
+			$batch_id,self::NOT_FOUND,self::AMBIGUOUS,$after_id
+		));
+		if(!$row && $after_id){
+			$row=$wpdb->get_row($wpdb->prepare(
+				"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status IN (%s,%s) ORDER BY id ASC LIMIT 1",
+				$batch_id,self::NOT_FOUND,self::AMBIGUOUS
+			));
+		}
+		return $row;
 	}
 
 	public function get_batch($id){global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->batches_table()} WHERE id=%d LIMIT 1",absint($id)));}

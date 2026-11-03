@@ -57,6 +57,32 @@ La recherche globale se combine avec les cartes de statut (trouvées, introuvabl
 - [ ] Contrôler qu'aucune ligne non affichée n'est rapprochée par le bouton de sélection sur page.
 - [ ] Tester les lots historiques et les lignes déjà appliquées.
 
+## Gain de temps : réanalyse des grands lots et passage au dossier suivant
+
+- La réanalyse FFST ne bloque plus les lots dépassant 500 lignes introuvables : elle vérifie **100 lignes par opération**, avec un bouton **Continuer la réanalyse**.
+- Le compteur indique les correspondances retrouvées sur les étapes déjà parcourues et le nombre de lignes examinées lors de la dernière étape.
+- Le parcours reprend à partir de l'identifiant de la dernière ligne examinée, **sans retraiter les lignes précédentes**. Une ligne restée introuvable après vérification peut être revue plus tard en choisissant **Recommencer depuis le début** (notamment après correction d'une fiche UFSC).
+- Lors de l'association d'un club FFST, la première étape de réanalyse est exécutée et la reprise proposée automatiquement si des lignes restent à parcourir.
+- Après un rapprochement manuel réussi, l'interface présente **le prochain dossier introuvable ou ambigu**. Un raccourci permet également de passer au dossier suivant sans associer le dossier actuel.
+- Le nombre de lignes « Trouvées » sélectionnées sur la page est affiché près du bouton de sélection. La sélection n'inclut jamais les lignes non visibles ou celles non éligibles.
+
+### Garanties
+
+- Les étapes de réanalyse ne font **aucun changement de statut UFSC**, aucun paiement et n'attribuent aucun numéro dans la fiche maître : elles changent uniquement l'état provisoire d'import après vérification stricte de l'identité, de la saison, du club et de l'absence de doublon.
+- Les lignes déjà appliquées ne sont pas réécrites. Les nouvelles correspondances restent soumises au rapprochement explicite.
+- Aucune migration SQL ni opération destructive.
+- Les actions restent protégées par les contrôles de capacités et le nonce WordPress.
+
+### Recette préproduction
+
+- [ ] Import de 205+ licences introuvables : vérifier le parcours 100 + 100 + reste sans doublon, perte de ligne ni dépassement de délai.
+- [ ] Faire la même vérification sur un lot partiellement appliqué ; comparer numéros, paiements et statuts avant/après.
+- [ ] Modifier un club puis relancer la recherche à partir du début ; les correspondances existantes ne doivent pas être dupliquées.
+- [ ] Rapprocher manuellement une ligne, vérifier l'affichage du cas suivant sans association automatique.
+- [ ] Tester le passage au cas suivant avec un seul introuvable et avec une liste vide.
+- [ ] Vérifier le compteur de sélection lors des recherches, cases individuelles et sélection sur page.
+- [ ] Tester les droits non administrateur, le nonce invalide et la navigation mobile.
+
 ## Règles de sécurité
 
 - Les correspondances de clubs sont stockées dans l'option WordPress `ufsc_lc_ffst_club_alias_v1` (pas de modification des noms existants).

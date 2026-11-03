@@ -44,9 +44,19 @@ class UFSC_LC_FFST_Import_Page {
 		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
 		check_admin_referer('ufsc_lc_ffst_reanalyse_'.$batch_id,'ufsc_lc_ffst_reanalyse_nonce');
 		$service=new UFSC_LC_FFST_Import_Service();
-		$result=$service->reanalyse_not_found($batch_id);
-		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
-		$this->redirect_notice('success',sprintf(_n('%d nouvelle correspondance FFST trouvée. Vérifiez puis rapprochez les lignes sélectionnées.','%d nouvelles correspondances FFST trouvées. Vérifiez puis rapprochez les lignes sélectionnées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
+        $cursor=isset($_POST['after_id'])?absint($_POST['after_id']):0;
+        $previous_total=isset($_POST['matched_total'])?min(1000000,absint($_POST['matched_total'])):0;
+        $result=$service->reanalyse_not_found_chunk($batch_id,$cursor);
+        if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+        $args=array(
+            'page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,
+            'ffst_reanalyse_matched'=>min(1000000,$previous_total+absint($result['matched'])),
+            'ffst_reanalyse_processed'=>absint($result['processed']),
+            'ffst_reanalyse_more'=>!empty($result['has_more'])?1:0,
+            'ffst_reanalyse_cursor'=>absint($result['next_cursor']),
+        );
+        wp_safe_redirect(add_query_arg($args,admin_url('admin.php')));
+        exit;
 	}
 
 	public function handle_apply(){
@@ -181,12 +191,30 @@ class UFSC_LC_FFST_Import_Page {
                     <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)): ?>
                         <?php UFSC_LC_FFST_Resolution_Admin::render_tools($batch,$rows); ?>
                     <?php endif; ?>
+                    <?php if(isset($_GET['ffst_reanalyse_processed'])): ?>
+                        <div class="notice notice-info inline" role="status">
+                            <p><strong><?php echo esc_html(absint($_GET['ffst_reanalyse_matched']??0)); ?> correspondance(s) retrouvée(s) depuis le début de cette réanalyse.</strong>
+                            <?php echo esc_html(absint($_GET['ffst_reanalyse_processed'])); ?> ligne(s) examinée(s) dans la dernière étape.
+                            <?php if(!empty($_GET['ffst_reanalyse_more'])): ?>
+                                Il reste des lignes à parcourir. Utilisez « Continuer la réanalyse » ; les licences déjà rapprochées ne seront pas retraitées.
+                            <?php else: ?>
+                                Parcours terminé. Les introuvables restants nécessitent un autre club, une correction des données ou un rapprochement manuel.
+                            <?php endif; ?>
+                            </p>
+                        </div>
+                    <?php endif; ?>
                     <?php if($counts_consistent && (int)$batch->not_found_rows>0): ?>
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:12px 0">
                             <input type="hidden" name="action" value="ufsc_lc_ffst_reanalyse">
                             <input type="hidden" name="batch_id" value="<?php echo esc_attr(absint($batch->id)); ?>">
+                            <input type="hidden" name="after_id" value="<?php echo esc_attr(!empty($_GET['ffst_reanalyse_more'])?absint($_GET['ffst_reanalyse_cursor']??0):0); ?>">
+                            <input type="hidden" name="matched_total" value="<?php echo esc_attr(!empty($_GET['ffst_reanalyse_more'])?absint($_GET['ffst_reanalyse_matched']??0):0); ?>">
                             <?php wp_nonce_field('ufsc_lc_ffst_reanalyse_'.$batch->id,'ufsc_lc_ffst_reanalyse_nonce'); ?>
-                            <?php submit_button(__('Relancer le rapprochement des introuvables (sans réimporter le PDF)','ufsc-licence-competition'),'secondary','submit',false,array('onclick'=>"return confirm('Relancer seulement la recherche des licences introuvables dans le lot déjà enregistré ? Aucune fiche UFSC ne sera modifiée.');")); ?>
+                            <?php $resume_reanalyse=!empty($_GET['ffst_reanalyse_more']) && absint($_GET['ffst_reanalyse_cursor']??0)>0; ?>
+                            <?php submit_button($resume_reanalyse?__('Continuer la réanalyse (100 lignes suivantes)','ufsc-licence-competition'):__('Relancer les introuvables (100 lignes par étape)','ufsc-licence-competition'),'secondary','submit',false,array('onclick'=>"return confirm('Vérifier les lignes introuvables de cette étape, sans modifier les fiches UFSC ?');")); ?>
+                            <?php if($resume_reanalyse): ?>
+                                <a class="button" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>'not_found','ffst_page'=>1),admin_url('admin.php'))); ?>">Recommencer depuis le début</a>
+                            <?php endif; ?>
                             <p class="description"><?php esc_html_e('Vérifie les variantes de traits d’union et d’espaces dans les prénoms. L’identité complète, la date de naissance et la saison restent vérifiées ; aucune licence n’est créée ou validée automatiquement.','ufsc-licence-competition'); ?></p>
                         </form>
                     <?php endif; ?>
@@ -212,6 +240,7 @@ class UFSC_LC_FFST_Import_Page {
                         <input type="search" id="ffst-live-search" placeholder="Nom, prénom, N° FFST, club…">
                         <label><input type="checkbox" id="ffst-select-all"> Sélectionner toutes les lignes trouvées de cette page</label>
                         <span id="ffst-live-count" aria-live="polite"></span>
+                        <strong id="ffst-selected-count" aria-live="polite">0 licence sélectionnée</strong>
                     </div>
 					<?php if($unknown_count): ?>
 						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ancienne(s) ligne(s) possèdent un statut invalide (0). Elles ne peuvent pas être appliquées : réimportez le PDF pour créer un nouveau lot fiable. Aucune ancienne donnée n’est modifiée.','ufsc-licence-competition'),$unknown_count)); ?></p></div>
@@ -273,6 +302,7 @@ class UFSC_LC_FFST_Import_Page {
                         var search=document.getElementById('ffst-live-search');
                         var selectAll=document.getElementById('ffst-select-all');
                         var counter=document.getElementById('ffst-live-count');
+                        var selectedCounter=document.getElementById('ffst-selected-count');
                         var rows=Array.prototype.slice.call(document.querySelectorAll('.ufsc-lc-ffst-import-record[data-ffst-row]'));
                         function refresh(){
                             var q=(search.value||'').trim().toLocaleLowerCase();
@@ -280,11 +310,30 @@ class UFSC_LC_FFST_Import_Page {
                             rows.forEach(function(row){
                                 var show=!q||row.textContent.toLocaleLowerCase().indexOf(q)!==-1;
                                 row.hidden=!show;
+                                // Hidden rows must never remain selected for the
+                                // Apply action: it only acts on visible choices.
+                                if(!show){
+                                    var hiddenCheck=row.querySelector('input[name="selected_row_ids[]"]');
+                                    if(hiddenCheck)hiddenCheck.checked=false;
+                                }
                                 if(show)count++;
                             });
                             counter.textContent=count+' ligne(s) visibles sur cette page';
+                            refreshSelection();
+                        }
+                        function refreshSelection(){
+                            var selected=0;
+                            rows.forEach(function(row){
+                                var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
+                                if(checkbox && checkbox.checked) selected++;
+                            });
+                            if(selectedCounter)selectedCounter.textContent=selected+' licence(s) sélectionnée(s) sur cette page';
                         }
                         if(search)search.addEventListener('input',refresh);
+                        rows.forEach(function(row){
+                            var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
+                            if(checkbox)checkbox.addEventListener('change',refreshSelection);
+                        });
                         if(selectAll)selectAll.addEventListener('change',function(){
                             rows.forEach(function(row){
                                 if(!row.hidden){
@@ -292,6 +341,7 @@ class UFSC_LC_FFST_Import_Page {
                                     if(checkbox && !checkbox.disabled)checkbox.checked=selectAll.checked;
                                 }
                             });
+                            refreshSelection();
                         });
                         refresh();
                     })();
