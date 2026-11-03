@@ -268,7 +268,7 @@ final class UFSC_LC_FFST_Resolution_Admin {
         echo '<input type="hidden" name="action" value="ufsc_lc_ffst_club_alias"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="row_id" value="' . esc_attr( $source->id ) . '">';
         echo '<div><label>Club indiqué sur le PDF</label><strong>' . esc_html( $source->club_name ) . '</strong></div>';
         echo '<div class="ufsc-ffst-club-search"><label for="ffst-target-club">Club UFSC correspondant</label>';
-        echo '<input type="search" class="ufsc-ffst-remote-club-search" aria-label="Rechercher un club UFSC" placeholder="Rechercher tous les clubs (nom, ville…)" autocomplete="off">';
+        echo '<input type="search" class="ufsc-ffst-remote-club-search" aria-label="Rechercher un club UFSC" placeholder="Rechercher par nom de club (tous les clubs)" autocomplete="off">';
         echo '<span class="ufsc-ffst-club-feedback" role="status" aria-live="polite"></span>';
         echo '<select id="ffst-target-club" name="club_id" required><option value="">Rechercher et sélectionner…</option>';
         self::render_club_options( $mapped );
