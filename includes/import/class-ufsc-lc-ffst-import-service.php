@@ -507,7 +507,7 @@ class UFSC_LC_FFST_Import_Service {
 
     public function count_batch_rows_filtered( $id, $status = '', $search = '', $club_name = '' ) {
         global $wpdb;
-        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search );
+        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search, $club_name );
         return (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM {$this->rows_table()} WHERE {$where}",
             $args
