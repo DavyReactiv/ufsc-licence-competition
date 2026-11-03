@@ -111,15 +111,22 @@ final class UFSC_LC_FFST_Resolution_Admin {
     public static function render_tools( $batch, $rows ) {
         if ( ! self::allowed() || ! $batch || ! $rows ) { return; }
         $source = null;
-        foreach ( $rows as $row ) {
-            if ( trim( (string) $row->club_name ) && 'not_found' === $row->match_status ) { $source = $row; break; }
+        $requested_row = absint( $_GET['ffst_club_row'] ?? 0 );
+        if ( $requested_row ) {
+            $requested = self::row( absint( $batch->id ), $requested_row );
+            if ( $requested && trim( (string) $requested->club_name ) ) { $source = $requested; }
+        }
+        if ( ! $source ) {
+            foreach ( $rows as $row ) {
+                if ( trim( (string) $row->club_name ) && 'not_found' === $row->match_status ) { $source = $row; break; }
+            }
         }
         if ( ! $source ) {
             foreach ( $rows as $row ) { if ( trim( (string) $row->club_name ) ) { $source = $row; break; } }
         }
         if ( ! $source ) { return; }
         $mapped = self::target_club_id( $source->club_name );
-        echo '<section class="ufsc-ffst-resolve-tools"><div class="ufsc-ffst-tool-head"><div><h3>Résoudre les licences introuvables</h3><p>Associez le nom FFST au club UFSC pour reprendre la recherche dans le bon club.</p></div>';
+        echo '<section class="ufsc-ffst-resolve-tools" id="ufsc-ffst-club-tools"><div class="ufsc-ffst-tool-head"><div><h3>Résoudre les licences introuvables</h3><p>Associez le nom FFST au club UFSC pour reprendre la recherche dans le bon club.</p></div>';
         echo '<a class="button" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=ufsc_lc_ffst_export_unmatched&batch_id=' . absint( $batch->id ) ), 'ufsc_ffst_export_' . absint( $batch->id ) ) ) . '">Exporter les introuvables (CSV)</a></div>';
         $messages = array( 'rescanned' => absint( $_GET['ffst_found'] ?? 0 ) . ' correspondance(s) supplémentaire(s) trouvée(s). Vérifiez avant application.', 'linked' => 'Correspondance préparée dans le lot : aucune licence UFSC encore modifiée.', 'club_saved' => 'Association du club enregistrée. Relancez la recherche si nécessaire.' );
         $message = isset( $_GET['ffst_resolved'] ) ? sanitize_key( wp_unslash( $_GET['ffst_resolved'] ) ) : '';
@@ -138,7 +145,8 @@ final class UFSC_LC_FFST_Resolution_Admin {
 
     public static function render_row_link( $batch, $row ) {
         if ( ! self::allowed() || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
-        echo '<div class="ufsc-ffst-inline-actions"><a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $row->id ) ) ) . '#ffst-resolve-panel' ) . '">Rechercher / associer</a></div>';
+        echo '<div class="ufsc-ffst-inline-actions"><a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $row->id ) ) ) . '#ffst-resolve-panel' ) . '">Rechercher / associer</a> ';
+        echo '<a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_club_row' => absint( $row->id ) ) ) . '#ufsc-ffst-club-tools' ) . '">Associer ce club</a></div>';
     }
 
     public static function render_panel( $batch ) {
