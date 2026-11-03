@@ -240,6 +240,7 @@ class UFSC_LC_FFST_Import_Page {
                         <input type="search" id="ffst-live-search" placeholder="Nom, prénom, N° FFST, club…">
                         <label><input type="checkbox" id="ffst-select-all"> Sélectionner toutes les lignes trouvées de cette page</label>
                         <span id="ffst-live-count" aria-live="polite"></span>
+                        <strong id="ffst-selected-count" aria-live="polite">0 licence sélectionnée</strong>
                     </div>
 					<?php if($unknown_count): ?>
 						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ancienne(s) ligne(s) possèdent un statut invalide (0). Elles ne peuvent pas être appliquées : réimportez le PDF pour créer un nouveau lot fiable. Aucune ancienne donnée n’est modifiée.','ufsc-licence-competition'),$unknown_count)); ?></p></div>
@@ -301,6 +302,7 @@ class UFSC_LC_FFST_Import_Page {
                         var search=document.getElementById('ffst-live-search');
                         var selectAll=document.getElementById('ffst-select-all');
                         var counter=document.getElementById('ffst-live-count');
+                        var selectedCounter=document.getElementById('ffst-selected-count');
                         var rows=Array.prototype.slice.call(document.querySelectorAll('.ufsc-lc-ffst-import-record[data-ffst-row]'));
                         function refresh(){
                             var q=(search.value||'').trim().toLocaleLowerCase();
@@ -311,8 +313,21 @@ class UFSC_LC_FFST_Import_Page {
                                 if(show)count++;
                             });
                             counter.textContent=count+' ligne(s) visibles sur cette page';
+                            refreshSelection();
+                        }
+                        function refreshSelection(){
+                            var selected=0;
+                            rows.forEach(function(row){
+                                var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
+                                if(checkbox && checkbox.checked) selected++;
+                            });
+                            if(selectedCounter)selectedCounter.textContent=selected+' licence(s) sélectionnée(s) sur cette page';
                         }
                         if(search)search.addEventListener('input',refresh);
+                        rows.forEach(function(row){
+                            var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
+                            if(checkbox)checkbox.addEventListener('change',refreshSelection);
+                        });
                         if(selectAll)selectAll.addEventListener('change',function(){
                             rows.forEach(function(row){
                                 if(!row.hidden){
@@ -320,6 +335,7 @@ class UFSC_LC_FFST_Import_Page {
                                     if(checkbox && !checkbox.disabled)checkbox.checked=selectAll.checked;
                                 }
                             });
+                            refreshSelection();
                         });
                         refresh();
                     })();
