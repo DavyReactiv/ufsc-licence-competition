@@ -231,7 +231,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
             else { update_option( $audit_key, $previous, false ); }
             self::match_error( $batch_id, $row_id, $match->get_error_message() );
         }
-        wp_safe_redirect( self::url( $batch_id, array( 'ffst_resolved' => 'linked' ) ) );
+        // Continue to the next unresolved case without making another manual
+        // selection or changing any other licence.
+        $next = $service->get_next_unresolved_row( $batch_id, $row_id );
+        $args = array( 'ffst_resolved' => 'linked' );
+        if ( $next ) { $args['ffst_resolve_row'] = absint( $next->id ); }
+        wp_safe_redirect( self::url( $batch_id, $args ) . ( $next ? '#ffst-resolve-panel' : '#ufsc-ffst-club-tools' ) );
         exit;
     }
 
@@ -295,6 +300,11 @@ final class UFSC_LC_FFST_Resolution_Admin {
         if ( ! $row || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
         $club_id = absint( $_GET['ffst_target_club'] ?? self::target_club_id( $row->club_name ) );
         echo '<section class="ufsc-ffst-resolve-panel" id="ffst-resolve-panel"><h3>Rapprochement assisté : ' . esc_html( $row->first_name . ' ' . $row->last_name ) . '</h3>';
+        $service = new UFSC_LC_FFST_Import_Service();
+        $next_unresolved = $service->get_next_unresolved_row( $batch->id, $row_id );
+        if ( $next_unresolved && absint( $next_unresolved->id ) !== $row_id ) {
+            echo '<p><a class="button button-secondary" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $next_unresolved->id ) ) ) . '#ffst-resolve-panel' ) . '">Passer au prochain dossier introuvable ou ambigu</a></p>';
+        }
         $error_key = 'ufsc_ffst_match_error_' . get_current_user_id() . '_' . absint( $batch->id ) . '_' . $row_id;
         $error = get_transient( $error_key );
         if ( $error ) {
@@ -310,7 +320,6 @@ final class UFSC_LC_FFST_Resolution_Admin {
         self::render_club_options( $club_id );
         echo '</select></div> <button type="submit" class="button">Chercher les candidats</button></form>';
         if ( $club_id && self::club_exists( $club_id ) ) {
-            $service = new UFSC_LC_FFST_Import_Service();
             $candidates = $service->get_manual_candidates( $batch->id, $row->id, $club_id );
             if ( is_wp_error( $candidates ) ) {
                 echo '<p class="ufsc-ffst-warning">' . esc_html( $candidates->get_error_message() ) . '</p>';
