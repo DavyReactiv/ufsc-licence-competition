@@ -267,10 +267,11 @@ final class UFSC_LC_FFST_Resolution_Admin {
         wp_nonce_field( 'ufsc_ffst_club_' . absint( $batch->id ) );
         echo '<input type="hidden" name="action" value="ufsc_lc_ffst_club_alias"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="row_id" value="' . esc_attr( $source->id ) . '">';
         echo '<div><label>Club indiqué sur le PDF</label><strong>' . esc_html( $source->club_name ) . '</strong></div>';
-        echo '<div><label for="ffst-target-club">Club UFSC correspondant</label><select id="ffst-target-club" name="club_id" required><option value="">Rechercher et sélectionner…</option>';
-        foreach ( self::club_options() as $club ) {
-            echo '<option value="' . esc_attr( $club->id ) . '" ' . selected( $mapped, absint( $club->id ), false ) . '>' . esc_html( $club->club_name ) . '</option>';
-        }
+        echo '<div class="ufsc-ffst-club-search"><label for="ffst-target-club">Club UFSC correspondant</label>';
+        echo '<input type="search" class="ufsc-ffst-remote-club-search" aria-label="Rechercher un club UFSC" placeholder="Rechercher tous les clubs (nom, ville…)" autocomplete="off">';
+        echo '<span class="ufsc-ffst-club-feedback" role="status" aria-live="polite"></span>';
+        echo '<select id="ffst-target-club" name="club_id" required><option value="">Rechercher et sélectionner…</option>';
+        self::render_club_options( $mapped );
         echo '</select></div><button class="button button-primary" type="submit">Associer le club et rechercher</button></form>';
         if ( $mapped ) {
             echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="ufsc-ffst-unmap-form">';
@@ -302,9 +303,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
         }
         echo '<p>FFST <strong>' . esc_html( $row->ffst_number ) . '</strong> · Naissance ' . esc_html( $row->birthdate ) . ' · Saison ' . esc_html( ( $batch->season_end_year - 1 ) . '–' . $batch->season_end_year ) . '</p>';
         echo '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '"><input type="hidden" name="page" value="' . esc_attr( UFSC_LC_FFST_Import_Page::PAGE_SLUG ) . '"><input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '"><input type="hidden" name="ffst_resolve_row" value="' . esc_attr( $row->id ) . '">';
-        echo '<label for="ffst-manual-club">Rechercher dans le club UFSC</label> <select name="ffst_target_club" id="ffst-manual-club" required><option value="">Sélectionner le club…</option>';
-        foreach ( self::club_options() as $club ) { echo '<option value="' . esc_attr( $club->id ) . '" ' . selected( $club_id, absint( $club->id ), false ) . '>' . esc_html( $club->club_name ) . '</option>'; }
-        echo '</select> <button type="submit" class="button">Chercher les candidats</button></form>';
+        echo '<div class="ufsc-ffst-club-search"><label for="ffst-manual-club">Rechercher dans le club UFSC</label>';
+        echo '<input type="search" class="ufsc-ffst-remote-club-search" aria-label="Rechercher un club pour le rapprochement" placeholder="Rechercher tous les clubs…" autocomplete="off">';
+        echo '<span class="ufsc-ffst-club-feedback" role="status" aria-live="polite"></span>';
+        echo '<select name="ffst_target_club" id="ffst-manual-club" required><option value="">Sélectionner le club…</option>';
+        self::render_club_options( $club_id );
+        echo '</select></div> <button type="submit" class="button">Chercher les candidats</button></form>';
         if ( $club_id && self::club_exists( $club_id ) ) {
             $service = new UFSC_LC_FFST_Import_Service();
             $candidates = $service->get_manual_candidates( $batch->id, $row->id, $club_id );
