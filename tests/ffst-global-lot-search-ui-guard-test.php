@@ -10,11 +10,11 @@ $css = file_get_contents( $root . '/assets/css/ffst-resolution-center.css' );
 $checks = array(
     'Sanitized global term' => strpos( $page, "sanitize_text_field(wp_unslash(" ) !== false
         && strpos( $page, "ffst_search" ) !== false,
-    'Read-only global count' => strpos( $page, 'count_batch_rows_filtered($batch_id,$status_filter,$lot_search)' ) !== false,
-    'Read-only global page' => strpos( $page, 'get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset)' ) !== false,
-    'Preserve search in status cards' => strpos( $page, "'ffst_search'=>" . '$lot_search' . ",'ffst_page'=>1" ) !== false,
-    'Preserve search during pagination' => strpos( $page, "'ffst_search'=>" . '$lot_search' . ",'ffst_page'=>" . '$page_number' ) !== false,
-    'Explicit clear search link' => strpos( $page, 'Effacer la recherche' ) !== false,
+    'Read-only global count' => strpos( $page, 'count_batch_rows_filtered($batch_id,$status_filter,$lot_search,$club_filter)' ) !== false,
+    'Read-only global page' => strpos( $page, 'get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset,$club_filter)' ) !== false,
+    'Preserve search in status cards' => strpos( $page, "'ffst_search'=>" . '$lot_search' . ",'ffst_club'=>" . '$club_filter' . ",'ffst_page'=>1" ) !== false,
+    'Preserve search during pagination' => strpos( $page, "'ffst_search'=>" . '$lot_search' . ",'ffst_club'=>" . '$club_filter' . ",'ffst_page'=>" . '$page_number' ) !== false,
+    'Explicit clear search link' => strpos( $page, 'Effacer les filtres' ) !== false,
     'Empty result guidance' => strpos( $page, 'Aucune licence ne correspond à votre recherche' ) !== false,
     'Search entire lot form' => strpos( $page, 'Rechercher dans tout le lot' ) !== false,
     'Page-only refinement distinguished' => strpos( $page, 'Affiner les résultats de cette page' ) !== false,

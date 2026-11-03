@@ -462,7 +462,7 @@ class UFSC_LC_FFST_Import_Service {
      * Read-only query across the ENTIRE staged FFST batch.
      * Existing retrieval methods are intentionally preserved for callers.
      */
-    private function build_batch_search_conditions( $id, $status, $search ) {
+    private function build_batch_search_conditions( $id, $status, $search, $club_name = '' ) {
         global $wpdb;
         $allowed = array( self::MATCHED, self::AMBIGUOUS, self::NOT_FOUND, self::CONFLICT, self::APPLIED );
         $args = array( absint( $id ) );
@@ -470,6 +470,13 @@ class UFSC_LC_FFST_Import_Service {
         if ( in_array( $status, $allowed, true ) ) {
             $where .= ' AND match_status=%s';
             $args[] = $status;
+        }
+        // An exact FFST source club is optional. It narrows the work queue
+        // without changing the mapping of that club to UFSC Gestion.
+        $club_name = trim( (string) $club_name );
+        if ( '' !== $club_name ) {
+            $where .= ' AND club_name=%s';
+            $args[] = $club_name;
         }
         $search = trim( (string) $search );
         if ( '' !== $search ) {
@@ -487,9 +494,9 @@ class UFSC_LC_FFST_Import_Service {
         return array( $where, $args );
     }
 
-    public function get_batch_rows_filtered( $id, $status = '', $search = '', $limit = 100, $offset = 0 ) {
+    public function get_batch_rows_filtered( $id, $status = '', $search = '', $limit = 100, $offset = 0, $club_name = '' ) {
         global $wpdb;
-        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search );
+        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search, $club_name );
         $args[] = max( 1, min( 500, absint( $limit ) ) );
         $args[] = max( 0, absint( $offset ) );
         return $wpdb->get_results( $wpdb->prepare(
@@ -498,13 +505,42 @@ class UFSC_LC_FFST_Import_Service {
         ) );
     }
 
-    public function count_batch_rows_filtered( $id, $status = '', $search = '' ) {
+    public function count_batch_rows_filtered( $id, $status = '', $search = '', $club_name = '' ) {
         global $wpdb;
-        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search );
+        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search, $club_name );
         return (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM {$this->rows_table()} WHERE {$where}",
             $args
         ) );
+    }
+
+
+    /**
+     * A bounded work queue by FFST source club, scoped to one staged batch.
+     * All counts are read-only and never mutate licences or imports.
+     */
+    public function get_batch_club_summary( $batch_id, $limit = 100 ) {
+        global $wpdb;
+        $limit = max( 1, min( 250, absint( $limit ) ) );
+        return (array) $wpdb->get_results( $wpdb->prepare(
+            "SELECT club_name, COUNT(*) AS total_rows, " .
+            "SUM(CASE WHEN match_status=%s THEN 1 ELSE 0 END) AS not_found_rows, " .
+            "SUM(CASE WHEN match_status=%s THEN 1 ELSE 0 END) AS ambiguous_rows, " .
+            "SUM(CASE WHEN match_status=%s THEN 1 ELSE 0 END) AS conflict_rows, " .
+            "SUM(CASE WHEN match_status=%s THEN 1 ELSE 0 END) AS matched_rows, " .
+            "SUM(CASE WHEN match_status=%s THEN 1 ELSE 0 END) AS applied_rows " .
+            "FROM {$this->rows_table()} WHERE batch_id=%d AND club_name IS NOT NULL AND club_name<>'' " .
+            "GROUP BY club_name ORDER BY (not_found_rows + ambiguous_rows + conflict_rows) DESC, club_name ASC LIMIT %d",
+            self::NOT_FOUND, self::AMBIGUOUS, self::CONFLICT, self::MATCHED, self::APPLIED,
+            absint( $batch_id ), $limit
+        ) );
+    }
+
+    public function batch_club_in_summary( $summary, $club_name ) {
+        foreach ( (array) $summary as $club ) {
+            if ( (string) $club->club_name === (string) $club_name ) { return true; }
+        }
+        return false;
     }
 
 	public function get_batch_status_count($id,$status){
