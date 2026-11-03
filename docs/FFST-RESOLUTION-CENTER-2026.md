@@ -83,6 +83,26 @@ La recherche globale se combine avec les cartes de statut (trouvées, introuvabl
 - [ ] Vérifier le compteur de sélection lors des recherches, cases individuelles et sélection sur page.
 - [ ] Tester les droits non administrateur, le nonce invalide et la navigation mobile.
 
+## File de traitement FFST par club
+
+Dans le lot FFST, ouvrir **Voir les clubs du lot et leurs dossiers à traiter** pour obtenir une vue en lecture seule des clubs présents dans le fichier. Chaque club affiche ses licences introuvables, ambiguës, en conflit, trouvées et déjà appliquées.
+
+- Le bouton **Ouvrir ce club** affiche les dossiers du club, sans toucher aux fiches UFSC.
+- Dans **Rechercher dans tout le lot**, le filtre **Club FFST du lot** se combine avec le statut et le texte recherché et reste actif à travers les pages et les cartes.
+- Le champ club correspond au **nom original enregistré dans le lot FFST**, et non au nom de club UFSC mappé. Le choix est validé parmi les noms réellement présents dans ce lot.
+- Le tableau des clubs est borné à 250 clubs pour protéger le temps d'affichage. Les compteurs par club sont calculés à la lecture.
+- Les compteurs des cartes de statut restent **globaux au lot** et ne sont pas des compteurs filtrés par club.
+
+### Recette production
+
+- [ ] Lot contenant plusieurs clubs : vérifier la séparation des dossiers et des compteurs.
+- [ ] Sélectionner un club puis « Introuvables » ; conserver le club en changeant de page et en effectuant une recherche textuelle.
+- [ ] Vérifier que deux noms de club FFST similaires ne mélangent pas les dossiers : sélection par valeur exacte, sans `LIKE` pour le club.
+- [ ] Tester un paramètre de club falsifié et un identifiant de lot différent.
+- [ ] Tester le cas sans club, le cas avec une seule association de club, et un lot déjà appliqué.
+- [ ] Vérifier qu'aucune licence, statut, paiement ni numéro FFST n'a changé avant et après consultation.
+- [ ] Tester clavier, lecture sur mobile et préproduction avec UFSC Gestion et UFSC Licence & Compétition actifs.
+
 ## Règles de sécurité
 
 - Les correspondances de clubs sont stockées dans l'option WordPress `ufsc_lc_ffst_club_alias_v1` (pas de modification des noms existants).
