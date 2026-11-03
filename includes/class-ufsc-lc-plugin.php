@@ -27,6 +27,7 @@ require_once __DIR__ . '/admin/class-ufsc-lc-status-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-asptt-review-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-settings-page.php';
 require_once __DIR__ . '/admin/class-ufsc-lc-ffst-import-page.php';
+require_once __DIR__ . '/import/class-ufsc-lc-ffst-resolution-admin.php';
 $competitions_bootstrap = __DIR__ . '/competitions/bootstrap.php';
 if ( file_exists( $competitions_bootstrap ) ) {
 	require_once $competitions_bootstrap;
@@ -98,6 +99,7 @@ class UFSC_LC_Plugin {
 
 			$ffst_import_page = new UFSC_LC_FFST_Import_Page();
 			$ffst_import_page->register();
+            UFSC_LC_FFST_Resolution_Admin::register();
 		}
 
 		$this->dependencies_met = $this->check_dependencies();

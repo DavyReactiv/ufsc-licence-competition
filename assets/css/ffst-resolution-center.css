@@ -1,0 +1,41 @@
+/* UFSC FFST import: scoped administrative layout. Does not affect club front. */
+.ufsc-lc-admin .ufsc-ffst-step-description{font-size:13px;color:#505b6c;margin-top:4px}
+.ufsc-lc-admin .ufsc-ffst-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:18px 0 16px}
+.ufsc-lc-admin .ufsc-ffst-metric{min-width:0;border:1px solid #d9e0e9;border-radius:10px;text-decoration:none;color:#1d2939;background:#fff;padding:12px;display:flex;flex-direction:column;gap:4px;box-sizing:border-box;transition:border-color .15s,background .15s}
+.ufsc-lc-admin .ufsc-ffst-metric strong{font-size:22px;line-height:1.1;color:#172554}
+.ufsc-lc-admin .ufsc-ffst-metric span{font-size:12px;color:#475569}
+.ufsc-lc-admin .ufsc-ffst-metric:hover,.ufsc-lc-admin .ufsc-ffst-metric.is-active{border-color:#2563eb;background:#f0f6ff}
+.ufsc-lc-admin .ufsc-ffst-metric:focus-visible,.ufsc-lc-admin .ufsc-ffst-resolve-panel a:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.ufsc-lc-admin .ufsc-ffst-resolve-tools{border:1px solid #cbd5e1;background:#f8fbff;border-radius:12px;padding:18px;margin:20px 0}
+.ufsc-lc-admin .ufsc-ffst-tool-head{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.ufsc-lc-admin .ufsc-ffst-tool-head h3{margin:0 0 6px;font-size:16px}
+.ufsc-lc-admin .ufsc-ffst-tool-head p{margin:0;color:#526078}
+.ufsc-lc-admin .ufsc-ffst-club-form{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1.3fr) auto;align-items:end;gap:15px;margin:16px 0 10px}
+.ufsc-lc-admin .ufsc-ffst-club-form>div{display:flex;flex-direction:column;gap:7px}
+.ufsc-lc-admin .ufsc-ffst-club-form label{font-size:12px;font-weight:600;color:#475569}
+.ufsc-lc-admin .ufsc-ffst-club-form strong{font-size:13px;line-height:1.4}
+.ufsc-lc-admin .ufsc-ffst-club-form select{width:100%;max-width:100%;min-height:36px}
+.ufsc-lc-admin .ufsc-ffst-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:16px 0;border:1px solid #dbe3ee;border-radius:10px;background:#f8fafc}
+.ufsc-lc-admin .ufsc-ffst-toolbar>label{font-size:12px;font-weight:600;color:#334155}
+.ufsc-lc-admin .ufsc-ffst-toolbar input[type=search]{min-width:230px;flex:1;max-width:380px}
+.ufsc-lc-admin .ufsc-ffst-toolbar label:has(input[type=checkbox]){font-weight:400}
+.ufsc-lc-admin .ufsc-lc-ffst-import-grid{min-width:980px!important;font-size:12px}
+.ufsc-lc-admin .ufsc-lc-ffst-import-record{border-bottom:1px solid #e2e8f0!important;transition:background .15s}
+.ufsc-lc-admin .ufsc-lc-ffst-import-record:not(.ufsc-lc-ffst-import-header):hover{background:#edf4ff!important}
+.ufsc-lc-admin .ufsc-lc-ffst-import-record[hidden]{display:none!important}
+.ufsc-lc-admin .ufsc-lc-ffst-import-record>div{padding:12px 9px!important;overflow-wrap:anywhere}
+.ufsc-lc-admin .ufsc-lc-ffst-import-header{background:#eff4fb!important;color:#273449}
+.ufsc-lc-admin .ufsc-ffst-inline-actions{margin:7px 0 0}
+.ufsc-lc-admin .ufsc-ffst-inline-actions .button{white-space:normal;text-align:center;height:auto;min-height:28px;line-height:1.3;padding:4px 8px}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel{padding:22px;border:1px solid #9db9e5;background:#fff;border-radius:12px;margin-top:22px;scroll-margin-top:65px;box-shadow:0 2px 11px rgba(23,40,77,.05)}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel>h3{font-size:18px;margin:0 0 8px}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel>p{color:#475569}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel select{min-width:210px;max-width:100%;margin:7px}
+.ufsc-lc-admin .ufsc-ffst-candidate-table{overflow-x:auto;margin:16px 0}
+.ufsc-lc-admin .ufsc-ffst-candidate-table table{min-width:680px}
+.ufsc-lc-admin .ufsc-ffst-warning{background:#fff8e5;padding:12px;border-left:3px solid #d39c22;margin:15px 0}
+.ufsc-lc-admin .ufsc-ffst-info{background:#eaf4fe;border-left:3px solid #2271b1;padding:11px}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel input[type=checkbox]{vertical-align:middle}
+@media(max-width:1200px){.ufsc-lc-admin .ufsc-ffst-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.ufsc-lc-admin .ufsc-ffst-club-form{grid-template-columns:1fr}.ufsc-lc-admin .ufsc-ffst-toolbar{flex-direction:column;align-items:stretch}.ufsc-lc-admin .ufsc-ffst-toolbar input[type=search]{min-width:0;max-width:100%}.ufsc-lc-admin .ufsc-lc-ffst-import-grid{min-width:960px!important}.ufsc-lc-admin .ufsc-ffst-resolve-panel{padding:14px}}
+@media(prefers-reduced-motion:reduce){.ufsc-lc-admin .ufsc-ffst-metric,.ufsc-lc-admin .ufsc-lc-ffst-import-record{transition:none}}

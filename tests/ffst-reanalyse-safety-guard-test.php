@@ -12,7 +12,7 @@ $checks=array(
     'Recheck live identity'=>strpos($service,'$this->resolve_match($d,absint($batch->season_end_year))')!==false,
     'Reject duplicate FFST numbers'=>strpos($service,'$conflicting_number||$conflicting_person')!==false,
     'Only staging rows mutated'=>strpos($service,"'match_status'=>self::MATCHED")!==false,
-    'Old applied batch allows new confirmed matches'=>strpos($service,"'applied'===$batch->status && 0===$this->get_batch_status_count")!==false,
+    'Old applied batch allows new confirmed matches'=>strpos($service, "'applied'===" . '$batch->status' . " && 0===" . '$this->get_batch_status_count')!==false,
     'Admin handler'=>strpos($page,'handle_reanalyse')!==false,
     'Permission check'=>strpos($page,"UFSC_LC_Capabilities::user_can_import()")!==false,
     'Nonce'=>strpos($page,"check_admin_referer('ufsc_lc_ffst_reanalyse_'")!==false,

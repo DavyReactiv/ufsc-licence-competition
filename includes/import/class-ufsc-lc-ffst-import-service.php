@@ -156,6 +156,125 @@ class UFSC_LC_FFST_Import_Service {
 		return $matched;
 	}
 
+
+    /**
+     * Find eligible UFSC records in a specifically chosen club, for manual
+     * resolution of a staged FFST row. This method never alters master data.
+     */
+    public function get_manual_candidates( $batch_id, $row_id, $club_id ) {
+        global $wpdb;
+        $batch = $this->get_batch( absint( $batch_id ) );
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND id=%d LIMIT 1",
+            absint( $batch_id ), absint( $row_id )
+        ) );
+        if ( ! $batch || ! $row || ! in_array( $row->match_status, array( self::NOT_FOUND, self::AMBIGUOUS ), true ) ) {
+            return new WP_Error( 'ffst_resolution_invalid', __( 'Cette ligne ne peut plus être rapprochée manuellement.', 'ufsc-licence-competition' ) );
+        }
+        if ( ! $club_id || ! $row->birthdate ) {
+            return new WP_Error( 'ffst_resolution_data', __( 'Club et date de naissance indispensables.', 'ufsc-licence-competition' ) );
+        }
+        $table = $wpdb->prefix . 'ufsc_licences';
+        $name = $this->column_exists( $table, 'nom' ) ? 'nom' : 'nom_licence';
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE club_id=%d AND date_naissance=%s ORDER BY id DESC LIMIT 201",
+            absint( $club_id ), $row->birthdate
+        ) );
+        if ( count( $rows ) > 200 ) {
+            return new WP_Error( 'ffst_resolution_limit', __( 'Trop de candidatures : affinez le club.', 'ufsc-licence-competition' ) );
+        }
+        $result = array();
+        $end = absint( $batch->season_end_year );
+        foreach ( $rows as $candidate ) {
+            $season_ok = false;
+            foreach ( array( 'season_end_year', 'saison', 'season' ) as $field ) {
+                if ( ! property_exists( $candidate, $field ) ) { continue; }
+                $value = trim( (string) $candidate->{$field} );
+                if ( in_array( $value, array( (string) $end, ( $end - 1 ) . '-' . $end, ( $end - 1 ) . '/' . $end ), true ) ) { $season_ok = true; break; }
+            }
+            if ( ! $season_ok ) { continue; }
+            $candidate->last_name = (string) $candidate->{$name};
+            $candidate->first_name = (string) $candidate->prenom;
+            // The same canonical comparison is used by the import service.
+            // Extra slug comparisons would reject some legitimate dash variants.
+            $candidate->eligible = $this->norm( $candidate->last_name ) === $this->norm( $row->last_name )
+                && $this->norm( $candidate->first_name ) === $this->norm( $row->first_name );
+            $result[] = $candidate;
+        }
+        return $result;
+    }
+
+    /**
+     * Approve only an unambiguous manual staging match. Applying the number
+     * still requires the usual independent Apply button and all its guards.
+     */
+    public function manual_stage_match( $batch_id, $row_id, $licence_id, $club_id ) {
+        global $wpdb;
+        $batch_id = absint( $batch_id ); $row_id = absint( $row_id );
+        $licence_id = absint( $licence_id ); $club_id = absint( $club_id );
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND id=%d LIMIT 1",
+            $batch_id, $row_id
+        ) );
+        if ( ! $row || ! in_array( $row->match_status, array( self::NOT_FOUND, self::AMBIGUOUS ), true ) ) {
+            return new WP_Error( 'ffst_manual_invalid', __( 'La ligne a changé, aucune modification.', 'ufsc-licence-competition' ) );
+        }
+        $candidates = $this->get_manual_candidates( $batch_id, $row_id, $club_id );
+        if ( is_wp_error( $candidates ) ) { return $candidates; }
+        $found = null;
+        foreach ( $candidates as $candidate ) {
+            if ( absint( $candidate->id ) === $licence_id && $candidate->eligible ) { $found = $candidate; break; }
+        }
+        if ( ! $found ) {
+            return new WP_Error( 'ffst_manual_identity', __( 'Identité complète, naissance, club ou saison non concordants.', 'ufsc-licence-competition' ) );
+        }
+        $eligible_count = count( array_filter( $candidates, static function ( $candidate ) {
+            return ! empty( $candidate->eligible );
+        } ) );
+        if ( 1 !== $eligible_count ) {
+            return new WP_Error( 'ffst_manual_ambiguous', __( 'Plusieurs fiches UFSC ont la même identité et date de naissance dans ce club pour la saison. Vérifiez et corrigez le doublon avant de continuer.', 'ufsc-licence-competition' ) );
+        }
+        $prev = trim( (string) ( $found->numero_licence_ffst ?? '' ) );
+        $incoming = trim( (string) $row->ffst_number );
+        if ( ! $incoming || ( $prev && 0 !== strcasecmp( $prev, $incoming ) ) ) {
+            return new WP_Error( 'ffst_manual_number', __( 'N° FFST absent ou incompatible avec la licence choisie.', 'ufsc-licence-competition' ) );
+        }
+        $licences_table = $wpdb->prefix . 'ufsc_licences';
+        $taken = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$licences_table} WHERE UPPER(numero_licence_ffst)=%s AND id<>%d",
+            strtoupper( $incoming ), $licence_id
+        ) );
+        $already = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->rows_table()} WHERE batch_id=%d AND id<>%d AND (UPPER(ffst_number)=%s OR (match_licence_id=%d AND match_status IN (%s,%s)))",
+            $batch_id, $row_id, strtoupper( $incoming ), $licence_id, self::MATCHED, self::APPLIED
+        ) );
+        if ( $taken || $already ) {
+            return new WP_Error( 'ffst_manual_collision', __( 'Doublon de numéro ou de destinataire : aucune modification.', 'ufsc-licence-competition' ) );
+        }
+        $result = $wpdb->update( $this->rows_table(), array(
+            'match_status' => self::MATCHED,
+            'match_licence_id' => $licence_id,
+            'match_message' => __( 'Rapprochement manuel confirmé après contrôle identité, naissance, saison, club et numéro.', 'ufsc-licence-competition' ),
+            'previous_ffst_number' => $prev,
+        ), array( 'id' => $row_id, 'batch_id' => $batch_id, 'match_status' => $row->match_status ),
+        array( '%s', '%d', '%s', '%s' ), array( '%d', '%d', '%s' ) );
+        if ( 1 !== $result ) {
+            return new WP_Error( 'ffst_manual_race', __( 'La ligne a été modifiée simultanément ou n’a pas pu être enregistrée.', 'ufsc-licence-competition' ) );
+        }
+        $this->update_batch_counters( $batch_id );
+        return array( 'ffst_number' => $incoming, 'licence_id' => $licence_id );
+    }
+
+    public function update_batch_counters( $batch_id ) {
+        global $wpdb;
+        return $wpdb->update( $this->batches_table(), array(
+            'matched_rows' => $this->get_batch_status_count( $batch_id, self::MATCHED ),
+            'ambiguous_rows' => $this->get_batch_status_count( $batch_id, self::AMBIGUOUS ),
+            'conflict_rows' => $this->get_batch_status_count( $batch_id, self::CONFLICT ),
+            'not_found_rows' => $this->get_batch_status_count( $batch_id, self::NOT_FOUND ),
+        ), array( 'id' => absint( $batch_id ) ), array( '%d', '%d', '%d', '%d' ), array( '%d' ) );
+    }
+
 	public function apply_batch($batch_id,array $selected_ids=array()){
 		global $wpdb;
 		$batch_id=absint($batch_id);
@@ -198,6 +317,18 @@ class UFSC_LC_FFST_Import_Service {
 			if(!$master||$this->norm($master->last_name)!==$this->norm($row->last_name)||$this->norm($master->first_name)!==$this->norm($row->first_name)||(string)$master->birthdate!==(string)$row->birthdate){
 				return new WP_Error('ffst_identity_changed',sprintf(__('Identité non vérifiée pour la licence UFSC #%d : aucune modification.','ufsc-licence-competition'),$id));
 			}
+            // Re-check the exact same club/identity/season resolution on the
+            // live database just before writing, including any saved club alias.
+            $verified = $this->resolve_match(array(
+                'ffst_number' => $incoming,
+                'last_name' => (string) $row->last_name,
+                'first_name' => (string) $row->first_name,
+                'birthdate' => (string) $row->birthdate,
+                'club_name' => (string) $row->club_name,
+            ), $expected_end);
+            if(self::MATCHED!==$verified['status'] || absint($verified['licence_id'])!==$id){
+                return new WP_Error('ffst_recheck_mismatch',sprintf(__('Rapprochement devenu incertain pour la licence UFSC #%d : associez le bon club ou vérifiez le lot avant de réessayer. Aucune écriture.','ufsc-licence-competition'),$id));
+            }
 			$season_ok=false;
 			foreach($season_columns as $season_field){
 				$value=trim((string)($master->{$season_field}??''));
@@ -265,6 +396,20 @@ class UFSC_LC_FFST_Import_Service {
 			absint($id),max(1,min(500,absint($limit))),max(0,absint($offset))
 		));
 	}
+    /**
+     * Global status filter with server pagination; the original unfiltered
+     * get_batch_rows() API is preserved for existing callers.
+     */
+    public function get_batch_rows_by_status( $id, $status, $limit = 100, $offset = 0 ) {
+        global $wpdb;
+        $allowed = array( self::MATCHED, self::AMBIGUOUS, self::NOT_FOUND, self::CONFLICT, self::APPLIED );
+        if ( ! in_array( $status, $allowed, true ) ) { return array(); }
+        return $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY row_index ASC,id ASC LIMIT %d OFFSET %d",
+            absint( $id ), $status, max( 1, min( 500, absint( $limit ) ) ), max( 0, absint( $offset ) )
+        ) );
+    }
+
 	public function get_batch_status_count($id,$status){
 		global $wpdb;
 		return (int)$wpdb->get_var($wpdb->prepare(
@@ -518,13 +663,15 @@ class UFSC_LC_FFST_Import_Service {
 		$last=$this->column_exists($lt,'nom')?'l.nom':'l.nom_licence';
 		$clubcol=$this->column_exists($ct,'nom')?'c.nom':'c.name';
 
-		// Exact FFST number always wins if unique.
+		// A matching FFST number is NOT sufficient to identify someone:
+		// always verify full name, birth date, club and season too.
+		$number_owner_id = 0;
 		if($has_ffst&&''!==$d['ffst_number']){
 			$x=$wpdb->get_results($wpdb->prepare(
 				"SELECT id,numero_licence_ffst FROM {$lt} WHERE UPPER(numero_licence_ffst)=%s LIMIT 3",
 				strtoupper($d['ffst_number'])
 			));
-			if(1===count($x))return array('status'=>self::MATCHED,'licence_id'=>$x[0]->id,'message'=>__('Correspondance exacte N° FFST.','ufsc-licence-competition'),'previous_ffst'=>$x[0]->numero_licence_ffst);
+			if(1===count($x))$number_owner_id=absint($x[0]->id);
 			if(count($x)>1)return array('status'=>self::AMBIGUOUS,'licence_id'=>0,'message'=>__('N° FFST déjà présent plusieurs fois.','ufsc-licence-competition'),'previous_ffst'=>'');
 		}
 
@@ -534,6 +681,7 @@ class UFSC_LC_FFST_Import_Service {
 
 		$select=array(
 			'l.id',
+            'l.club_id',
 			$has_ffst?'l.numero_licence_ffst':"'' AS numero_licence_ffst",
 			"{$clubcol} AS club_name",
 		);
@@ -574,8 +722,17 @@ class UFSC_LC_FFST_Import_Service {
 			$candidates=$season_matches;
 		}
 
-		// Then prefer the club provided by FFST.
-		if(''!==$d['club_name']&&count($candidates)>1){
+		// Explicitly approved alias between the FFST and UFSC club names.
+        // It only filters the search: never overrides a member's identity.
+        $mapped_club = class_exists( 'UFSC_LC_FFST_Resolution_Admin', false )
+            ? UFSC_LC_FFST_Resolution_Admin::target_club_id( $d['club_name'] ) : 0;
+        if ( $mapped_club ) {
+            $candidates = array_values( array_filter( $candidates, static function( $candidate ) use( $mapped_club ) {
+                return absint( $candidate->club_id ) === $mapped_club;
+            } ) );
+        }
+		// Then prefer the club provided by FFST when no alias has been set.
+		if(!$mapped_club && ''!==$d['club_name']&&count($candidates)>1){
 			$club_norm=$this->norm($d['club_name']);
 			$club_matches=array_values(array_filter($candidates,function($candidate)use($club_norm){
 				return $club_norm===$this->norm((string)$candidate->club_name);
@@ -584,6 +741,9 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		if(1!==count($candidates)){
+            if($number_owner_id){
+                return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('N° FFST déjà attribué : identité, club ou saison non concordants. Vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
+            }
 			$message=count($candidates)>1
 				? __('Plusieurs licences correspondent encore après filtrage saison + club. Vérification manuelle requise.','ufsc-licence-competition')
 				: __('Aucune licence UFSC Gestion correspondante pour la saison sélectionnée.','ufsc-licence-competition');
@@ -596,6 +756,15 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		$candidate=$candidates[0];
+        if($number_owner_id && $number_owner_id!==absint($candidate->id)){
+            return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Ce numéro FFST appartient à une autre fiche UFSC. Aucune association autorisée.','ufsc-licence-competition'),'previous_ffst'=>'');
+        }
+        // A unique homonym in a different club is NOT a verified match.
+        // The administrator can explicitly map the FFST club name first.
+        if(!$mapped_club && ''!==trim((string)$d['club_name']) &&
+            $this->norm($d['club_name'])!==$this->norm((string)$candidate->club_name)){
+            return array('status'=>self::NOT_FOUND,'licence_id'=>0,'message'=>__('Nom du club FFST différent du club UFSC : associez le club cible avant de rapprocher.','ufsc-licence-competition'),'previous_ffst'=>'');
+        }
 		$prev=trim((string)$candidate->numero_licence_ffst);
 		if(''!==$prev&&''!==$d['ffst_number']&&0!==strcasecmp($prev,$d['ffst_number'])){
 			return array('status'=>self::CONFLICT,'licence_id'=>$candidate->id,'message'=>__('Conflit : un autre N° FFST existe déjà. Aucune écriture automatique.','ufsc-licence-competition'),'previous_ffst'=>$prev);
