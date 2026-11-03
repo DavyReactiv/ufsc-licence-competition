@@ -220,7 +220,7 @@ class UFSC_LC_FFST_Import_Page {
                                         <td><?php echo esc_html((int)$club->conflict_rows); ?></td>
                                         <td><?php echo esc_html((int)$club->matched_rows); ?></td>
                                         <td><?php echo esc_html((int)$club->applied_rows); ?></td>
-                                        <td><a class="button button-small" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_club'=>(string)$club->club_name,'ffst_status'=>$pending?'not_found':'','ffst_page'=>1),admin_url('admin.php'))); ?>">Ouvrir ce club</a></td>
+                                        <td><a class="button button-small" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_club'=>(string)$club->club_name,'ffst_status'=>'','ffst_page'=>1),admin_url('admin.php'))); ?>">Ouvrir ce club</a></td>
                                     </tr>
                                 <?php endforeach; ?>
                                 </tbody>
