@@ -82,12 +82,14 @@ class UFSC_LC_FFST_Import_Page {
 		$allowed_filters = array('matched','applied','not_found','ambiguous','conflict');
         $status_filter = isset($_GET['ffst_status']) ? sanitize_key(wp_unslash($_GET['ffst_status'])) : '';
         if(!in_array($status_filter,$allowed_filters,true))$status_filter='';
+        $lot_search = isset($_GET['ffst_search']) ? sanitize_text_field(wp_unslash($_GET['ffst_search'])) : '';
+        $lot_search = function_exists('mb_substr') ? mb_substr(trim($lot_search),0,100) : substr(trim($lot_search),0,100);
         $actual_rows=$batch?$service->get_batch_row_count($batch_id):0;
-        $display_rows=$batch?($status_filter?$service->get_batch_status_count($batch_id,$status_filter):$actual_rows):0;
+        $display_rows=$batch?$service->count_batch_rows_filtered($batch_id,$status_filter,$lot_search):0;
         $pages=$display_rows?max(1,(int)ceil($display_rows/$per_page)):1;
         if($current_page>$pages)$current_page=$pages;
         $offset=($current_page-1)*$per_page;
-        $rows=$batch?($status_filter?$service->get_batch_rows_by_status($batch_id,$status_filter,$per_page,$offset):$service->get_batch_rows($batch_id,$per_page,$offset)):array();
+        $rows=$batch?$service->get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset):array();
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
 		$matched_count=0;$unknown_count=0;
 		if($batch){
@@ -142,6 +144,21 @@ class UFSC_LC_FFST_Import_Page {
 				<div class="card" style="max-width:1400px;padding:20px;margin-top:18px">
 					<h2><?php echo esc_html(sprintf(__('2. Contrôle du lot #%d — %s','ufsc-licence-competition'),$batch->id,$batch->file_name)); ?></h2>
                     <p class="ufsc-ffst-step-description">Vérifiez les correspondances, résolvez les introuvables, puis rapprochez les licences et validez-les dans UFSC Gestion.</p>
+                    <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" class="ufsc-ffst-global-search" role="search">
+                        <input type="hidden" name="page" value="<?php echo esc_attr(self::PAGE_SLUG); ?>">
+                        <input type="hidden" name="batch_id" value="<?php echo esc_attr($batch_id); ?>">
+                        <input type="hidden" name="ffst_status" value="<?php echo esc_attr($status_filter); ?>">
+                        <label for="ffst-global-search"><strong>Rechercher dans tout le lot</strong></label>
+                        <input id="ffst-global-search" type="search" name="ffst_search" value="<?php echo esc_attr($lot_search); ?>" maxlength="100" placeholder="Nom, prénom, N° FFST, club, naissance…" aria-describedby="ffst-global-search-help">
+                        <button type="submit" class="button button-primary">Rechercher</button>
+                        <?php if(''!==$lot_search): ?>
+                            <a class="button" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_page'=>1),admin_url('admin.php'))); ?>">Effacer la recherche</a>
+                        <?php endif; ?>
+                        <span id="ffst-global-search-help" class="description">Recherche sur toutes les pages, avec le filtre d’état sélectionné.</span>
+                    </form>
+                    <?php if(''!==$lot_search): ?>
+                        <div class="ufsc-ffst-search-summary" role="status"><?php echo esc_html(sprintf('%d résultat(s) dans tout le lot pour « %s ».',$display_rows,$lot_search)); ?></div>
+                    <?php endif; ?>
                     <nav class="ufsc-ffst-metrics" aria-label="Filtrer les lignes du lot">
                         <?php
                         $metric_items = array(
@@ -153,7 +170,7 @@ class UFSC_LC_FFST_Import_Page {
                             'applied' => array( 'Appliquées', (int) $batch->applied_rows ),
                         );
                         foreach( $metric_items as $key => $metric ) :
-                            $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_page'=>1),admin_url('admin.php'));
+                            $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_search'=>$lot_search,'ffst_page'=>1),admin_url('admin.php'));
                         ?>
                             <a class="ufsc-ffst-metric <?php echo $status_filter===$key?'is-active':''; ?>" href="<?php echo esc_url($url); ?>" <?php echo $status_filter===$key?'aria-current="true"':''; ?>>
                                 <strong><?php echo esc_html($metric[1]); ?></strong>
@@ -187,8 +204,11 @@ class UFSC_LC_FFST_Import_Page {
 					<p class="description">
                         <?php echo esc_html(sprintf(__('Lignes stockées : %1$d — résultat filtré : %2$d — affichage %3$d à %4$d (page %5$d sur %6$d).','ufsc-licence-competition'),(int)$actual_rows,(int)$display_rows,$display_rows?$offset+1:0,min($display_rows,$offset+count($rows)),$current_page,$pages)); ?>
                     </p>
+                    <?php if(''!==$lot_search && 0===$display_rows): ?>
+                        <div class="notice notice-info inline"><p>Aucune licence ne correspond à votre recherche. Effacez le terme ou changez le filtre d’état. Les lignes du lot sont conservées.</p></div>
+                    <?php endif; ?>
                     <div class="ufsc-ffst-toolbar">
-                        <label for="ffst-live-search">Recherche rapide sur cette page</label>
+                        <label for="ffst-live-search">Affiner les résultats de cette page</label>
                         <input type="search" id="ffst-live-search" placeholder="Nom, prénom, N° FFST, club…">
                         <label><input type="checkbox" id="ffst-select-all"> Sélectionner toutes les lignes trouvées de cette page</label>
                         <span id="ffst-live-count" aria-live="polite"></span>
@@ -234,7 +254,7 @@ class UFSC_LC_FFST_Import_Page {
 					<?php if($pages>1): ?>
 						<nav aria-label="<?php esc_attr_e('Pages des licences du lot','ufsc-licence-competition'); ?>" style="margin-top:14px">
 							<?php for($page_number=1;$page_number<=$pages;$page_number++): ?>
-								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
+								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_search'=>$lot_search,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>

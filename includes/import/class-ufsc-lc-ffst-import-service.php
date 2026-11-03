@@ -410,6 +410,56 @@ class UFSC_LC_FFST_Import_Service {
         ) );
     }
 
+
+    /**
+     * Read-only query across the ENTIRE staged FFST batch.
+     * Existing retrieval methods are intentionally preserved for callers.
+     */
+    private function build_batch_search_conditions( $id, $status, $search ) {
+        global $wpdb;
+        $allowed = array( self::MATCHED, self::AMBIGUOUS, self::NOT_FOUND, self::CONFLICT, self::APPLIED );
+        $args = array( absint( $id ) );
+        $where = 'batch_id=%d';
+        if ( in_array( $status, $allowed, true ) ) {
+            $where .= ' AND match_status=%s';
+            $args[] = $status;
+        }
+        $search = trim( (string) $search );
+        if ( '' !== $search ) {
+            // Bounded, escaped LIKE prevents wildcard expansion and SQL injection.
+            $search = function_exists( 'mb_substr' ) ? mb_substr( $search, 0, 100 ) : substr( $search, 0, 100 );
+            $like = '%' . $wpdb->esc_like( $search ) . '%';
+            $fields = array( 'ffst_number', 'first_name', 'last_name', 'birthdate', 'club_name', 'match_message' );
+            $clauses = array();
+            foreach ( $fields as $field ) {
+                $clauses[] = "{$field} LIKE %s";
+                $args[] = $like;
+            }
+            $where .= ' AND (' . implode( ' OR ', $clauses ) . ')';
+        }
+        return array( $where, $args );
+    }
+
+    public function get_batch_rows_filtered( $id, $status = '', $search = '', $limit = 100, $offset = 0 ) {
+        global $wpdb;
+        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search );
+        $args[] = max( 1, min( 500, absint( $limit ) ) );
+        $args[] = max( 0, absint( $offset ) );
+        return $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$this->rows_table()} WHERE {$where} ORDER BY row_index ASC, id ASC LIMIT %d OFFSET %d",
+            $args
+        ) );
+    }
+
+    public function count_batch_rows_filtered( $id, $status = '', $search = '' ) {
+        global $wpdb;
+        list( $where, $args ) = $this->build_batch_search_conditions( $id, $status, $search );
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->rows_table()} WHERE {$where}",
+            $args
+        ) );
+    }
+
 	public function get_batch_status_count($id,$status){
 		global $wpdb;
 		return (int)$wpdb->get_var($wpdb->prepare(
