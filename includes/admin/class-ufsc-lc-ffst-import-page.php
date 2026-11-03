@@ -8,6 +8,7 @@ class UFSC_LC_FFST_Import_Page {
 		add_action('admin_menu',array($this,'register_menu'),35);
 		add_action('admin_post_ufsc_lc_ffst_stage',array($this,'handle_stage'));
 		add_action('admin_post_ufsc_lc_ffst_apply',array($this,'handle_apply'));
+		add_action('admin_post_ufsc_lc_ffst_reanalyse',array($this,'handle_reanalyse'));
 	}
 
 	public function register_menu(){
@@ -32,6 +33,20 @@ class UFSC_LC_FFST_Import_Page {
 		if(is_wp_error($result)) $this->redirect_notice('error',$result->get_error_message());
 		wp_safe_redirect(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>absint($result),'ufsc_lc_notice'=>'preview'),admin_url('admin.php')));
 		exit;
+	}
+
+	/**
+	 * Existing batches can be reassessed without reuploading the PDF.
+	 * This endpoint only changes staging match status, never master licences.
+	 */
+	public function handle_reanalyse(){
+		if(!UFSC_LC_Capabilities::user_can_import())wp_die(esc_html__('Accès refusé.','ufsc-licence-competition'),'',array('response'=>403));
+		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
+		check_admin_referer('ufsc_lc_ffst_reanalyse_'.$batch_id,'ufsc_lc_ffst_reanalyse_nonce');
+		$service=new UFSC_LC_FFST_Import_Service();
+		$result=$service->reanalyse_not_found($batch_id);
+		if(is_wp_error($result))$this->redirect_notice('error',$result->get_error_message(),$batch_id);
+		$this->redirect_notice('success',sprintf(_n('%d nouvelle correspondance FFST trouvée. Vérifiez puis rapprochez les lignes sélectionnées.','%d nouvelles correspondances FFST trouvées. Vérifiez puis rapprochez les lignes sélectionnées.',(int)$result,'ufsc-licence-competition'),(int)$result),$batch_id);
 	}
 
 	public function handle_apply(){
@@ -133,6 +148,15 @@ class UFSC_LC_FFST_Import_Page {
 						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
 
 					</p>
+                    <?php if($counts_consistent && (int)$batch->not_found_rows>0): ?>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:12px 0">
+                            <input type="hidden" name="action" value="ufsc_lc_ffst_reanalyse">
+                            <input type="hidden" name="batch_id" value="<?php echo esc_attr(absint($batch->id)); ?>">
+                            <?php wp_nonce_field('ufsc_lc_ffst_reanalyse_'.$batch->id,'ufsc_lc_ffst_reanalyse_nonce'); ?>
+                            <?php submit_button(__('Relancer le rapprochement des introuvables (sans réimporter le PDF)','ufsc-licence-competition'),'secondary','submit',false,array('onclick'=>"return confirm('Relancer seulement la recherche des licences introuvables dans le lot déjà enregistré ? Aucune fiche UFSC ne sera modifiée.');")); ?>
+                            <p class="description"><?php esc_html_e('Vérifie les variantes de traits d’union et d’espaces dans les prénoms. L’identité complète, la date de naissance et la saison restent vérifiées ; aucune licence n’est créée ou validée automatiquement.','ufsc-licence-competition'); ?></p>
+                        </form>
+                    <?php endif; ?>
 					<style>
 						.ufsc-lc-ffst-import-grid{min-width:1150px;font-size:12px}
 						.ufsc-lc-ffst-import-record{display:grid!important;grid-template-columns:55px 45px 105px 135px 110px 100px minmax(150px,1.4fr) 110px 110px minmax(180px,1.4fr);align-items:start;visibility:visible!important;opacity:1!important;height:auto!important;min-height:42px;position:relative;box-sizing:border-box;border-bottom:1px solid #dcdcde;background:#fff}
@@ -190,7 +214,7 @@ class UFSC_LC_FFST_Import_Page {
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
-					<?php if($counts_consistent && 'applied'!==$batch->status && $matched_count>0): ?>
+					<?php if($counts_consistent && $matched_count>0): ?>
 						<div style="margin-top:18px">
 							<?php submit_button(__('Rapprocher les lignes sélectionnées','ufsc-licence-competition'),'primary','submit',false,array('onclick'=>"return confirm('Confirmer le rapprochement des licences sélectionnées avec UFSC Gestion ?');")); ?>
 							<p class="description"><?php esc_html_e('Le N° FFST est conservé en texte. Les N° UFSC existants ne sont jamais remplacés. Les lignes non sélectionnées restent en attente.','ufsc-licence-competition'); ?></p>
