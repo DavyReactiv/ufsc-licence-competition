@@ -11,6 +11,7 @@ final class UFSC_LC_FFST_Resolution_Admin {
         add_action( 'admin_post_ufsc_lc_ffst_club_alias', array( __CLASS__, 'save_alias' ) );
         add_action( 'admin_post_ufsc_lc_ffst_manual_match', array( __CLASS__, 'save_match' ) );
         add_action( 'admin_post_ufsc_lc_ffst_export_unmatched', array( __CLASS__, 'export_unmatched' ) );
+        add_action( 'admin_footer', array( __CLASS__, 'draft_prefill' ) );
     }
 
     public static function allowed() {
@@ -163,4 +164,77 @@ final class UFSC_LC_FFST_Resolution_Admin {
         }
         echo '<p><a href="' . esc_url( self::url( $batch->id ) ) . '">Fermer cette recherche</a></p></section>';
     }
+    public static function escape_csv_cell( $value ) {
+        $value = (string) $value;
+        // Prevent formula injection when CSV is opened with spreadsheet apps.
+        return preg_match( '/^[\s]*[=+\-@]/u', $value ) ? "'" . $value : $value;
+    }
+
+    public static function export_unmatched() {
+        if ( ! self::allowed() ) { wp_die( 'Accès refusé.', '', array( 'response' => 403 ) ); }
+        $batch_id = absint( $_GET['batch_id'] ?? 0 );
+        check_admin_referer( 'ufsc_ffst_export_' . $batch_id );
+        $service = new UFSC_LC_FFST_Import_Service();
+        if ( ! $service->get_batch( $batch_id ) ) {
+            wp_die( 'Lot introuvable.', '', array( 'response' => 404 ) );
+        }
+        nocache_headers();
+        header( 'Content-Type: text/csv; charset=UTF-8' );
+        header( 'Content-Disposition: attachment; filename="ufsc-ffst-introuvables-' . $batch_id . '.csv"' );
+        $stream = fopen( 'php://output', 'w' );
+        fputcsv( $stream, array( 'Lot', 'Numero FFST', 'Nom', 'Prenom', 'Naissance', 'Club FFST', 'Etat', 'Controle' ), ';' );
+        global $wpdb;
+        $table = $wpdb->prefix . 'ufsc_lc_ffst_import_rows';
+        $offset = 0;
+        do {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE batch_id=%d AND match_status IN (%s,%s,%s) ORDER BY row_index ASC LIMIT 250 OFFSET %d",
+                $batch_id, UFSC_LC_FFST_Import_Service::NOT_FOUND,
+                UFSC_LC_FFST_Import_Service::AMBIGUOUS,
+                UFSC_LC_FFST_Import_Service::CONFLICT, $offset
+            ) );
+            foreach ( $rows as $row ) {
+                $fields = array( $batch_id, $row->ffst_number, $row->last_name, $row->first_name, $row->birthdate, $row->club_name, $row->match_status, $row->match_message );
+                fputcsv( $stream, array_map( array( __CLASS__, 'escape_csv_cell' ), $fields ), ';' );
+            }
+            $offset += count( $rows );
+        } while ( count( $rows ) === 250 && $offset < 20000 );
+        fclose( $stream );
+        exit;
+    }
+
+    /**
+     * Pre-fill existing UFSC Gestion native "new licence" screen. A separate
+     * user confirmation and its own validation are still required to create.
+     */
+    public static function draft_prefill() {
+        if ( ! self::allowed() ) { return; }
+        $page = sanitize_key( wp_unslash( $_GET['page'] ?? '' ) );
+        $action = sanitize_key( wp_unslash( $_GET['action'] ?? '' ) );
+        if ( 'ufsc_lc_licences' !== $page || 'new' !== $action ) { return; }
+        $batch_id = absint( $_GET['ffst_draft_batch'] ?? 0 );
+        $row_id = absint( $_GET['ffst_draft_row'] ?? 0 );
+        $club_id = absint( $_GET['ffst_target_club'] ?? 0 );
+        $nonce = sanitize_text_field( wp_unslash( $_GET['ffst_draft_nonce'] ?? '' ) );
+        if ( ! $batch_id || ! $row_id || ! self::club_exists( $club_id )
+            || ! wp_verify_nonce( $nonce, 'ffst_draft_' . $batch_id . '_' . $row_id ) ) { return; }
+        $service = new UFSC_LC_FFST_Import_Service();
+        $batch = $service->get_batch( $batch_id );
+        $row = $batch ? self::row( $batch_id, $row_id ) : null;
+        if ( ! $row || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
+        $data = array(
+            'club_id' => $club_id,
+            'nom' => (string) $row->last_name,
+            'prenom' => (string) $row->first_name,
+            'date_naissance' => (string) $row->birthdate,
+            'statut' => 'brouillon',
+        );
+        echo '<script>(function(){var fields=' . wp_json_encode( $data ) . ';';
+        echo 'Object.keys(fields).forEach(function(k){var el=document.querySelector("[name="+JSON.stringify(k)+"]");';
+        echo 'if(!el)return;if(el.value && k!=="club_id" && k!=="statut")return;';
+        echo 'el.value=fields[k];el.dispatchEvent(new Event("change",{bubbles:true}));});';
+        echo 'var root=document.querySelector(".wrap");if(root){var note=document.createElement("div");note.className="notice notice-warning";';
+        echo 'note.textContent="Proposition basée sur le PDF FFST : vérifiez soigneusement la fiche avant toute création en brouillon. Aucun dossier, paiement ni contrôle réglementaire n’a été validé automatiquement.";root.insertBefore(note,root.firstChild);}})();</script>';
+    }
+
 }
