@@ -379,6 +379,20 @@ class UFSC_LC_FFST_Import_Service {
 			absint($id),max(1,min(500,absint($limit))),max(0,absint($offset))
 		));
 	}
+    /**
+     * Global status filter with server pagination; the original unfiltered
+     * get_batch_rows() API is preserved for existing callers.
+     */
+    public function get_batch_rows_by_status( $id, $status, $limit = 100, $offset = 0 ) {
+        global $wpdb;
+        $allowed = array( self::MATCHED, self::AMBIGUOUS, self::NOT_FOUND, self::CONFLICT, self::APPLIED );
+        if ( ! in_array( $status, $allowed, true ) ) { return array(); }
+        return $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status=%s ORDER BY row_index ASC,id ASC LIMIT %d OFFSET %d",
+            absint( $id ), $status, max( 1, min( 500, absint( $limit ) ) ), max( 0, absint( $offset ) )
+        ) );
+    }
+
 	public function get_batch_status_count($id,$status){
 		global $wpdb;
 		return (int)$wpdb->get_var($wpdb->prepare(
