@@ -63,6 +63,14 @@ jobs:
         run: php tests/ffst-staging-visibility-guard-test.php
       - name: FFST selected reconciliation and SQL type guard
         run: php tests/ffst-selection-sql-guard-test.php
+      - name: FFST matching and club alias runtime guard
+        run: php tests/ffst-hyphenated-names-reanalysis-test.php
+      - name: FFST reanalysis non-destructive guard
+        run: php tests/ffst-reanalyse-safety-guard-test.php
+      - name: FFST resolution centre capability and UX guard
+        run: php tests/ffst-resolution-center-safety-guard-test.php
+      - name: FFST manual resolution end-to-end staging runtime guard
+        run: php tests/ffst-resolution-manual-stage-runtime-test.php
       - name: Self-contained Dompdf distribution guard
         run: php tests/self-contained-dompdf-distribution-guard-test.php
       - name: Premium front UI guard
