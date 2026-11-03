@@ -56,3 +56,15 @@
 .ufsc-lc-admin .ufsc-ffst-global-search .description{flex:1 1 100%;margin:0;color:#64748b}
 .ufsc-lc-admin .ufsc-ffst-search-summary{padding:10px 12px;border-left:3px solid #2271b1;background:#eef6fd;color:#334155;margin:10px 0}
 @media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-global-search{align-items:stretch;flex-direction:column}.ufsc-lc-admin .ufsc-ffst-global-search input[type=search]{flex:auto;max-width:100%;width:100%}.ufsc-lc-admin .ufsc-ffst-global-search .button{width:100%;text-align:center}}
+
+/* FFST administrative work queue by source club. */
+.ufsc-lc-admin .ufsc-ffst-global-search select{min-height:36px;max-width:340px;min-width:170px;flex:1 1 230px}
+.ufsc-lc-admin .ufsc-ffst-club-workqueue{margin:16px 0;border:1px solid #d2dae6;border-radius:11px;background:#fff;padding:12px 16px}
+.ufsc-lc-admin .ufsc-ffst-club-workqueue summary{cursor:pointer;font-size:14px;color:#1e3a5f;line-height:1.55}
+.ufsc-lc-admin .ufsc-ffst-club-workqueue summary:focus-visible{outline:2px solid #2271b1;outline-offset:4px}
+.ufsc-lc-admin .ufsc-ffst-workqueue-scroll{overflow-x:auto;max-height:440px;overflow-y:auto;margin:14px 0 10px}
+.ufsc-lc-admin .ufsc-ffst-workqueue-scroll table{min-width:850px}
+.ufsc-lc-admin .ufsc-ffst-workqueue-scroll th,.ufsc-lc-admin .ufsc-ffst-workqueue-scroll td{padding:9px 11px}
+.ufsc-lc-admin .ufsc-ffst-workqueue-scroll th{position:sticky;top:0;z-index:1;background:#eff4fb}
+.ufsc-lc-admin .ufsc-ffst-workqueue-scroll a.button{white-space:nowrap}
+@media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-global-search select{max-width:100%;width:100%}.ufsc-lc-admin .ufsc-ffst-club-workqueue{padding:10px}}
