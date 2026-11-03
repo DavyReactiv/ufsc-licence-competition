@@ -6,6 +6,7 @@
 define( 'ABSPATH', __DIR__ );
 function __( $text, $domain = '' ) { return $text; }
 function absint( $number ) { return abs( (int) $number ); }
+function sanitize_key( $value ) { return strtolower( (string) $value ); }
 function is_wp_error( $value ) { return $value instanceof WP_Error; }
 class WP_Error {
     private $code;
