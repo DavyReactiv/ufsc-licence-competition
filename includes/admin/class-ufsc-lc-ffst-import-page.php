@@ -79,14 +79,15 @@ class UFSC_LC_FFST_Import_Page {
 		$per_page=100;
 		$current_page=isset($_GET['ffst_page'])?max(1,absint($_GET['ffst_page'])):1;
 		$offset=($current_page-1)*$per_page;
-		$rows=$batch?$service->get_batch_rows($batch_id,$per_page,$offset):array();
-		$actual_rows=$batch?$service->get_batch_row_count($batch_id):0;
-		$pages=$actual_rows?max(1,(int)ceil($actual_rows/$per_page)):1;
-		if($current_page>$pages){
-			$current_page=$pages;
-			$offset=($current_page-1)*$per_page;
-			$rows=$batch?$service->get_batch_rows($batch_id,$per_page,$offset):array();
-		}
+		$allowed_filters = array('matched','applied','not_found','ambiguous','conflict');
+        $status_filter = isset($_GET['ffst_status']) ? sanitize_key(wp_unslash($_GET['ffst_status'])) : '';
+        if(!in_array($status_filter,$allowed_filters,true))$status_filter='';
+        $actual_rows=$batch?$service->get_batch_row_count($batch_id):0;
+        $display_rows=$batch?($status_filter?$service->get_batch_status_count($batch_id,$status_filter):$actual_rows):0;
+        $pages=$display_rows?max(1,(int)ceil($display_rows/$per_page)):1;
+        if($current_page>$pages)$current_page=$pages;
+        $offset=($current_page-1)*$per_page;
+        $rows=$batch?($status_filter?$service->get_batch_rows_by_status($batch_id,$status_filter,$per_page,$offset):$service->get_batch_rows($batch_id,$per_page,$offset)):array();
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
 		$matched_count=0;$unknown_count=0;
 		if($batch){
@@ -140,14 +141,29 @@ class UFSC_LC_FFST_Import_Page {
 			<?php if($batch): ?>
 				<div class="card" style="max-width:1400px;padding:20px;margin-top:18px">
 					<h2><?php echo esc_html(sprintf(__('2. Contrôle du lot #%d — %s','ufsc-licence-competition'),$batch->id,$batch->file_name)); ?></h2>
-					<p>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Total : %d','ufsc-licence-competition'),$batch->total_rows)); ?></span>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Trouvées : %d','ufsc-licence-competition'),$matched_count)); ?></span>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Ambiguës : %d','ufsc-licence-competition'),$batch->ambiguous_rows)); ?></span>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Conflits : %d','ufsc-licence-competition'),$batch->conflict_rows)); ?></span>
-						<span class="button disabled"><?php echo esc_html(sprintf(__('Introuvables : %d','ufsc-licence-competition'),$batch->not_found_rows)); ?></span>
-
-					</p>
+                    <p class="ufsc-ffst-step-description">Vérifiez les correspondances, résolvez les introuvables, puis rapprochez les licences et validez-les dans UFSC Gestion.</p>
+                    <nav class="ufsc-ffst-metrics" aria-label="Filtrer les lignes du lot">
+                        <?php
+                        $metric_items = array(
+                            '' => array( 'Toutes', (int) $batch->total_rows ),
+                            'matched' => array( 'Trouvées', (int) $matched_count ),
+                            'not_found' => array( 'Introuvables', (int) $batch->not_found_rows ),
+                            'ambiguous' => array( 'Ambiguës', (int) $batch->ambiguous_rows ),
+                            'conflict' => array( 'Conflits', (int) $batch->conflict_rows ),
+                            'applied' => array( 'Appliquées', (int) $batch->applied_rows ),
+                        );
+                        foreach( $metric_items as $key => $metric ) :
+                            $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_page'=>1),admin_url('admin.php'));
+                        ?>
+                            <a class="ufsc-ffst-metric <?php echo $status_filter===$key?'is-active':''; ?>" href="<?php echo esc_url($url); ?>" <?php echo $status_filter===$key?'aria-current="true"':''; ?>>
+                                <strong><?php echo esc_html($metric[1]); ?></strong>
+                                <span><?php echo esc_html($metric[0]); ?></span>
+                            </a>
+                        <?php endforeach; ?>
+                    </nav>
+                    <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)): ?>
+                        <?php UFSC_LC_FFST_Resolution_Admin::render_tools($batch,$rows); ?>
+                    <?php endif; ?>
                     <?php if($counts_consistent && (int)$batch->not_found_rows>0): ?>
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:12px 0">
                             <input type="hidden" name="action" value="ufsc_lc_ffst_reanalyse">
@@ -169,8 +185,14 @@ class UFSC_LC_FFST_Import_Page {
 						<div class="notice notice-error inline"><p><?php echo esc_html(sprintf(__('Attention : %1$d licences annoncées, mais %2$d lignes enregistrées. Validation désactivée jusqu’à résolution.','ufsc-licence-competition'),(int)$batch->total_rows,(int)$actual_rows)); ?></p></div>
 					<?php endif; ?>
 					<p class="description">
-						<?php echo esc_html(sprintf(__('Lignes stockées : %1$d — affichage %2$d à %3$d (page %4$d sur %5$d).','ufsc-licence-competition'),(int)$actual_rows,$actual_rows?$offset+1:0,min($actual_rows,$offset+count($rows)),$current_page,$pages)); ?>
-					</p>
+                        <?php echo esc_html(sprintf(__('Lignes stockées : %1$d — résultat filtré : %2$d — affichage %3$d à %4$d (page %5$d sur %6$d).','ufsc-licence-competition'),(int)$actual_rows,(int)$display_rows,$display_rows?$offset+1:0,min($display_rows,$offset+count($rows)),$current_page,$pages)); ?>
+                    </p>
+                    <div class="ufsc-ffst-toolbar">
+                        <label for="ffst-live-search">Recherche rapide sur cette page</label>
+                        <input type="search" id="ffst-live-search" placeholder="Nom, prénom, N° FFST, club…">
+                        <label><input type="checkbox" id="ffst-select-all"> Sélectionner toutes les lignes trouvées de cette page</label>
+                        <span id="ffst-live-count" aria-live="polite"></span>
+                    </div>
 					<?php if($unknown_count): ?>
 						<div class="notice notice-warning inline"><p><?php echo esc_html(sprintf(__('%d ancienne(s) ligne(s) possèdent un statut invalide (0). Elles ne peuvent pas être appliquées : réimportez le PDF pour créer un nouveau lot fiable. Aucune ancienne donnée n’est modifiée.','ufsc-licence-competition'),$unknown_count)); ?></p></div>
 					<?php endif; ?>
@@ -192,7 +214,7 @@ class UFSC_LC_FFST_Import_Page {
 								<div role="columnheader"><?php esc_html_e('Contrôle','ufsc-licence-competition'); ?></div>
 							</div>
 							<?php foreach($rows as $row): ?>
-								<div class="ufsc-lc-ffst-import-record" role="row" data-ffst-row="<?php echo esc_attr(absint($row->row_index)); ?>">
+								<div class="ufsc-lc-ffst-import-record" role="row" data-ffst-row="<?php echo esc_attr(absint($row->row_index)); ?>" data-state="<?php echo esc_attr($row->match_status); ?>">
 									<div role="cell"><?php if('matched'===$row->match_status && $counts_consistent): ?><label><input type="checkbox" name="selected_row_ids[]" value="<?php echo esc_attr(absint($row->id)); ?>" aria-label="<?php echo esc_attr(sprintf(__('Sélectionner la ligne %d','ufsc-licence-competition'),absint($row->row_index))); ?>"></label><?php else: ?>—<?php endif; ?></div>
 									<div role="cell"><?php echo esc_html($row->row_index); ?></div>
 									<div role="cell"><strong><?php echo esc_html($row->ffst_number?:'—'); ?></strong></div>
@@ -202,7 +224,9 @@ class UFSC_LC_FFST_Import_Page {
 									<div role="cell"><?php echo esc_html($row->club_name?:'—'); ?></div>
 									<div role="cell"><?php echo $row->match_licence_id?esc_html('#'.(int)$row->match_licence_id):'—'; ?></div>
 									<div role="cell"><?php echo $this->status_badge($row->match_status); ?></div>
-									<div role="cell"><?php echo esc_html($row->match_message); ?></div>
+									<div role="cell"><?php echo esc_html($row->match_message); ?>
+                                        <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)) UFSC_LC_FFST_Resolution_Admin::render_row_link($batch,$row); ?>
+                                    </div>
 								</div>
 							<?php endforeach; ?>
 						</div>
@@ -210,7 +234,7 @@ class UFSC_LC_FFST_Import_Page {
 					<?php if($pages>1): ?>
 						<nav aria-label="<?php esc_attr_e('Pages des licences du lot','ufsc-licence-competition'); ?>" style="margin-top:14px">
 							<?php for($page_number=1;$page_number<=$pages;$page_number++): ?>
-								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
+								<a class="button <?php echo $page_number===$current_page?'button-primary':''; ?>" href="<?php echo esc_url(add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch_id,'ffst_status'=>$status_filter,'ffst_page'=>$page_number),admin_url('admin.php'))); ?>"><?php echo esc_html($page_number); ?></a>
 							<?php endfor; ?>
 						</nav>
 					<?php endif; ?>
@@ -223,6 +247,35 @@ class UFSC_LC_FFST_Import_Page {
 						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) déjà appliquée(s).','ufsc-licence-competition'),$batch->applied_rows)); ?></p></div>
 					<?php endif; ?>
 					</form>
+                    <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)) UFSC_LC_FFST_Resolution_Admin::render_panel($batch); ?>
+                    <script>
+                    (function(){
+                        var search=document.getElementById('ffst-live-search');
+                        var selectAll=document.getElementById('ffst-select-all');
+                        var counter=document.getElementById('ffst-live-count');
+                        var rows=Array.prototype.slice.call(document.querySelectorAll('.ufsc-lc-ffst-import-record[data-ffst-row]'));
+                        function refresh(){
+                            var q=(search.value||'').trim().toLocaleLowerCase();
+                            var count=0;
+                            rows.forEach(function(row){
+                                var show=!q||row.textContent.toLocaleLowerCase().indexOf(q)!==-1;
+                                row.hidden=!show;
+                                if(show)count++;
+                            });
+                            counter.textContent=count+' ligne(s) visibles sur cette page';
+                        }
+                        if(search)search.addEventListener('input',refresh);
+                        if(selectAll)selectAll.addEventListener('change',function(){
+                            rows.forEach(function(row){
+                                if(!row.hidden){
+                                    var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
+                                    if(checkbox && !checkbox.disabled)checkbox.checked=selectAll.checked;
+                                }
+                            });
+                        });
+                        refresh();
+                    })();
+                    </script>
 				</div>
 			<?php endif; ?>
 
