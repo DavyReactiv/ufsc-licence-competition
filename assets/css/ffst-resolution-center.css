@@ -48,3 +48,11 @@
 .ufsc-lc-admin .ufsc-ffst-club-feedback{font-size:12px;color:#475569;min-height:1.4em}
 .ufsc-lc-admin .ufsc-ffst-resolve-panel .ufsc-ffst-club-search{display:inline-flex;vertical-align:middle;max-width:410px;width:100%;margin-right:10px}
 @media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-club-search{width:100%}.ufsc-lc-admin .ufsc-ffst-resolve-panel .ufsc-ffst-club-search{display:flex;max-width:100%}}
+
+/* Read-only search across all stored pages of a single FFST import batch. */
+.ufsc-lc-admin .ufsc-ffst-global-search{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:14px 16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;margin:16px 0}
+.ufsc-lc-admin .ufsc-ffst-global-search label{white-space:nowrap;color:#334155}
+.ufsc-lc-admin .ufsc-ffst-global-search input[type=search]{flex:1 1 300px;max-width:540px;min-height:36px}
+.ufsc-lc-admin .ufsc-ffst-global-search .description{flex:1 1 100%;margin:0;color:#64748b}
+.ufsc-lc-admin .ufsc-ffst-search-summary{padding:10px 12px;border-left:3px solid #2271b1;background:#eef6fd;color:#334155;margin:10px 0}
+@media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-global-search{align-items:stretch;flex-direction:column}.ufsc-lc-admin .ufsc-ffst-global-search input[type=search]{flex:auto;max-width:100%;width:100%}.ufsc-lc-admin .ufsc-ffst-global-search .button{width:100%;text-align:center}}
