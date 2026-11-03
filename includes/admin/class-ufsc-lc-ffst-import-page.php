@@ -310,6 +310,12 @@ class UFSC_LC_FFST_Import_Page {
                             rows.forEach(function(row){
                                 var show=!q||row.textContent.toLocaleLowerCase().indexOf(q)!==-1;
                                 row.hidden=!show;
+                                // Hidden rows must never remain selected for the
+                                // Apply action: it only acts on visible choices.
+                                if(!show){
+                                    var hiddenCheck=row.querySelector('input[name="selected_row_ids[]"]');
+                                    if(hiddenCheck)hiddenCheck.checked=false;
+                                }
                                 if(show)count++;
                             });
                             counter.textContent=count+' ligne(s) visibles sur cette page';
