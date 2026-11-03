@@ -414,6 +414,27 @@ class UFSC_LC_FFST_Import_Service {
 		return count($plan);
 	}
 
+	/**
+	 * Find the next unresolved case in a specific batch, wrapping once.
+	 * Only returns staging rows; no master licence mutation.
+	 */
+	public function get_next_unresolved_row($batch_id,$after_id=0){
+		global $wpdb;
+		$batch_id=absint($batch_id);
+		$after_id=absint($after_id);
+		$row=$wpdb->get_row($wpdb->prepare(
+			"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status IN (%s,%s) AND id>%d ORDER BY id ASC LIMIT 1",
+			$batch_id,self::NOT_FOUND,self::AMBIGUOUS,$after_id
+		));
+		if(!$row && $after_id){
+			$row=$wpdb->get_row($wpdb->prepare(
+				"SELECT * FROM {$this->rows_table()} WHERE batch_id=%d AND match_status IN (%s,%s) ORDER BY id ASC LIMIT 1",
+				$batch_id,self::NOT_FOUND,self::AMBIGUOUS
+			));
+		}
+		return $row;
+	}
+
 	public function get_batch($id){global $wpdb; return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->batches_table()} WHERE id=%d LIMIT 1",absint($id)));}
 	public function get_batch_rows($id,$limit=250,$offset=0){
 		global $wpdb;
