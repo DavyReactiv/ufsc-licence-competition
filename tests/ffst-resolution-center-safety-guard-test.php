@@ -23,7 +23,7 @@ $checks = array(
     'Manual number collision check' => strpos( $service, 'ffst_manual_collision' ) !== false,
     'Manual stage transition' => strpos( $service, "'match_status' => self::MATCHED" ) !== false,
     'Manual audit' => strpos( $helper, "'ufsc_ffst_manual_link_'" ) !== false,
-    'Draft prepared in native form' => strpos( $helper, " 'action' => 'new' " ) !== false,
+    'Draft prepared in native form' => strpos( $helper, "'action' => 'new'" ) !== false,
     'Draft uses nonce' => strpos( $helper, "wp_verify_nonce( $nonce, 'ffst_draft_'" ) !== false,
     'No automatic draft insertion' => strpos( $helper, 'Aucune licence n’est créée avant' ) !== false,
     'Filtered pagination' => strpos( $service, 'get_batch_rows_by_status' ) !== false && strpos( $ui, "ffst_status" ) !== false,
