@@ -15,6 +15,27 @@ Permettre à l'administration UFSC de traiter des PDF FFST comportant des clubs 
 7. Revenir au lot puis relancer la recherche ; sélectionner les lignes trouvées et cliquer sur **Rapprocher les lignes sélectionnées**.
 8. Pour les numéros officiellement appliqués, poursuivre dans le centre **Validation FFST** d'UFSC Gestion. Le statut administratif des licences n'est pas modifié pendant les actions de résolution.
 
+## Amélioration du sélecteur de club (PR suivante)
+
+Le sélecteur initial affichait seulement les 500 premiers clubs ; cela empêchait le choix de certains clubs au-delà de cette limite.
+
+- Une **recherche dynamique par nom du club** est désormais disponible au-dessus des deux sélecteurs, dans l’association du club FFST et dans la recherche manuelle.
+- Saisir au moins deux caractères : les 30 premières correspondances sont proposées dans la liste. Affiner la recherche si nécessaire.
+- La recherche est réservée aux administrateurs, vérifiée par nonce et utilise un `LIKE` préparé et échappé. Le nom du club est inséré comme texte, jamais comme HTML exécutable.
+- Le choix est toujours vérifié par **identifiant réel dans la table UFSC**. Les clubs au-delà des 500 premiers sont reconnus par le serveur.
+- Un club déjà sélectionné est conservé lorsqu'on recherche un autre terme ; les associations existantes ne sont pas écrasées.
+- Si JavaScript ou la recherche AJAX échoue, la première liste classique reste disponible sans modifier de données.
+- Aucun changement de schéma ou de numéro FFST : le rapprochement et les validations conservent leurs contrôles existants.
+
+### Recette supplémentaire
+
+- [ ] Tester un club UFSC au-delà des 500 premiers résultats.
+- [ ] Vérifier les deux sélecteurs, notamment lorsqu'une association enregistrée pointe vers ce club.
+- [ ] Tester les droits refusés pour un non-administrateur et un nonce invalide.
+- [ ] Tester la recherche avec accents, apostrophes, pourcentages et underscores.
+- [ ] Simuler une erreur réseau et vérifier que le club déjà choisi reste sélectionné.
+- [ ] Vérifier le comportement au clavier et sur écran mobile.
+
 ## Règles de sécurité
 
 - Les correspondances de clubs sont stockées dans l'option WordPress `ufsc_lc_ffst_club_alias_v1` (pas de modification des noms existants).

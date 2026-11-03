@@ -71,6 +71,12 @@ jobs:
         run: php tests/ffst-resolution-center-safety-guard-test.php
       - name: FFST manual resolution end-to-end staging runtime guard
         run: php tests/ffst-resolution-manual-stage-runtime-test.php
+      - name: FFST search clubs beyond first 500 - permissions and prepared SQL
+        run: php tests/ffst-club-search-runtime-test.php
+      - name: FFST club search UI guard
+        run: php tests/ffst-club-search-ui-guard-test.php
+      - name: FFST club search JS syntax
+        run: node --check assets/js/ffst-club-search.js
       - name: Self-contained Dompdf distribution guard
         run: php tests/self-contained-dompdf-distribution-guard-test.php
       - name: Premium front UI guard

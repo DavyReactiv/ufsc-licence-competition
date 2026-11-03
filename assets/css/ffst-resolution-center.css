@@ -39,3 +39,12 @@
 @media(max-width:1200px){.ufsc-lc-admin .ufsc-ffst-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.ufsc-lc-admin .ufsc-ffst-club-form{grid-template-columns:1fr}.ufsc-lc-admin .ufsc-ffst-toolbar{flex-direction:column;align-items:stretch}.ufsc-lc-admin .ufsc-ffst-toolbar input[type=search]{min-width:0;max-width:100%}.ufsc-lc-admin .ufsc-lc-ffst-import-grid{min-width:960px!important}.ufsc-lc-admin .ufsc-ffst-resolve-panel{padding:14px}}
 @media(prefers-reduced-motion:reduce){.ufsc-lc-admin .ufsc-ffst-metric,.ufsc-lc-admin .ufsc-lc-ffst-import-record{transition:none}}
+
+/* Remote club lookup — scoped to FFST administrator screens only. */
+.ufsc-lc-admin .ufsc-ffst-club-search{display:flex;flex-direction:column;gap:6px;min-width:220px}
+.ufsc-lc-admin .ufsc-ffst-club-search label{font-weight:600;color:#334155}
+.ufsc-lc-admin .ufsc-ffst-club-search input[type=search]{min-height:36px;width:100%;max-width:100%}
+.ufsc-lc-admin .ufsc-ffst-club-search select{width:100%;max-width:100%;min-height:36px}
+.ufsc-lc-admin .ufsc-ffst-club-feedback{font-size:12px;color:#475569;min-height:1.4em}
+.ufsc-lc-admin .ufsc-ffst-resolve-panel .ufsc-ffst-club-search{display:inline-flex;vertical-align:middle;max-width:410px;width:100%;margin-right:10px}
+@media(max-width:782px){.ufsc-lc-admin .ufsc-ffst-club-search{width:100%}.ufsc-lc-admin .ufsc-ffst-resolve-panel .ufsc-ffst-club-search{display:flex;max-width:100%}}
