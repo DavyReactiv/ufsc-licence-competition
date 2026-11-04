@@ -17,7 +17,7 @@ class WP_Error {
     public function get_error_message() { return $this->message; }
 }
 class FFSTTestDb {
-    public $prefix = 'wp_'; public $writes = array(); public $duplicate = false;
+    public $prefix = 'wp_'; public $writes = array(); public $duplicate = false; public $no_candidates = false;
     public $batch; public $row; public $person;
     public function __construct() {
         $this->batch = (object) array( 'id' => 21, 'total_rows' => 1, 'season_end_year' => 2027 );
@@ -25,7 +25,8 @@ class FFSTTestDb {
             'ffst_number' => 'F211404', 'first_name' => 'Pascale', 'last_name' => 'LE BACCON',
             'birthdate' => '1970-11-28', 'club_name' => 'ASSO SPORTIVE CULTURELLE ET EDUCATIVE DE VINCENDO' );
         $this->person = (object) array( 'id' => 99, 'club_id' => 4, 'prenom' => 'Pascale', 'nom' => 'LE BACCON',
-            'date_naissance' => '1970-11-28', 'saison' => '2026-2027', 'numero_licence_ffst' => '' );
+            'date_naissance' => '1970-11-28', 'saison' => '2025-2026',
+            'paid_season' => '2026-2027', 'numero_licence_ffst' => '' );
     }
     public function prepare( $query, ...$args ) { return array( 'query' => $query, 'args' => $args ); }
     public function sql( $q ) { return is_array( $q ) ? $q['query'] : $q; }
@@ -33,13 +34,20 @@ class FFSTTestDb {
         $sql = $this->sql( $q );
         if ( strpos( $sql, 'ufsc_lc_ffst_import_batches' ) !== false ) { return $this->batch; }
         if ( strpos( $sql, 'ufsc_lc_ffst_import_rows' ) !== false ) { return $this->row; }
+        if ( strpos( $sql, 'FROM wp_ufsc_licences' ) !== false ) {
+            $args = is_array( $q ) ? $q['args'] : array();
+            return (int) ( $args[0] ?? 0 ) === (int) $this->person->id
+                && (int) ( $args[1] ?? 0 ) === (int) $this->person->club_id
+                ? clone $this->person : null;
+        }
         return null;
     }
     public function get_results( $q ) {
         $sql = $this->sql( $q );
         $args = is_array( $q ) ? $q['args'] : array();
         if ( strpos( $sql, 'FROM wp_ufsc_licences' ) !== false ) {
-            if ( (int) $args[0] !== (int) $this->person->club_id || (string) $args[1] !== $this->person->date_naissance ) { return array(); }
+            if ( $this->no_candidates || (int) $args[0] !== (int) $this->person->club_id
+                || (string) $args[1] !== $this->person->date_naissance ) { return array(); }
             return array( clone $this->person );
         }
         if ( strpos( $sql, 'FROM wp_ufsc_clubs' ) !== false ) {
@@ -77,8 +85,39 @@ require dirname( __DIR__ ) . '/includes/import/class-ufsc-lc-ffst-import-service
 $service = new UFSC_LC_FFST_Import_Service();
 $matches = $service->get_manual_candidates( 21, 3, 4 );
 if ( is_wp_error( $matches ) || count( $matches ) !== 1 || ! $matches[0]->eligible ) {
-    fwrite( STDERR, "FAIL correct identity not suggested\n" ); exit( 1 );
+    fwrite( STDERR, "FAIL paid_season not recognized as canonical season\n" ); exit( 1 );
 }
+$direct = $service->get_manual_candidate_by_id( 21, 3, 99, 4 );
+if ( is_wp_error( $direct ) || ! $direct->eligible || 99 !== $direct->id ) {
+    fwrite( STDERR, "FAIL direct UFSC internal ID lookup\n" ); exit( 1 );
+}
+if ( ! is_wp_error( $service->get_manual_candidate_by_id( 21, 3, 99, 5 ) ) ) {
+    fwrite( STDERR, "FAIL direct lookup exposed another club\n" ); exit( 1 );
+}
+$wpdb->person->paid_season = '2025-2026';
+$wrong_season = $service->get_manual_candidate_by_id( 21, 3, 99, 4 );
+if ( is_wp_error( $wrong_season ) || $wrong_season->eligible ) {
+    fwrite( STDERR, "FAIL direct lookup accepted another season\n" ); exit( 1 );
+}
+$wpdb->person->paid_season = '2026-2027';
+$wpdb->person->date_naissance = '1970-11-27';
+$wrong_birth = $service->get_manual_candidate_by_id( 21, 3, 99, 4 );
+if ( is_wp_error( $wrong_birth ) || $wrong_birth->eligible ) {
+    fwrite( STDERR, "FAIL direct lookup accepted wrong birth date\n" ); exit( 1 );
+}
+$wpdb->person->date_naissance = '1970-11-28';
+$wpdb->no_candidates = true;
+$direct_only = $service->manual_stage_match( 21, 3, 99, 4 );
+if ( is_wp_error( $direct_only ) || 'matched' !== $wpdb->row->match_status ) {
+    fwrite( STDERR, "FAIL direct match absent from candidate list\n" ); exit( 1 );
+}
+if ( in_array( 'wp_ufsc_licences', $wpdb->writes, true ) ) {
+    fwrite( STDERR, "FAIL direct match touched master licence before Apply\n" ); exit( 1 );
+}
+$wpdb->row->match_status = 'not_found';
+$wpdb->row->match_licence_id = null;
+$wpdb->writes = array();
+$wpdb->no_candidates = false;
 $rejected = $service->manual_stage_match( 21, 3, 99, 5 );
 if ( ! is_wp_error( $rejected ) ) { fwrite( STDERR, "FAIL wrong club was accepted\n" ); exit( 1 ); }
 $wpdb->person->prenom = 'Pauline';
