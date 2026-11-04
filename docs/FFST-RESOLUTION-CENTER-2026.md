@@ -15,6 +15,23 @@ Permettre à l'administration UFSC de traiter des PDF FFST comportant des clubs 
 7. Revenir au lot puis relancer la recherche ; sélectionner les lignes trouvées et cliquer sur **Rapprocher les lignes sélectionnées**.
 8. Pour les numéros officiellement appliqués, poursuivre dans le centre **Validation FFST** d'UFSC Gestion. Le statut administratif des licences n'est pas modifié pendant les actions de résolution.
 
+## Correction du rapprochement par numéro UFSC Gestion (04/11/2026)
+
+Quand le PDF FFST contient une licence reconnue dans UFSC Gestion mais que l'import indique « Introuvable », **ne créez pas de nouveau dossier**. Le rapprochement automatique vérifie maintenant aussi la colonne canonique `paid_season`, en plus des colonnes de saison historiques : une licence 2026–2027 ne doit pas être rejetée parce qu'une ancienne colonne `season` est vide ou périmée.
+
+Depuis **Import FFST → Rechercher / associer**, choisissez le club UFSC puis utilisez **Recherche directe par numéro de licence UFSC Gestion**. Saisissez l'identifiant interne du dossier (exemple : **1433**), qui est différent du numéro FFST importé (exemple : **M212714**). Le module consulte cette licence dans ce club, affiche nom, prénom, naissance et diagnostic de saison, sans écriture. Il exige ensuite la confirmation de l'administrateur : l'association provisoire s'enregistre dans le lot, et **seule la confirmation des lignes sélectionnées** applique le numéro FFST au dossier existant.
+
+La saisie du numéro ne doit **jamais** remplacer les contrôles d'identité, date de naissance, club, saison, numéro FFST déjà attribué ni absence de doublon dans le lot. Un numéro UFSC erroné, lié à un autre club, à une autre saison ou à une autre personne doit être refusé. Aucune licence n'est créée automatiquement, et aucun statut, paiement ou quota n'est changé.
+
+### Tests de recette complémentaires
+
+- [ ] REFESSE Mathieu : licence UFSC Gestion n° 1433, numéro FFST M212714, naissance 16/03/2011, saison 2026–2027 : sélectionner le bon club et vérifier les deux correspondances avant association.
+- [ ] Cas avec `paid_season=2026-2027` et une ancienne colonne `season=2025-2026` : la saison effective 2026–2027 est reconnue.
+- [ ] Saisir un autre numéro UFSC, un autre club ou une date différente : l'association doit être refusée.
+- [ ] Tenter de réutiliser le même numéro FFST sur une autre licence ou deux fois dans le lot : bloqué.
+- [ ] Chercher puis abandonner : aucune donnée maître modifiée ; confirmer puis appliquer : seul le bon dossier reçoit le numéro FFST, sans validation automatique.
+- [ ] Vérifier sur préproduction avec les deux plugins chargés, et sauvegarde préalable ; tester les versions PHP supportées.
+
 ## Amélioration du sélecteur de club (PR suivante)
 
 Le sélecteur initial affichait seulement les 500 premiers clubs ; cela empêchait le choix de certains clubs au-delà de cette limite.

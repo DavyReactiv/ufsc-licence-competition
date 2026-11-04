@@ -329,6 +329,52 @@ final class UFSC_LC_FFST_Resolution_Admin {
         self::render_club_options( $club_id );
         echo '</select></div> <button type="submit" class="button">Chercher les candidats</button></form>';
         if ( $club_id && self::club_exists( $club_id ) ) {
+            // A known UFSC Gestion ID is a safer targeted lookup when the
+            // initial automatic search misses a legitimate current licence.
+            // This form only reads the candidate. Linking still requires the
+            // existing explicit POST confirmation and all server safeguards.
+            $direct_id = isset( $_GET['ffst_licence_id'] ) && ! is_array( $_GET['ffst_licence_id'] )
+                ? absint( wp_unslash( $_GET['ffst_licence_id'] ) ) : 0;
+            echo '<div class="ufsc-ffst-manual-id"><h4>Recherche directe par numéro de licence UFSC Gestion</h4>';
+            echo '<p class="description">Saisissez le numéro interne affiché dans UFSC Gestion (exemple : 1433), et non le numéro fédéral FFST. Une saisie ne crée aucune association.</p>';
+            echo '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '">';
+            echo '<input type="hidden" name="page" value="' . esc_attr( UFSC_LC_FFST_Import_Page::PAGE_SLUG ) . '">';
+            echo '<input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '">';
+            echo '<input type="hidden" name="ffst_resolve_row" value="' . esc_attr( $row->id ) . '">';
+            echo '<input type="hidden" name="ffst_target_club" value="' . esc_attr( $club_id ) . '">';
+            echo '<label for="ffst-direct-ufsc-id">N° licence UFSC Gestion</label> ';
+            echo '<input type="number" id="ffst-direct-ufsc-id" name="ffst_licence_id" min="1" step="1" required value="' . esc_attr( $direct_id ?: '' ) . '" style="max-width:190px"> ';
+            echo '<button type="submit" class="button button-secondary">Vérifier la licence</button></form>';
+            if ( $direct_id ) {
+                $direct = $service->get_manual_candidate_by_id( $batch->id, $row->id, $direct_id, $club_id );
+                if ( is_wp_error( $direct ) ) {
+                    echo '<p class="ufsc-ffst-warning" role="alert">' . esc_html( $direct->get_error_message() ) . '</p>';
+                } else {
+                    $previous_ffst = trim( (string) ( $direct->numero_licence_ffst ?? '' ) );
+                    $incoming_ffst = trim( (string) $row->ffst_number );
+                    $number_ok = '' !== $incoming_ffst && ( '' === $previous_ffst || 0 === strcasecmp( $previous_ffst, $incoming_ffst ) );
+                    echo '<div class="ufsc-ffst-direct-review"><p><strong>Licence UFSC #' . esc_html( $direct->id ) . '</strong> — ' .
+                        esc_html( $direct->first_name . ' ' . $direct->last_name ) . ' — Naissance ' .
+                        esc_html( $direct->date_naissance ?? '' ) . '</p>';
+                    echo '<p>' . esc_html( $direct->match_explanation ) . '</p>';
+                    if ( ! $number_ok ) {
+                        echo '<p class="ufsc-ffst-warning" role="alert">Cette licence possède déjà un autre numéro FFST : rapprochement bloqué.</p>';
+                    } elseif ( ! empty( $direct->eligible ) ) {
+                        echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+                        wp_nonce_field( 'ufsc_ffst_match_' . absint( $batch->id ) . '_' . absint( $row->id ) );
+                        echo '<input type="hidden" name="action" value="ufsc_lc_ffst_manual_match">';
+                        echo '<input type="hidden" name="batch_id" value="' . esc_attr( $batch->id ) . '">';
+                        echo '<input type="hidden" name="row_id" value="' . esc_attr( $row->id ) . '">';
+                        echo '<input type="hidden" name="licence_id" value="' . esc_attr( $direct->id ) . '">';
+                        echo '<input type="hidden" name="club_id" value="' . esc_attr( $club_id ) . '">';
+                        echo '<label><input type="checkbox" name="identity_confirmed" value="1" required> Je confirme le contrôle du nom, du prénom, de la date de naissance, du club, de la saison et du numéro FFST ' . esc_html( $incoming_ffst ) . '.</label> ';
+                        echo '<button type="submit" class="button button-primary">Préparer le rapprochement avec cette licence</button></form>';
+                        echo '<p class="description">La liaison est d’abord enregistrée dans le lot. Le numéro FFST ne sera écrit qu’après validation explicite des lignes rapprochées.</p>';
+                    }
+                    echo '</div>';
+                }
+            }
+            echo '</div>';
             $candidates = $service->get_manual_candidates( $batch->id, $row->id, $club_id );
             if ( is_wp_error( $candidates ) ) {
                 echo '<p class="ufsc-ffst-warning">' . esc_html( $candidates->get_error_message() ) . '</p>';
