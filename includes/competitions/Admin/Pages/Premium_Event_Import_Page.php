@@ -175,6 +175,12 @@ final class Premium_Event_Import_Page {
         if($errors) wp_die(esc_html(implode(' / ',$errors)),'',array('response'=>400));
         global $wpdb;
         $table=Db::competitions_table();
+        // Idempotence guard: never create a duplicate event with the same title, season and start date.
+        $existing=$wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table} WHERE name=%s AND season=%s AND event_start_datetime=%s AND deleted_at IS NULL LIMIT 1",
+            $row['name'], $row['season'], $row['event_start_datetime']
+        ));
+        if ($existing) wp_die('Événement déjà présent (ID '.absint($existing).'). Import annulé pour éviter un doublon.', '', array('response'=>409));
         $fields=array_diff_key($row,array_flip(self::extras()));
         unset($fields['status']); // always draft, never publish by import
         $fields=array_filter($fields,static function($v){return $v!=='';});
