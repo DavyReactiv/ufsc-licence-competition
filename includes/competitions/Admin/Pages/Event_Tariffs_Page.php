@@ -163,6 +163,7 @@ final class Event_Tariffs_Page {
             if ( $code === '' || isset( $codes[$code] ) ||
                 ! in_array( $row['tariff_type'], self::TYPES, true ) ||
                 ! preg_match( '/^\d{1,6}(\.\d{1,2})?$/', $row['price_eur'] ) ||
+                ($row['tariff_type'] === 'gratuit' && (float) $row['price_eur'] !== 0.0) ||
                 $row['currency'] !== 'EUR' ||
                 ! in_array( $row['is_active'], array('0','1'), true ) ||
                 ! self::date_ok( $row['valid_from'] ) || ! self::date_ok( $row['valid_until'] ) ||
