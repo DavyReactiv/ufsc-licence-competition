@@ -165,6 +165,7 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Categories_Page.php',
 		$base . '/Admin/Pages/Entries_Page.php',
 		$base . '/Admin/Pages/Entries_Import_Page.php',
+		$base . '/Admin/Pages/Event_Plateau_Import_Page.php',
 		$base . '/Admin/Pages/WeighIns_Page.php',
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
@@ -189,6 +190,13 @@ function load_competitions_admin_dependencies(): void {
 		}
 	}
 }
+
+// Isolated, non-destructive CSV import preview handlers.
+add_action( 'init', function() {
+    if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Pages\\Event_Plateau_Import_Page' ) ) {
+        \UFSC\Competitions\Admin\Pages\Event_Plateau_Import_Page::register();
+    }
+}, 12 );
 
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
