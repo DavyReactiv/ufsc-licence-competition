@@ -166,6 +166,9 @@ function load_competitions_admin_dependencies(): void {
 		$base . '/Admin/Pages/Entries_Page.php',
 		$base . '/Admin/Pages/Entries_Import_Page.php',
 		$base . '/Admin/Pages/Event_Plateau_Import_Page.php',
+		$base . '/Admin/Pages/Premium_Event_Import_Page.php',
+		$base . '/Admin/Pages/Event_Tariffs_Page.php',
+		$base . '/Admin/Pages/Competition_License_Search_Page.php',
 		$base . '/Admin/Pages/WeighIns_Page.php',
 		$base . '/Admin/Pages/Entries_Validation_Page.php',
 		$base . '/Admin/Pages/Bouts_Page.php',
@@ -197,6 +200,18 @@ add_action( 'init', function() {
         \UFSC\Competitions\Admin\Pages\Event_Plateau_Import_Page::register();
     }
 }, 12 );
+
+// Additional premium event, tariff and licence lookup modules (admin only).
+add_action( 'init', function() {
+    if ( ! is_admin() ) { return; }
+    foreach ( array(
+        '\\UFSC\\Competitions\\Admin\\Pages\\Premium_Event_Import_Page',
+        '\\UFSC\\Competitions\\Admin\\Pages\\Event_Tariffs_Page',
+        '\\UFSC\\Competitions\\Admin\\Pages\\Competition_License_Search_Page',
+    ) as $page_class ) {
+        if ( class_exists( $page_class ) ) { $page_class::register(); }
+    }
+}, 13 );
 
 // Load core dependencies immediately so classes are available for early hooks.
 load_competitions_core_dependencies();
