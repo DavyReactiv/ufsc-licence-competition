@@ -194,7 +194,7 @@ function load_competitions_admin_dependencies(): void {
 // Isolated, non-destructive CSV import preview handlers.
 add_action( 'init', function() {
     if ( is_admin() && class_exists( '\\UFSC\\Competitions\\Admin\\Pages\\Event_Plateau_Import_Page' ) ) {
-        \\UFSC\\Competitions\\Admin\\Pages\\Event_Plateau_Import_Page::register();
+        \UFSC\Competitions\Admin\Pages\Event_Plateau_Import_Page::register();
     }
 }, 12 );
 
