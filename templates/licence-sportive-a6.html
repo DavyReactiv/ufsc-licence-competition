@@ -40,9 +40,11 @@ html, body { margin:0; padding:0; width:210mm; height:297mm; color:#172b46; font
 .field .value { display:block; margin-top:1.1mm; font-size:10pt; line-height:1.2; font-weight:bold; overflow-wrap:break-word; }
 .sex { left:43mm; top:76mm; width:64mm; }
 .birth { left:113mm; top:76mm; width:69mm; }
-.address { left:43mm; top:89mm; width:139mm; min-height:12mm; }
-.category { left:43mm; top:103mm; width:64mm; }
-.region { left:113mm; top:103mm; width:69mm; }
+.address { left:43mm; top:88.5mm; width:139mm; min-height:11.5mm; }
+/* Keep category and region clear of the number boxes (Dompdf line metrics).
+   Address ends at 100mm; the following row starts at 100.7mm. */
+.category { left:43mm; top:100.7mm; width:64mm; }
+.region { left:113mm; top:100.7mm; width:69mm; }
 /* The number boxes sit above the footer, with measured room for both lines.
    Dompdf needs an explicit line-height to avoid bottom-clipping 12pt numerals. */
 .licence-number { position:absolute; top:113.4mm; height:11.5mm; padding:0.75mm 3mm 0.5mm; border:0.3mm solid #d2dce7; border-left:0.8mm solid #173453; background:#f3f7fc; z-index:1; overflow:hidden; }
