@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class UFSC_LC_Licence_Pdf_Generator {
 	const SOURCE           = 'UFSC';
-	const TEMPLATE_VERSION = 'ufsc-document-v17-number-legibility-a4';
+	const TEMPLATE_VERSION = 'ufsc-document-v18-section-spacing-a4';
 	const ADMIN_PAGE_SLUG  = 'ufsc-licence-pdf-template';
 
 	/**
