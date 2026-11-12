@@ -17,7 +17,7 @@ if ( false === strpos( $repository, '\'archived\' === $view && \'archived\' === 
 	$errors[] = 'archived status filter must not hide legacy closed archives';
 }
 
-if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(108px,1fr))' ) ) {
+if ( false === strpos( $licences, 'grid-template-columns:repeat(2,minmax(0,1fr))' ) ) {
 	$errors[] = 'club PDF actions must use the balanced two-column layout';
 }
 
