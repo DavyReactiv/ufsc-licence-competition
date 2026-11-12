@@ -270,7 +270,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			}
 			.ufsc-licence-table{
 				width:100%;
-				min-width:1080px;
+				min-width:1180px;
 				border-collapse:separate;
 				border-spacing:0;
 				background:#fff
@@ -306,7 +306,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-table th:nth-child(6),.ufsc-licence-table td:nth-child(6){width:11%}
 			.ufsc-licence-table th:nth-child(7),.ufsc-licence-table td:nth-child(7){width:12%}
 			.ufsc-licence-table th:nth-child(8),.ufsc-licence-table td:nth-child(8){width:11%}
-			.ufsc-licence-table th:nth-child(9),.ufsc-licence-table td:nth-child(9){min-width:265px;width:25%}
+			.ufsc-licence-table th:nth-child(9),.ufsc-licence-table td:nth-child(9){min-width:300px;width:25%}
 			.ufsc-licence-ufsc,
 			.ufsc-licence-ffst{
 				display:inline-flex;
@@ -351,20 +351,23 @@ class UFSC_LC_Club_Licences_Shortcode {
 			.ufsc-licence-badge--archived{background:#fff1d6;color:#8a4b08}
 			.ufsc-licence-actions{
 				display:grid;
-				grid-template-columns:repeat(2,minmax(108px,1fr));
+				grid-template-columns:repeat(2,minmax(0,1fr));
 				align-items:stretch;
-				gap:8px;
-				min-width:210px;
+				gap:6px;
+				min-width:0;
 				max-width:none
 			}
 			.ufsc-licence-actions .button{
 				display:inline-flex;
 				align-items:center;
 				justify-content:center;
-				gap:6px;
-				height:40px;
-				min-height:40px;
-				padding:9px 13px;
+				gap:4px;
+				height:34px;
+				min-height:34px;
+				padding:6px 7px;
+				font-size:11px;
+				line-height:1.2;
+				white-space:nowrap;
 				border-radius:9px;
 				border:1px solid #d7def4;
 				background:#eef2ff;
@@ -386,6 +389,25 @@ class UFSC_LC_Club_Licences_Shortcode {
 				width:100%;
 				white-space:nowrap
 			}
+			/* Keep status badge and PDF controls readable inside the action cell,
+			   independent of Elementor/Astra global button typography. */
+			.ufsc-licence-actions .button,
+			.ufsc-licence-actions .button.button-small{
+				box-sizing:border-box;
+				max-width:100%;
+				margin:0;
+				font-size:11px !important;
+				line-height:1.2 !important;
+				letter-spacing:0;
+				text-align:center
+			}
+			.ufsc-licence-actions .dashicons{
+				font-size:15px;
+				width:15px;
+				height:15px;
+				line-height:1
+			}
+			.ufsc-licence-table td:last-child{min-width:300px}
 			.ufsc-licence-actions .button:hover{background:var(--ufsc-red);border-color:var(--ufsc-red);color:#fff}
 			.ufsc-licence-pagination{margin-top:18px}
 			@media(max-width:1180px){
@@ -412,7 +434,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 				.ufsc-licence-filter-actions{grid-column:auto;flex-direction:column;padding-top:0}
 				.ufsc-licence-filter-actions button,
 				.ufsc-licence-filter-actions .button{width:100%}
-				.ufsc-licence-actions{grid-template-columns:1fr;min-width:126px;max-width:160px}
+				.ufsc-licence-actions{grid-template-columns:repeat(2,minmax(0,1fr));min-width:0;max-width:100%}
 			}
 		</style>
 
@@ -655,13 +677,13 @@ class UFSC_LC_Club_Licences_Shortcode {
 										<div class="ufsc-licence-actions">
 											<span class="ufsc-licence-badge"><?php esc_html_e( 'Généré', 'ufsc-licence-competition' ); ?></span>
 
-											<a class="button button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'view', $item->id ) ); ?>">
+											<a class="button button-small" target="_blank" rel="noopener noreferrer" href="<?php echo esc_url( $this->get_pdf_action_url( 'view', $item->id ) ); ?>">
 												<span class="dashicons dashicons-visibility" aria-hidden="true"></span>
 												<?php esc_html_e( 'Voir', 'ufsc-licence-competition' ); ?>
 											</a>
 
 											<?php if ( ! class_exists( 'UFSC_LC_Settings_Page' ) || UFSC_LC_Settings_Page::is_pdf_download_allowed() ) : ?>
-												<a class="button button-primary button-small" href="<?php echo esc_url( $this->get_pdf_action_url( 'download', $item->id ) ); ?>">
+												<a class="button button-primary button-small" target="_blank" rel="noopener noreferrer" href="<?php echo esc_url( $this->get_pdf_action_url( 'download', $item->id ) ); ?>">
 													<span class="dashicons dashicons-download" aria-hidden="true"></span>
 													<?php esc_html_e( 'Télécharger', 'ufsc-licence-competition' ); ?>
 												</a>
@@ -672,7 +694,7 @@ class UFSC_LC_Club_Licences_Shortcode {
 											<span class="ufsc-licence-badge"><?php esc_html_e( 'Non généré', 'ufsc-licence-competition' ); ?></span>
 											<?php if ( 'valide' === strtolower( (string) ( $item->statut ?? '' ) ) && ! $is_archived ) : ?>
 												<?php if ( class_exists( 'Dompdf\\Dompdf' ) ) : ?>
-													<a class="button button-primary button-small" href="<?php echo esc_url( $this->get_generate_pdf_url( $item->id ) ); ?>">
+													<a class="button button-primary button-small" target="_blank" rel="noopener noreferrer" href="<?php echo esc_url( $this->get_generate_pdf_url( $item->id ) ); ?>">
 														<span class="dashicons dashicons-media-document" aria-hidden="true"></span>
 														<?php esc_html_e( 'Générer le PDF', 'ufsc-licence-competition' ); ?>
 													</a>
