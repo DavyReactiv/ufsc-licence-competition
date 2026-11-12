@@ -21,5 +21,5 @@ $check( substr_count( $front, 'target="_blank" rel="noopener noreferrer"' ) >= 3
 $check( false !== strpos( $front, "get_pdf_action_url( 'view', \$item->id )" ), 'View remains linked to correct licence' );
 $check( false !== strpos( $front, "get_pdf_action_url( 'download', \$item->id )" ), 'Download remains linked to correct licence' );
 $check( false !== strpos( $front, "get_generate_pdf_url( \$item->id )" ), 'Generation remains linked to correct licence' );
-$check( false !== strpos( $generator, "ufsc-document-v17-number-legibility-a4" ), 'New template revision is used by future PDF generations' );
+$check( false !== strpos( $generator, "ufsc-document-v18-section-spacing-a4" ), 'New template revision is used by future PDF generations' );
 echo "Licence PDF legibility and front controls regression OK\n";
