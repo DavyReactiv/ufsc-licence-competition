@@ -9,6 +9,10 @@ $service = file_get_contents( $root . '/includes/import/class-ufsc-lc-ffst-impor
 $checks = array(
     'Selection scope always explicit' => strpos( $page, "ffst_selection_scope" ) !== false
         && strpos( $page, "value=\"all_filtered\"" ) !== false,
+    'Large lots supported by bounded explicit chunks' => strpos( $page, "value=\"next_chunk\"" ) !== false
+        && strpos( $page, "'next_chunk'===\$selection_scope?100:500" ) !== false
+        && strpos( $page, "min(\$count,\$chunk_size)" ) !== false,
+    'Applied rows measured from actual staged rows' => strpos( $page, "get_batch_status_count(\$batch_id,UFSC_LC_FFST_Import_Service::APPLIED)" ) !== false,
     'Original page selection retained' => strpos( $page, "name=\"selected_row_ids[]\"" ) !== false,
     'Server selects verified matches only' => strpos( $page, "get_batch_rows_filtered(\$batch_id,UFSC_LC_FFST_Import_Service::MATCHED" ) !== false,
     'Global count checked before selecting rows' => strpos( $page, "count_batch_rows_filtered(\$batch_id,UFSC_LC_FFST_Import_Service::MATCHED" ) !== false,
