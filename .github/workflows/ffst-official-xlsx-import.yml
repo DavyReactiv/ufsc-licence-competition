@@ -14,11 +14,14 @@ on:
 jobs:
   ffst-official-xlsx:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
           extensions: mbstring, zip
       - name: Syntax check
         run: |
