@@ -149,11 +149,12 @@ class UFSC_LC_FFST_Import_Page {
         $offset=($current_page-1)*$per_page;
         $rows=$batch?$service->get_batch_rows_filtered($batch_id,$status_filter,$lot_search,$per_page,$offset,$club_filter):array();
 		$counts_consistent=$batch?((int)$batch->total_rows===(int)$actual_rows):true;
-		$matched_count=0;$unknown_count=0;
-		if($batch){
-			$matched_count=$service->get_batch_status_count($batch_id,UFSC_LC_FFST_Import_Service::MATCHED);
-			$unknown_count=$service->get_batch_unknown_status_count($batch_id);
-		}
+        $matched_count=0;$unknown_count=0;$applied_count=0;
+        if($batch){
+            $matched_count=$service->get_batch_status_count($batch_id,UFSC_LC_FFST_Import_Service::MATCHED);
+            $applied_count=$service->get_batch_status_count($batch_id,UFSC_LC_FFST_Import_Service::APPLIED);
+            $unknown_count=$service->get_batch_unknown_status_count($batch_id);
+        }
 		$season=$this->active_season_end_year();
 		?>
 		<div class="wrap ufsc-lc-admin">
@@ -165,9 +166,12 @@ class UFSC_LC_FFST_Import_Page {
             <?php if ( class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
                 <p><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=ufsc-ffst-validation' ) ); ?>"><?php esc_html_e( 'Voir les lots prêts à valider dans UFSC Gestion', 'ufsc-licence-competition' ); ?></a></p>
             <?php endif; ?>
-            <?php if ( $batch && (int) $batch->applied_rows > 0 ) : ?>
+            <?php if ( $batch && (int) $applied_count !== (int) $batch->applied_rows ) : ?>
+                <div class="notice notice-warning inline"><p>Compteurs d'import désynchronisés suite à une interruption : le tableau affiche les lignes réellement enregistrées. Vérifiez chaque licence avant de reprendre le lot.</p></div>
+            <?php endif; ?>
+            <?php if ( $batch && (int) $applied_count > 0 ) : ?>
                 <div class="notice notice-<?php echo class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ? 'success' : 'warning'; ?> inline" style="padding:12px 16px">
-                    <p><strong><?php echo esc_html( sprintf( _n( '%d numéro FFST rapproché.', '%d numéros FFST rapprochés.', (int) $batch->applied_rows, 'ufsc-licence-competition' ), (int) $batch->applied_rows ) ); ?></strong>
+                    <p><strong><?php echo esc_html( sprintf( _n( '%d numéro FFST rapproché.', '%d numéros FFST rapprochés.', (int) $applied_count, 'ufsc-licence-competition' ), (int) $applied_count ) ); ?></strong>
                     <?php esc_html_e( 'Le statut des licences UFSC reste inchangé tant que la validation groupée n’est pas confirmée.', 'ufsc-licence-competition' ); ?></p>
                     <?php if ( class_exists( 'UFSC_FFST_Batch_Validation', false ) && current_user_can( 'manage_options' ) ) : ?>
                         <p><a class="button button-primary button-hero" href="<?php echo esc_url( add_query_arg( array( 'page' => 'ufsc-ffst-validation', 'batch_id' => absint( $batch->id ) ), admin_url( 'admin.php' ) ) ); ?>"><?php esc_html_e( 'Étape suivante : passer les statuts UFSC à « Validée »', 'ufsc-licence-competition' ); ?></a></p>
@@ -236,7 +240,7 @@ class UFSC_LC_FFST_Import_Page {
                             'not_found' => array( 'Introuvables', (int) $batch->not_found_rows ),
                             'ambiguous' => array( 'Ambiguës', (int) $batch->ambiguous_rows ),
                             'conflict' => array( 'Conflits', (int) $batch->conflict_rows ),
-                            'applied' => array( 'Appliquées', (int) $batch->applied_rows ),
+                            'applied' => array( 'Appliquées', (int) $applied_count ),
                         );
                         foreach( $metric_items as $key => $metric ) :
                             $url = add_query_arg(array('page'=>self::PAGE_SLUG,'batch_id'=>$batch->id,'ffst_status'=>$key,'ffst_search'=>$lot_search,'ffst_club'=>$club_filter,'ffst_page'=>1),admin_url('admin.php'));
@@ -390,7 +394,7 @@ class UFSC_LC_FFST_Import_Page {
 							<p class="description"><?php esc_html_e('Le N° FFST est conservé en texte. Les N° UFSC existants ne sont jamais remplacés. Les lignes non sélectionnées restent en attente.','ufsc-licence-competition'); ?></p>
 						</div>
 					<?php elseif('applied'===$batch->status): ?>
-						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) déjà appliquée(s).','ufsc-licence-competition'),$batch->applied_rows)); ?></p></div>
+						<div class="notice notice-success inline"><p><?php echo esc_html(sprintf(__('%d ligne(s) déjà appliquée(s).','ufsc-licence-competition'),$applied_count)); ?></p></div>
 					<?php endif; ?>
 					</form>
                     <?php if(class_exists('UFSC_LC_FFST_Resolution_Admin',false)) UFSC_LC_FFST_Resolution_Admin::render_panel($batch); ?>
