@@ -16,7 +16,8 @@ $checks = array(
     'Original page selection retained' => strpos( $page, "name=\"selected_row_ids[]\"" ) !== false,
     'Server selects verified matches only' => strpos( $page, "get_batch_rows_filtered(\$batch_id,UFSC_LC_FFST_Import_Service::MATCHED" ) !== false,
     'Global count checked before selecting rows' => strpos( $page, "count_batch_rows_filtered(\$batch_id,UFSC_LC_FFST_Import_Service::MATCHED" ) !== false,
-    'Global selection bounded to 500' => strpos( $page, "if(\$count<1 || \$count>500)" ) !== false,
+    'Global selection bounded to 500' => strpos( $page, "'all_filtered'===\$selection_scope && \$count>500" ) !== false
+        && strpos( $page, "\$chunk_size='next_chunk'===\$selection_scope?100:500" ) !== false,
     'Global lot integrity checked' => strpos( $page, "(int)\$batch->total_rows!==\$source_total" ) !== false,
     'Club filter verified in batch' => strpos( $page, 'batch_club_in_summary' ) !== false,
     'Global filter uses server side search' => strpos( $page, "sanitize_text_field(wp_unslash(\$_POST['ffst_search']))" ) !== false,
