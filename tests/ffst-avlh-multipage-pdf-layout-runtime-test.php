@@ -5,6 +5,11 @@
  * php tests/ffst-avlh-multipage-pdf-layout-runtime-test.php
  */
 define('ABSPATH', __DIR__ . '/');
+if(!function_exists('remove_accents')){
+    function remove_accents($value){
+        return strtr((string)$value,array('é'=>'e','è'=>'e','ê'=>'e','É'=>'E','à'=>'a','ç'=>'c'));
+    }
+}
 require dirname(__DIR__) . '/includes/import/class-ufsc-lc-ffst-import-service.php';
 $service = new UFSC_LC_FFST_Import_Service();
 $parse = new ReflectionMethod('UFSC_LC_FFST_Import_Service', 'parse_ffst_native_page');
