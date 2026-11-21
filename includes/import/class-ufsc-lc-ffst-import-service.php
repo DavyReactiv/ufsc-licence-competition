@@ -927,6 +927,8 @@ class UFSC_LC_FFST_Import_Service {
 		// Never fuzzy-match identities; ambiguous candidates remain blocked.
 		$select[]="{$last} AS last_name";
 		$select[]='l.prenom AS first_name';
+        $sex_column=$this->column_exists($lt,'sexe')?'sexe':($this->column_exists($lt,'genre')?'genre':'');
+        if($sex_column)$select[]='l.'.$sex_column.' AS licence_sex';
 		$sql="SELECT ".implode(',',$select)." FROM {$lt} l LEFT JOIN {$ct} c ON c.id=l.club_id
 			WHERE l.date_naissance=%s ORDER BY l.id DESC LIMIT 501";
 		$birth_candidates=$wpdb->get_results($wpdb->prepare($sql,$d['birthdate']));
@@ -982,6 +984,15 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		$candidate=$candidates[0];
+        // A known conflicting UFSC gender must not receive this FFST number.
+        if(isset($candidate->licence_sex) && ''!==trim((string)$candidate->licence_sex) && ''!==$d['sex']){
+            $sex_value=$this->key($candidate->licence_sex);
+            $sex_value=in_array($sex_value,array('m','masculin','homme','male'),true)?'M'
+                :(in_array($sex_value,array('f','feminin','femme','female'),true)?'F':'');
+            if(''===$sex_value || $sex_value!==$d['sex']){
+                return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Genre FFST différent du dossier UFSC : vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
+            }
+        }
         if($number_owner_id && $number_owner_id!==absint($candidate->id)){
             return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Ce numéro FFST appartient à une autre fiche UFSC. Aucune association autorisée.','ufsc-licence-competition'),'previous_ffst'=>'');
         }
@@ -1019,7 +1030,8 @@ class UFSC_LC_FFST_Import_Service {
         }
         foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as $f){
             $d=DateTime::createFromFormat('!'.$f,$v);
-            if($d instanceof DateTime && $d->format($f)===$v)return $d->format('Y-m-d');
+            $errors=DateTime::getLastErrors();
+            if($d instanceof DateTime && (false===$errors || (0===$errors['warning_count'] && 0===$errors['error_count'])))return $d->format('Y-m-d');
         }
         return '';
     }
