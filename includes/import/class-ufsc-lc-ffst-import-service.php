@@ -842,7 +842,50 @@ class UFSC_LC_FFST_Import_Service {
 		$m=array();foreach($record as $k=>$v)$m[$this->key($k)]=is_scalar($v)?trim((string)$v):'';
 		$get=function($keys)use($m){foreach($keys as $k){$k=$this->key($k);if(isset($m[$k])&&''!==$m[$k])return$m[$k];}return'';};
 		$a=$get(array('adresse','address'));$cp=$get(array('code postal','cp'));$city=$get(array('ville','city'));if((''===$cp||''===$city)&&preg_match('/\\b(\\d{5})\\s+([^,]+)$/u',$a,$x)){$cp=$cp?:$x[1];$city=$city?:trim($x[2]);}
-		return array('ffst_number'=>strtoupper($get(array('n ffst','numero ffst','n licence ffst','licence ffst','licence'))),'last_name'=>strtoupper($get(array('nom','nom licencie'))),'first_name'=>$get(array('prenom','prenom licencie')),'birthdate'=>$this->date($get(array('date de naissance','ne le','naissance'))),'sex'=>strtoupper($get(array('sexe','genre'))),'club_name'=>$get(array('club','nom club','association')),'address'=>$a,'postal_code'=>$cp,'city'=>$city,'discipline'=>$get(array('discipline','activite')),'role_name'=>$get(array('fonction','role','qualite')),'federal_references'=>$get(array('references federales','references','refs federales')),'issued_at'=>$this->date($get(array('delivree le','date delivrance'))),'source_club_code'=>$get(array('code club','mention source','code club source')),'source_holder_ref'=>$get(array('reference titulaire','ref titulaire')),'source_code'=>$get(array('code source','source code')));
+        // Official FFST XLSX supports a combined full name, Excel serial dates,
+        // numeric-only licence numbers and long-form gender values.
+        // No identity or gender is ever inferred from a number alone.
+        $last = strtoupper( $get( array( 'nom', 'nom licencie' ) ) );
+        $first = $get( array( 'prenom', 'prenom licencie' ) );
+        if ( '' === $last && '' === $first ) {
+            $identity = $this->split_official_full_name( $get( array( 'nom et prenom', 'nom prenom' ) ) );
+            $last = $identity[0];
+            $first = $identity[1];
+        }
+        $sex_raw = $this->key( $get( array( 'sexe', 'genre' ) ) );
+        $sex = in_array( $sex_raw, array( 'm', 'masculin', 'homme', 'male' ), true ) ? 'M'
+            : ( in_array( $sex_raw, array( 'f', 'feminin', 'femme', 'female' ), true ) ? 'F' : '' );
+        $number = strtoupper( $get( array( 'n licence', 'n ffst', 'numero ffst', 'n licence ffst', 'licence ffst', 'licence' ) ) );
+        if ( preg_match( '/^[0-9]+$/D', $number ) ) {
+            // Keep leading zeroes; no prefix when gender is missing/unknown.
+            $number = $sex ? $sex . $number : '';
+        } elseif ( preg_match( '/^[MF][0-9]+$/D', $number ) ) {
+            if ( $sex && $number[0] !== $sex ) { $number = ''; }
+        }
+        $club_raw = $get( array( 'club', 'nom club', 'association' ) );
+        $club_code = $get( array( 'code club', 'mention source', 'code club source' ) );
+        if ( preg_match( '/^([0-9]+)\s+-\s+(.+)$/u', $club_raw, $cm ) ) {
+            if ( '' === $club_code ) { $club_code = $cm[1]; }
+            $club_raw = trim( $cm[2] );
+        }
+        $state = $this->key( $get( array( 'statut', 'etat' ) ) );
+        if ( '' !== $state && ! in_array( $state, array( 'active', 'actif', 'activee', 'valide', 'validee' ), true ) ) {
+            // No automatic federation matching for non-active rows.
+            $number = '';
+        }
+        return array(
+            'ffst_number' => $number, 'last_name' => $last, 'first_name' => $first,
+            'birthdate' => $this->date( $get( array( 'date de naissance', 'ne le', 'naissance' ) ) ),
+            'sex' => $sex, 'club_name' => $club_raw,
+            'address' => $a, 'postal_code' => $cp, 'city' => $city,
+            'discipline' => $get( array( 'discipline', 'activite' ) ),
+            'role_name' => $get( array( 'fonction', 'role', 'qualite' ) ),
+            'federal_references' => $get( array( 'references federales', 'references', 'refs federales' ) ),
+            'issued_at' => $this->date( $get( array( 'date entree', 'delivree le', 'date delivrance' ) ) ),
+            'source_club_code' => $club_code,
+            'source_holder_ref' => $get( array( 'reference titulaire', 'ref titulaire' ) ),
+            'source_code' => $get( array( 'code source', 'source code' ) ),
+        );
 	}
 	private function resolve_match(array $d,$season){
 		global $wpdb;
@@ -964,7 +1007,35 @@ class UFSC_LC_FFST_Import_Service {
 	private function write_pdf_meta($id,$r){foreach(array('ffst_references'=>$r->federal_references,'ffst_issued_at'=>$r->issued_at,'ffst_club_code'=>$r->source_club_code,'ffst_holder_reference'=>$r->source_holder_ref,'ffst_source_code'=>$r->source_code) as $k=>$v)if(''!==trim((string)$v))$this->meta($id,$k,$v);}
 	private function meta($id,$k,$v){global$wpdb;$t=$wpdb->prefix.'ufsc_licence_documents_meta';if(!$this->table_exists($t))return;$mid=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$t} WHERE licence_id=%d AND source=%s AND meta_key=%s LIMIT 1",$id,'UFSC',$k));$d=array('licence_id'=>$id,'source'=>'UFSC','meta_key'=>$k,'meta_value'=>maybe_serialize($v),'updated_at'=>current_time('mysql'));if($mid)$wpdb->update($t,$d,array('id'=>absint($mid)),array('%d','%s','%s','%s','%s'),array('%d'));else$wpdb->insert($t,$d,array('%d','%s','%s','%s','%s'));}
 	private function key($v){$v=remove_accents(strtolower(trim((string)$v)));return trim(preg_replace('/[^a-z0-9]+/',' ',$v));}
-	private function date($v){$v=trim((string)$v);foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as$f){$d=DateTime::createFromFormat($f,$v);if($d instanceof DateTime)return$d->format('Y-m-d');}return'';}
+    /**
+     * Official XLSX uses Excel 1900 date serials, while earlier sources
+     * use French or ISO strings. This affects staging only.
+     */
+    private function date($v){
+        $v=trim((string)$v);
+        if(preg_match('/^[0-9]{5}(?:\.0+)?$/D',$v)){
+            $days=(int)$v;
+            if($days>=20000&&$days<=80000)return gmdate('Y-m-d',($days-25569)*86400);
+        }
+        foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as $f){
+            $d=DateTime::createFromFormat('!'.$f,$v);
+            if($d instanceof DateTime && $d->format($f)===$v)return $d->format('Y-m-d');
+        }
+        return '';
+    }
+    private function split_official_full_name($value){
+        $tokens=preg_split('/\s+/u',trim((string)$value));
+        $last=array(); $first=array();
+        foreach((array)$tokens as $token){
+            if(!$first && preg_match('/^[\p{Lu}\p{M}\-\x{2019}\x{0027}]+$/u',$token)){
+                $last[]=$token;
+            }else{
+                $first[]=$token;
+            }
+        }
+        // Without a distinguishable given name, manual review is mandatory.
+        return $last && $first ? array(implode(' ',$last),implode(' ',$first)) : array('','');
+    }
 	private function norm($v){
 		$value=remove_accents(trim((string)$v));
 		// Only normalize hyphens/whitespace; never guess a different identity.
