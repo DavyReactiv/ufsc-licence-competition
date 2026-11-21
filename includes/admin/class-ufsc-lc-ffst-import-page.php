@@ -64,8 +64,46 @@ class UFSC_LC_FFST_Import_Page {
 		$batch_id=isset($_POST['batch_id'])?absint($_POST['batch_id']):0;
 		check_admin_referer('ufsc_lc_ffst_apply_'.$batch_id,'ufsc_lc_ffst_apply_nonce');
 		$service=new UFSC_LC_FFST_Import_Service();
-		$ids=isset($_POST['selected_row_ids'])?(array)wp_unslash($_POST['selected_row_ids']):array();
-		$result=$service->apply_batch($batch_id,$ids);
+        // Explicit scope: checked rows on this page OR all verified matches
+        // across every page of this batch, within the existing 500-row cap.
+        // Never trust a client-provided global ID list or filter.
+        $selection_scope=isset($_POST['ffst_selection_scope'])?sanitize_key(wp_unslash($_POST['ffst_selection_scope'])):'page';
+        if(!in_array($selection_scope,array('page','all_filtered'),true)){
+            $this->redirect_notice('error','Mode de sélection FFST invalide : aucune modification.',$batch_id);
+        }
+        $ids=isset($_POST['selected_row_ids'])?(array)wp_unslash($_POST['selected_row_ids']):array();
+        if('all_filtered'===$selection_scope){
+            $batch=$service->get_batch($batch_id);
+            $source_total=$service->get_batch_row_count($batch_id);
+            if(!$batch || (int)$batch->total_rows!==$source_total){
+                $this->redirect_notice('error','Intégrité du lot FFST incohérente : aucune modification.',$batch_id);
+            }
+            $search=isset($_POST['ffst_search'])&&is_string($_POST['ffst_search'])
+                ?sanitize_text_field(wp_unslash($_POST['ffst_search'])):'';
+            $search=function_exists('mb_substr')?mb_substr(trim($search),0,100):substr(trim($search),0,100);
+            $club=isset($_POST['ffst_club'])&&is_string($_POST['ffst_club'])
+                ?sanitize_text_field(wp_unslash($_POST['ffst_club'])):'';
+            if(''!==$club && !$service->batch_club_in_summary($service->get_batch_club_summary($batch_id,250),$club)){
+                $this->redirect_notice('error','Filtre club FFST non reconnu : aucune modification.',$batch_id);
+            }
+            $count=$service->count_batch_rows_filtered($batch_id,UFSC_LC_FFST_Import_Service::MATCHED,$search,$club);
+            if($count<1 || $count>500){
+                $this->redirect_notice('error','La sélection globale doit contenir entre 1 et 500 correspondances confirmées. Aucun changement.',$batch_id);
+            }
+            $all_rows=$service->get_batch_rows_filtered($batch_id,UFSC_LC_FFST_Import_Service::MATCHED,$search,500,0,$club);
+            if(count($all_rows)!==$count){
+                $this->redirect_notice('error','La sélection du lot a changé : aucune modification. Actualisez la page.',$batch_id);
+            }
+            $ids=array_map(static function($row){return absint($row->id);},$all_rows);
+        }
+        try{
+            $result=$service->apply_batch($batch_id,$ids);
+        }catch(Throwable $error){
+            // The exception can occur after some writes: NEVER retry silently.
+            // Do not log sensitive person details or source file contents.
+            error_log('UFSC FFST apply exception '.get_class($error).' in '.basename($error->getFile()).':'.$error->getLine());
+            $this->redirect_notice('error','Erreur technique pendant le rapprochement. Vérifiez les résultats déjà enregistrés avant toute nouvelle tentative et consultez le journal PHP.',$batch_id);
+        }
 		if(is_wp_error($result)) $this->redirect_notice('error',$result->get_error_message(),$batch_id);
         // Rapprochement FFST = numéro inscrit, PAS encore statut UFSC validé.
         // Passage immédiat à l'écran de confirmation pour les administrateurs.
@@ -289,7 +327,18 @@ class UFSC_LC_FFST_Import_Page {
 						<input type="hidden" name="action" value="ufsc_lc_ffst_apply">
 						<input type="hidden" name="batch_id" value="<?php echo esc_attr($batch->id); ?>">
 						<?php wp_nonce_field('ufsc_lc_ffst_apply_'.$batch->id,'ufsc_lc_ffst_apply_nonce'); ?>
-						<p class="description"><?php esc_html_e('Sélectionnez uniquement les rapprochements vérifiés. Les doublons, conflits et dossiers ambigus sont bloqués. La sélection concerne cette page.','ufsc-licence-competition'); ?></p>
+                        <input type="hidden" name="ffst_search" value="<?php echo esc_attr($lot_search); ?>">
+                        <input type="hidden" name="ffst_club" value="<?php echo esc_attr($club_filter); ?>">
+                        <?php $eligible_global_count=$counts_consistent?$service->count_batch_rows_filtered($batch_id,UFSC_LC_FFST_Import_Service::MATCHED,$lot_search,$club_filter):0; ?>
+                        <fieldset class="ufsc-ffst-selection-mode" style="border:1px solid #c3c4c7;border-radius:8px;background:#f6f7f7;padding:12px 16px;margin:12px 0">
+                            <legend><strong>Portée de la sélection</strong></legend>
+                            <label style="display:block;margin:6px 0"><input type="radio" name="ffst_selection_scope" value="page" checked> Licences cochées sur cette page</label>
+                            <label style="display:block;margin:6px 0"><input type="radio" name="ffst_selection_scope" value="all_filtered" <?php disabled(!$counts_consistent || $eligible_global_count<1 || $eligible_global_count>500); ?>>
+                                Toutes les correspondances vérifiées de ce lot, sur toutes les pages<?php echo esc_html(' ('.$eligible_global_count.' éligible(s)'.(''!==$lot_search || ''!==$club_filter?' selon les filtres globaux':'').')'); ?>
+                            </label>
+                            <p class="description">Les lignes introuvables, conflictuelles, ambiguës ou déjà appliquées sont exclues. Maximum 500 par opération ; au-delà, filtrer par club.</p>
+                        </fieldset>
+						<p class="description"><?php esc_html_e('Confirmez uniquement les correspondances certaines. Le choix global est recalculé côté serveur avant toute écriture.','ufsc-licence-competition'); ?></p>
 					<div style="overflow-x:auto;max-height:600px;overflow-y:auto">
 						<div class="ufsc-lc-ffst-import-grid" role="table" aria-label="<?php esc_attr_e('Prévisualisation des licences FFST','ufsc-licence-competition'); ?>">
 							<div class="ufsc-lc-ffst-import-record ufsc-lc-ffst-import-header" role="row">
@@ -373,6 +422,13 @@ class UFSC_LC_FFST_Import_Page {
                         rows.forEach(function(row){
                             var checkbox=row.querySelector('input[name="selected_row_ids[]"]');
                             if(checkbox)checkbox.addEventListener('change',refreshSelection);
+                        });
+                        var scopeControls=Array.prototype.slice.call(document.querySelectorAll('input[name="ffst_selection_scope"]'));
+                        var applyForm=document.getElementById('ufsc-ffst-apply-form');
+                        if(applyForm)applyForm.addEventListener('submit',function(event){
+                            var globalSelected=scopeControls.some(function(c){return c.checked&&c.value==='all_filtered';});
+                            var selected=rows.some(function(r){var c=r.querySelector('input[name="selected_row_ids[]"]');return c&&c.checked;});
+                            if(!globalSelected&&!selected){event.preventDefault();window.alert('Sélectionnez au moins une correspondance à rapprocher.');}
                         });
                         if(selectAll)selectAll.addEventListener('change',function(){
                             rows.forEach(function(row){
