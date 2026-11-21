@@ -53,7 +53,26 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			return;
 		}
 
-		$result = self::maybe_generate_for_licence( $licence_id, true );
+        // DOM is a PHP extension used by Dompdf. PDF generation is an
+        // optional side effect of FFST synchronisation; missing extensions
+        // must never interrupt a committed federation-number import.
+        if ( ! class_exists( 'DOMImplementation' ) || ! class_exists( 'DOMDocument' ) ) {
+            self::log( 'import_pdf_generation_skipped', $licence_id, array(
+                'import_batch_id' => sanitize_text_field( (string) $import_batch_id ),
+                'error' => 'php_dom_extension_missing',
+            ) );
+            return;
+        }
+        try {
+            $result = self::maybe_generate_for_licence( $licence_id, true );
+        } catch ( Throwable $error ) {
+            self::log( 'import_pdf_generation_skipped', $licence_id, array(
+                'import_batch_id' => sanitize_text_field( (string) $import_batch_id ),
+                'error' => 'pdf_generator_exception',
+            ) );
+            error_log( 'UFSC PDF generation hook: ' . get_class( $error ) . ' in ' . basename( $error->getFile() ) . ':' . $error->getLine() );
+            return;
+        }
 		if ( is_wp_error( $result ) ) {
 			self::log(
 				'import_pdf_generation_skipped',
