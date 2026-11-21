@@ -1,0 +1,23 @@
+name: FFST official XLSX import safeguards
+on:
+  pull_request:
+    paths:
+      - 'includes/import/class-ufsc-lc-ffst-import-service.php'
+      - 'tests/ffst-official-xlsx-normalization-runtime-test.php'
+      - '.github/workflows/ffst-official-xlsx-import.yml'
+  workflow_dispatch:
+jobs:
+  ffst-official-xlsx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, zip
+      - name: Syntax check
+        run: |
+          php -l includes/import/class-ufsc-lc-ffst-import-service.php
+          php -l tests/ffst-official-xlsx-normalization-runtime-test.php
+      - name: Official FFST XLSX normalization regression
+        run: php tests/ffst-official-xlsx-normalization-runtime-test.php
