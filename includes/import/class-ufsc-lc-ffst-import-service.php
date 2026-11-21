@@ -415,6 +415,7 @@ class UFSC_LC_FFST_Import_Service {
                 'first_name' => (string) $row->first_name,
                 'birthdate' => (string) $row->birthdate,
                 'club_name' => (string) $row->club_name,
+                'sex' => (string) ( $row->sex ?? '' ),
             ), $expected_end);
             if(self::MATCHED!==$verified['status'] || absint($verified['licence_id'])!==$id){
                 return new WP_Error('ffst_recheck_mismatch',sprintf(__('Rapprochement devenu incertain pour la licence UFSC #%d : associez le bon club ou vérifiez le lot avant de réessayer. Aucune écriture.','ufsc-licence-competition'),$id));
@@ -985,11 +986,12 @@ class UFSC_LC_FFST_Import_Service {
 
 		$candidate=$candidates[0];
         // A known conflicting UFSC gender must not receive this FFST number.
-        if(isset($candidate->licence_sex) && ''!==trim((string)$candidate->licence_sex) && ''!==$d['sex']){
+        $source_sex = strtoupper(trim((string)($d['sex'] ?? '')));
+        if(isset($candidate->licence_sex) && ''!==trim((string)$candidate->licence_sex) && ''!==$source_sex){
             $sex_value=$this->key($candidate->licence_sex);
             $sex_value=in_array($sex_value,array('m','masculin','homme','male'),true)?'M'
                 :(in_array($sex_value,array('f','feminin','femme','female'),true)?'F':'');
-            if(''===$sex_value || $sex_value!==$d['sex']){
+            if(''===$sex_value || $sex_value!==$source_sex){
                 return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Genre FFST différent du dossier UFSC : vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
             }
         }
