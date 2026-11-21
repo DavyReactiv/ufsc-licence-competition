@@ -5,32 +5,67 @@ class UFSC_LC_FFST_Import_Service {
 	const MATCHED='matched', AMBIGUOUS='ambiguous', NOT_FOUND='not_found', CONFLICT='conflict', APPLIED='applied';
 	const MAX_UPLOAD_BYTES=10485760;
 
-	public function create_tables(){
-		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php';
-		$c=$wpdb->get_charset_collate(); $b=$this->batches_table(); $r=$this->rows_table();
-		dbDelta("CREATE TABLE {$b} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
-			file_name varchar(255) NOT NULL,file_type varchar(16) NOT NULL,
-			season_end_year smallint unsigned NOT NULL DEFAULT 0,status varchar(24) NOT NULL DEFAULT 'preview',
-			total_rows int unsigned NOT NULL DEFAULT 0,matched_rows int unsigned NOT NULL DEFAULT 0,
-			ambiguous_rows int unsigned NOT NULL DEFAULT 0,conflict_rows int unsigned NOT NULL DEFAULT 0,
-			not_found_rows int unsigned NOT NULL DEFAULT 0,applied_rows int unsigned NOT NULL DEFAULT 0,
-			created_at datetime NOT NULL,applied_at datetime NULL,
-			PRIMARY KEY (id),KEY idx_status (status),KEY idx_created (created_at)
-		) {$c};");
-		dbDelta("CREATE TABLE {$r} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,batch_id bigint(20) unsigned NOT NULL,row_index int unsigned NOT NULL,
-			ffst_number varchar(64) NULL,last_name varchar(190) NULL,first_name varchar(190) NULL,birthdate date NULL,
-			sex varchar(16) NULL,club_name varchar(255) NULL,address varchar(255) NULL,postal_code varchar(20) NULL,city varchar(190) NULL,
-			discipline varchar(190) NULL,role_name varchar(190) NULL,federal_references varchar(255) NULL,issued_at date NULL,
-			source_club_code varchar(190) NULL,source_holder_ref varchar(190) NULL,source_code varchar(64) NULL,
-			match_status varchar(24) NOT NULL DEFAULT 'pending',match_licence_id bigint(20) unsigned NULL,match_message text NULL,
-			previous_ffst_number varchar(64) NULL,raw_payload longtext NULL,applied_at datetime NULL,
-			PRIMARY KEY (id),UNIQUE KEY uniq_batch_row (batch_id,row_index),KEY idx_batch_status (batch_id,match_status),
-			KEY idx_match_licence (match_licence_id),KEY idx_ffst (ffst_number)
-		) {$c};");
-	}
+    public function create_tables(){
+        global $wpdb;
+        require_once ABSPATH.'wp-admin/includes/upgrade.php';
+        $c=$wpdb->get_charset_collate();
+        $b=$this->batches_table();
+        $r=$this->rows_table();
+        // WordPress dbDelta requires ONE column/key definition per line;
+        // concatenating fields and KEYs causes invalid ALTER TABLE statements
+        // and duplicate primary keys on existing production tables.
+        dbDelta("CREATE TABLE {$b} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            file_name varchar(255) NOT NULL,
+            file_type varchar(16) NOT NULL,
+            season_end_year smallint unsigned NOT NULL DEFAULT 0,
+            status varchar(24) NOT NULL DEFAULT 'preview',
+            total_rows int unsigned NOT NULL DEFAULT 0,
+            matched_rows int unsigned NOT NULL DEFAULT 0,
+            ambiguous_rows int unsigned NOT NULL DEFAULT 0,
+            conflict_rows int unsigned NOT NULL DEFAULT 0,
+            not_found_rows int unsigned NOT NULL DEFAULT 0,
+            applied_rows int unsigned NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            applied_at datetime NULL,
+            PRIMARY KEY  (id),
+            KEY idx_status (status),
+            KEY idx_created (created_at)
+        ) {$c};");
+        dbDelta("CREATE TABLE {$r} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            batch_id bigint(20) unsigned NOT NULL,
+            row_index int unsigned NOT NULL,
+            ffst_number varchar(64) NULL,
+            last_name varchar(190) NULL,
+            first_name varchar(190) NULL,
+            birthdate date NULL,
+            sex varchar(16) NULL,
+            club_name varchar(255) NULL,
+            address varchar(255) NULL,
+            postal_code varchar(20) NULL,
+            city varchar(190) NULL,
+            discipline varchar(190) NULL,
+            role_name varchar(190) NULL,
+            federal_references varchar(255) NULL,
+            issued_at date NULL,
+            source_club_code varchar(190) NULL,
+            source_holder_ref varchar(190) NULL,
+            source_code varchar(64) NULL,
+            match_status varchar(24) NOT NULL DEFAULT 'pending',
+            match_licence_id bigint(20) unsigned NULL,
+            match_message text NULL,
+            previous_ffst_number varchar(64) NULL,
+            raw_payload longtext NULL,
+            applied_at datetime NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uniq_batch_row (batch_id,row_index),
+            KEY idx_batch_status (batch_id,match_status),
+            KEY idx_match_licence (match_licence_id),
+            KEY idx_ffst (ffst_number)
+        ) {$c};");
+    }
 
 	public function stage_upload(array $file,$season_end_year){
 		$v=$this->validate_upload($file); if(is_wp_error($v)) return $v;
