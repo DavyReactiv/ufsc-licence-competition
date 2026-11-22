@@ -4,6 +4,8 @@ $root=dirname(__DIR__);
 $import=file_get_contents($root.'/includes/import/class-ufsc-lc-ffst-import-service.php');
 $pdf=file_get_contents($root.'/includes/class-ufsc-lc-licence-pdf-generator.php');
 $checks=array(
+    'Club/admin PDF checks DOM without fatal' => strpos($pdf,"'ufsc_lc_pdf_dom_missing'")!==false
+        && strpos($pdf,"catch ( Throwable \$exception )")!==false,
     'PDF hook checks DOMImplementation before rendering' => strpos($pdf,"! class_exists( 'DOMImplementation' )")!==false,
     'PDF hook catches all Throwable without breaking import' => strpos($pdf,"catch ( Throwable \$error )")!==false,
     'PDF hook records skipped generation' => strpos($pdf,"'php_dom_extension_missing'")!==false,
