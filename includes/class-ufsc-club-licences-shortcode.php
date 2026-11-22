@@ -773,18 +773,24 @@ class UFSC_LC_Club_Licences_Shortcode {
 		return $html;
 	}
 
-	private function get_generate_pdf_url( $licence_id ): string {
-		return wp_nonce_url(
-			add_query_arg(
-				array(
-					'action'     => 'ufsc_lc_generate_club_pdf',
-					'licence_id' => absint( $licence_id ),
-				),
-				admin_url( 'admin-post.php' )
-			),
-			'ufsc_lc_generate_club_pdf_' . absint( $licence_id )
-		);
-	}
+    private function get_generate_pdf_url( $licence_id ): string {
+        // The club action opens in a new tab, which often has no referrer.
+        // Bind the return location to the actual page rendering this shortcode.
+        $page_id = get_queried_object_id();
+        $return_url = $page_id ? get_permalink( $page_id ) : '';
+        $return_url = is_string( $return_url ) ? wp_validate_redirect( $return_url, '' ) : '';
+        return wp_nonce_url(
+            add_query_arg(
+                array(
+                    'action'      => 'ufsc_lc_generate_club_pdf',
+                    'licence_id'  => absint( $licence_id ),
+                    'redirect_to' => $return_url,
+                ),
+                admin_url( 'admin-post.php' )
+            ),
+            'ufsc_lc_generate_club_pdf_' . absint( $licence_id )
+        );
+    }
 
 	public function handle_generate_club_pdf() {
 		if ( ! is_user_logged_in() ) {
@@ -804,12 +810,28 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( ! empty( $scope_check['denied'] ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
-		$redirect = wp_get_referer() ? wp_get_referer() : home_url( '/' );
+        // Never redirect PDF result to the homepage: the site may enforce
+        // its own homepage redirects, and target=_blank loses Referer.
+        // Only a same-site, non-root front page can receive the notice.
+        $redirect = isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] )
+            ? wp_validate_redirect( esc_url_raw( wp_unslash( $_GET['redirect_to'] ) ), '' )
+            : '';
+        $redirect_path = $redirect ? (string) wp_parse_url( $redirect, PHP_URL_PATH ) : '';
+        if ( ! $redirect || '/' === $redirect_path || '' === $redirect_path || 0 === strpos( $redirect_path, '/wp-admin/' ) ) {
+            wp_die(
+                esc_html__( 'Impossible de retrouver la page des licences du club. Revenez à vos licences puis réessayez.', 'ufsc-licence-competition' ),
+                esc_html__( 'Retour vers le compte club indisponible', 'ufsc-licence-competition' ),
+                array( 'response' => 400 )
+            );
+        }
+        $redirect = remove_query_arg( array( 'ufsc_club_pdf_status', 'ufsc_club_pdf_message' ), $redirect );
 		$result = class_exists( 'UFSC_LC_Licence_Pdf_Generator' )
 			? UFSC_LC_Licence_Pdf_Generator::maybe_generate_for_licence( $licence_id, false )
 			: new WP_Error( 'ufsc_lc_pdf_missing_generator', __( 'Le générateur PDF est indisponible.', 'ufsc-licence-competition' ) );
-		if ( is_wp_error( $result ) ) {
-			$redirect = add_query_arg(
+        if ( is_wp_error( $result ) ) {
+            // Error code only, no member personal information in the log.
+            error_log( 'UFSC club PDF generation failed: ' . sanitize_key( $result->get_error_code() ) );
+            $redirect = add_query_arg(
 				array(
 					'ufsc_club_pdf_status'  => 'error',
 					'ufsc_club_pdf_message' => $result->get_error_message(),
