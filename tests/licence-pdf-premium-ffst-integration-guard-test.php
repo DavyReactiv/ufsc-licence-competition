@@ -25,7 +25,6 @@ $required_php = array(
 	"'licence-ufsc'",
 	"'first_name'",
 	"'last_name'",
-	"ufsc_lc_ffst_import_synced",
 	'resolve_ffst_license_number',
 	"numero_licence_ffst",
 	"EN ATTENTE D’ATTRIBUTION",
@@ -47,6 +46,16 @@ foreach ( $required_php as $needle ) {
 	if ( false === strpos( $php, $needle ) ) {
 		$errors[] = "generator missing: {$needle}";
 	}
+}
+
+// Federation import is now independent from PDF rendering. Keep the
+// admin's manual generation endpoint and existing A4 document contract.
+if ( false === strpos( $php, "admin_post_ufsc_lc_generate_licence_pdf" )
+    || false === strpos( $php, "function handle_manual_generation()" ) ) {
+    $errors[] = 'manual PDF generation must remain available';
+}
+if ( false !== strpos( $php, "add_action( 'ufsc_lc_ffst_import_synced'," ) ) {
+    $errors[] = 'bulk FFST import must not trigger automatic PDF generation';
 }
 
 if ( false !== strpos( $php, "UFSC-%04d-%06d" ) || false !== strpos( $php, "GET_LOCK" ) || false !== strpos( $php, "ufsc_lc_number_sequence_" ) ) {

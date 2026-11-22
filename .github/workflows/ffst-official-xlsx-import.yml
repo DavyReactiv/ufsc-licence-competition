@@ -1,0 +1,41 @@
+name: FFST official XLSX import safeguards
+on:
+  pull_request:
+    paths:
+      - 'includes/import/class-ufsc-lc-ffst-import-service.php'
+      - 'tests/ffst-official-xlsx-normalization-runtime-test.php'
+      - 'tests/ffst-avlh-multipage-pdf-layout-runtime-test.php'
+      - 'tests/ffst-global-selection-safety-static-test.php'
+      - 'includes/admin/class-ufsc-lc-ffst-import-page.php'
+      - 'includes/class-ufsc-lc-licence-pdf-generator.php'
+      - 'tests/ffst-php83-dom-dbdelta-safety-static-test.php'
+      - '.github/workflows/ffst-official-xlsx-import.yml'
+  workflow_dispatch:
+jobs:
+  ffst-official-xlsx:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, zip
+      - name: Syntax check
+        run: |
+          php -l includes/import/class-ufsc-lc-ffst-import-service.php
+          php -l tests/ffst-official-xlsx-normalization-runtime-test.php
+          php -l tests/ffst-avlh-multipage-pdf-layout-runtime-test.php
+          php -l includes/admin/class-ufsc-lc-ffst-import-page.php
+          php -l tests/ffst-global-selection-safety-static-test.php
+          php -l includes/class-ufsc-lc-licence-pdf-generator.php
+          php -l tests/ffst-php83-dom-dbdelta-safety-static-test.php
+      - name: Official FFST XLSX normalization regression
+        run: |
+          php tests/ffst-official-xlsx-normalization-runtime-test.php
+          php tests/ffst-avlh-multipage-pdf-layout-runtime-test.php
+          php tests/ffst-native-pdf-parser-test.php
+          php tests/ffst-global-selection-safety-static-test.php
+          php tests/ffst-php83-dom-dbdelta-safety-static-test.php

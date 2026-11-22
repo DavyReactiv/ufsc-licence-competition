@@ -22,7 +22,9 @@ final class UFSC_LC_Licence_Pdf_Generator {
 	public static function register() {
 		add_action( 'ufsc_licence_validated', array( __CLASS__, 'handle_licence_event' ), 20, 2 );
 		add_action( 'ufsc_licence_created', array( __CLASS__, 'handle_licence_event' ), 30, 2 );
-		add_action( 'ufsc_lc_ffst_import_synced', array( __CLASS__, 'handle_import_sync' ), 20, 2 );
+        // Federation import must be independent from PDF rendering. Generated
+        // documents can be requested manually by admins/clubs via the
+        // existing PDF actions; no PDF generation on bulk FFST sync.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_generate_after_status_redirect' ), 50 );
 		add_action( 'admin_post_ufsc_lc_generate_licence_pdf', array( __CLASS__, 'handle_manual_generation' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'register_admin_page' ), 45 );
@@ -53,7 +55,26 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			return;
 		}
 
-		$result = self::maybe_generate_for_licence( $licence_id, true );
+        // DOM is a PHP extension used by Dompdf. PDF generation is an
+        // optional side effect of FFST synchronisation; missing extensions
+        // must never interrupt a committed federation-number import.
+        if ( ! class_exists( 'DOMImplementation' ) || ! class_exists( 'DOMDocument' ) ) {
+            self::log( 'import_pdf_generation_skipped', $licence_id, array(
+                'import_batch_id' => sanitize_text_field( (string) $import_batch_id ),
+                'error' => 'php_dom_extension_missing',
+            ) );
+            return;
+        }
+        try {
+            $result = self::maybe_generate_for_licence( $licence_id, true );
+        } catch ( Throwable $error ) {
+            self::log( 'import_pdf_generation_skipped', $licence_id, array(
+                'import_batch_id' => sanitize_text_field( (string) $import_batch_id ),
+                'error' => 'pdf_generator_exception',
+            ) );
+            error_log( 'UFSC PDF generation hook: ' . get_class( $error ) . ' in ' . basename( $error->getFile() ) . ':' . $error->getLine() );
+            return;
+        }
 		if ( is_wp_error( $result ) ) {
 			self::log(
 				'import_pdf_generation_skipped',

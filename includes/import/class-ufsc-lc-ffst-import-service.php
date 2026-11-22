@@ -5,32 +5,67 @@ class UFSC_LC_FFST_Import_Service {
 	const MATCHED='matched', AMBIGUOUS='ambiguous', NOT_FOUND='not_found', CONFLICT='conflict', APPLIED='applied';
 	const MAX_UPLOAD_BYTES=10485760;
 
-	public function create_tables(){
-		global $wpdb; require_once ABSPATH.'wp-admin/includes/upgrade.php';
-		$c=$wpdb->get_charset_collate(); $b=$this->batches_table(); $r=$this->rows_table();
-		dbDelta("CREATE TABLE {$b} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) unsigned NOT NULL DEFAULT 0,
-			file_name varchar(255) NOT NULL,file_type varchar(16) NOT NULL,
-			season_end_year smallint unsigned NOT NULL DEFAULT 0,status varchar(24) NOT NULL DEFAULT 'preview',
-			total_rows int unsigned NOT NULL DEFAULT 0,matched_rows int unsigned NOT NULL DEFAULT 0,
-			ambiguous_rows int unsigned NOT NULL DEFAULT 0,conflict_rows int unsigned NOT NULL DEFAULT 0,
-			not_found_rows int unsigned NOT NULL DEFAULT 0,applied_rows int unsigned NOT NULL DEFAULT 0,
-			created_at datetime NOT NULL,applied_at datetime NULL,
-			PRIMARY KEY (id),KEY idx_status (status),KEY idx_created (created_at)
-		) {$c};");
-		dbDelta("CREATE TABLE {$r} (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,batch_id bigint(20) unsigned NOT NULL,row_index int unsigned NOT NULL,
-			ffst_number varchar(64) NULL,last_name varchar(190) NULL,first_name varchar(190) NULL,birthdate date NULL,
-			sex varchar(16) NULL,club_name varchar(255) NULL,address varchar(255) NULL,postal_code varchar(20) NULL,city varchar(190) NULL,
-			discipline varchar(190) NULL,role_name varchar(190) NULL,federal_references varchar(255) NULL,issued_at date NULL,
-			source_club_code varchar(190) NULL,source_holder_ref varchar(190) NULL,source_code varchar(64) NULL,
-			match_status varchar(24) NOT NULL DEFAULT 'pending',match_licence_id bigint(20) unsigned NULL,match_message text NULL,
-			previous_ffst_number varchar(64) NULL,raw_payload longtext NULL,applied_at datetime NULL,
-			PRIMARY KEY (id),UNIQUE KEY uniq_batch_row (batch_id,row_index),KEY idx_batch_status (batch_id,match_status),
-			KEY idx_match_licence (match_licence_id),KEY idx_ffst (ffst_number)
-		) {$c};");
-	}
+    public function create_tables(){
+        global $wpdb;
+        require_once ABSPATH.'wp-admin/includes/upgrade.php';
+        $c=$wpdb->get_charset_collate();
+        $b=$this->batches_table();
+        $r=$this->rows_table();
+        // WordPress dbDelta requires ONE column/key definition per line;
+        // concatenating fields and KEYs causes invalid ALTER TABLE statements
+        // and duplicate primary keys on existing production tables.
+        dbDelta("CREATE TABLE {$b} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            file_name varchar(255) NOT NULL,
+            file_type varchar(16) NOT NULL,
+            season_end_year smallint unsigned NOT NULL DEFAULT 0,
+            status varchar(24) NOT NULL DEFAULT 'preview',
+            total_rows int unsigned NOT NULL DEFAULT 0,
+            matched_rows int unsigned NOT NULL DEFAULT 0,
+            ambiguous_rows int unsigned NOT NULL DEFAULT 0,
+            conflict_rows int unsigned NOT NULL DEFAULT 0,
+            not_found_rows int unsigned NOT NULL DEFAULT 0,
+            applied_rows int unsigned NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            applied_at datetime NULL,
+            PRIMARY KEY  (id),
+            KEY idx_status (status),
+            KEY idx_created (created_at)
+        ) {$c};");
+        dbDelta("CREATE TABLE {$r} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            batch_id bigint(20) unsigned NOT NULL,
+            row_index int unsigned NOT NULL,
+            ffst_number varchar(64) NULL,
+            last_name varchar(190) NULL,
+            first_name varchar(190) NULL,
+            birthdate date NULL,
+            sex varchar(16) NULL,
+            club_name varchar(255) NULL,
+            address varchar(255) NULL,
+            postal_code varchar(20) NULL,
+            city varchar(190) NULL,
+            discipline varchar(190) NULL,
+            role_name varchar(190) NULL,
+            federal_references varchar(255) NULL,
+            issued_at date NULL,
+            source_club_code varchar(190) NULL,
+            source_holder_ref varchar(190) NULL,
+            source_code varchar(64) NULL,
+            match_status varchar(24) NOT NULL DEFAULT 'pending',
+            match_licence_id bigint(20) unsigned NULL,
+            match_message text NULL,
+            previous_ffst_number varchar(64) NULL,
+            raw_payload longtext NULL,
+            applied_at datetime NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY uniq_batch_row (batch_id,row_index),
+            KEY idx_batch_status (batch_id,match_status),
+            KEY idx_match_licence (match_licence_id),
+            KEY idx_ffst (ffst_number)
+        ) {$c};");
+    }
 
 	public function stage_upload(array $file,$season_end_year){
 		$v=$this->validate_upload($file); if(is_wp_error($v)) return $v;
@@ -415,6 +450,7 @@ class UFSC_LC_FFST_Import_Service {
                 'first_name' => (string) $row->first_name,
                 'birthdate' => (string) $row->birthdate,
                 'club_name' => (string) $row->club_name,
+                'sex' => (string) ( $row->sex ?? '' ),
             ), $expected_end);
             if(self::MATCHED!==$verified['status'] || absint($verified['licence_id'])!==$id){
                 return new WP_Error('ffst_recheck_mismatch',sprintf(__('Rapprochement devenu incertain pour la licence UFSC #%d : associez le bon club ou vérifiez le lot avant de réessayer. Aucune écriture.','ufsc-licence-competition'),$id));
@@ -842,7 +878,50 @@ class UFSC_LC_FFST_Import_Service {
 		$m=array();foreach($record as $k=>$v)$m[$this->key($k)]=is_scalar($v)?trim((string)$v):'';
 		$get=function($keys)use($m){foreach($keys as $k){$k=$this->key($k);if(isset($m[$k])&&''!==$m[$k])return$m[$k];}return'';};
 		$a=$get(array('adresse','address'));$cp=$get(array('code postal','cp'));$city=$get(array('ville','city'));if((''===$cp||''===$city)&&preg_match('/\\b(\\d{5})\\s+([^,]+)$/u',$a,$x)){$cp=$cp?:$x[1];$city=$city?:trim($x[2]);}
-		return array('ffst_number'=>strtoupper($get(array('n ffst','numero ffst','n licence ffst','licence ffst','licence'))),'last_name'=>strtoupper($get(array('nom','nom licencie'))),'first_name'=>$get(array('prenom','prenom licencie')),'birthdate'=>$this->date($get(array('date de naissance','ne le','naissance'))),'sex'=>strtoupper($get(array('sexe','genre'))),'club_name'=>$get(array('club','nom club','association')),'address'=>$a,'postal_code'=>$cp,'city'=>$city,'discipline'=>$get(array('discipline','activite')),'role_name'=>$get(array('fonction','role','qualite')),'federal_references'=>$get(array('references federales','references','refs federales')),'issued_at'=>$this->date($get(array('delivree le','date delivrance'))),'source_club_code'=>$get(array('code club','mention source','code club source')),'source_holder_ref'=>$get(array('reference titulaire','ref titulaire')),'source_code'=>$get(array('code source','source code')));
+        // Official FFST XLSX supports a combined full name, Excel serial dates,
+        // numeric-only licence numbers and long-form gender values.
+        // No identity or gender is ever inferred from a number alone.
+        $last = strtoupper( $get( array( 'nom', 'nom licencie' ) ) );
+        $first = $get( array( 'prenom', 'prenom licencie' ) );
+        if ( '' === $last && '' === $first ) {
+            $identity = $this->split_official_full_name( $get( array( 'nom et prenom', 'nom prenom' ) ) );
+            $last = $identity[0];
+            $first = $identity[1];
+        }
+        $sex_raw = $this->key( $get( array( 'sexe', 'genre' ) ) );
+        $sex = in_array( $sex_raw, array( 'm', 'masculin', 'homme', 'male' ), true ) ? 'M'
+            : ( in_array( $sex_raw, array( 'f', 'feminin', 'femme', 'female' ), true ) ? 'F' : '' );
+        $number = strtoupper( $get( array( 'n licence', 'n ffst', 'numero ffst', 'n licence ffst', 'licence ffst', 'licence' ) ) );
+        if ( preg_match( '/^[0-9]+$/D', $number ) ) {
+            // Keep leading zeroes; no prefix when gender is missing/unknown.
+            $number = $sex ? $sex . $number : '';
+        } elseif ( preg_match( '/^[MF][0-9]+$/D', $number ) ) {
+            if ( $sex && $number[0] !== $sex ) { $number = ''; }
+        }
+        $club_raw = $get( array( 'club', 'nom club', 'association' ) );
+        $club_code = $get( array( 'code club', 'mention source', 'code club source' ) );
+        if ( preg_match( '/^([0-9]+)\s+-\s+(.+)$/u', $club_raw, $cm ) ) {
+            if ( '' === $club_code ) { $club_code = $cm[1]; }
+            $club_raw = trim( $cm[2] );
+        }
+        $state = $this->key( $get( array( 'statut', 'etat' ) ) );
+        if ( '' !== $state && ! in_array( $state, array( 'active', 'actif', 'activee', 'valide', 'validee' ), true ) ) {
+            // No automatic federation matching for non-active rows.
+            $number = '';
+        }
+        return array(
+            'ffst_number' => $number, 'last_name' => $last, 'first_name' => $first,
+            'birthdate' => $this->date( $get( array( 'date de naissance', 'ne le', 'naissance' ) ) ),
+            'sex' => $sex, 'club_name' => $club_raw,
+            'address' => $a, 'postal_code' => $cp, 'city' => $city,
+            'discipline' => $get( array( 'discipline', 'activite' ) ),
+            'role_name' => $get( array( 'fonction', 'role', 'qualite' ) ),
+            'federal_references' => $get( array( 'references federales', 'references', 'refs federales' ) ),
+            'issued_at' => $this->date( $get( array( 'date entree', 'delivree le', 'date delivrance' ) ) ),
+            'source_club_code' => $club_code,
+            'source_holder_ref' => $get( array( 'reference titulaire', 'ref titulaire' ) ),
+            'source_code' => $get( array( 'code source', 'source code' ) ),
+        );
 	}
 	private function resolve_match(array $d,$season){
 		global $wpdb;
@@ -884,6 +963,8 @@ class UFSC_LC_FFST_Import_Service {
 		// Never fuzzy-match identities; ambiguous candidates remain blocked.
 		$select[]="{$last} AS last_name";
 		$select[]='l.prenom AS first_name';
+        $sex_column=$this->column_exists($lt,'sexe')?'sexe':($this->column_exists($lt,'genre')?'genre':'');
+        if($sex_column)$select[]='l.'.$sex_column.' AS licence_sex';
 		$sql="SELECT ".implode(',',$select)." FROM {$lt} l LEFT JOIN {$ct} c ON c.id=l.club_id
 			WHERE l.date_naissance=%s ORDER BY l.id DESC LIMIT 501";
 		$birth_candidates=$wpdb->get_results($wpdb->prepare($sql,$d['birthdate']));
@@ -939,6 +1020,16 @@ class UFSC_LC_FFST_Import_Service {
 		}
 
 		$candidate=$candidates[0];
+        // A known conflicting UFSC gender must not receive this FFST number.
+        $source_sex = strtoupper(trim((string)($d['sex'] ?? '')));
+        if(isset($candidate->licence_sex) && ''!==trim((string)$candidate->licence_sex) && ''!==$source_sex){
+            $sex_value=$this->key($candidate->licence_sex);
+            $sex_value=in_array($sex_value,array('m','masculin','homme','male'),true)?'M'
+                :(in_array($sex_value,array('f','feminin','femme','female'),true)?'F':'');
+            if(''===$sex_value || $sex_value!==$source_sex){
+                return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Genre FFST différent du dossier UFSC : vérification manuelle obligatoire.','ufsc-licence-competition'),'previous_ffst'=>'');
+            }
+        }
         if($number_owner_id && $number_owner_id!==absint($candidate->id)){
             return array('status'=>self::CONFLICT,'licence_id'=>0,'message'=>__('Ce numéro FFST appartient à une autre fiche UFSC. Aucune association autorisée.','ufsc-licence-competition'),'previous_ffst'=>'');
         }
@@ -964,7 +1055,36 @@ class UFSC_LC_FFST_Import_Service {
 	private function write_pdf_meta($id,$r){foreach(array('ffst_references'=>$r->federal_references,'ffst_issued_at'=>$r->issued_at,'ffst_club_code'=>$r->source_club_code,'ffst_holder_reference'=>$r->source_holder_ref,'ffst_source_code'=>$r->source_code) as $k=>$v)if(''!==trim((string)$v))$this->meta($id,$k,$v);}
 	private function meta($id,$k,$v){global$wpdb;$t=$wpdb->prefix.'ufsc_licence_documents_meta';if(!$this->table_exists($t))return;$mid=$wpdb->get_var($wpdb->prepare("SELECT id FROM {$t} WHERE licence_id=%d AND source=%s AND meta_key=%s LIMIT 1",$id,'UFSC',$k));$d=array('licence_id'=>$id,'source'=>'UFSC','meta_key'=>$k,'meta_value'=>maybe_serialize($v),'updated_at'=>current_time('mysql'));if($mid)$wpdb->update($t,$d,array('id'=>absint($mid)),array('%d','%s','%s','%s','%s'),array('%d'));else$wpdb->insert($t,$d,array('%d','%s','%s','%s','%s'));}
 	private function key($v){$v=remove_accents(strtolower(trim((string)$v)));return trim(preg_replace('/[^a-z0-9]+/',' ',$v));}
-	private function date($v){$v=trim((string)$v);foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as$f){$d=DateTime::createFromFormat($f,$v);if($d instanceof DateTime)return$d->format('Y-m-d');}return'';}
+    /**
+     * Official XLSX uses Excel 1900 date serials, while earlier sources
+     * use French or ISO strings. This affects staging only.
+     */
+    private function date($v){
+        $v=trim((string)$v);
+        if(preg_match('/^[0-9]{5}(?:\.0+)?$/D',$v)){
+            $days=(int)$v;
+            if($days>=20000&&$days<=80000)return gmdate('Y-m-d',($days-25569)*86400);
+        }
+        foreach(array('d/m/Y','d-m-Y','d.m.Y','Y-m-d','d/m/y') as $f){
+            $d=DateTime::createFromFormat('!'.$f,$v);
+            $errors=DateTime::getLastErrors();
+            if($d instanceof DateTime && (false===$errors || (0===$errors['warning_count'] && 0===$errors['error_count'])))return $d->format('Y-m-d');
+        }
+        return '';
+    }
+    private function split_official_full_name($value){
+        $tokens=preg_split('/\s+/u',trim((string)$value));
+        $last=array(); $first=array();
+        foreach((array)$tokens as $token){
+            if(!$first && preg_match('/^[\p{Lu}\p{M}\-\x{2019}\x{0027}]+$/u',$token)){
+                $last[]=$token;
+            }else{
+                $first[]=$token;
+            }
+        }
+        // Without a distinguishable given name, manual review is mandatory.
+        return $last && $first ? array(implode(' ',$last),implode(' ',$first)) : array('','');
+    }
 	private function norm($v){
 		$value=remove_accents(trim((string)$v));
 		// Only normalize hyphens/whitespace; never guess a different identity.
