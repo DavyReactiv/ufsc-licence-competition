@@ -253,8 +253,10 @@ final class UFSC_LC_Licence_Pdf_Generator {
 		$result = self::maybe_generate_for_licence( $licence_id, true );
 		$url    = wp_get_referer() ? wp_get_referer() : admin_url( 'admin.php?page=' . self::ADMIN_PAGE_SLUG );
 
-		if ( is_wp_error( $result ) ) {
-			$url = add_query_arg(
+        if ( is_wp_error( $result ) ) {
+            // Keep the exact, non-sensitive failure code available for diagnosis.
+            error_log( 'UFSC licence PDF manual generation failed: ' . sanitize_key( $result->get_error_code() ) );
+            $url = add_query_arg(
 				array(
 					'ufsc_pdf_status'  => 'error',
 					'ufsc_pdf_message' => $result->get_error_message(),
@@ -519,13 +521,25 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			}
 
 			return $output;
-		} catch ( Exception $exception ) {
-			return new WP_Error( 'ufsc_lc_pdf_render_error', __( 'Impossible de générer la licence PDF.', 'ufsc-licence-competition' ) );
-		}
-	}
+        } catch ( Throwable $exception ) {
+            // The renderer error was previously swallowed, leaving only a
+            // generic admin notice. Log the exception class and location,
+            // excluding template HTML, licence numbers and personal data.
+            error_log( sprintf(
+                'UFSC licence PDF render failure: %s (%s:%d)',
+                get_class( $exception ),
+                basename( $exception->getFile() ),
+                (int) $exception->getLine()
+            ) );
+            return new WP_Error(
+                'ufsc_lc_pdf_render_error',
+                __( 'Impossible de générer la licence PDF. Consultez le journal PHP (UFSC licence PDF render failure) pour identifier la cause technique.', 'ufsc-licence-competition' )
+            );
+        }
+    }
 
-	/**
-	 * Fail safely when the production template is missing. Never silently
+    /**
+     * Fail safely when the production template is missing. Never silently
 	 * generate an A6 document while the renderer is configured for A4.
 	 */
 	private static function build_a4_fallback_markup( array $data ) {
