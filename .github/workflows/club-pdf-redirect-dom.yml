@@ -1,0 +1,27 @@
+name: Club PDF redirect and PHP DOM regression
+on:
+  pull_request:
+    paths:
+      - 'includes/class-ufsc-club-licences-shortcode.php'
+      - 'includes/class-ufsc-lc-licence-pdf-generator.php'
+      - 'tests/club-pdf-redirect-dom-regression-test.php'
+      - '.github/workflows/club-pdf-redirect-dom.yml'
+  workflow_dispatch:
+jobs:
+  club-pdf-regression:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: PHP syntax
+        run: |
+          php -l includes/class-ufsc-club-licences-shortcode.php
+          php -l includes/class-ufsc-lc-licence-pdf-generator.php
+          php -l tests/club-pdf-redirect-dom-regression-test.php
+      - name: PDF error and redirect guard
+        run: php tests/club-pdf-redirect-dom-regression-test.php
