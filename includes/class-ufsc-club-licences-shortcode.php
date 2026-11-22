@@ -823,8 +823,11 @@ class UFSC_LC_Club_Licences_Shortcode {
 		$result = class_exists( 'UFSC_LC_Licence_Pdf_Generator' )
 			? UFSC_LC_Licence_Pdf_Generator::maybe_generate_for_licence( $licence_id, false )
 			: new WP_Error( 'ufsc_lc_pdf_missing_generator', __( 'Le générateur PDF est indisponible.', 'ufsc-licence-competition' ) );
-		if ( is_wp_error( $result ) ) {
-			$redirect = add_query_arg(
+        if ( is_wp_error( $result ) ) {
+            // Error code only: assists diagnosis without logging member names,
+            // addresses or federation identifiers.
+            error_log( 'UFSC club licence PDF failed: ' . sanitize_key( $result->get_error_code() ) );
+            $redirect = add_query_arg(
 				array(
 					'ufsc_club_pdf_status'  => 'error',
 					'ufsc_club_pdf_message' => $result->get_error_message(),
