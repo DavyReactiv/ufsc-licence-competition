@@ -338,6 +338,14 @@ final class UFSC_LC_Licence_Pdf_Generator {
 				}
 			}
 
+            // The PDF engine requires ext-dom in addition to Dompdf's
+            // Composer classes. Return a controlled error for front-office
+            // clubs and admins instead of a fatal admin-post.php page.
+            if ( ! class_exists( 'DOMImplementation' ) || ! class_exists( 'DOMDocument' ) ) {
+                self::log( 'automatic_pdf_skipped', $licence_id, array( 'reason' => 'php_dom_missing' ) );
+                return new WP_Error( 'ufsc_lc_pdf_dom_missing', __( 'Impossible de générer le PDF : l’extension PHP DOM doit être activée dans o2switch.', 'ufsc-licence-competition' ) );
+            }
+
 			if ( ! class_exists( 'Dompdf\\Dompdf' ) ) {
 				self::log( 'automatic_pdf_skipped', $licence_id, array( 'reason' => 'dompdf_missing' ) );
 				return new WP_Error( 'ufsc_lc_pdf_engine_missing', __( 'Dompdf est indisponible : installez les dépendances Composer du plugin pour activer la génération automatique.', 'ufsc-licence-competition' ) );
@@ -394,7 +402,7 @@ final class UFSC_LC_Licence_Pdf_Generator {
 			do_action( 'ufsc_lc_license_pdf_generated', $licence_id, $attachment_id, $data );
 
 			return $attachment_id;
-		} catch ( Exception $exception ) {
+        } catch ( Throwable $exception ) {
 			self::log( 'automatic_pdf_exception', $licence_id, array( 'message' => $exception->getMessage() ) );
 			return new WP_Error( 'ufsc_lc_pdf_exception', __( 'La génération du PDF a rencontré une erreur technique.', 'ufsc-licence-competition' ) );
 		} finally {
