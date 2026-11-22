@@ -776,10 +776,14 @@ class UFSC_LC_Club_Licences_Shortcode {
 	private function get_generate_pdf_url( $licence_id ): string {
 		return wp_nonce_url(
 			add_query_arg(
-				array(
-					'action'     => 'ufsc_lc_generate_club_pdf',
-					'licence_id' => absint( $licence_id ),
-				),
+                array(
+                    'action'     => 'ufsc_lc_generate_club_pdf',
+                    'licence_id' => absint( $licence_id ),
+                    // This link is rendered on the club licences page. Preserve
+                    // that precise return target instead of relying on Referer
+                    // headers (often missing with target=_blank).
+                    'redirect_to' => get_permalink( get_queried_object_id() ),
+                ),
 				admin_url( 'admin-post.php' )
 			),
 			'ufsc_lc_generate_club_pdf_' . absint( $licence_id )
@@ -804,7 +808,18 @@ class UFSC_LC_Club_Licences_Shortcode {
 		if ( ! empty( $scope_check['denied'] ) ) {
 			wp_die( esc_html__( 'Accès refusé.', 'ufsc-licence-competition' ), '', array( 'response' => 403 ) );
 		}
-		$redirect = wp_get_referer() ? wp_get_referer() : home_url( '/' );
+        // wp_get_referer() is unreliable with target=_blank and previously
+        // fell back to the homepage, triggering canonical redirect loops.
+        // Use the originating club page only when it is a local, non-root URL.
+        $redirect = isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] )
+            ? esc_url_raw( wp_unslash( $_GET['redirect_to'] ) ) : '';
+        $redirect = wp_validate_redirect( $redirect, '' );
+        $path = (string) wp_parse_url( $redirect, PHP_URL_PATH );
+        if ( '' === $redirect || '' === $path || '/' === $path || '/wp-admin/admin-post.php' === $path ) {
+            $club_page = get_page_by_path( 'licences-ufsc-ffst-documents-numeros' );
+            $redirect = $club_page ? get_permalink( $club_page ) : home_url( '/licences-ufsc-ffst-documents-numeros/' );
+        }
+        $redirect = remove_query_arg( array( 'ufsc_club_pdf_status', 'ufsc_club_pdf_message' ), $redirect );
 		$result = class_exists( 'UFSC_LC_Licence_Pdf_Generator' )
 			? UFSC_LC_Licence_Pdf_Generator::maybe_generate_for_licence( $licence_id, false )
 			: new WP_Error( 'ufsc_lc_pdf_missing_generator', __( 'Le générateur PDF est indisponible.', 'ufsc-licence-competition' ) );
