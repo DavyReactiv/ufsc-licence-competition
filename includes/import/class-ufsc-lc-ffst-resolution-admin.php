@@ -299,7 +299,13 @@ final class UFSC_LC_FFST_Resolution_Admin {
     public static function render_row_link( $batch, $row ) {
         if ( ! self::allowed() || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
         echo '<div class="ufsc-ffst-inline-actions"><a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $row->id ) ) ) . '#ffst-resolve-panel' ) . '">Rechercher / associer</a> ';
-        echo '<a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_club_row' => absint( $row->id ) ) ) . '#ufsc-ffst-club-tools' ) . '">Associer ce club</a></div>';
+        echo '<a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_club_row' => absint( $row->id ) ) ) . '#ufsc-ffst-club-tools' ) . '">Associer ce club</a>';
+        if ( 'not_found' === $row->match_status ) {
+            // Reuse the existing resolution panel and native draft form.
+            // Never create a licence from the list or bypass candidate checks.
+            echo ' <a class="button button-small" href="' . esc_url( self::url( $batch->id, array( 'ffst_resolve_row' => absint( $row->id ), 'ffst_prepare_draft' => 1 ) ) . '#ffst-resolve-panel' ) . '">Créer et rattacher une licence</a>';
+        }
+        echo '</div>';
     }
 
     public static function render_panel( $batch ) {
@@ -309,6 +315,9 @@ final class UFSC_LC_FFST_Resolution_Admin {
         if ( ! $row || ! in_array( $row->match_status, array( 'not_found', 'ambiguous' ), true ) ) { return; }
         $club_id = absint( $_GET['ffst_target_club'] ?? self::target_club_id( $row->club_name ) );
         echo '<section class="ufsc-ffst-resolve-panel" id="ffst-resolve-panel"><h3>Rapprochement assisté : ' . esc_html( $row->first_name . ' ' . $row->last_name ) . '</h3>';
+        if ( 'not_found' === $row->match_status && ! empty( $_GET['ffst_prepare_draft'] ) ) {
+            echo '<p class="ufsc-ffst-info">Pour créer une licence, sélectionnez le club UFSC, vérifiez les candidats existants, puis ouvrez le formulaire natif de création en brouillon. Aucune licence n’est créée à cette étape.</p>';
+        }
         $service = new UFSC_LC_FFST_Import_Service();
         $next_unresolved = $service->get_next_unresolved_row( $batch->id, $row_id );
         if ( $next_unresolved && absint( $next_unresolved->id ) !== $row_id ) {
@@ -402,7 +411,12 @@ final class UFSC_LC_FFST_Resolution_Admin {
                 echo '</tbody></table></div>';
             }
             $draft_url = add_query_arg( array( 'page' => 'ufsc_lc_licences', 'action' => 'new', 'ffst_draft_batch' => absint( $batch->id ), 'ffst_draft_row' => absint( $row->id ), 'ffst_target_club' => $club_id, 'ffst_draft_nonce' => wp_create_nonce( 'ffst_draft_' . absint( $batch->id ) . '_' . absint( $row->id ) ) ), admin_url( 'admin.php' ) );
-            echo '<p><a class="button" target="_blank" rel="noopener" href="' . esc_url( $draft_url ) . '">Préparer une nouvelle licence brouillon</a></p>';
+            // Fail closed on lookup errors and potential same-season duplicates.
+            if ( 'not_found' === $row->match_status && ! is_wp_error( $candidates ) && ! $candidates && ! $direct_id ) {
+                echo '<p><a class="button button-primary" target="_blank" rel="noopener" href="' . esc_url( $draft_url ) . '">Préparer une nouvelle licence brouillon</a></p>';
+            } else {
+                echo '<p class="ufsc-ffst-warning">Création non proposée : vérifiez les fiches candidates ou résolvez le conflit avant de créer une licence.</p>';
+            }
             echo '<p class="description">Ouvre le formulaire officiel UFSC Gestion prérempli. Aucune licence n’est créée avant vérification et enregistrement par l’administrateur.</p>';
         }
         echo '<p><a href="' . esc_url( self::url( $batch->id ) ) . '">Fermer cette recherche</a></p></section>';
